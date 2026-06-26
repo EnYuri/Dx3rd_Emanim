@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.2.8",
+  "version": "1.2.9",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -79,6 +79,7 @@
     "scripts/sheets/works-sheet-v2.js",
     "scripts/sheets/actor-sheet-data.js",
     "scripts/sheets/backtrack-workflow.js",
+    "scripts/sheets/enemy-stat-dialogs.js",
     "scripts/sheets/actor-sheet.js",
     "scripts/sheets/actor-sheet-v2.js",
     "scripts/document/actor.js",
@@ -200,7 +201,7 @@
   },
   "url": "https://github.com/EnYuri/Dx3rd_Emanim",
   "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
-  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.8/dx3rd-emanim.zip",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.9/dx3rd-emanim.zip",
   "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
   "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
 }

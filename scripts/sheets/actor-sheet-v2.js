@@ -29,6 +29,7 @@
       actions: {
         attackRoll: DX3rdActorSheetV2._onAttackRoll,
         backtrack: DX3rdActorSheetV2._onBacktrack,
+        editEnemyStat: DX3rdActorSheetV2._onEditEnemyStat,
         createItem: DX3rdActorSheetV2._onCreateItem,
         deleteItem: DX3rdActorSheetV2._onDeleteItem,
         editItem: DX3rdActorSheetV2._onEditItem,
@@ -299,6 +300,17 @@
         return;
       }
       await window.DX3rdBacktrackWorkflow.start(this.document);
+    }
+
+    static async _onEditEnemyStat(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+      if (!window.DX3rdEnemyStatDialogs) {
+        ui.notifications.error('DX3rdEnemyStatDialogs를 찾을 수 없습니다.');
+        return;
+      }
+      const stat = target?.dataset?.stat;
+      await window.DX3rdEnemyStatDialogs.open(this.document, stat);
     }
 
     static async _onAttackRoll(event, target) {
