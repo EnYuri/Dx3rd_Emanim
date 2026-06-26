@@ -30,6 +30,9 @@
         attackRoll: DX3rdActorSheetV2._onAttackRoll,
         backtrack: DX3rdActorSheetV2._onBacktrack,
         editEnemyStat: DX3rdActorSheetV2._onEditEnemyStat,
+        editAbility: DX3rdActorSheetV2._onEditAbility,
+        useStock: DX3rdActorSheetV2._onUseStock,
+        editActorType: DX3rdActorSheetV2._onEditActorType,
         createItem: DX3rdActorSheetV2._onCreateItem,
         deleteItem: DX3rdActorSheetV2._onDeleteItem,
         editItem: DX3rdActorSheetV2._onEditItem,
@@ -311,6 +314,37 @@
       }
       const stat = target?.dataset?.stat;
       await window.DX3rdEnemyStatDialogs.open(this.document, stat);
+    }
+
+    static async _onEditAbility(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+      if (!window.DX3rdActorEditDialogs) {
+        ui.notifications.error('DX3rdActorEditDialogs를 찾을 수 없습니다.');
+        return;
+      }
+      const ability = target?.dataset?.ability
+        || target?.closest('[data-ability-id]')?.dataset?.abilityId;
+      await window.DX3rdActorEditDialogs.openAbility(this.document, ability);
+    }
+
+    static async _onUseStock(event, target) {
+      event.preventDefault();
+      if (!window.DX3rdActorEditDialogs) {
+        ui.notifications.error('DX3rdActorEditDialogs를 찾을 수 없습니다.');
+        return;
+      }
+      await window.DX3rdActorEditDialogs.openStock(this.document);
+    }
+
+    static async _onEditActorType(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+      if (!window.DX3rdActorEditDialogs) {
+        ui.notifications.error('DX3rdActorEditDialogs를 찾을 수 없습니다.');
+        return;
+      }
+      await window.DX3rdActorEditDialogs.openActorType(this.document);
     }
 
     static async _onAttackRoll(event, target) {
