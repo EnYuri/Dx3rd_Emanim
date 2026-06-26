@@ -1,0 +1,206 @@
+{
+  "id": "dx3rd-emanim",
+  "title": "DX3 System",
+  "description": "Double Cross 3rd System for Foundry VTT 13/14",
+  "authors": [
+    {
+      "name": "Nayuri",
+      "flags": {}
+    }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14"
+  },
+  "version": "1.2.7",
+  "scripts": [
+    "scripts/application-compat.js",
+    "scripts/helpers.js",
+    "scripts/condtions.js",
+    "scripts/combat/combat.js",
+    "scripts/dx3rd-macro.js",
+    "scripts/disable-hooks.js",
+    "scripts/movement-ruler.js",
+    "scripts/dice/dice-term.js",
+    "scripts/dialog/spell-dice-remove-dialog.js",
+    "scripts/dialog/skill-create-dialog.js",
+    "scripts/dialog/skill-edit-dialog.js",
+    "scripts/dialog/skills-settings-dialog.js",
+    "scripts/dialog/item-extend-dialog.js",
+    "scripts/dialog/equipment-selection-dialog.js",
+    "scripts/dialog/weapon-for-attack-dialog.js",
+    "scripts/handlers/universal-handler.js",
+    "scripts/combat/dx3rd-combat-ui.js",
+    "scripts/dx3rd-action-ui.js",
+    "scripts/handlers/book-handler.js",
+    "scripts/handlers/combo-handler.js",
+    "scripts/handlers/connection-handler.js",
+    "scripts/handlers/etc-handler.js",
+    "scripts/handlers/effect-handler.js",
+    "scripts/handlers/once-handler.js",
+    "scripts/handlers/protect-handler.js",
+    "scripts/handlers/psionic-handler.js",
+    "scripts/handlers/rois-handler.js",
+    "scripts/handlers/spell-handler.js",
+    "scripts/handlers/vehicle-handler.js",
+    "scripts/handlers/weapon-handler.js",
+    "scripts/sheets/item-sheet.js",
+    "scripts/sheets/item-sheet-v2.js",
+    "scripts/sheets/active-item-sheet-v2.js",
+    "scripts/sheets/book-sheet.js",
+    "scripts/sheets/book-sheet-v2.js",
+    "scripts/sheets/combo-data.js",
+    "scripts/sheets/combo-sheet.js",
+    "scripts/sheets/combo-sheet-v2.js",
+    "scripts/sheets/connection-sheet.js",
+    "scripts/sheets/connection-sheet-v2.js",
+    "scripts/sheets/etc-sheet.js",
+    "scripts/sheets/etc-sheet-v2.js",
+    "scripts/sheets/effect-sheet.js",
+    "scripts/sheets/effect-sheet-v2.js",
+    "scripts/sheets/once-sheet.js",
+    "scripts/sheets/once-sheet-v2.js",
+    "scripts/sheets/protect-sheet.js",
+    "scripts/sheets/protect-sheet-v2.js",
+    "scripts/sheets/psionic-sheet.js",
+    "scripts/sheets/record-sheet.js",
+    "scripts/sheets/record-sheet-v2.js",
+    "scripts/sheets/rois-sheet.js",
+    "scripts/sheets/rois-sheet-v2.js",
+    "scripts/sheets/spell-sheet.js",
+    "scripts/sheets/minimal-active-sheet-v2.js",
+    "scripts/sheets/syndrome-sheet.js",
+    "scripts/sheets/syndrome-sheet-v2.js",
+    "scripts/sheets/vehicle-sheet.js",
+    "scripts/sheets/vehicle-sheet-v2.js",
+    "scripts/sheets/weapon-sheet.js",
+    "scripts/sheets/weapon-sheet-v2.js",
+    "scripts/sheets/works-sheet.js",
+    "scripts/sheets/works-sheet-v2.js",
+    "scripts/sheets/actor-sheet-data.js",
+    "scripts/sheets/backtrack-workflow.js",
+    "scripts/sheets/actor-sheet.js",
+    "scripts/sheets/actor-sheet-v2.js",
+    "scripts/document/actor.js",
+    "scripts/document/item.js",
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/styles.css",
+    "styles/enemy-sheet.css",
+    "styles/spell-dice-remove-dialog.css",
+    "styles/item-extend-dialog.css",
+    "styles/equipment-selection-dialog.css",
+    "styles/weapon-for-attack-dialog.css",
+    "styles/skills-settings-dialog.css",
+    "styles/combo-dialog.css",
+    "styles/dx3rd-combat-ui.css",
+    "styles/dx3rd-action-ui.css"
+  ],
+  "languages": [
+    {
+      "lang": "ko",
+      "name": "Korean",
+      "path": "lang/ko.json",
+      "flags": {}
+    }
+  ],
+  "socket": true,
+  "packs": [
+    {
+      "name": "effects",
+      "label": "이펙트",
+      "path": "packs/effects",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "weapons",
+      "label": "무기",
+      "path": "packs/weapons",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "armors",
+      "label": "방어구",
+      "path": "packs/armors",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "vehicles",
+      "label": "비클",
+      "path": "packs/vehicles",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "items",
+      "label": "아이템(기타)",
+      "path": "packs/items",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "dlois",
+      "label": "D로이스",
+      "path": "packs/dlois",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    }
+  ],
+  "grid": {
+    "distance": 1,
+    "units": "grid"
+  },
+  "media": [
+    {
+      "type": "setup",
+      "url": "systems/dx3rd-emanim/assets/title.png",
+      "thumbnail": "systems/dx3rd-emanim/assets/title.png"
+    }
+  ],
+  "relationships": {},
+  "flags": {
+    "hotReload": {
+      "extensions": ["css", "html", "hbs", "json"],
+      "paths": ["templates", "styles", "lang/ko.json", "scripts/dialog"]
+    }
+  },
+  "url": "https://github.com/EnYuri/Dx3rd_Emanim",
+  "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.7/dx3rd-emanim.zip",
+  "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
+  "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
+}

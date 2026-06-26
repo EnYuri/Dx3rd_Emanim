@@ -1,0 +1,8 @@
+2026/06/26-19:24:57.691 3dbc Recovering log #255
+2026/06/26-19:24:57.691 3dbc Delete type=0 #255
+2026/06/26-19:24:57.691 3dbc Delete type=3 #254
+2026/06/26-19:34:08.999 54b4 Level-0 table #259: started
+2026/06/26-19:34:08.999 54b4 Level-0 table #259: 0 bytes OK
+2026/06/26-19:34:09.001 54b4 Delete type=0 #257
+2026/06/26-19:34:09.005 54b4 Manual compaction at level-0 from '!folders!0pWUks1Ai5qU0Vx3' @ 72057594037927935 : 1 .. '!items!zzeb3VglsH3Cc0Tt' @ 0 : 0; will stop at (end)
+2026/06/26-19:34:09.005 54b4 Manual compaction at level-1 from '!folders!0pWUks1Ai5qU0Vx3' @ 72057594037927935 : 1 .. '!items!zzeb3VglsH3Cc0Tt' @ 0 : 0; will stop at (end)

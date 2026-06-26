@@ -1,0 +1,22 @@
+# 로컬 데이터 폴더
+.claude/
+_backup_20260622_002233/
+docs/
+
+#로컬룰북데이터
+_source/
+
+# 로컬 백업
+_backup_*/
+
+# Foundry LevelDB 런타임 락 (커밋 금지)
+packs/*/LOCK
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+*.swp
+
+#그외
+AGENTS.md
+CLAUDE.md

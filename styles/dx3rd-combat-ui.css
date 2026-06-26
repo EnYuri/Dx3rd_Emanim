@@ -1,0 +1,390 @@
+/* DX3rd Combat UI - 전투 버튼 스타일 */
+
+/* 버튼 컨테이너 */
+.dx3rd-combat-buttons {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* 
+   Combat UI 버튼은 PIXI.Graphics로 구현되어 CSS가 적용되지 않습니다.
+   스타일은 scripts/combat/dx3rd-combat-ui.js의 createPixiButton() 함수에서 관리됩니다.
+*/
+
+/* 능력치/기능 선택 윈도우 */
+.dx3rd-stat-skill-window {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 250px;
+    max-width: 400px;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.dx3rd-stat-skill-window-open {
+    opacity: 1;
+}
+
+/* 윈도우 헤더 */
+.dx3rd-stat-skill-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    padding: 0px 15px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    border-radius: 6px 6px 0 0;
+}
+
+.dx3rd-stat-skill-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dx3rd-stat-skill-close-btn {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.dx3rd-stat-skill-close-btn:hover {
+    color: #ff4444;
+}
+
+/* 윈도우 컨텐츠 */
+.dx3rd-stat-skill-content {
+    padding: 15px;
+}
+
+.dx3rd-stat-skill-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 능력치 버튼 */
+.dx3rd-stat-btn {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 12px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.dx3rd-stat-btn:hover {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+.dx3rd-stat-divider {
+    margin: 4px 0;
+    border-top: 1px solid #444;
+}
+
+/* 기능 버튼 */
+.dx3rd-skill-btn {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+/* 타이밍 액션 윈도우 */
+.dx3rd-timing-action-window {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 250px;
+    max-width: 400px;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.dx3rd-timing-action-window-open {
+    opacity: 1;
+}
+
+/* 타이밍 액션 윈도우 헤더 */
+.dx3rd-timing-action-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    padding: 0px 15px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    border-radius: 6px 6px 0 0;
+}
+
+.dx3rd-timing-action-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dx3rd-timing-action-close-btn {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.dx3rd-timing-action-close-btn:hover {
+    color: #ff4444;
+}
+
+/* 타이밍 액션 윈도우 컨텐츠 */
+.dx3rd-timing-action-content {
+    padding: 15px;
+}
+
+.dx3rd-timing-action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dx3rd-timing-action-btn {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 12px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.dx3rd-timing-action-btn:hover {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+/* 아이템 선택 윈도우 */
+.dx3rd-item-selection-window {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 250px;
+    max-width: 400px;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.dx3rd-item-selection-window-open {
+    opacity: 1;
+}
+
+/* 아이템 선택 윈도우 헤더 */
+.dx3rd-item-selection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    padding: 0px 15px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    border-radius: 6px 6px 0 0;
+}
+
+.dx3rd-item-selection-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dx3rd-item-selection-close-btn {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.dx3rd-item-selection-close-btn:hover {
+    color: #ff4444;
+}
+
+/* 아이템 선택 윈도우 컨텐츠 */
+.dx3rd-item-selection-content {
+    padding: 15px;
+}
+
+.dx3rd-item-selection-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dx3rd-item-selection-btn {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 12px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.dx3rd-item-selection-btn:hover {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+/* ======================
+   사이드 컨트롤 스타일
+   ====================== */
+
+.dx3rd-combat-side-control {
+    position: absolute;
+    bottom: 10px;
+    right: 20px;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.dx3rd-combat-side-control.hidden {
+    display: none;
+}
+
+.dx3rd-side-control-content {
+    background: transparent;
+    border: none;
+    min-width: 180px;
+    max-width: 180px;
+    padding: 10px;
+}
+
+.dx3rd-side-control-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dx3rd-side-control-btn {
+    background: var(--color-cool-5);
+    color: #ffffff;
+    border: none !important;
+    box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.6) !important;
+    outline: none !important;
+    border-radius: 0px !important;
+    padding: 10px 12px;
+    cursor: pointer;
+    text-align: center;
+    font-size: 13px;
+    font-weight: bold;
+    transition: all 0.2s;
+    width: 100%;
+    transform: skewX(-20deg);
+    opacity: 0.7;
+}
+
+.dx3rd-side-control-btn:hover {
+    background: var(--color-cool-5);
+    color: #ffbb00;
+    opacity: 1;
+    transform: skewX(-20deg) translateX(-15px) scale(1.1);
+    box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 15px rgba(255, 0, 0, 0.6) !important;
+}
+
+.dx3rd-side-control-btn:active {
+    transform: skewX(-20deg);
+    background: #666666;
+    box-shadow: 0 0 0 1px rgba(68, 68, 68, 0.6) !important;
+}
+
+/* 버튼 슬라이드아웃 + 페이드아웃 애니메이션 */
+.dx3rd-side-control-btn.slide-out-fade-out {
+    animation: slideOutFadeOut 0.2s ease-out forwards;
+}
+
+@keyframes slideOutFadeOut {
+    from {
+        opacity: 0.7;
+        transform: skewX(-20deg) translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: skewX(-20deg) translateX(50px);
+    }
+}
+
+/* 버튼 슬라이드인 + 페이드인 애니메이션 */
+.dx3rd-side-control-btn.slide-in-fade-in {
+    animation: slideInFadeIn 0.2s ease-out forwards;
+    opacity: 0;
+    transform: skewX(-20deg) translateX(50px);
+}
+
+@keyframes slideInFadeIn {
+    from {
+        opacity: 0;
+        transform: skewX(-20deg) translateX(50px);
+    }
+    to {
+        opacity: 0.7;
+        transform: skewX(-20deg) translateX(0);
+    }
+}
+

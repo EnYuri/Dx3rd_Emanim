@@ -1,0 +1,597 @@
+/**
+ * Item Extend Dialog
+ * 아이템 확장 도구 다이얼로그
+ */
+(function() {
+    const api = foundry.applications?.api;
+    if (!api?.ApplicationV2 || !api?.HandlebarsApplicationMixin) {
+        console.warn('DX3rd | Item Extend AppV2 dialog is unavailable in this Foundry version.');
+        return;
+    }
+
+    const BaseApplication = api.HandlebarsApplicationMixin(api.ApplicationV2);
+
+    class DX3rdItemExtendDialog extends BaseApplication {
+        static DEFAULT_OPTIONS = {
+            classes: ['dx3rd-emanim', 'dialog', 'item-extend-dialog'],
+            tag: 'form',
+            window: {
+                title: 'DX3rd.ItemExtend',
+                resizable: true
+            },
+            position: {
+                width: 650,
+                height: 550
+            }
+        };
+
+        static PARTS = {
+            main: {
+                template: 'systems/dx3rd-emanim/templates/dialog/item-extend-dialog.html'
+            }
+        };
+
+        constructor(dialogData = {}, options = {}) {
+            const mergedOptions = foundry.utils.mergeObject({
+                window: {title: dialogData.title || game.i18n.localize('DX3rd.ItemExtend')}
+            }, options, {inplace: false});
+            super(mergedOptions);
+
+            this.actorId = dialogData.actorId;
+            this.itemId = dialogData.itemId;
+            this.currentTopTab = 'affectCharacter';
+            this.currentSubTab = 'heal';
+            this.tempFormData = {};
+            this.savedItemExtend = {};
+        }
+
+        async _prepareContext(options) {
+            const data = await super._prepareContext(options);
+
+            let item = null;
+            let actor = null;
+            let skills = {};
+
+            if (this.actorId && this.itemId) {
+                actor = game.actors.get(this.actorId);
+                if (actor) {
+                    item = actor.items.get(this.itemId);
+                    skills = actor.system.attributes.skills || {};
+                }
+            } else if (this.itemId) {
+                item = game.items.get(this.itemId);
+                skills = {
+                    melee: {name: 'DX3rd.melee'},
+                    evade: {name: 'DX3rd.evade'},
+                    ranged: {name: 'DX3rd.ranged'},
+                    perception: {name: 'DX3rd.perception'},
+                    rc: {name: 'DX3rd.rc'},
+                    will: {name: 'DX3rd.will'},
+                    negotiation: {name: 'DX3rd.negotiation'},
+                    procure: {name: 'DX3rd.procure'}
+                };
+            }
+
+            if (item) {
+                data.actor = actor;
+                data.item = item;
+                data.itemType = item.type;
+                this.savedItemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
+                data.actorSkills = skills;
+                data.weaponSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('weapon', skills);
+                data.vehicleSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('vehicle', skills);
+            }
+
+            return data;
+        }
+
+        async _onRender(context, options) {
+            await super._onRender(context, options);
+            const root = this._root;
+            if (!root) return;
+
+            root.addEventListener('submit', event => event.preventDefault());
+            this._on(root, '.top-tab', 'click', (event, target) => {
+                event.preventDefault();
+                this.switchTopTab(target.dataset.tab);
+            });
+            this._on(root, '.sub-tab', 'click', (event, target) => {
+                event.preventDefault();
+                this.switchSubTab(target.dataset.tab);
+            });
+            this._on(root, '.dx3rd-dialog-confirm', 'click', event => {
+                event.preventDefault();
+                this.executeAction();
+            });
+            this._on(root, '.dx3rd-dialog-cancel', 'click', event => {
+                event.preventDefault();
+                this.close();
+            });
+            this._on(root, 'input[name="weaponFist"]', 'change', (event, target) => {
+                const weaponContent = this._query('#weapon-content');
+                this.toggleWeaponFields(
+                    target.checked,
+                    this._query('input[name="weaponName"]', weaponContent),
+                    this._query('input[name="weaponAmount"]', weaponContent)
+                );
+            });
+            this._on(root, 'input[name="healResurrect"]', 'change', (event, target) => {
+                this.toggleHealResurrectFields(target.checked, this._healResurrectFields(this._query('#heal-content')));
+            });
+            this._on(root, 'input[name="damageConditionalFormula"]', 'change', (event, target) => {
+                const damageContent = this._query('#damage-content');
+                this.toggleDamageConditionalFields(
+                    target.checked,
+                    this._query('input[name="damageFormulaDice"]', damageContent),
+                    this._query('input[name="damageFormulaAdd"]', damageContent)
+                );
+            });
+            this._on(root, 'select[name^="cond"][name$="Type"]', 'change', (event, target) => {
+                const match = target.name.match(/^cond([123])Type$/);
+                if (!match) return;
+                this.setupConditionPoisonedToggle(`condition${match[1]}`);
+            });
+
+            this.initializeTabs();
+            this.setupWeaponFistToggle();
+            this.setupHealResurrectToggle();
+            this.setupDamageConditionalFormulaToggle();
+        }
+
+        get _root() {
+            return this.element instanceof HTMLElement ? this.element : this.element?.[0] || null;
+        }
+
+        _query(selector, root = this._root) {
+            return root?.querySelector?.(selector) || null;
+        }
+
+        _queryAll(selector, root = this._root) {
+            return Array.from(root?.querySelectorAll?.(selector) || []);
+        }
+
+        _on(root, selector, eventName, handler) {
+            root.addEventListener(eventName, event => {
+                const target = event.target?.closest?.(selector);
+                if (!target || !root.contains(target)) return;
+                handler.call(this, event, target);
+            });
+        }
+
+        _value(selector, root = this._root) {
+            return this._query(selector, root)?.value ?? '';
+        }
+
+        _checked(selector, root = this._root) {
+            return Boolean(this._query(selector, root)?.checked);
+        }
+
+        _setDisabled(element, disabled) {
+            if (!element) return;
+            element.disabled = disabled;
+            element.classList.toggle('disabled', disabled);
+        }
+
+        initializeTabs() {
+            this.switchTopTab('affectCharacter');
+            this.switchSubTab('heal');
+            this.applySavedToForm('heal');
+        }
+
+        switchTopTab(topTab) {
+            if (!topTab) return;
+            this._queryAll('.top-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === topTab));
+            this._queryAll('.sub-tabs').forEach(tabGroup => tabGroup.classList.remove('active'));
+            this._query(`#${topTab}-sub-tabs`)?.classList.add('active');
+
+            const firstSubTab = this._query(`#${topTab}-sub-tabs .sub-tab`);
+            if (firstSubTab) this.switchSubTab(firstSubTab.dataset.tab);
+            this.currentTopTab = topTab;
+        }
+
+        switchSubTab(subTab) {
+            if (!subTab) return;
+            this._storeCurrentSubTab();
+
+            this._queryAll('.sub-tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === subTab));
+            this._queryAll('.content-section').forEach(section => section.classList.remove('active'));
+            this._query(`#${subTab}-content`)?.classList.add('active');
+
+            this.currentSubTab = subTab;
+            if (this.tempFormData[subTab]) this.applyDataToForm(subTab, this.tempFormData[subTab]);
+            else this.applySavedToForm(subTab);
+
+            if (subTab === 'weapon') this.setupWeaponFistToggle();
+            if (subTab === 'heal') this.setupHealResurrectToggle();
+            if (subTab === 'damage') this.setupDamageConditionalFormulaToggle();
+            if (['heal', 'damage', 'condition1', 'condition2', 'condition3'].includes(subTab)) {
+                this.setupTimingLockForRestrictedItems(subTab);
+            }
+            if (['condition1', 'condition2', 'condition3'].includes(subTab)) {
+                this.setupConditionPoisonedToggle(subTab);
+            }
+        }
+
+        _storeCurrentSubTab() {
+            if (!this.currentSubTab) return;
+            if (['condition1', 'condition2', 'condition3'].includes(this.currentSubTab)) {
+                const idx = this.currentSubTab === 'condition1' ? 1 : (this.currentSubTab === 'condition2' ? 2 : 3);
+                const section = this._query(`#${this.currentSubTab}-content`);
+                if (!section) return;
+                const type = this._value(`select[name="cond${idx}Type"]`, section);
+                this.tempFormData[this.currentSubTab] = {
+                    timing: this._value(`select[name="cond${idx}Timing"]`, section),
+                    target: this._value(`select[name="cond${idx}Target"]`, section),
+                    type: type || '',
+                    poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${idx}PoisonedRank"]`, section) : null,
+                    activate: this._checked(`input[name="cond${idx}Activate"]`, section)
+                };
+                return;
+            }
+
+            const currentFormData = this.getFormData();
+            this.tempFormData[this.currentSubTab] = currentFormData[this.currentSubTab];
+        }
+
+        setupWeaponFistToggle() {
+            const weaponContent = this._query('#weapon-content');
+            if (!weaponContent) return;
+
+            const fistCheckbox = this._query('input[name="weaponFist"]', weaponContent);
+            const nameField = this._query('input[name="weaponName"]', weaponContent);
+            const amountField = this._query('input[name="weaponAmount"]', weaponContent);
+
+            this.toggleWeaponFields(Boolean(fistCheckbox?.checked), nameField, amountField);
+        }
+
+        toggleWeaponFields(isFistMode, nameField, amountField) {
+            this._setDisabled(nameField, false);
+            this._setDisabled(amountField, isFistMode);
+        }
+
+        setupHealResurrectToggle() {
+            const healContent = this._query('#heal-content');
+            if (!healContent) return;
+
+            const resurrectCheckbox = this._query('input[name="healResurrect"]', healContent);
+            const fields = this._healResurrectFields(healContent);
+            this.toggleHealResurrectFields(Boolean(resurrectCheckbox?.checked), fields);
+        }
+
+        _healResurrectFields(root) {
+            return {
+                dice: this._query('input[name="healFormulaDice"]', root),
+                add: this._query('input[name="healFormulaAdd"]', root),
+                timing: this._query('select[name="healTiming"]', root),
+                target: this._query('select[name="healTarget"]', root),
+                rivival: this._query('input[name="healRivival"]', root),
+                activate: this._query('input[name="healActivate"]', root)
+            };
+        }
+
+        toggleHealResurrectFields(isResurrectMode, fields) {
+            if (isResurrectMode) {
+                fields.dice.value = `[${game.i18n.localize('DX3rd.Level')}]`;
+                fields.add.value = '0';
+                fields.timing.value = 'instant';
+                fields.target.value = 'self';
+                fields.rivival.checked = true;
+                fields.activate.checked = true;
+            }
+
+            this._setDisabled(fields.dice, isResurrectMode);
+            this._setDisabled(fields.add, isResurrectMode);
+            this._setDisabled(fields.timing, isResurrectMode);
+            this._setDisabled(fields.target, isResurrectMode);
+            this._setDisabled(fields.rivival, isResurrectMode);
+            this._setDisabled(fields.activate, isResurrectMode);
+        }
+
+        setupDamageConditionalFormulaToggle() {
+            const damageContent = this._query('#damage-content');
+            if (!damageContent) return;
+
+            const conditionalCheckbox = this._query('input[name="damageConditionalFormula"]', damageContent);
+            const diceField = this._query('input[name="damageFormulaDice"]', damageContent);
+            const addField = this._query('input[name="damageFormulaAdd"]', damageContent);
+
+            this.toggleDamageConditionalFields(Boolean(conditionalCheckbox?.checked), diceField, addField);
+        }
+
+        toggleDamageConditionalFields(isConditionalMode, diceField, addField) {
+            if (isConditionalMode) {
+                diceField.value = '';
+                addField.value = '';
+            }
+            this._setDisabled(diceField, isConditionalMode);
+            this._setDisabled(addField, isConditionalMode);
+        }
+
+        setupConditionPoisonedToggle(subTab) {
+            const idx = subTab === 'condition1' ? 1 : (subTab === 'condition2' ? 2 : 3);
+            const section = this._query(`#${subTab}-content`);
+            if (!section) return;
+
+            const typeSelect = this._query(`select[name="cond${idx}Type"]`, section);
+            const rankInput = this._query(`input[name="cond${idx}PoisonedRank"]`, section);
+            const applyToggle = () => {
+                const isPoisoned = typeSelect?.value === 'poisoned';
+                if (!isPoisoned && rankInput) rankInput.value = '';
+                this._setDisabled(rankInput, !isPoisoned);
+            };
+            applyToggle();
+        }
+
+        setupTimingLockForRestrictedItems(subTab) {
+            try {
+                const actor = game.actors.get(this.actorId);
+                const item = actor?.items?.get(this.itemId) || game.items.get(this.itemId);
+                if (!item || !['protect', 'once', 'etc'].includes(item.type)) return;
+
+                const section = this._query(`#${subTab}-content`);
+                if (!section) return;
+
+                if (['condition1', 'condition2', 'condition3'].includes(subTab)) {
+                    const idx = subTab === 'condition1' ? 1 : (subTab === 'condition2' ? 2 : 3);
+                    const timingSelect = this._query(`select[name="cond${idx}Timing"]`, section);
+                    if (timingSelect) {
+                        timingSelect.value = 'instant';
+                        this._setDisabled(timingSelect, true);
+                    }
+                    return;
+                }
+
+                const timingSelect = this._query(`select[name="${subTab}Timing"]`, section);
+                if (timingSelect) {
+                    timingSelect.value = 'instant';
+                    this._setDisabled(timingSelect, true);
+                }
+            } catch (e) {
+                console.warn('DX3rd | setupTimingLockForRestrictedItems failed', e);
+            }
+        }
+
+        applySavedToForm(subTab) {
+            try {
+                const saved = ['condition1', 'condition2', 'condition3'].includes(subTab)
+                    ? this.savedItemExtend?.condition || null
+                    : this.savedItemExtend?.[subTab] || null;
+                if (saved) this.applyDataToForm(subTab, saved);
+            } catch (e) {
+                console.warn('DX3rd | applySavedToForm failed', e);
+            }
+        }
+
+        applyDataToForm(subTab, data) {
+            try {
+                if (!data) return;
+
+                const prefixMap = {
+                    heal: 'heal',
+                    damage: 'damage',
+                    weapon: 'weapon',
+                    protect: 'protect',
+                    vehicle: 'vehicle',
+                    condition1: 'cond1',
+                    condition2: 'cond2',
+                    condition3: 'cond3'
+                };
+                const prefix = prefixMap[subTab] || '';
+                const section = this._query(`#${subTab}-content`);
+                const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+                if (['condition1', 'condition2', 'condition3'].includes(subTab) && section) {
+                    const idx = subTab === 'condition1' ? 0 : (subTab === 'condition2' ? 1 : 2);
+                    let c = {};
+                    if (Array.isArray(data.conditions) && data.conditions[idx]) c = data.conditions[idx];
+                    else if (data.conditionTypes?.length && data.conditionTypes[idx]) {
+                        const t = data.conditionTypes[idx];
+                        c = {timing: data.timing || 'instant', target: data.target || 'self', type: t, poisonedRank: t === 'poisoned' ? (data.poisonedRank ?? '') : null, activate: data.activate ?? false};
+                    } else if (data.type && idx === 0) {
+                        c = {timing: data.timing || 'instant', target: data.target || 'self', type: data.type || '', poisonedRank: data.type === 'poisoned' ? (data.poisonedRank ?? '') : null, activate: data.activate ?? false};
+                    } else if (data.timing !== undefined || data.type !== undefined) {
+                        c = {timing: data.timing || 'instant', target: data.target || 'self', type: data.type || '', poisonedRank: data.poisonedRank ?? null, activate: !!data.activate};
+                    }
+
+                    const n = idx + 1;
+                    this._query(`select[name="cond${n}Timing"]`, section).value = c.timing || 'instant';
+                    this._query(`select[name="cond${n}Target"]`, section).value = c.target || 'self';
+                    this._query(`select[name="cond${n}Type"]`, section).value = c.type || '';
+                    this._query(`input[name="cond${n}PoisonedRank"]`, section).value = c.poisonedRank ?? '';
+                    this._query(`input[name="cond${n}Activate"]`, section).checked = !!c.activate;
+                }
+
+                for (const [key, value] of Object.entries(data)) {
+                    if (['condition1', 'condition2', 'condition3'].includes(subTab) && ['conditions', 'conditionTypes', 'type'].includes(key)) continue;
+                    const candidates = [];
+                    if (prefix) candidates.push(`${prefix}${cap(key)}`);
+                    candidates.push(key);
+                    for (const name of candidates) {
+                        const input = this._query(`[name="${name}"]`, section);
+                        if (!input) continue;
+                        if (input.type === 'checkbox') input.checked = !!value;
+                        else input.value = value ?? '';
+                        break;
+                    }
+                }
+
+                this.updateToggleStatesAfterDataLoad(subTab, data);
+            } catch (e) {
+                console.warn('DX3rd | applyDataToForm failed', e);
+            }
+        }
+
+        updateToggleStatesAfterDataLoad(subTab, data) {
+            try {
+                if (!data) return;
+
+                if (subTab === 'heal' && data.resurrect !== undefined) {
+                    const healContent = this._query('#heal-content');
+                    const resurrectCheckbox = this._query('input[name="healResurrect"]', healContent);
+                    this.toggleHealResurrectFields(Boolean(resurrectCheckbox?.checked), this._healResurrectFields(healContent));
+                }
+
+                if (subTab === 'damage' && data.conditionalFormula !== undefined) {
+                    const damageContent = this._query('#damage-content');
+                    this.toggleDamageConditionalFields(
+                        this._checked('input[name="damageConditionalFormula"]', damageContent),
+                        this._query('input[name="damageFormulaDice"]', damageContent),
+                        this._query('input[name="damageFormulaAdd"]', damageContent)
+                    );
+                }
+
+                if (subTab === 'weapon' && data.fist !== undefined) {
+                    const weaponContent = this._query('#weapon-content');
+                    this.toggleWeaponFields(
+                        this._checked('input[name="weaponFist"]', weaponContent),
+                        this._query('input[name="weaponName"]', weaponContent),
+                        this._query('input[name="weaponAmount"]', weaponContent)
+                    );
+                }
+
+                if (['condition1', 'condition2', 'condition3'].includes(subTab)) {
+                    const idx = subTab === 'condition1' ? 1 : (subTab === 'condition2' ? 2 : 3);
+                    const conditionContent = this._query(`#${subTab}-content`);
+                    const typeSelect = this._query(`select[name="cond${idx}Type"]`, conditionContent);
+                    const rankInput = this._query(`input[name="cond${idx}PoisonedRank"]`, conditionContent);
+                    this._setDisabled(rankInput, typeSelect?.value !== 'poisoned');
+                }
+            } catch (e) {
+                console.warn('DX3rd | updateToggleStatesAfterDataLoad failed', e);
+            }
+        }
+
+        getFormData() {
+            const formData = {};
+            const root = this._root;
+
+            if (this._query('#heal-content', root)) {
+                formData.heal = {
+                    formulaDice: this._value('input[name="healFormulaDice"]', root),
+                    formulaAdd: this._value('input[name="healFormulaAdd"]', root),
+                    timing: this._value('select[name="healTiming"]', root),
+                    target: this._value('select[name="healTarget"]', root),
+                    resurrect: this._checked('input[name="healResurrect"]', root),
+                    rivival: this._checked('input[name="healRivival"]', root),
+                    healTo: this._value('input[name="healTo"]', root),
+                    encroachFixed: this._value('input[name="encroachFixed"]', root),
+                    activate: this._checked('input[name="healActivate"]', root)
+                };
+            }
+
+            if (this._query('#damage-content', root)) {
+                formData.damage = {
+                    formulaDice: this._value('input[name="damageFormulaDice"]', root),
+                    formulaAdd: this._value('input[name="damageFormulaAdd"]', root),
+                    timing: this._value('select[name="damageTiming"]', root),
+                    target: this._value('select[name="damageTarget"]', root),
+                    ignoreReduce: this._checked('input[name="ignoreReduce"]', root),
+                    conditionalFormula: this._checked('input[name="damageConditionalFormula"]', root),
+                    activate: this._checked('input[name="damageActivate"]', root),
+                    hpCost: this._value('input[name="hpCost"]', root),
+                    hpCostActivate: this._checked('input[name="hpCostActivate"]', root)
+                };
+            }
+
+            if (this._query('#weapon-content', root)) {
+                formData.weapon = {
+                    name: this._value('input[name="weaponName"]', root),
+                    type: this._value('select[name="weaponType"]', root),
+                    skill: this._value('select[name="weaponSkill"]', root),
+                    add: this._value('input[name="weaponAdd"]', root),
+                    attack: this._value('input[name="weaponAttack"]', root),
+                    guard: this._value('input[name="weaponGuard"]', root),
+                    range: this._value('input[name="weaponRange"]', root),
+                    amount: this._value('input[name="weaponAmount"]', root),
+                    fist: this._checked('input[name="weaponFist"]', root),
+                    activate: this._checked('input[name="weaponActivate"]', root)
+                };
+            }
+
+            if (this._query('#protect-content', root)) {
+                formData.protect = {
+                    name: this._value('input[name="protectName"]', root),
+                    dodge: this._value('input[name="protectDodge"]', root),
+                    init: this._value('input[name="protectInit"]', root),
+                    armor: this._value('input[name="protectArmor"]', root),
+                    activate: this._checked('input[name="protectActivate"]', root)
+                };
+            }
+
+            if (this._query('#vehicle-content', root)) {
+                formData.vehicle = {
+                    name: this._value('input[name="vehicleName"]', root),
+                    skill: this._value('select[name="vehicleSkill"]', root),
+                    attack: this._value('input[name="vehicleAttack"]', root),
+                    init: this._value('input[name="vehicleInit"]', root),
+                    armor: this._value('input[name="vehicleArmor"]', root),
+                    move: this._value('input[name="vehicleMove"]', root),
+                    activate: this._checked('input[name="vehicleActivate"]', root)
+                };
+            }
+
+            if (this._query('#condition1-content', root)) {
+                const conditions = [];
+                for (let i = 1; i <= 3; i++) {
+                    const type = this._value(`select[name="cond${i}Type"]`, root);
+                    conditions.push({
+                        timing: this._value(`select[name="cond${i}Timing"]`, root),
+                        target: this._value(`select[name="cond${i}Target"]`, root),
+                        type: type || '',
+                        poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${i}PoisonedRank"]`, root) : null,
+                        activate: this._checked(`input[name="cond${i}Activate"]`, root)
+                    });
+                }
+                formData.condition = {conditions};
+                formData.condition1 = conditions[0];
+                formData.condition2 = conditions[1];
+                formData.condition3 = conditions[2];
+            }
+
+            return formData;
+        }
+
+        async executeAction() {
+            this._storeCurrentSubTab();
+
+            try {
+                let item = null;
+                if (this.actorId) {
+                    const actor = game.actors.get(this.actorId);
+                    item = actor?.items?.get(this.itemId);
+                } else {
+                    item = game.items.get(this.itemId);
+                }
+
+                if (!item) {
+                    ui.notifications.warn('아이템을 찾을 수 없습니다.');
+                    return;
+                }
+
+                const existing = foundry.utils.deepClone(item.getFlag('dx3rd-emanim', 'itemExtend') || {});
+                const conditions = [];
+                for (let i = 1; i <= 3; i++) {
+                    const tabName = `condition${i}`;
+                    if (this.tempFormData[tabName]) conditions.push(this.tempFormData[tabName]);
+                    else conditions.push(existing.condition?.conditions?.[i - 1] || {timing: 'instant', target: 'self', type: '', poisonedRank: null, activate: false});
+                }
+                existing.condition = {conditions};
+
+                const fullForm = this.getFormData();
+                for (const [tabName, tabData] of Object.entries(fullForm)) {
+                    if (!tabData || ['condition', 'condition1', 'condition2', 'condition3'].includes(tabName) || !Object.keys(tabData).length) continue;
+                    existing[tabName] = tabData;
+                }
+
+                await item.setFlag('dx3rd-emanim', 'itemExtend', existing);
+                ui.notifications.info('확장 도구 설정이 모두 저장되었습니다.');
+                this.close();
+            } catch (err) {
+                console.error('DX3rd | ItemExtend save error', err);
+                ui.notifications.error('저장 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+            }
+        }
+    }
+
+    window.DX3rdItemExtendDialog = DX3rdItemExtendDialog;
+})();

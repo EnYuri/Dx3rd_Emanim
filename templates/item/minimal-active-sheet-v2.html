@@ -1,0 +1,61 @@
+<div class="minimal-active-sheet-v2-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img" title="{{item.name}}"/>
+    <div class="header-fields flexrow">
+      <h1 class="charname"><input name="name" type="text" value="{{item.name}}" placeholder="Name"/></h1>
+      {{#if isPsionic}}<div class="level"><label>{{localize "DX3rd.Level"}}</label><input value="{{system.level.value}}" readonly/></div>{{/if}}
+    </div>
+  </header>
+
+  <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
+    <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description"}}</a>
+    <a class="item {{tabs.attributes.cssClass}}" data-action="tab" data-group="primary" data-tab="attributes">{{localize "DX3rd.Attributes"}}</a>
+    <a class="item {{tabs.target.cssClass}}" data-action="tab" data-group="primary" data-tab="target">{{localize "DX3rd.Target"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+    <div class="tab {{tabs.description.cssClass}}" data-group="primary" data-tab="description">
+      <div class="sheet-wrapper margin-top-10">
+        <section class="sheet-attributes">
+          {{#if isPsionic}}
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Skill"}}</label><select name="system.skill">{{#select system.skill}}{{#each system.skillOptions as |option|}}<option value="{{option.value}}">{{localize option.label}}</option>{{/each}}{{/select}}</select></div>
+          <div class="cell grid-4 space-between"><label class="cell--title"><span>{{localize "DX3rd.Difficulty"}}</span><input type="checkbox" class="difficulty-check" {{#unless (eq system.roll "-")}}checked{{/unless}}/></label><input name="system.difficulty" value="{{system.difficulty}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Limit"}}</label><input name="system.limit" value="{{system.limit}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Level"}}</label><div class="flex"><input type="number" name="system.level.init" value="{{system.level.init}}"/><span class="slash"> / </span><input type="number" name="system.level.max" value="{{system.level.max}}"/></div></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Timing"}}</label><input name="system.timing" value="{{system.timing}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Target"}}</label><input name="system.target" value="{{system.target}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Range"}}</label><input name="system.range" value="{{system.range}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">HP</label><input name="system.hp.value" value="{{system.hp.value}}"/></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Type"}}</label><select name="system.type">{{#select system.type}}<option value="normal">{{localize "DX3rd.Psionic"}}</option><option value="easy">{{localize "DX3rd.Easy"}}</option><option value="extra">{{localize "DX3rd.ExtraData"}}</option>{{/select}}</select></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.EXP"}}</label><div class="flex"><input type="checkbox" name="system.exp.own" {{checked system.exp.own}}/><input type="checkbox" name="system.exp.upgrade" {{checked system.exp.upgrade}}/></div></div>
+          {{else}}
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.SpellType"}}</label><select name="system.spelltype">{{#select system.spelltype}}<option value="-">-</option><option value="NormalSpell">{{localize "DX3rd.NormalSpell"}}</option><option value="NormalKeep">{{localize "DX3rd.NormalKeep"}}</option><option value="SignSpell">{{localize "DX3rd.SignSpell"}}</option><option value="Ritual">{{localize "DX3rd.Ritual"}}</option><option value="RitualKeep">{{localize "DX3rd.RitualKeep"}}</option><option value="RitualCurse">{{localize "DX3rd.RitualCurse"}}</option><option value="Summon">{{localize "DX3rd.Summon"}}</option><option value="SummonRitual">{{localize "DX3rd.SummonRitual"}}</option><option value="Evocation">{{localize "DX3rd.Evocation"}}</option><option value="EvocationRitual">{{localize "DX3rd.EvocationRitual"}}</option>{{/select}}</select></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.EXP"}}</label><input type="number" name="system.exp" value="{{system.exp}}"/></div>
+          <div class="cell grid-4 space-between"><label class="cell--title"><span>{{localize "DX3rd.Invoke"}}</span><input type="checkbox" data-casting-roll-check {{#if (eq system.roll "CastingRoll")}}checked{{/if}}/></label><div class="flex"><input name="system.invoke.value" value="{{system.invoke.value}}" {{#unless (eq system.roll "CastingRoll")}}disabled{{/unless}}/><span class="slash"> / </span><input name="system.evocation.value" value="{{system.evocation.value}}" {{#unless (eq system.roll "CastingRoll")}}disabled{{/unless}}/></div></div>
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Encroach"}}</label><input name="system.encroach.value" value="{{system.encroach.value}}"/></div>
+          {{/if}}
+        </section>
+        <div class="cell cell--bio"><label class="cell--title">{{localize "DX3rd.Description"}}{{#if isSpell}}<span class="checkbox-addon flexrow"><span>{{localize "DX3rd.Temporary"}}</span><input type="checkbox" name="system.temporarySpell" {{checked system.temporarySpell}}/></span>{{/if}}</label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" collaborate relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
+      </div>
+    </div>
+
+    <div class="tab {{tabs.attributes.cssClass}}" data-group="primary" data-tab="attributes">
+      <div class="sheet-wrapper margin-top-10">
+        <table>
+          <tr><th>{{localize "DX3rd.RollType"}}</th><td><select name="system.roll">{{#select system.roll}}<option value="-">-</option>{{#if isPsionic}}<option value="major">{{localize "DX3rd.Major"}}</option><option value="reaction">{{localize "DX3rd.Reaction"}}</option><option value="dodge">{{localize "DX3rd.DodgeRoll"}}</option>{{else}}<option value="CastingRoll">{{localize "DX3rd.CastingRoll"}}</option>{{/if}}{{/select}}</select></td><th>{{localize "DX3rd.RunTiming"}}</th><td><select name="system.active.runTiming">{{#select system.active.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>{{/select}}</select></td></tr>
+          <tr><th>{{localize "DX3rd.Active"}}</th><td><input type="checkbox" name="system.active.state" {{checked system.active.state}}/></td><th>{{localize "DX3rd.DisableTiming"}}</th><td><select name="system.active.disable">{{#select system.active.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option>{{/select}}</select></td></tr>
+          {{#if isPsionic}}<tr><th>{{localize "DX3rd.UsedCount"}}</th><td><input type="number" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / <input type="number" name="system.used.max" value="{{system.used.max}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}/></td><th>{{localize "DX3rd.ResetTiming"}}</th><td><select name="system.used.disable">{{#select system.used.disable}}<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr>{{/if}}
+          <tr><th>{{localize "DX3rd.Macro"}}</th><td colspan="3"><input name="system.macro" value="{{system.macro}}"/></td></tr>
+        </table>
+        <div class="attributes"><header class="attributes-header flexrow"><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><a class="attribute-control" data-action="createAttribute" data-pos="main"><i class="fas fa-plus"></i></a></header><ol class="attributes-list" data-pos="main">{{#each system.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}"><select class="attribute-key" name="system.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled/><input class="attribute-value" name="system.attributes.{{key}}.value" value="{{attr.value}}"/><a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a></li>{{/each}}</ol></div>
+      </div>
+    </div>
+
+    <div class="tab {{tabs.target.cssClass}}" data-group="primary" data-tab="target">
+      <div class="sheet-wrapper margin-top-10">
+        <table><tr><th>{{localize "DX3rd.Target"}}</th><td><input type="checkbox" name="system.getTarget" {{checked system.getTarget}}/></td><th>{{localize "DX3rd.Scene"}}</th><td><input type="checkbox" name="system.scene" {{checked system.scene}}/></td><th>{{localize "DX3rd.DisableTiming"}}</th><td><select name="system.effect.disable">{{#select system.effect.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr><tr><td colspan="4"></td><th>{{localize "DX3rd.RunTiming"}}</th><td><select name="system.effect.runTiming">{{#select system.effect.runTiming}}<option value="-">-</option><option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>{{/select}}</select></td></tr></table>
+        <div class="attributes"><header class="attributes-header flexrow"><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><a class="attribute-control" data-action="createAttribute" data-pos="sub"><i class="fas fa-plus"></i></a></header><ol class="attributes-list" data-pos="sub">{{#each system.effect.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}"><select class="attribute-key" name="system.effect.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.effect.attributes.{{key}}.label" value="{{attr.label}}" disabled/><input class="attribute-value" name="system.effect.attributes.{{key}}.value" value="{{attr.value}}"/><a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a></li>{{/each}}</ol></div>
+      </div>
+    </div>
+  </section>
+</div>

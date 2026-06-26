@@ -1,0 +1,186 @@
+/* ========================================
+   Enemy Sheet Specific Styles
+   ======================================== */
+
+/* Enemy Actor window width override */
+.window-app.dx3rd-emanim.sheet.actor:has(form.enemy-sheet) {
+  min-width: 800px !important;
+}
+
+/* Enemy Sheet - Main Layout using CSS Grid */
+.enemy-sheet .sheet-stat {
+  display: grid !important;
+  grid-template-columns: 135px 1fr !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 10px 15px !important;
+  grid-template-areas:
+    "portrait name"
+    "portrait stats"
+    "portrait abilities" !important;
+  align-items: start !important;
+}
+
+/* Portrait positioning - Grid Area */
+.enemy-sheet .grid-img.enemy-portrait-img {
+  grid-area: portrait !important;
+  margin: 0 !important;
+  width: 135px !important;
+  position: relative !important;
+  float: none !important;
+}
+
+.enemy-sheet .grid-img.enemy-portrait-img .profile-img {
+  width: 135px !important;
+  height: 135px !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+/* Row 1: Name & Evasion & Armor - Grid Area */
+.enemy-sheet .grid-8.enemy-row-name {
+  grid-area: name !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  float: none !important;
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+
+.enemy-sheet .enemy-row-name .stat-box {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.enemy-sheet .enemy-row-name .stat-box.enemy-name-box {
+  flex: 1.25 1 0 !important;
+  min-width: 0 !important;
+}
+
+.enemy-sheet .enemy-row-name .stat-box.enemy-evasion-box {
+  flex: 0 0 140px !important;
+  left: 6px !important;
+}
+
+.enemy-sheet .enemy-row-name .stat-box.enemy-armor-box {
+  flex: 0 0 140px !important;
+}
+
+/* Row 2: HP / Evasion / Move - Grid Area */
+.enemy-sheet .grid-8.enemy-row-stats {
+  grid-area: stats !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  float: none !important;
+  display: flex !important;
+  gap: 10px !important;
+}
+
+.enemy-sheet .enemy-row-stats .stat-box {
+  flex: 1 1 0 !important;
+}
+
+.enemy-sheet .enemy-row-stats .stat-box:nth-child(1) {
+  flex: 1.25 1 0 !important;
+}
+
+.enemy-sheet .enemy-row-stats .stat-box:nth-child(2) {
+  flex: 1.25 1 0 !important;
+}
+
+.enemy-sheet .enemy-row-stats .stat-box:nth-child(3) {
+  flex: 0 0 140px !important;
+}
+
+.enemy-sheet .enemy-row-stats .stat-box.enemy-init-box {
+  flex: 0 0 140px !important;
+}
+
+/* Enemy row-2: HP, Move input width override */
+.enemy-sheet .enemy-row-stats .stat-box:nth-child(1) .stat-list .stat,
+.enemy-sheet .enemy-row-stats .stat-box:nth-child(2) .stat-list .stat {
+  width: 80px !important;
+}
+
+/* Row 3: Abilities - Grid Area */
+.enemy-sheet .grid-8.enemy-row-abilities {
+  grid-area: abilities !important;
+  margin-top: 0 !important;
+  position: relative !important;
+  float: none !important;
+  display: flex !important;
+  gap: 10px !important;
+}
+
+.enemy-sheet .enemy-row-abilities .stat-box.ability {
+  flex: 1 1 0 !important;
+  float: none !important;
+  position: relative !important;
+}
+
+/* Enemy ability diamond horizontal alignment tweak */
+.enemy-sheet .sheet-stat .main-grid .stat-box .diamond {
+  right: 5px !important;
+}
+
+/* Remove any float/positioning from child elements */
+.enemy-sheet .stat-box {
+  float: none !important;
+  position: relative !important;
+  margin: 0 !important;
+}
+
+/* Ensure consistent gap in row 1 */
+.enemy-sheet .enemy-row-name > .stat-box {
+  margin: 0 !important;
+}
+
+/* Base styles override: enemy row name input width */
+.enemy-sheet .enemy-row-name .stat-box.enemy-name-box .name-wrapper {
+  max-width: 249px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+.enemy-sheet .enemy-row-name .stat-box.enemy-name-box .name {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* Applied Effects Styling */
+.enemy-sheet .applied-effects {
+  padding: 10px;
+}
+
+.enemy-sheet .applied-effect-item {
+  margin-bottom: 15px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.enemy-sheet .applied-effect-item h4 {
+  margin: 0 0 10px 0;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+  font-weight: bold;
+}
+
+.enemy-sheet .effect-attributes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.enemy-sheet .effect-attributes li {
+  padding: 3px 0;
+}
+
+.enemy-sheet .no-effects {
+  text-align: center;
+  padding: 20px;
+  color: #999;
+  font-style: italic;
+}

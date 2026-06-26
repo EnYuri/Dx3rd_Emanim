@@ -1,0 +1,39 @@
+<form class="dx3rd {{cssClass}} actor-sheet-simple" autocomplete="off">
+  <div class="sheet-wrapper simple-sheet-wrapper" style="display: flex; flex-direction: column; height: 100%;">
+    <button style="display: none;">Input Button Click bypass</button>
+    
+    <section class="simple-sheet-content" style="display: flex; flex-direction: row; gap: 0; height: 100%; width: 100%; flex: 1;">
+      {{!-- Left: Profile Image --}}
+      <div class="simple-sheet-portrait" style="flex: 0 0 250px; display: flex; width: 250px; height: 250px;">
+        <img class="profile-img" src="{{actor.img}}" title="{{actor.name}}" style="width: 250px; height: 250px;"/>
+      </div>
+
+      {{!-- Right: Name and Description --}}
+      <div class="simple-sheet-right" style="flex: 1; display: flex; flex-direction: column; gap: 0; height: 100%;">
+        {{!-- Name Section --}}
+        <div class="simple-sheet-name" style="display: flex;">
+          <div class="actor-name">{{actor.name}}</div>
+        </div>
+
+        {{!-- Description Section --}}
+        <div class="simple-sheet-description" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+          <label class="cell--title">
+            {{localize "DX3rd.Description"}}
+          </label>
+          <div class="description-content" style="flex: 1; overflow-y: auto; min-height: 0;">
+            {{#if enrichedBiography}}
+              {{{enrichedBiography}}}
+            {{else}}
+              {{#if system.description}}
+                {{{system.description}}}
+              {{else}}
+                <p class="no-description">{{localize "DX3rd.NoDescription"}}</p>
+              {{/if}}
+            {{/if}}
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</form>
+

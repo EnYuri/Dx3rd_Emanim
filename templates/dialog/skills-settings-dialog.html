@@ -1,0 +1,188 @@
+<form class="skills-settings-form">
+    <div class="form-group">
+        <div class="skills-grid">
+            <!-- 육체 스킬들 -->
+            <div class="body-skills">
+                <div class="attribute-header">육체</div>
+                {{#each skillsByAttribute.0.skills as |skill|}}
+                <div class="skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               value="{{skill.key}}" 
+                               readonly
+                               {{#if skill.delete}}class="clickable-skill-key" data-skill-key="{{skill.key}}" data-skill-base="{{skill.base}}" title="클릭하여 모든 액터에게 스킬 추가"{{/if}}
+                               style="color: #666; {{#if skill.delete}}cursor: pointer;{{/if}}">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               name="skill-name-{{skill.key}}" 
+                               value="{{skill.localizedName}}" 
+                               placeholder="스킬 이름">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {{/each}}
+                <div class="add-skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               class="new-skill-key" 
+                               placeholder="Drive">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               class="new-skill-name" 
+                               placeholder="운전: ">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="add-skill" data-attribute="body">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 감각 스킬들 -->
+            <div class="sense-skills">
+                <div class="attribute-header">감각</div>
+                {{#each skillsByAttribute.1.skills as |skill|}}
+                <div class="skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               value="{{skill.key}}" 
+                               readonly
+                               {{#if skill.delete}}class="clickable-skill-key" data-skill-key="{{skill.key}}" data-skill-base="{{skill.base}}" title="클릭하여 모든 액터에게 스킬 추가"{{/if}}
+                               style="color: #666; {{#if skill.delete}}cursor: pointer;{{/if}}">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               name="skill-name-{{skill.key}}" 
+                               value="{{skill.localizedName}}" 
+                               placeholder="스킬 이름">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {{/each}}
+                <div class="add-skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               class="new-skill-key" 
+                               placeholder="Ars">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               class="new-skill-name" 
+                               placeholder="예술: ">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="add-skill" data-attribute="sense">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 정신 스킬들 -->
+            <div class="mind-skills">
+                <div class="attribute-header">정신</div>
+                {{#each skillsByAttribute.2.skills as |skill|}}
+                <div class="skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               value="{{skill.key}}" 
+                               readonly
+                               {{#if skill.delete}}class="clickable-skill-key" data-skill-key="{{skill.key}}" data-skill-base="{{skill.base}}" title="클릭하여 모든 액터에게 스킬 추가"{{/if}}
+                               style="color: #666; {{#if skill.delete}}cursor: pointer;{{/if}}">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               name="skill-name-{{skill.key}}" 
+                               value="{{skill.localizedName}}" 
+                               placeholder="스킬 이름">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {{/each}}
+                <div class="add-skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               class="new-skill-key" 
+                               placeholder="Know">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               class="new-skill-name" 
+                               placeholder="지식: ">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="add-skill" data-attribute="mind">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 사회 스킬들 -->
+            <div class="social-skills">
+                <div class="attribute-header">사회</div>
+                {{#each skillsByAttribute.3.skills as |skill|}}
+                <div class="skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               value="{{skill.key}}" 
+                               readonly
+                               {{#if skill.delete}}class="clickable-skill-key" data-skill-key="{{skill.key}}" data-skill-base="{{skill.base}}" title="클릭하여 모든 액터에게 스킬 추가"{{/if}}
+                               style="color: #666; {{#if skill.delete}}cursor: pointer;{{/if}}">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               name="skill-name-{{skill.key}}" 
+                               value="{{skill.localizedName}}" 
+                               placeholder="스킬 이름">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                {{/each}}
+                <div class="add-skill-row">
+                    <div class="skill-key">
+                        <input type="text" 
+                               class="new-skill-key" 
+                               placeholder="Info">
+                    </div>
+                    <div class="skill-name">
+                        <input type="text" 
+                               class="new-skill-name" 
+                               placeholder="정보: ">
+                    </div>
+                    <div class="skill-actions">
+                        <button type="button" class="add-skill" data-attribute="social">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="form-buttons">
+        <button type="button" class="save-skills">
+            <i class="fas fa-save"></i> SAVE
+        </button>
+    </div>
+</form>
+

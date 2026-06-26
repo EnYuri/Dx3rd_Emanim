@@ -1,0 +1,171 @@
+/* 마술 주사위 제거 다이얼로그 - 다크 모드 스타일 */
+.spell-dice-remove-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 400px;
+    max-width: 600px;
+    background: #1a1a1a;
+    border: 2px solid #444;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.spell-dice-remove-dialog-open {
+    opacity: 1;
+}
+
+/* 헤더 */
+.spell-dice-remove-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 40px;
+    padding: 0px 15px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    border-radius: 6px 6px 0 0;
+}
+
+.spell-dice-remove-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* 컨텐츠 */
+.spell-dice-remove-content {
+    padding: 15px;
+}
+
+/* 주사위 선택 영역 */
+.spell-dice-selection {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 8px;
+    margin: 1em 0;
+    padding: 1em;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: #2a2a2a;
+}
+
+/* 주사위 아이템 */
+.spell-dice-item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.spell-dice-item.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* 주사위 면 */
+.spell-dice-face {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    text-align: center;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 1.2em;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+/* 폭주 주사위 (10) */
+.spell-dice-item.overflow-dice .spell-dice-face {
+    background-color: #1a3a1a;
+    border-color: #4caf50;
+    color: #81c784;
+}
+
+/* 선택된 주사위 */
+.spell-dice-item.selected .spell-dice-face {
+    background-color: #3a1a1a;
+    border-color: #f44336;
+    color: #ff6b6b;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(244, 67, 54, 0.4);
+}
+
+/* 선택된 폭주 주사위 */
+.spell-dice-item.selected.overflow-dice .spell-dice-face {
+    background-color: #3a1a1a;
+    border-color: #f44336;
+    color: #ff6b6b;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(244, 67, 54, 0.4);
+}
+
+/* 호버 효과 */
+.spell-dice-item:not(.disabled):hover .spell-dice-face {
+    background-color: #3a3a3a;
+    border-color: #666;
+}
+
+.spell-dice-item.overflow-dice:not(.disabled):hover .spell-dice-face {
+    background-color: #2a4a2a;
+    border-color: #66bb6a;
+}
+
+/* 선택 요약 */
+.spell-dice-selection-summary {
+    margin: 1em 0;
+    padding: 0.5em;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.spell-dice-selection-summary p {
+    margin: 0.5em 0;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+/* 버튼 영역 */
+.spell-dice-remove-buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 1em;
+}
+
+/* 확인 버튼 - 전투 다이얼로그와 동일한 스타일 */
+.spell-dice-confirm-button {
+    background: #2a2a2a;
+    color: #ffffff;
+    border: 1px solid #444;
+    padding: 12px 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s;
+    min-width: 120px;
+}
+
+.spell-dice-confirm-button:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+.spell-dice-confirm-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

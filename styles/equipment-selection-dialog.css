@@ -1,0 +1,165 @@
+/* Equipment Selection Dialog - 테이블 기반 단순 스타일 */
+.equipment-selection-dialog {
+    max-width: 900px;
+    max-height: 600px;
+}
+
+.equipment-selection-dialog .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.equipment-selection-dialog .equipment-selection-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.equipment-selection-dialog .dialog-content {
+    padding: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.equipment-selection-dialog h3 {
+    font-size: 14px;
+    margin: 0 0 10px 0;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+/* Equipment Table Container */
+.equipment-table-container {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Equipment Table */
+.equipment-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.equipment-table thead th {
+    background: #333;
+    color: white;
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    border: 1px solid #555;
+}
+
+.equipment-table tbody td {
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 12px;
+    border: 1px solid #ddd;
+}
+
+.equipment-table tbody td.item-name {
+    text-align: left;
+    font-weight: bold;
+    font-size: 12px;
+    text-align: center;
+}
+
+.equipment-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.equipment-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Special styling for different item states */
+.equipment-row.currently-equipped {
+    background: rgba(76, 175, 80, 0.3); /* 녹색 배경 - 장비 중 */
+}
+
+.equipment-row.newly-created {
+    background: rgba(255, 193, 7, 0.3); /* 노란색 배경 - 신규 아이템 */
+}
+
+.equipment-row.currently-equipped:hover {
+    background: rgba(76, 175, 80, 0.4);
+}
+
+.equipment-row.newly-created:hover {
+    background: rgba(255, 193, 7, 0.4);
+}
+
+/* Spell selection specific styles */
+.equipment-row.selected {
+    background: rgba(33, 150, 243, 0.3); /* 파란색 배경 - 선택됨 */
+}
+
+.equipment-row.selected:hover {
+    background: rgba(33, 150, 243, 0.4);
+}
+
+.equipment-row.already-owned {
+    background: rgba(128, 128, 128, 0.2); /* 회색 배경 - 이미 보유 */
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.equipment-row.already-owned:hover {
+    background: rgba(128, 128, 128, 0.2);
+    opacity: 0.5;
+}
+
+.equipment-row.already-owned input[type="radio"] {
+    cursor: not-allowed;
+}
+
+/* Table Cells */
+.equipment-control {
+    padding: 4px 8px;
+    text-align: center;
+    width: 60px;
+}
+
+.equipment-checkbox {
+    margin: 0;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+/* Equipment Dialog Buttons - 분리된 클래스 */
+.equipment-dialog-buttons {
+    max-height: 60px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px;
+}
+
+.equipment-dialog-buttons button {
+    padding: 6px 12px;
+    border: 1px solid #AAA;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 3px;
+}
+
+/* Foundry 기본 다이얼로그 버튼을 좌우로 배치 */
+.spell-selection-dialog .dialog-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.spell-selection-dialog .dialog-button {
+    margin: 0;
+}

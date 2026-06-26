@@ -1,0 +1,320 @@
+<div class="dx3rd actor-sheet-v2-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}"/>
+    <div class="header-fields">
+      <h1 class="charname">
+        <input name="name" type="text" value="{{actor.name}}" placeholder="{{localize "DX3rd.Name"}}"/>
+      </h1>
+      {{#unless isEnemy}}
+      <div class="flexrow">
+        <label>{{localize "DX3rd.CodeName"}}</label>
+        <input name="system.codeName" type="text" value="{{system.codeName}}"/>
+      </div>
+      <div class="flexrow">
+        <label>{{localize "DX3rd.EncroachmentCore"}}</label>
+        <select name="system.attributes.encroachment.type">
+          {{#select system.attributes.encroachment.type}}
+          <option value="-">{{localize "DX3rd.EncroachmentCore"}}</option>
+          <option value="ea">{{localize "DX3rd.EncroachmentEA"}}</option>
+          <option value="origin">{{localize "DX3rd.EncroachmentOrigin"}}</option>
+          {{/select}}
+        </select>
+      </div>
+      {{/unless}}
+    </div>
+  </header>
+
+  <section class="sheet-attributes margin-top-10">
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.HP"}}</label>
+      <div class="flex">
+        <input type="number" name="system.attributes.hp.value" value="{{system.attributes.hp.value}}" data-dtype="Number"/>
+        <span class="slash"> / </span>
+        <input type="number" name="system.attributes.hp.max" value="{{system.attributes.hp.max}}" data-dtype="Number"/>
+      </div>
+    </div>
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Encroachment"}}</label>
+      <div class="flex">
+        <input type="number" name="system.attributes.encroachment.value" value="{{system.attributes.encroachment.value}}" data-dtype="Number"/>
+        {{#unless isEnemy}}{{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="backtrack" title="{{localize "DX3rd.BackTrackBtn"}}"><i class="fas fa-dice-d10"></i></button>{{/if}}{{/unless}}
+      </div>
+    </div>
+    {{#unless isEnemy}}
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Dice"}}</label>
+      <div class="flex">
+        <select name="system.attributes.dice.view">
+          {{#select system.attributes.dice.view}}
+          <option value="major">{{localize "DX3rd.Major"}}</option>
+          <option value="reaction">{{localize "DX3rd.Reaction"}}</option>
+          <option value="dodge">{{localize "DX3rd.Dodge"}}</option>
+          {{/select}}
+        </select>
+        <input type="text" value="{{dice}} DX {{critical}} + {{add}}" disabled/>
+      </div>
+    </div>
+    {{/unless}}
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Init"}}</label>
+      <input type="number" name="system.attributes.init.value" value="{{system.attributes.init.value}}" data-dtype="Number"/>
+    </div>
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Armor"}}</label>
+      <input type="number" name="system.attributes.armor.value" value="{{system.attributes.armor.value}}" data-dtype="Number"/>
+    </div>
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Move"}}</label>
+      <div class="flex">
+        <input type="number" name="system.attributes.move.battle" value="{{system.attributes.move.battle}}" data-dtype="Number" {{#unless isEnemy}}disabled{{/unless}}/>
+        <span class="slash"> / </span>
+        <input type="number" name="system.attributes.move.full" value="{{system.attributes.move.full}}" data-dtype="Number" disabled/>
+      </div>
+    </div>
+    {{#unless isEnemy}}
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Stock"}}</label>
+      <div class="flex">
+        <input type="number" name="system.attributes.stock.value" value="{{system.attributes.stock.value}}" data-dtype="Number"/>
+        <span class="slash"> / </span>
+        <input type="number" value="{{system.attributes.stock.max}}" disabled/>
+      </div>
+    </div>
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Saving"}}</label>
+      <div class="flex">
+        <input type="number" value="{{system.attributes.saving.max}}" disabled/>
+        <span class="slash"> / </span>
+        <input type="number" value="{{system.attributes.saving.remain}}" disabled/>
+      </div>
+    </div>
+    {{/unless}}
+  </section>
+
+  <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
+    <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description"}}</a>
+    <a class="item {{tabs.combo.cssClass}}" data-action="tab" data-group="primary" data-tab="combo">{{localize "DX3rd.Combo"}}</a>
+    <a class="item {{tabs.effect.cssClass}}" data-action="tab" data-group="primary" data-tab="effect">{{localize "DX3rd.Effect"}}</a>
+    {{#unless stageCRCDisabled}}<a class="item {{tabs.special.cssClass}}" data-action="tab" data-group="primary" data-tab="special">{{localize "DX3rd.Special"}}</a>{{/unless}}
+    <a class="item {{tabs.equipment.cssClass}}" data-action="tab" data-group="primary" data-tab="equipment">{{localize "DX3rd.Item"}}</a>
+    <a class="item {{tabs.rois.cssClass}}" data-action="tab" data-group="primary" data-tab="rois">{{localize "DX3rd.Rois"}}</a>
+    <a class="item {{tabs.record.cssClass}}" data-action="tab" data-group="primary" data-tab="record">{{localize "DX3rd.Record"}}</a>
+    <a class="item {{tabs.applied.cssClass}}" data-action="tab" data-group="primary" data-tab="applied">{{localize "DX3rd.Applied"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+    <div class="tab {{tabs.description.cssClass}}" data-group="primary" data-tab="description">
+      {{#unless isEnemy}}
+      <section class="sheet-attributes margin-top-10">
+        <div class="cell grid-4">
+          <div class="cell--title">
+            <label>{{localize "DX3rd.Works"}}</label>
+            {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createItem" data-type="works"><i class="fas fa-plus"></i></button>{{/if}}
+          </div>
+          <ol class="items-list actor-sheet-v2-compact-list">
+            {{#each actor.workList as |item|}}
+            <li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><a class="item-name" data-action="editItem">{{item.name}}</a>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>
+            {{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}
+          </ol>
+        </div>
+        <div class="cell grid-12">
+          <div class="cell--title">
+            <label>{{localize "DX3rd.Syndrome"}} [{{actor.syndromeType}}]</label>
+            {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createItem" data-type="syndrome"><i class="fas fa-plus"></i></button>{{/if}}
+          </div>
+          <ol class="items-list actor-sheet-v2-compact-list">
+            {{#each actor.syndromeList as |item|}}
+            <li class="item flexrow" data-item-id="{{item.id}}" draggable="true">
+              <input type="checkbox" class="actor-sheet-v2-syndrome-check" {{#ifIn ../system.attributes.syndrome item.id}}checked{{/ifIn}}/>
+              <a class="item-name" data-action="editItem">{{item.name}}</a>
+              {{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}
+            </li>
+            {{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}
+          </ol>
+        </div>
+      </section>
+
+      <section class="sheet-attributes margin-top-10">
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Cover"}}</label><input type="text" name="system.details.cover" value="{{system.details.cover}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Ancestry"}}</label><input type="text" name="system.details.ancestry" value="{{system.details.ancestry}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Experience"}}</label><input type="text" name="system.details.experience" value="{{system.details.experience}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Meet"}}</label><input type="text" name="system.details.meet" value="{{system.details.meet}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Awaken"}}</label><input type="text" name="system.details.awaken" value="{{system.details.awaken}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.Impulse"}}</label><input type="text" name="system.details.impulse" value="{{system.details.impulse}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{#if stageCRCDisabled}}{{localize "DX3rd.Desire"}}{{else}}{{localize "DX3rd.Root"}}{{/if}}</label><input type="text" name="system.details.desire" value="{{system.details.desire}}"/></div>
+        <div class="cell grid-2"><label class="cell--title">{{localize "DX3rd.EncroachmentInit"}}</label><div class="flex"><input type="text" name="system.attributes.encroachment.init.input" value="{{system.attributes.encroachment.init.input}}"/><span class="slash"> / </span><input type="text" value="{{system.attributes.encroachment.init.value}}" disabled/></div></div>
+      </section>
+      {{/unless}}
+
+      <section class="sheet-attributes margin-top-10">
+        <div class="cell grid-3" data-ability-id="body">
+          <label class="cell--title"><button type="button" class="actor-sheet-v2-text-button" data-action="rollAbility">{{localize "DX3rd.Body"}}</button></label>
+          <div class="flex">
+            <input type="number" name="system.attributes.body.value" value="{{system.attributes.body.value}}" data-dtype="Number"/>
+            <span class="slash"> / </span>
+            <input type="text" value="{{system.attributes.body.total}}" disabled/>
+          </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="body"><i class="fas fa-plus"></i></button>{{/if}}
+        </div>
+        <div class="cell grid-3" data-ability-id="sense">
+          <label class="cell--title"><button type="button" class="actor-sheet-v2-text-button" data-action="rollAbility">{{localize "DX3rd.Sense"}}</button></label>
+          <div class="flex">
+            <input type="number" name="system.attributes.sense.value" value="{{system.attributes.sense.value}}" data-dtype="Number"/>
+            <span class="slash"> / </span>
+            <input type="text" value="{{system.attributes.sense.total}}" disabled/>
+          </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="sense"><i class="fas fa-plus"></i></button>{{/if}}
+        </div>
+        <div class="cell grid-3" data-ability-id="mind">
+          <label class="cell--title"><button type="button" class="actor-sheet-v2-text-button" data-action="rollAbility">{{localize "DX3rd.Mind"}}</button></label>
+          <div class="flex">
+            <input type="number" name="system.attributes.mind.value" value="{{system.attributes.mind.value}}" data-dtype="Number"/>
+            <span class="slash"> / </span>
+            <input type="text" value="{{system.attributes.mind.total}}" disabled/>
+          </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="mind"><i class="fas fa-plus"></i></button>{{/if}}
+        </div>
+        <div class="cell grid-3" data-ability-id="social">
+          <label class="cell--title"><button type="button" class="actor-sheet-v2-text-button" data-action="rollAbility">{{localize "DX3rd.Social"}}</button></label>
+          <div class="flex">
+            <input type="number" name="system.attributes.social.value" value="{{system.attributes.social.value}}" data-dtype="Number"/>
+            <span class="slash"> / </span>
+            <input type="text" value="{{system.attributes.social.total}}" disabled/>
+          </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="social"><i class="fas fa-plus"></i></button>{{/if}}
+        </div>
+      </section>
+
+      <div class="actor-sheet-v2-skill-grid margin-top-10">
+        {{#each system.attributes.skills as |skill key|}}
+        <label class="cell actor-sheet-v2-skill" data-skill-id="{{key}}">
+          <span class="cell--title">
+            <button type="button" class="actor-sheet-v2-text-button" data-action="rollSkill">{{#if skill.name}}{{localize skill.name}}{{else}}{{key}}{{/if}}</button>
+            {{#if ../canEdit}}<button type="button" class="actor-sheet-v2-icon-button" data-action="editSkill"><i class="fas fa-edit"></i></button>{{/if}}
+          </span>
+          <input type="number" name="system.attributes.skills.{{key}}.point" value="{{skill.point}}" data-dtype="Number"/>
+        </label>
+        {{/each}}
+      </div>
+
+      <div class="cell cell--bio margin-top-10">
+        <label class="cell--title">{{localize "DX3rd.Description"}}</label>
+        <prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{actorDocument.uuid}}" collaborate relative toggled>{{{enrichedBiography}}}</prose-mirror>
+      </div>
+    </div>
+
+    <div class="tab {{tabs.combo.cssClass}}" data-group="primary" data-tab="combo">
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow">
+          <label>{{localize "DX3rd.Combo"}}</label>
+          {{#if canEdit}}<button type="button" data-action="createItem" data-type="combo"><i class="fas fa-plus"></i></button>{{/if}}
+        </header>
+        <ol class="items-list">
+          {{#each actor.comboList as |item|}}
+          <li class="item flexrow" data-item-id="{{item.id}}" draggable="true">
+            <img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/>
+            <a class="item-name" data-action="editItem">{{item.name}}</a>
+            <span class="actor-sheet-v2-inline-controls">
+              <input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/>
+              <input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}
+            </span>
+            <button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>
+            {{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}
+          </li>
+          {{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}
+        </ol>
+      </section>
+    </div>
+
+    <div class="tab {{tabs.effect.cssClass}}" data-group="primary" data-tab="effect">
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Effect"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="effect" data-effect-type="normal"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.effectList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">[{{item.system.level.value}}] {{item.name}}</a><span class="actor-sheet-v2-inline-controls"><input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/><input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}</span><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Easy"}} {{localize "DX3rd.Effect"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="effect" data-effect-type="easy"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.easyEffectList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">[{{item.system.level.value}}] {{item.name}}</a><span class="actor-sheet-v2-inline-controls"><input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/><input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}</span><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.ExtraData"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="effect" data-effect-type="extra"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.extraEffectList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">[{{item.system.level.value}}] {{item.name}}</a><span class="actor-sheet-v2-inline-controls"><input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/><input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}</span><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+    </div>
+
+    <div class="tab {{tabs.special.cssClass}}" data-group="primary" data-tab="special">
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Spell"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="spell"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.spellList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><span class="actor-sheet-v2-inline-controls"><input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/><input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}</span><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Psionics"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="psionic"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.psionicsList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><span class="actor-sheet-v2-inline-controls"><input type="checkbox" class="actor-sheet-v2-active-check" {{#if item.system.active.state}}checked{{/if}}/><input type="number" class="actor-sheet-v2-used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / {{item.system.used.displayMax}}</span><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Book"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="book"><i class="fas fa-plus"></i></button>{{/if}}</header>
+        <ol class="items-list">{{#each actor.bookList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol>
+      </section>
+    </div>
+
+    <div class="tab {{tabs.equipment.cssClass}}" data-group="primary" data-tab="equipment">
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Weapon"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="weapon"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.weaponList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><input type="checkbox" class="actor-sheet-v2-equipment-check" {{#if item.system.equipment}}checked{{/if}}/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="attackRoll">{{localize "DX3rd.AttackRoll"}}</button><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Protect"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="protect"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.protectList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><input type="checkbox" class="actor-sheet-v2-equipment-check" {{#if item.system.equipment}}checked{{/if}}/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Vehicle"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="vehicle"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.vehicleList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><input type="checkbox" class="actor-sheet-v2-equipment-check" {{#if item.system.equipment}}checked{{/if}}/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="attackRoll">{{localize "DX3rd.AttackRoll"}}</button><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Connection"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="connection"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.connectionList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Etc"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="etc"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.etcList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Once"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="once"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.onceList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+    </div>
+
+    <div class="tab {{tabs.rois.cssClass}}" data-group="primary" data-tab="rois">
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Rois"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="rois"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.roisList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="titus">Titus</button><button type="button" data-action="sublimation">Sublimation</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Memory"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="rois" data-rois-type="M"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.memoryList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a><button type="button" data-action="useItem">{{localize "DX3rd.Use"}}</button>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+    </div>
+
+    <div class="tab {{tabs.record.cssClass}}" data-group="primary" data-tab="record">
+      <section class="actor-sheet-v2-item-section"><header class="items-header flexrow"><label>{{localize "DX3rd.Record"}}</label>{{#if canEdit}}<button type="button" data-action="createItem" data-type="record"><i class="fas fa-plus"></i></button>{{/if}}</header><ol class="items-list">{{#each actor.recordList as |item|}}<li class="item flexrow" data-item-id="{{item.id}}" draggable="true"><img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/><a class="item-name" data-action="editItem">{{item.name}}</a>{{#if ../canEdit}}<button type="button" data-action="deleteItem"><i class="fas fa-trash"></i></button>{{/if}}</li>{{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}</ol></section>
+      <section class="sheet-attributes margin-top-10">
+        <div class="cell grid-3">
+          <label class="cell--title">{{localize "DX3rd.EXP"}}</label>
+          <input type="number" name="system.attributes.exp.value" value="{{system.attributes.exp.value}}" data-dtype="Number"/>
+        </div>
+      </section>
+    </div>
+
+    <div class="tab {{tabs.applied.cssClass}}" data-group="primary" data-tab="applied">
+      <section class="actor-sheet-v2-item-section">
+        <header class="items-header flexrow"><label>{{localize "DX3rd.Applied"}}</label></header>
+        <ol class="items-list">
+          {{#each actor.applied as |item|}}
+          <li class="item flexrow" data-applied-id="{{item._id}}">
+            <img class="item-image" src="{{item.img}}" title="{{item.name}}" width="24" height="24"/>
+            <span class="item-name">{{item.name}}</span>
+            <span class="actor-sheet-v2-item-summary">{{localize "DX3rd.DisableTiming"}}: {{disable item.disable}}</span>
+            <button type="button" data-action="showApplied"><i class="fas fa-eye"></i></button>
+            {{#if ../canEdit}}<button type="button" data-action="removeApplied"><i class="fas fa-trash"></i></button>{{/if}}
+          </li>
+          {{else}}<li class="item flexrow actor-sheet-v2-empty">-</li>{{/each}}
+        </ol>
+      </section>
+
+      <section class="sheet-attributes margin-top-10">
+        <div class="cell grid-full"><label class="cell--title">{{localize "DX3rd.Condition"}}</label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Poisoned"}}<input type="checkbox" name="system.conditions.poisoned.active" {{#if system.conditions.poisoned.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.poisoned.value" value="{{system.conditions.poisoned.value}}" {{#unless system.conditions.poisoned.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Hatred"}}<input type="checkbox" name="system.conditions.hatred.active" {{#if system.conditions.hatred.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.hatred.target" value="{{system.conditions.hatred.target}}" {{#unless system.conditions.hatred.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Fear"}}<input type="checkbox" name="system.conditions.fear.active" {{#if system.conditions.fear.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.fear.target" value="{{system.conditions.fear.target}}" {{#unless system.conditions.fear.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Berserk"}}<input type="checkbox" name="system.conditions.berserk.active" {{#if system.conditions.berserk.active}}checked{{/if}} data-dtype="Boolean"/></label><select name="system.conditions.berserk.type" {{#unless system.conditions.berserk.active}}disabled{{/unless}}>{{#select system.conditions.berserk.type}}<option value="-">-</option><option value="normal">{{localize "DX3rd.Normal"}}</option><option value="release">{{localize "DX3rd.UrgeRelease"}}</option><option value="hunger">{{localize "DX3rd.UrgeHunger"}}</option><option value="bloodsucking">{{localize "DX3rd.UrgeBloodsucking"}}</option><option value="slaughter">{{localize "DX3rd.UrgeSlaughter"}}</option><option value="destruction">{{localize "DX3rd.UrgeDestruction"}}</option><option value="tourture">{{localize "DX3rd.UrgeTourture"}}</option><option value="distaste">{{localize "DX3rd.UrgeDistaste"}}</option><option value="battlelust">{{localize "DX3rd.UrgeBattlelust"}}</option><option value="delusion">{{localize "DX3rd.UrgeDelusion"}}</option><option value="selfmutilation">{{localize "DX3rd.UrgeSelfmutilation"}}</option><option value="fear">{{localize "DX3rd.UrgeFear"}}</option><option value="hatred">{{localize "DX3rd.UrgeHatred"}}</option>{{/select}}</select></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Rigor"}}<input type="checkbox" name="system.conditions.rigor.active" {{#if system.conditions.rigor.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Pressure"}}<input type="checkbox" name="system.conditions.pressure.active" {{#if system.conditions.pressure.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Dazed"}}<input type="checkbox" name="system.conditions.dazed.active" {{#if system.conditions.dazed.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Boarding"}}<input type="checkbox" name="system.conditions.boarding.active" {{#if system.conditions.boarding.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Stealth"}}<input type="checkbox" name="system.conditions.stealth.active" {{#if system.conditions.stealth.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Fly"}}<input type="checkbox" name="system.conditions.fly.active" {{#if system.conditions.fly.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.LostHP"}}<input type="checkbox" name="system.conditions.lostHP.active" {{#if system.conditions.lostHP.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.lostHP.value" value="{{system.conditions.lostHP.value}}" {{#unless system.conditions.lostHP.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Healing"}}<input type="checkbox" name="system.conditions.healing.active" {{#if system.conditions.healing.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.healing.value" value="{{system.conditions.healing.value}}" {{#unless system.conditions.healing.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Defeated"}}<input type="checkbox" name="system.conditions.defeated.active" {{#if system.conditions.defeated.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.ActionEnd"}}<input type="checkbox" name="system.conditions.action_end.active" {{#if system.conditions.action_end.active}}checked{{/if}} data-dtype="Boolean"/></label></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.ActionDelay"}}<input type="checkbox" name="system.conditions.action_delay.active" {{#if system.conditions.action_delay.active}}checked{{/if}} data-dtype="Boolean"/></label><input type="text" name="system.conditions.action_delay.value" value="{{system.conditions.action_delay.value}}" {{#unless system.conditions.action_delay.active}}disabled{{/unless}}/></div>
+        <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.ExtraTurn"}}<input type="checkbox" name="system.conditions.extra-turn.active" {{#if system.conditions.extra-turn.active}}checked{{/if}} data-dtype="Boolean"/></label><div class="flex"><input type="text" name="system.conditions.extra-turn.value" value="{{system.conditions.extra-turn.value}}" {{#unless system.conditions.extra-turn.active}}disabled{{/unless}}/><span class="slash"> / </span><input type="text" name="system.conditions.extra-turn.max" value="{{system.conditions.extra-turn.max}}" {{#unless system.conditions.extra-turn.active}}disabled{{/unless}}/></div></div>
+      </section>
+    </div>
+  </section>
+</div>

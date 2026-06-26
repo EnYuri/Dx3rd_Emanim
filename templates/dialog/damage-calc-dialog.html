@@ -1,0 +1,39 @@
+<div class="dialog-content">
+    <h2 style="text-align: center;">{{formula}}</h2>
+    {{#if fearPenalty}}
+    <div style="text-align: center; color: #ff6b6b; font-weight: bold; margin-bottom: 10px;">
+        {{localize "DX3rd.Fear"}}: {{localize "DX3rd.Add"}} {{fearPenalty}} ({{localize "DX3rd.Target"}}: {{fearTargetName}})
+    </div>
+    {{/if}}
+    {{#if distastePenalty}}
+    <div style="text-align: center; color: #ff6b6b; font-weight: bold; margin-bottom: 10px;">
+        {{localize "DX3rd.Berserk"}}({{localize "DX3rd.UrgeDistaste"}}): {{localize "DX3rd.Add"}} {{distastePenalty}} ({{localize "DX3rd.Target"}}: {{distasteTargetName}})
+    </div>
+    {{/if}}
+    {{#if dependencyPenalty}}
+    <div style="text-align: center; color: #ff6b6b; font-weight: bold; margin-bottom: 10px;">
+        {{localize "DX3rd.Panic8"}}: {{localize "DX3rd.Dice"}} {{dependencyPenalty}}
+    </div>
+    {{/if}}
+    {{#if paranoiaPenalty}}
+    <div style="text-align: center; color: #ff6b6b; font-weight: bold; margin-bottom: 10px;">
+        {{localize "DX3rd.Madness2"}}: {{localize "DX3rd.MajorDice"}} {{paranoiaPenalty}}
+    </div>
+    {{/if}}
+    <table class="calc-dialog">
+        <tbody>
+            <tr>
+                <th>{{localize "DX3rd.Penetrate"}}</th>
+                <td><input type="number" id="penetrate" value="{{actorPenetrate}}" min="0"></td>
+                <th>{{localize "DX3rd.AddResult"}}</th>
+                <td><input type="number" id="add-result" value="0" min="0"></td>
+            </tr>
+            <tr>
+                <th>{{localize "DX3rd.AddDamage"}}</th>
+                <td><input type="number" id="add-damage" value="0" min="0"></td>
+                <th>{{localize "DX3rd.DamageRoll"}}</th>
+                <td><input type="number" id="add-damage-roll" value="0" min="0"></td>
+            </tr>
+        </tbody>
+    </table>
+</div>

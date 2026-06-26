@@ -1,0 +1,42 @@
+<div class="dialog-content">
+    <h2><b>{{title}}</b></h2>
+    <table class="dx3rd-skill-table" style="width:100%; margin-bottom: 8px; border-collapse: separate; border-spacing: 0;">
+        <tr style="background: #111; color: #fff; font-weight: bold; text-align: center;">
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Key"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Name"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Dice"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Total"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Works"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Growth"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Extra"}}</td>
+            <td style="width: 11.11%; padding: 4px 0; border-right: 2px solid #fff;">{{localize "DX3rd.Bonus"}}</td>
+            <td style="width: 11.11%; padding: 4px 0;">{{localize "DX3rd.Base"}}</td>
+        </tr>
+        <tr style="text-align: center;">
+            <td style="padding: 2px 0;"><input type="text" id="skill-key" class="text skill-input-box" value="{{skill.key}}"></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-name" class="text skill-input-box skill-change" data-type="name" value="{{skill.name}}" data-dtype="String"></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-dice" class="text skill-input-box" value="+{{skill.dice}}D"data-dtype="String" disabled></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-total" class="text skill-input-box auto-sign" value="{{skill.total}}"data-dtype="String" disabled></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-works" class="text skill-input-box auto-sign" value="{{skill.works}}"data-dtype="String" disabled></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-point" class="text skill-input-box skill-change auto-sign" data-type="point" value="{{skill.point}}"data-dtype="String"></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-extra" class="text skill-input-box skill-change auto-sign" data-type="extra" value="{{skill.extra}}"data-dtype="String"></td>
+            <td style="padding: 2px 0;"><input type="text" id="skill-bonus" class="text skill-input-box auto-sign" data-type="bonus" value="{{skill.bonus}}"data-dtype="String" disabled></td>
+            <td style="padding: 2px 0;">
+                <select id="skill-base" class="text skill-input-box skill-change" data-type="base" data-dtype="String" disabled>
+                    <option value="body" {{#if (eq skill.base "body")}}selected{{/if}}>{{localize "DX3rd.Body"}}</option>
+                    <option value="sense" {{#if (eq skill.base "sense")}}selected{{/if}}>{{localize "DX3rd.Sense"}}</option>
+                    <option value="mind" {{#if (eq skill.base "mind")}}selected{{/if}}>{{localize "DX3rd.Mind"}}</option>
+                    <option value="social" {{#if (eq skill.base "social")}}selected{{/if}}>{{localize "DX3rd.Social"}}</option>
+                </select>
+            </td>
+        </tr>
+    </table>
+    <div class="dialog-buttons" style="margin-top: 10px; text-align: center;">
+        <button type="button" class="dialog-button" data-button="create" style="margin-right: 10px;">
+            <i class="fas fa-plus"></i> {{localize "DX3rd.Create"}}
+        </button>
+        <button type="button" class="dialog-button" data-button="cancel">
+            <i class="fas fa-times"></i> {{localize "DX3rd.Cancel"}}
+        </button>
+    </div>
+</div> 

@@ -1,0 +1,39 @@
+<form class="{{cssClass}}" autocomplete="off">
+    <div class="dialog-content">
+        <div class="equipment-table-container">
+            <table class="equipment-table protect-selection-table">
+                <thead>
+                    <tr>
+                        <th>{{localize "DX3rd.Name"}}</th>
+                        <th>{{localize "DX3rd.Dodge"}}</th>
+                        <th>{{localize "DX3rd.Init"}}</th>
+                        <th>{{localize "DX3rd.Armor"}}</th>
+                        <th>{{localize "DX3rd.Equipment"}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each items as |item|}}
+                    <tr class="equipment-row {{#if item.isCreated}}newly-created{{/if}} {{#if item.equipped}}currently-equipped{{/if}}">
+                        <td class="item-name">{{item.name}}</td>
+                        <td>{{item.dodge}}</td>
+                        <td>{{item.init}}</td>
+                        <td>{{item.armor}}</td>
+                        <td class="equipment-control">
+                            <input type="checkbox" 
+                                   class="equipment-checkbox" 
+                                   data-item-id="{{item.id}}"
+                                   {{#if item.equipped}}checked{{/if}}>
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+
+<div class="equipment-dialog-buttons">
+    <button type="button" class="equipment-confirm">{{localize "DX3rd.Confirm"}}</button>
+    <button type="button" class="equipment-cancel">{{localize "DX3rd.Cancel"}}</button>
+</div>
+

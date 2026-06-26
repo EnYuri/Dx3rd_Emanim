@@ -1,0 +1,130 @@
+/* Weapon For Attack Dialog - 공격용 무기 선택 */
+.weapon-for-attack-dialog {
+    max-width: 900px;
+    max-height: 600px;
+}
+
+.weapon-for-attack-dialog .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.weapon-for-attack-dialog .weapon-for-attack-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.weapon-for-attack-dialog .dialog-content {
+    padding: 10px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.weapon-for-attack-dialog h3 {
+    font-size: 16px;
+    margin: 0 0 10px 0;
+    font-weight: bold;
+    text-align: center;
+}
+
+.weapon-table-container {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.weapon-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.weapon-table thead th {
+    background: #333;
+    color: white;
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    border: 1px solid #555;
+}
+
+.weapon-table tbody td {
+    padding: 6px 8px;
+    text-align: center;
+    font-size: 12px;
+    border: 1px solid #ddd;
+}
+
+.weapon-table tbody td.weapon-name {
+    text-align: left;
+    font-weight: bold;
+}
+
+.weapon-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.weapon-row:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.weapon-row.currently-equipped {
+    background: rgba(76, 175, 80, 0.3);
+}
+
+.weapon-row.currently-equipped:hover {
+    background: rgba(76, 175, 80, 0.4);
+}
+
+.weapon-row.attack-exhausted {
+    opacity: 0.5;
+    background: rgba(128, 128, 128, 0.2);
+}
+
+.weapon-row.attack-exhausted:hover {
+    background: rgba(128, 128, 128, 0.3);
+}
+
+.weapon-row.attack-exhausted td {
+    color: #999;
+}
+
+.weapon-select-control {
+    width: 50px;
+    text-align: center;
+}
+
+.weapon-checkbox {
+    margin: 0;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+}
+
+.weapon-checkbox:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.weapon-dialog-buttons {
+    max-height: 60px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px;
+}
+
+.weapon-dialog-buttons button {
+    padding: 6px 12px;
+    border: 1px solid #AAA;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    border-radius: 3px;
+}

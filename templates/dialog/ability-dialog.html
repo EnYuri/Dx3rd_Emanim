@@ -1,0 +1,29 @@
+<div class="dialog-content">
+  <h2>
+    <b>{{title}} ({{localize abilityLabel}})</b>
+  </h2>
+  <div class="edit-list flexrow" style="gap: 2px; align-items: flex-end; justify-content: center;">
+    <div class="ability-title-box">{{localize "DX3rd.Total"}}</div>
+    {{#if showWorksSyndrome}}
+    <div class="ability-title-box">{{localize "DX3rd.Syndrome"}}</div>
+    <div class="ability-title-box">{{localize "DX3rd.Works"}}</div>
+    {{/if}}
+    {{#if showGrowth}}
+    <div class="ability-title-box">{{localize "DX3rd.Growth"}}</div>
+    {{/if}}
+    <div class="ability-title-box">{{localize "DX3rd.Extra"}}</div>
+    <div class="ability-title-box">{{localize "DX3rd.Bonus"}}</div>
+  </div>
+  <div class="edit-list flexrow" style="gap: 2px; align-items: flex-end; justify-content: center; margin-top: 2px;">
+    <input type="text" id="ability-total" class="text ability-input-box auto-sign" value="{{total}}" disabled>
+    {{#if showWorksSyndrome}}
+    <input type="text" id="ability-syndrome" class="text ability-input-box auto-sign" value="{{syndrome}}" disabled>
+    <input type="text" id="ability-works" class="text ability-input-box auto-sign" value="{{works}}" disabled>
+    {{/if}}
+    {{#if showGrowth}}
+    <input type="text" id="ability-point" class="text ability-input-box auto-sign" value="{{point}}">
+    {{/if}}
+    <input type="text" id="ability-extra" class="text ability-input-box auto-sign" value="{{extra}}">
+    <input type="text" id="ability-bonus" class="text ability-input-box auto-sign" value="{{bonus}}" disabled>
+  </div>
+</div>

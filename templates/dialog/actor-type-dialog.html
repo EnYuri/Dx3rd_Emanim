@@ -1,0 +1,41 @@
+<div class="actor-type-dialog">
+  <div class="form-group">
+    <label>{{localize "DX3rd.ActorType"}}</label>
+    <select id="actor-type-select" class="actor-type-select">
+      <option value="PlayerCharacter" {{#ifEquals currentType "PlayerCharacter"}}selected{{/ifEquals}}>{{localize "DX3rd.PlayerCharacter"}}</option>
+      <option value="NPC" {{#ifEquals currentType "NPC"}}selected{{/ifEquals}}>{{localize "DX3rd.NPC"}}</option>
+      <option value="Ally" {{#ifEquals currentType "Ally"}}selected{{/ifEquals}}>{{localize "DX3rd.Ally"}}</option>
+      <option value="Enemy" {{#ifEquals currentType "Enemy"}}selected{{/ifEquals}}>{{localize "DX3rd.Enemy"}}</option>
+      <option value="Troop" {{#ifEquals currentType "Troop"}}selected{{/ifEquals}}>{{localize "DX3rd.Troop"}}</option>
+    </select>
+  </div>
+</div>
+
+<style>
+.actor-type-dialog {
+  padding: 5px;
+}
+
+.actor-type-dialog .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0px;
+  margin-bottom: 5px;
+}
+
+.actor-type-dialog label {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.actor-type-select {
+  padding: 0px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  color: black;
+}
+</style>
+

@@ -1,0 +1,51 @@
+<div class="weapon-for-attack-content">
+    <div class="dialog-content">
+        <h3>{{title}}</h3>
+        
+        <div class="weapon-table-container">
+            <table class="weapon-table">
+                <thead>
+                    <tr>
+                        <th>{{localize "DX3rd.Name"}}</th>
+                        <th>{{localize "DX3rd.Type"}}</th>
+                        <th>{{localize "DX3rd.Skill"}}</th>
+                        <th>{{localize "DX3rd.Range"}}</th>
+                        <th>{{localize "DX3rd.Add"}}</th>
+                        <th>{{localize "DX3rd.Attack"}}</th>
+                        <th>{{localize "DX3rd.Guard"}}</th>
+                        <th>{{localize "DX3rd.Select"}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each items as |weapon|}}
+                    <tr class="weapon-row {{#if weapon.equipped}}currently-equipped{{/if}} {{#if weapon.attackExhausted}}attack-exhausted{{/if}}">
+                        <td class="weapon-name">
+                            {{weapon.name}}
+                            {{#if weapon.attackExhausted}}
+                                <span style="color: #ff6b6b; font-size: 0.85em;"> ({{weapon.attackUsedState}}/{{weapon.attackUsedMax}})</span>
+                            {{/if}}
+                        </td>
+                        <td>{{weapon.type}}</td>
+                        <td>{{weapon.skill}}</td>
+                        <td>{{weapon.range}}</td>
+                        <td>{{weapon.add}}</td>
+                        <td>{{weapon.attack}}</td>
+                        <td>{{weapon.guard}}</td>
+                        <td class="weapon-select-control">
+                            <input type="checkbox" 
+                                   class="weapon-checkbox" 
+                                   data-weapon-id="{{weapon.id}}"
+                                   {{#if weapon.attackExhausted}}disabled{{/if}}>
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="weapon-dialog-buttons">
+        <button type="button" class="weapon-confirm">{{confirmLabel}}</button>
+        <button type="button" class="weapon-cancel">{{cancelLabel}}</button>
+    </div>
+</div>

@@ -1,0 +1,933 @@
+{
+  "Actor": {
+    "types": [
+      "character",
+      "enemy"
+    ],
+    "character": {
+      "name": "",
+      "type": "character",
+      "img": "icons/svg/mystery-man.svg",
+      "system": {
+        "actorType": "NPC",
+        "codeName": "",
+        "emotions": {},
+        "attributes": {
+          "hp": {
+            "value": 0,
+            "min": 0,
+            "max": 0
+          },
+          "encroachment": {
+            "value": 0,
+            "max": 100,
+            "min": 0,
+            "init": {
+              "input": 0
+            },
+            "type": "-"
+          },
+          "attack": {
+            "value": 0
+          },
+          "damage_roll": {
+            "value": 0
+          },
+          "add": {},
+          "dice": {
+            "view": "major"
+          },
+          "critical": {
+            "min": 10
+          },
+          "guard": {
+            "value": 0,
+            "min": 0
+          },
+          "armor": {
+            "value": 0,
+            "min": 0
+          },
+          "major": {},
+          "reaction": {},
+          "dodge": {},
+          "penetrate": {
+            "value": 0,
+            "min": 0
+          },
+          "reduce": {
+            "value": 0,
+            "min": 0
+          },
+          "init": {},
+          "move": {},
+          "stock": {
+            "value": 0,
+            "min": 0
+          },
+          "saving": {},
+          "exp": {
+            "init": 130,
+            "append": 0,
+            "total": 0,
+            "discount": 0
+          },
+          "cast": {
+            "dice": 0,
+            "add": 0,
+            "eibon": 0
+          },
+          "body": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "sense": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "mind": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "social": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "skills": {
+            "melee": {
+              "name": "DX3rd.melee",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "body",
+              "delete": false
+            },
+            "evade": {
+              "name": "DX3rd.evade",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "body",
+              "delete": false
+            },
+            "ranged": {
+              "name": "DX3rd.ranged",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "sense",
+              "delete": false
+            },
+            "perception": {
+              "name": "DX3rd.perception",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "sense",
+              "delete": false
+            },
+            "rc": {
+              "name": "DX3rd.rc",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "mind",
+              "delete": false
+            },
+            "will": {
+              "name": "DX3rd.will",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "mind",
+              "delete": false
+            },
+            "negotiation": {
+              "name": "DX3rd.negotiation",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "social",
+              "delete": false
+            },
+            "procure": {
+              "name": "DX3rd.procure",
+              "point": 0,
+              "bonus": 0,
+              "extra": 0,
+              "total": 0,
+              "dice": 0,
+              "add": 0,
+              "base": "social",
+              "delete": false
+            }
+          },
+          "applied": {},
+          "syndrome": [],
+          "sublimation": {
+            "dice": 0,
+            "critical": 0,
+            "cast": {
+              "dice": 0,
+              "add": 0
+            }
+          }
+        },
+        "details": {
+          "cover": "",
+          "ancestry": "",
+          "experience": "",
+          "meet": "",
+          "awaken": "",
+          "impulse": "",
+          "desire": ""
+        },
+        "conditions": {
+          "poisoned": {
+            "active": false,
+            "value": 0
+          },
+          "hatred": {
+            "active": false,
+            "target": ""
+          },
+          "fear": {
+            "active": false,
+            "target": ""
+          },
+          "berserk": {
+            "active": false,
+            "type": "-"
+          },
+          "rigor": {
+            "active": false
+          },
+          "pressure": {
+            "active": false
+          },
+          "dazed": {
+            "active": false
+          },
+          "defeated": {
+            "active": false
+          },
+          "action_end": {
+            "active": false
+          },
+          "action_delay": {
+            "active": false,
+            "value": 0
+          },
+          "stealth": {
+            "active": false
+          },
+          "fly": {
+            "active": false
+          },
+          "boarding": {
+            "active": false
+          },
+          "lostHP": {
+            "active": false,
+            "value": 0
+          },
+          "healing": {
+            "active": false,
+            "value": 0
+          },
+          "extra-turn": {
+            "active": false,
+            "value": 0,
+            "max": 0
+          }
+        }
+      },
+      "items": [],
+      "effects": []
+    },
+    "enemy": {
+      "name": "",
+      "type": "enemy",
+      "img": "icons/svg/mystery-man.svg",
+      "system": {
+        "actorType": "Troop",
+        "attributes": {
+          "hp": {
+            "value": 0,
+            "min": 0,
+            "max": 0,
+            "base": 0
+          },
+          "evasion": {
+            "value": 0,
+            "base": 0,
+            "disabled": false
+          },
+          "attack": {
+            "value": 0
+          },
+          "damage_roll": {
+            "value": 0
+          },
+          "add": {},
+          "dice": {
+            "view": "major"
+          },
+          "critical": {
+            "min": 10
+          },
+          "guard": {
+            "value": 0,
+            "min": 0
+          },
+          "armor": {
+            "value": 0,
+            "min": 0,
+            "base": 0
+          },
+          "major": {},
+          "reaction": {},
+          "dodge": {},
+          "penetrate": {
+            "value": 0,
+            "min": 0
+          },
+          "reduce": {
+            "value": 0,
+            "min": 0
+          },
+          "init": {
+            "value": 0,
+            "base": 0
+          },
+          "move": {
+            "battle": 0,
+            "full": 0,
+            "base": 0
+          },
+          "cast": {
+            "dice": 0,
+            "add": 0,
+            "eibon": 0
+          },
+          "body": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "sense": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "mind": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "social": {
+            "point": 0,
+            "bonus": 0,
+            "extra": 0,
+            "total": 0,
+            "dice": 0,
+            "add": 0
+          },
+          "applied": {}
+        },
+        "conditions": {
+          "poisoned": {
+            "active": false,
+            "value": 0
+          },
+          "hatred": {
+            "active": false,
+            "target": ""
+          },
+          "fear": {
+            "active": false,
+            "target": ""
+          },
+          "berserk": {
+            "active": false,
+            "type": "-"
+          },
+          "rigor": {
+            "active": false
+          },
+          "pressure": {
+            "active": false
+          },
+          "dazed": {
+            "active": false
+          },
+          "defeated": {
+            "active": false
+          },
+          "action_end": {
+            "active": false
+          },
+          "action_delay": {
+            "active": false,
+            "value": 0
+          },
+          "stealth": {
+            "active": false
+          },
+          "fly": {
+            "active": false
+          },
+          "boarding": {
+            "active": false
+          },
+          "lostHP": {
+            "active": false,
+            "value": 0
+          },
+          "healing": {
+            "active": false,
+            "value": 0
+          },
+          "extra-turn": {
+            "active": false,
+            "value": 0,
+            "max": 0
+          }
+        }
+      }
+    }
+  },
+  "Item": {
+    "types": [
+      "works",
+      "syndrome",
+      "combo",
+      "effect",
+      "spell",
+      "psionic",
+      "rois",
+      "vehicle",
+      "weapon",
+      "protect",
+      "connection",
+      "book",
+      "once",
+      "etc",
+      "record"
+    ],
+    "templates": {
+      "base": {
+        "name": "",
+        "description": "",
+        "skillTmp": "melee",
+        "skills": {}
+      },
+      "item": {
+        "saving": {
+          "value": 0,
+          "difficulty": "0"
+        },
+        "exp": 0
+      }
+    },
+    "effect": {
+      "templates": [
+        "base"
+      ],
+      "type": "normal",
+      "skill": "-",
+      "difficulty": "",
+      "limit": "-",
+      "timing": "-",
+      "target": "",
+      "range": "",
+      "roll": "-",
+      "attackRoll": "-",
+      "attackAchievement": "-",
+      "encroach": {
+        "init": 0,
+        "value": ""
+      },
+      "level": {
+        "init": 1,
+        "max": 1,
+        "upgrade": true
+      },
+      "exp": {
+        "own": true,
+        "upgrade": true
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": [],
+      "resourceCost": {
+        "enabled": false,
+        "resource": "hp",
+        "cap": "",
+        "mult": 1,
+        "attrKey": "add",
+        "label": "-",
+        "disable": "main"
+      }
+    },
+    "combo": {
+      "templates": [
+        "base"
+      ],
+      "type": "normal",
+      "base": "-",
+      "skill": "-",
+      "difficulty": "",
+      "timing": "-",
+      "range": "",
+      "target": "-",
+      "limit": "",
+      "roll": "-",
+      "attackRoll": "-",
+      "attackAchievement": "-",
+      "encroach": {},
+      "attack": {},
+      "add": {},
+      "dice": {},
+      "critical": {},
+      "guard": {},
+      "armor": {},
+      "major": {},
+      "reaction": {},
+      "dodge": {},
+      "weapon": [],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "attributes": {},
+      "weaponSelect": false,
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": [],
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      }
+    },
+    "spell": {
+      "templates": [
+        "base"
+      ],
+      "spelltype": "-",
+      "exp": 0,
+      "invoke": {
+        "value": "0"
+      },
+      "evocation": {
+        "value": "-"
+      },
+      "encroach": {
+        "value": "0"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": []
+    },
+    "psionic": {
+      "templates": [
+        "base"
+      ],
+      "type": "normal",
+      "skill": "-",
+      "difficulty": "",
+      "limit": "-",
+      "timing": "-",
+      "target": "",
+      "range": "",
+      "roll": "-",
+      "attackRoll": "-",
+      "attackAchievement": "-",
+      "hp": {
+        "value": ""
+      },
+      "level": {
+        "init": 1,
+        "max": 1,
+        "upgrade": true
+      },
+      "exp": {
+        "own": true,
+        "upgrade": true
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": []
+    },
+    "weapon": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "type": "-",
+      "skill": "-",
+      "add": 0,
+      "attack": 0,
+      "guard": 0,
+      "range": "",
+      "equipment": false,
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "attack-used": {
+        "state": 0,
+        "max": 0,
+        "disable": "notCheck"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": []
+    },
+    "protect": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "dodge": 0,
+      "init": 0,
+      "armor": 0,
+      "equipment": false,
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": []
+    },
+    "vehicle": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "skill": "-",
+      "attack": 0,
+      "init": 0,
+      "armor": 0,
+      "move": 0,
+      "equipment": false,
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false,
+      "macro": "",
+      "macros": []
+    },
+    "connection": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "skill": "-",
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "attributes": {},
+      "getTarget": false,
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      }
+    },
+    "book": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "type": "book",
+      "exp": 0,
+      "decipher": 0,
+      "macro": "",
+      "macros": [],
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": true,
+        "disable": "notCheck"
+      }
+    },
+    "once": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "type": "once",
+      "quantity": 1,
+      "macro": "",
+      "macros": [],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false
+    },
+    "etc": {
+      "templates": [
+        "base",
+        "item"
+      ],
+      "type": "etc",
+      "quantity": 1,
+      "macro": "",
+      "macros": [],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "effect": {
+        "disable": "notCheck",
+        "runTiming": "instant",
+        "attributes": {}
+      },
+      "attributes": {},
+      "getTarget": false,
+      "scene": false
+    },
+    "works": {
+      "templates": [
+        "base"
+      ],
+      "attributes": {
+        "body": {
+          "value": 0
+        },
+        "sense": {
+          "value": 0
+        },
+        "mind": {
+          "value": 0
+        },
+        "social": {
+          "value": 0
+        }
+      },
+      "skillTmp": "melee",
+      "skills": {}
+    },
+    "syndrome": {
+      "templates": [
+        "base"
+      ],
+      "attributes": {
+        "body": {
+          "value": 0
+        },
+        "sense": {
+          "value": 0
+        },
+        "mind": {
+          "value": 0
+        },
+        "social": {
+          "value": 0
+        }
+      }
+    },
+    "rois": {
+      "templates": [
+        "base"
+      ],
+      "type": "-",
+      "positive": {
+        "state": false,
+        "feeling": ""
+      },
+      "negative": {
+        "state": false,
+        "feeling": ""
+      },
+      "actor": null,
+      "titus": false,
+      "sublimation": false,
+      "macros": [],
+      "attributes": {},
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 0,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "record": {
+      "templates": [
+        "base"
+      ],
+      "exp": 0
+    }
+  }
+}

@@ -1,0 +1,25 @@
+<div class="record-sheet-v2-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img" title="{{item.name}}"/>
+    <div class="header-fields flexrow">
+      <h1 class="charname"><input name="name" type="text" value="{{item.name}}" placeholder="Name"/></h1>
+      <div class="level">
+        <label>{{localize "DX3rd.EXP"}}</label>
+        <input name="system.exp" type="text" value="{{system.exp}}" data-dtype="Number"/>
+      </div>
+      <div class="level">
+        <label>{{localize "DX3rd.Encroachment"}}</label>
+        <input name="system.encroachment" type="text" value="{{system.encroachment}}" data-dtype="Number"/>
+      </div>
+    </div>
+  </header>
+
+  <section class="sheet-body">
+    <div class="sheet-wrapper">
+      <div class="cell cell--bio">
+        <prose-mirror name="system.description" value="{{system.description}}"
+                      data-document-uuid="{{item.uuid}}" collaborate relative toggled>{{{enrichedDescription}}}</prose-mirror>
+      </div>
+    </div>
+  </section>
+</div>

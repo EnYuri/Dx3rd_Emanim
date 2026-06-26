@@ -1,0 +1,34 @@
+<form class="{{cssClass}}" autocomplete="off">
+    <div class="dialog-content">
+        <div class="equipment-table-container">
+            <table class="equipment-table spell-selection-table">
+                <thead>
+                    <tr>
+                        <th>{{localize "DX3rd.Name"}}</th>
+                        <th>{{localize "DX3rd.SpellType"}}</th>
+                        <th>{{localize "DX3rd.Invoke"}}</th>
+                        <th>{{localize "DX3rd.Encroachment"}}</th>
+                        <th>{{localize "DX3rd.SelectItem"}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each spells as |spell|}}
+                    <tr class="equipment-row spell-row">
+                        <td class="item-name">{{spell.name}}</td>
+                        <td>{{localize spell.type}}</td>
+                        <td>{{spell.invoke}}</td>
+                        <td>{{spell.encroach}}</td>
+                        <td class="equipment-control">
+                            <input type="radio" 
+                                   name="selected-spell"
+                                   class="equipment-checkbox" 
+                                   value="{{spell.id}}">
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</form>
+

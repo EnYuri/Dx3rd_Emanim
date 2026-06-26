@@ -1,0 +1,378 @@
+<div class="item-extend-dialog-content">
+<!-- Top Navigation -->
+<div class="top-tabs">
+    <button type="button" class="top-tab" data-tab="affectCharacter">{{localize "DX3rd.AffectCharacter"}}</button>
+    <button type="button" class="top-tab" data-tab="createItem">{{localize "DX3rd.CreateItem"}}</button>
+</div>
+
+<!-- Sub Navigation -->
+<div class="sub-tabs-container">
+    <!-- Affect Character Sub Tabs -->
+    <div class="sub-tabs" id="affectCharacter-sub-tabs">
+        <button type="button" class="sub-tab" data-tab="heal">{{localize "DX3rd.Heal"}}</button>
+        <button type="button" class="sub-tab" data-tab="damage">{{localize "DX3rd.DamageToHP"}}</button>
+        <button type="button" class="sub-tab" data-tab="condition1">{{localize "DX3rd.Condition"}} 1</button>
+        <button type="button" class="sub-tab" data-tab="condition2">{{localize "DX3rd.Condition"}} 2</button>
+        <button type="button" class="sub-tab" data-tab="condition3">{{localize "DX3rd.Condition"}} 3</button>
+    </div>
+    
+    <!-- Item Creation Sub Tabs -->
+    <div class="sub-tabs" id="createItem-sub-tabs">
+        <button type="button" class="sub-tab" data-tab="weapon">{{localize "DX3rd.Weapon"}}</button>
+        <button type="button" class="sub-tab" data-tab="protect">{{localize "DX3rd.Protect"}}</button>
+        <button type="button" class="sub-tab" data-tab="vehicle">{{localize "DX3rd.Vehicle"}}</button>
+    </div>
+</div>
+
+<!-- Content Area -->
+<div class="sub-tab-content">
+    <!-- HP Recovery Tab -->
+    <section class="content-section" id="heal-content">
+        <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-label">{{localize "DX3rd.Formula"}}</div>
+            <div><input type="text" name="healFormulaDice" placeholder="Dice"></div>
+            <div style="text-align: center;">D10 +</div>
+            <div><input type="text" name="healFormulaAdd" placeholder="Add"></div>
+            
+            <!-- Row 2 -->
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div>
+                <select name="healTiming">
+                    <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                    <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                    <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                    <option value="afterMain">{{localize "DX3rd.AfterMain"}}</option>
+                </select>
+            </div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div>
+                <select name="healTarget">
+                    <option value="self">{{localize "DX3rd.Self"}}</option>
+                    <option value="targetToken">{{localize "DX3rd.Target"}}</option>
+                    <option value="targetAll">{{localize "DX3rd.TargetAll"}}</option>
+                </select>
+            </div>
+            
+            <!-- Row 3 -->
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="healResurrect" id="healResurrect">
+                <label for="healResurrect">{{localize "DX3rd.Resurrect"}}</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="healRivival" id="healRivival">
+                <label for="healRivival">{{localize "DX3rd.Rivival"}}</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="healActivate" id="healActivate">
+                <label for="healActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+
+            <!-- Row 4: 상한회복(부활) / 고정 침식 -->
+            <div class="form-label">{{localize "DX3rd.HealTo"}}</div>
+            <div><input type="text" name="healTo" placeholder="1 / [Lv×5]"></div>
+            <div class="form-label">{{localize "DX3rd.EncroachFixed"}}</div>
+            <div><input type="text" name="encroachFixed" placeholder="5 / 2d10"></div>
+        </div>
+    </section>
+
+    <!-- HP Damage Tab -->
+    <section class="content-section" id="damage-content">
+        <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-label">{{localize "DX3rd.Formula"}}</div>
+            <div><input type="text" name="damageFormulaDice" placeholder="Dice"></div>
+            <div style="text-align: center;">D10 +</div>
+            <div><input type="text" name="damageFormulaAdd" placeholder="Add"></div>
+            
+            <!-- Row 2 -->
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div>
+                <select name="damageTiming">
+                    <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                    <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                    <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                    <option value="afterMain">{{localize "DX3rd.AfterMain"}}</option>
+                </select>
+            </div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div>
+                <select name="damageTarget">
+                    <option value="self">{{localize "DX3rd.Self"}}</option>
+                    <option value="targetToken">{{localize "DX3rd.Target"}}</option>
+                    <option value="targetAll">{{localize "DX3rd.TargetAll"}}</option>
+                </select>
+            </div>
+            
+            <!-- Row 3 -->
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="ignoreReduce" id="ignoreReduce">
+                <label for="ignoreReduce">{{localize "DX3rd.IgnoreReduce"}}</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="damageConditionalFormula" id="damageConditionalFormula">
+                <label for="damageConditionalFormula">{{localize "DX3rd.Conditional"}} {{localize "DX3rd.Formula"}}</label>
+            </div>
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="damageActivate" id="damageActivate">
+                <label for="damageActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+            
+            <!-- Row 4 -->
+            <div class="form-label">{{localize "DX3rd.HP"}} {{localize "DX3rd.Cost"}}</div>
+            <div><input type="text" name="hpCost" placeholder="HP Cost"></div>
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="hpCostActivate" id="hpCostActivate">
+                <label for="hpCostActivate">{{localize "DX3rd.HP"}} {{localize "DX3rd.Cost"}}</label>
+            </div>
+        </div>
+    </section>
+    
+    <!-- 상태이상 1 탭 -->
+    <section class="content-section" id="condition1-content">
+        <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div><select name="cond1Timing">
+                <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                <option value="afterMain">{{localize "DX3rd.AfterMain"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div><select name="cond1Target">
+                <option value="self">{{localize "DX3rd.Self"}}</option>
+                <option value="targetToken">{{localize "DX3rd.Target"}}</option>
+                <option value="targetAll">{{localize "DX3rd.TargetAll"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Condition"}}</div>
+            <div><select name="cond1Type">
+                <option value="">{{localize "DX3rd.ConditionNone"}}</option>
+                <option value="poisoned">{{localize "DX3rd.Poisoned"}}</option>
+                <option value="hatred">{{localize "DX3rd.Hatred"}}</option>
+                <option value="fear">{{localize "DX3rd.Fear"}}</option>
+                <option value="berserk">{{localize "DX3rd.Berserk"}}</option>
+                <option value="rigor">{{localize "DX3rd.Rigor"}}</option>
+                <option value="pressure">{{localize "DX3rd.Pressure"}}</option>
+                <option value="dazed">{{localize "DX3rd.Dazed"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Poisoned"}} {{localize "DX3rd.Rank"}}</div>
+            <div><input type="text" name="cond1PoisonedRank"></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; justify-content: flex-end;">
+                <input type="checkbox" name="cond1Activate" id="cond1Activate">
+                <label for="cond1Activate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상태이상 2 탭 -->
+    <section class="content-section" id="condition2-content">
+        <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div><select name="cond2Timing">
+                <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                <option value="afterMain">{{localize "DX3rd.AfterMain"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div><select name="cond2Target">
+                <option value="self">{{localize "DX3rd.Self"}}</option>
+                <option value="targetToken">{{localize "DX3rd.Target"}}</option>
+                <option value="targetAll">{{localize "DX3rd.TargetAll"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Condition"}}</div>
+            <div><select name="cond2Type">
+                <option value="">{{localize "DX3rd.ConditionNone"}}</option>
+                <option value="poisoned">{{localize "DX3rd.Poisoned"}}</option>
+                <option value="hatred">{{localize "DX3rd.Hatred"}}</option>
+                <option value="fear">{{localize "DX3rd.Fear"}}</option>
+                <option value="berserk">{{localize "DX3rd.Berserk"}}</option>
+                <option value="rigor">{{localize "DX3rd.Rigor"}}</option>
+                <option value="pressure">{{localize "DX3rd.Pressure"}}</option>
+                <option value="dazed">{{localize "DX3rd.Dazed"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Poisoned"}} {{localize "DX3rd.Rank"}}</div>
+            <div><input type="text" name="cond2PoisonedRank"></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; justify-content: flex-end;">
+                <input type="checkbox" name="cond2Activate" id="cond2Activate">
+                <label for="cond2Activate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- 상태이상 3 탭 -->
+    <section class="content-section" id="condition3-content">
+        <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div><select name="cond3Timing">
+                <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                <option value="afterMain">{{localize "DX3rd.AfterMain"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div><select name="cond3Target">
+                <option value="self">{{localize "DX3rd.Self"}}</option>
+                <option value="targetToken">{{localize "DX3rd.Target"}}</option>
+                <option value="targetAll">{{localize "DX3rd.TargetAll"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Condition"}}</div>
+            <div><select name="cond3Type">
+                <option value="">{{localize "DX3rd.ConditionNone"}}</option>
+                <option value="poisoned">{{localize "DX3rd.Poisoned"}}</option>
+                <option value="hatred">{{localize "DX3rd.Hatred"}}</option>
+                <option value="fear">{{localize "DX3rd.Fear"}}</option>
+                <option value="berserk">{{localize "DX3rd.Berserk"}}</option>
+                <option value="rigor">{{localize "DX3rd.Rigor"}}</option>
+                <option value="pressure">{{localize "DX3rd.Pressure"}}</option>
+                <option value="dazed">{{localize "DX3rd.Dazed"}}</option>
+            </select></div>
+            <div class="form-label">{{localize "DX3rd.Poisoned"}} {{localize "DX3rd.Rank"}}</div>
+            <div><input type="text" name="cond3PoisonedRank"></div>
+            <div></div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; justify-content: flex-end;">
+                <input type="checkbox" name="cond3Activate" id="cond3Activate">
+                <label for="cond3Activate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- Weapon Tab -->
+    <section class="content-section" id="weapon-content">
+        <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-label">{{localize "DX3rd.Item"}} {{localize "DX3rd.Name"}}</div>
+            <div style="grid-column: span 3;"><input type="text" name="weaponName" placeholder="Name"></div>
+            
+            <!-- Row 2 -->
+            <div class="form-label">{{localize "DX3rd.Type"}}</div>
+            <div>
+                <select name="weaponType">
+                    <option value="melee">{{localize "DX3rd.Melee"}}</option>
+                    <option value="ranged">{{localize "DX3rd.Ranged"}}</option>
+                </select>
+            </div>
+            <div class="form-label">{{localize "DX3rd.Skill"}}</div>
+            <div>
+                <select name="weaponSkill">
+                    {{#each weaponSkillOptions}}
+                    <option value="{{this.key}}">{{this.label}}</option>
+                    {{/each}}
+                </select>
+            </div>
+            
+            <!-- Row 3 -->
+            <div class="form-label">{{localize "DX3rd.Add"}}</div>
+            <div><input type="text" name="weaponAdd" placeholder="Add"></div>
+            <div class="form-label">{{localize "DX3rd.Attack"}}</div>
+            <div><input type="text" name="weaponAttack" placeholder="Attack"></div>
+            
+            <!-- Row 4 -->
+            <div class="form-label">{{localize "DX3rd.Guard"}}</div>
+            <div><input type="text" name="weaponGuard" placeholder="Guard"></div>
+            <div class="form-label">{{localize "DX3rd.Range"}}</div>
+            <div><input type="text" name="weaponRange" placeholder="Range"></div>
+            
+            <!-- Row 5 -->
+            <div class="form-label">{{localize "DX3rd.Amount"}}</div>
+            <div><input type="text" name="weaponAmount" placeholder="Amount"></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="weaponFist" id="weaponFist">
+                <label for="weaponFist">{{localize "DX3rd.Fist"}}</label>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="weaponActivate" id="weaponActivate">
+                <label for="weaponActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- Protect Tab -->
+    <section class="content-section" id="protect-content">
+        <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-label">{{localize "DX3rd.Item"}} {{localize "DX3rd.Name"}}</div>
+            <div style="grid-column: span 3;"><input type="text" name="protectName" placeholder="Name"></div>
+            
+            <!-- Row 2 -->
+            <div class="form-label">{{localize "DX3rd.Dodge"}}</div>
+            <div><input type="text" name="protectDodge" placeholder="Dodge"></div>
+            <div class="form-label">{{localize "DX3rd.Init"}}</div>
+            <div><input type="text" name="protectInit" placeholder="Init"></div>
+            
+            <!-- Row 3 -->
+            <div class="form-label">{{localize "DX3rd.Armor"}}</div>
+            <div><input type="text" name="protectArmor" placeholder="Armor"></div>
+            <div></div>
+            <div></div>
+            
+            <!-- Row 4 -->
+            <div></div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="protectActivate" id="protectActivate">
+                <label for="protectActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+    <!-- Vehicle Tab -->
+    <section class="content-section" id="vehicle-content">
+        <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-label">{{localize "DX3rd.Item"}} {{localize "DX3rd.Name"}}</div>
+            <div style="grid-column: span 3;"><input type="text" name="vehicleName" placeholder="Name"></div>
+            
+            <!-- Row 2 -->
+            <div class="form-label">{{localize "DX3rd.Skill"}}</div>
+            <div style="grid-column: span 3;">
+                <select name="vehicleSkill">
+                    {{#each vehicleSkillOptions}}
+                    <option value="{{this.key}}">{{this.label}}</option>
+                    {{/each}}
+                </select>
+            </div>
+            
+            <!-- Row 3 -->
+            <div class="form-label">{{localize "DX3rd.Attack"}}</div>
+            <div><input type="text" name="vehicleAttack" placeholder="Attack"></div>
+            <div class="form-label">{{localize "DX3rd.Init"}}</div>
+            <div><input type="text" name="vehicleInit" placeholder="Init"></div>
+            
+            <!-- Row 4 -->
+            <div class="form-label">{{localize "DX3rd.Armor"}}</div>
+            <div><input type="text" name="vehicleArmor" placeholder="Armor"></div>
+            <div class="form-label">{{localize "DX3rd.Move"}}</div>
+            <div><input type="text" name="vehicleMove" placeholder="Move"></div>
+            
+            <!-- Row 5 -->
+            <div></div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="vehicleActivate" id="vehicleActivate">
+                <label for="vehicleActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<!-- Footer Buttons -->
+<div class="dialog-footer" style="display:flex; justify-content:flex-end; gap:8px; padding: 0px 8px 8px 8px;">
+    <button type="button" class="dx3rd-dialog-confirm">{{localize "DX3rd.Confirm"}}</button>
+    <button type="button" class="dx3rd-dialog-cancel">{{localize "DX3rd.Cancel"}}</button>
+</div>
+</div>

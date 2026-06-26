@@ -1,0 +1,96 @@
+<div class="book-sheet-v2-content">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-action="editImage" data-edit="img" title="{{item.name}}"/>
+    <div class="header-fields flexrow">
+      <h1 class="charname"><input name="name" type="text" value="{{item.name}}" placeholder="Name"/></h1>
+    </div>
+  </header>
+
+  <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
+    <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description"}}</a>
+    <a class="item {{tabs.spells.cssClass}}" data-action="tab" data-group="primary" data-tab="spells">{{localize "DX3rd.Spell"}}</a>
+  </nav>
+
+  <section class="sheet-body">
+    <div class="tab {{tabs.description.cssClass}}" data-group="primary" data-tab="description">
+      <div class="sheet-wrapper margin-top-10">
+        <section class="sheet-attributes">
+          <div class="cell grid-4">
+            <label class="cell--title">{{localize "DX3rd.EquipType"}}</label>
+            <div class="flex"><input type="text" value="{{localize displayType}}" readonly/></div>
+          </div>
+          <div class="cell grid-4">
+            <label class="cell--title">{{localize "DX3rd.Decipher"}} {{localize "DX3rd.Difficulty"}}</label>
+            <div class="flex"><input type="number" name="system.decipher" value="{{system.decipher}}" data-dtype="Number" min="0"/></div>
+          </div>
+          <div class="cell grid-4">
+            <label class="cell--title">{{localize "DX3rd.SellSaving"}}</label>
+            <div class="flex">
+              <input type="text" name="system.saving.difficulty" value="{{system.saving.difficulty}}" data-dtype="String"/>
+              <span class="slash"> / </span>
+              <input type="number" name="system.saving.value" value="{{system.saving.value}}" data-dtype="Number" min="0"/>
+            </div>
+          </div>
+          <div class="cell grid-4">
+            <label class="cell--title">{{localize "DX3rd.EXP"}}</label>
+            <input type="number" name="system.exp" value="{{system.exp}}" data-dtype="Number" min="0"/>
+          </div>
+        </section>
+        <div class="cell cell--bio">
+          <label class="cell--title">{{localize "DX3rd.Description"}}</label>
+          <prose-mirror name="system.description" value="{{system.description}}"
+                        data-document-uuid="{{item.uuid}}" collaborate relative toggled>{{{enrichedDescription}}}</prose-mirror>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab {{tabs.spells.cssClass}}" data-group="primary" data-tab="spells">
+      <div class="sheet-wrapper">
+        <table>
+          <tr>
+            <th><label for="system.macro">{{localize "DX3rd.Macro"}}</label></th>
+            <td colspan="7"><input type="text" name="system.macro" data-dtype="String" value="{{system.macro}}"/></td>
+          </tr>
+        </table>
+
+        <ol class="items-list" data-drop-zone="spells">
+          {{#each spellItems as |spell|}}
+          <li class="item combo-item" data-item-id="{{spell.id}}">
+            <div class="spell-header">
+              <h4 class="item-name">
+                <a class="item-label spell-toggle" data-action="toggleSpell">
+                  {{spell.name}} <span class="spell-toggle-icon"><i class="fas fa-chevron-down"></i></span>
+                </a>
+              </h4>
+              <div class="item-controls">
+                <a class="item-control item-delete" data-action="deleteSpell" title="Delete Item"><i class="fas fa-trash"></i></a>
+              </div>
+            </div>
+            <div class="spell-content">
+              <table class="info-table">
+                <tr>
+                  <th class="width-33">{{localize "DX3rd.SpellType"}}</th>
+                  <th class="width-33">{{localize "DX3rd.Invoke"}}</th>
+                  <th class="width-33">{{localize "DX3rd.Encroachment"}}</th>
+                </tr>
+                <tr>
+                  <td class="width-33">{{localize (concat "DX3rd." spell.system.spelltype)}}</td>
+                  <td class="width-33">{{#if (ne spell.system.invoke.value "0")}}{{#if (ne spell.system.evocation.value "-")}}{{spell.system.invoke.value}}/{{spell.system.evocation.value}}{{else}}{{spell.system.invoke.value}}{{/if}}{{else}}자동성공{{/if}}</td>
+                  <td class="width-33">{{#if spell.system.level}}{{spell.system.level.value}}{{else}}0{{/if}}</td>
+                </tr>
+              </table>
+              <div class="spell-description" hidden>{{{spell.system.description}}}</div>
+            </div>
+          </li>
+          {{/each}}
+        </ol>
+
+        <div class="item-controls plus-addon">
+          <button type="button" class="item-control item-create spell-create" data-action="createSpell">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>

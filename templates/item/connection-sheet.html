@@ -1,0 +1,158 @@
+<form class="{{cssClass}} item" autocomplete="off">
+  <header class="sheet-header">
+    <img class="profile-img" src="{{item.img}}" data-edit="img" title="{{item.name}}"/>
+    <div class="header-fields flexrow">
+      <h1 class="charname"><input name="name" type="text" value="{{item.name}}" placeholder="Name"/></h1>
+    </div>
+  </header>
+
+  {{!-- Sheet Tab Navigation --}}
+  <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
+    <a class="item" data-tab="description">{{localize "DX3rd.Description" }}</a>
+    <a class="item" data-tab="attributes">{{localize "DX3rd.Attributes" }}</a>
+  </nav>
+
+  {{!-- Sheet Body --}}
+  <section class="sheet-body">
+    {{!-- Description Tab --}}
+    <div class="tab" data-group="primary" data-tab="description">
+      <div class="sheet-wrapper margin-top-10">
+        <section class="sheet-attributes">
+
+          <div class="cell grid-8">
+            <label class="cell--title">
+              {{localize "DX3rd.Skill"}}
+            </label>
+            <select name="system.skill">
+              {{#select system.skill}}
+              {{#each system.skillOptions as |option|}}
+              <option value="{{option.value}}">{{localize option.label}}</option>
+              {{/each}}
+              {{/select}}
+            </select>
+          </div>
+
+          <div class="cell grid-4">
+            <label class="cell--title">
+              {{localize "DX3rd.SellSaving"}}
+            </label>
+            <div class="flex">
+              <input type="text" name="system.saving.difficulty" value="{{system.saving.difficulty}}" data-dtype="String"/>
+              <span class="slash"> / </span>
+              <input type="number" name="system.saving.value" value="{{system.saving.value}}" data-dtype="Number" min="0"/>
+            </div>
+          </div>
+
+          <div class="cell grid-4">
+            <label class="cell--title">
+              {{localize "DX3rd.EXP"}}
+            </label>
+            <input type="number" name="system.exp" value="{{system.exp}}" data-dtype="Number" min="0"/>
+          </div>
+
+        </section>
+
+        <div class="cell cell--bio">
+          <label class="cell--title">
+            {{localize "DX3rd.Description"}}
+          </label>
+          {{!-- We're avoiding WYSIWYGs... for now... --}}
+          {{editor enrichedBiography target="system.description" button=true editable=editable }}
+        </div>
+      </div>
+    </div>
+
+    {{!-- Attributes Tab --}}
+    <div class="tab" data-group="primary" data-tab="attributes">
+      <div class="sheet-wrapper margin-top-10">
+        <table>
+          
+          <tr>
+            <th><span>{{localize "DX3rd.Active"}}</span></th>
+            <td><input type="checkbox" name="system.active.state" {{#if system.active.state}} checked {{/if}}></td>
+            <th><label for="system.active.runTiming">{{localize "DX3rd.RunTiming"}}</label></th>
+            <td>
+              <select name="system.active.runTiming" data-dtype="String"">
+                {{#select system.active.runTiming}}
+                <option value="instant">{{localize "DX3rd.Instant"}}</option>
+                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
+                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
+                {{/select}}
+              </select>
+            </td>
+            <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
+            <td>
+              <select name="system.active.disable" data-dtype="String" style="width: 100%;"">
+                {{#select system.active.disable}}
+                <option value="-">-</option>
+                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
+                <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
+                <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
+                <option value="main">{{localize "DX3rd.AfterMain"}}</option>
+                <option value="reaction">{{localize "DX3rd.AfterReaction"}}</option>
+                <option value="guard">{{localize "DX3rd.AfterGuard"}}</option>
+                <option value="round">{{localize "DX3rd.AfterRound"}}</option>
+                <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
+                <option value="session">{{localize "DX3rd.AfterSession"}}</option>
+                {{/select}}
+              </select>
+            </td>
+          </tr>
+
+          <tr>
+            <th><span>{{localize "DX3rd.UsedCount"}}</span></th>
+            <td colspan="2">
+              <input type="number" class="checkbox-input" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}} disabled {{/ifEquals}}>/
+              <input type="number" class="checkbox-input" name="system.used.max" value="{{system.used.max}}" {{#ifEquals system.used.disable "notCheck"}} disabled {{/ifEquals}}>
+            </td>
+            <th><span>{{localize "DX3rd.ResetTiming"}}</span></th>
+            <td colspan="5">
+              <select name="system.used.disable" data-dtype="String" style="width: 100%;">
+                {{#select system.used.disable}}
+                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
+                <option value="main">{{localize "DX3rd.AfterMain"}}</option>
+                <option value="round">{{localize "DX3rd.AfterRound"}}</option>
+                <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
+                <option value="session">{{localize "DX3rd.AfterSession"}}</option>
+                {{/select}}
+              </select>
+            </td>
+          </tr>
+
+          <tr>
+            <th><label for="system.macro">{{localize "DX3rd.Macro"}}</label></th>
+            <td colspan="7"><input type="text" name="system.macro" data-dtype="String" value="{{system.macro}}"></td>
+          </tr>
+
+        </table>
+
+        <div class="attributes">
+          <header class="attributes-header flexrow">
+            <span class="attribute-key">{{localize "DX3rd.Name"}}</span>
+            <span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span>
+            <span class="attribute-value">{{localize "DX3rd.Value"}}</span>
+            <a class="attribute-control" data-action="create" data-pos="main" data-type="attributes"><i class="fas fa-plus"></i></a>
+          </header>
+    
+          <ol class="attributes-list" data-pos="main">
+          {{#each system.attributes as |attr key|}}
+            <li class="attribute flexrow" data-attribute="{{key}}">
+              <select class="attribute-key" name="system.attributes.{{key}}.key" data-dtype="String">
+                {{{attributeOptions attr.key}}}
+              </select>
+
+              <input class="attribute-label" type="text" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled>
+              <input class="attribute-value" type="text" name="system.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
+              <a class="attribute-control" data-action="delete" data-attribute="{{key}}"><i class="fas fa-trash"></i></a>
+            </li>
+          {{/each}}
+          </ol>
+        </div>
+
+      </div>
+    </div>
+
+
+  </section>
+
+</form>

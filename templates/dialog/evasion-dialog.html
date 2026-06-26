@@ -1,0 +1,19 @@
+<div class="dialog-content">
+  <h2 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <b>{{title}}</b>
+    <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; margin: 0;">
+      <input type="checkbox" id="evasion-disabled" {{#if disabled}} checked {{/if}}>
+      {{localize "DX3rd.DisableTiming"}}
+    </label>
+  </h2>
+  <div class="edit-list flexrow" style="gap: 2px; align-items: flex-end; justify-content: center;">
+    <div class="ability-title-box">{{localize "DX3rd.Total"}}</div>
+    <div class="ability-title-box">{{localize "DX3rd.Extra"}}</div>
+    <div class="ability-title-box">{{localize "DX3rd.Add"}}</div>
+  </div>
+  <div class="edit-list flexrow" style="gap: 2px; align-items: flex-end; justify-content: center; margin-top: 2px;">
+    <input type="text" id="evasion-total" class="text ability-input-box" value="{{total}}" disabled>
+    <input type="number" id="evasion-base" class="text ability-input-box" value="{{base}}" {{#if disabled}} disabled {{/if}}>
+    <input type="text" id="evasion-bonus" class="text ability-input-box auto-sign" value="{{bonus}}" disabled>
+  </div>
+</div>

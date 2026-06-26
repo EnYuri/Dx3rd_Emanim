@@ -1,0 +1,3137 @@
+.app.window-app.dialog .window-header,
+.window-app.dx3rd-emanim .window-header,
+.application.dx3rd-emanim .window-header,
+.dx3rd-emanim.dialog .window-header {
+    background: #1f1f1f;
+    border-bottom: 1px solid #383838;
+    color: #f5f5f5;
+}
+
+.app.window-app.dialog .window-content,
+.window-app.dx3rd-emanim .window-content,
+.application.dx3rd-emanim .window-content,
+.dx3rd-emanim.dialog .window-content {
+    background: #121212;
+    color: #e0e0e0;
+}
+
+/* AppV2 document sheets use the application element itself as the form root. */
+.application.sheet.dx3rd-emanim {
+    color: #e0e0e0;
+}
+
+.application.sheet.dx3rd-emanim .window-header {
+    background: #1f1f1f !important;
+    border-bottom-color: #383838 !important;
+    color: #f5f5f5 !important;
+}
+
+.application.sheet.dx3rd-emanim .window-content {
+    background: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+.application.sheet.dx3rd-emanim.item > .window-content,
+.application.sheet.dx3rd-emanim.actor > .window-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.application.sheet.dx3rd-emanim.item > .window-content > [class$="-sheet-v2-content"],
+.application.sheet.dx3rd-emanim.actor > .window-content > [class$="-sheet-v2-content"] {
+    color: inherit;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header {
+    align-items: center;
+    background: #2d2d2d !important;
+    color: #fff !important;
+    display: flex;
+    gap: 10px;
+    min-height: 64px;
+    margin-bottom: 10px;
+    padding: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .profile-img {
+    flex: 0 0 64px;
+    height: 64px;
+    object-fit: cover;
+    width: 64px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .header-fields {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header h1.charname {
+    border: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header h1.charname input {
+    color: #fff !important;
+    font-size: 18px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .level {
+    flex: 0 0 60px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .level input {
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-body,
+.application.sheet.dx3rd-emanim.actor .sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.actor-sheet-v2-content,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content {
+    min-height: 0;
+}
+
+.actor-sheet-v2-content .sheet-header,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-header {
+    align-items: center;
+    gap: 10px;
+}
+
+.actor-sheet-v2-content .profile-img,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .profile-img {
+    flex: 0 0 80px;
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+}
+
+.actor-sheet-v2-content .header-fields,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields {
+    flex: 1;
+}
+
+.actor-sheet-v2-skill-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.actor-sheet-v2-item-section {
+    margin: 8px 0;
+}
+
+.actor-sheet-v2-item-section .items-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.actor-sheet-v2-compact-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.actor-sheet-v2-item-section .item {
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-bottom: 1px solid #333;
+}
+
+.actor-sheet-v2-item-section .item-name {
+    flex: 1;
+}
+
+.actor-sheet-v2-item-section .item-summary,
+.actor-sheet-v2-item-summary,
+.actor-sheet-v2-empty {
+    color: #999;
+}
+
+.actor-sheet-v2-item-summary {
+    flex: 0 0 auto;
+    font-size: 0.85em;
+}
+
+.actor-sheet-v2-small-button,
+.actor-sheet-v2-icon-button,
+.actor-sheet-v2-text-button,
+.actor-sheet-v2-item-section button {
+    flex: 0 0 auto;
+    line-height: 1;
+    padding: 3px 6px;
+}
+
+.actor-sheet-v2-text-button {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+}
+
+.actor-sheet-v2-text-button:hover {
+    text-decoration: underline;
+}
+
+.actor-sheet-v2-icon-button {
+    float: right;
+}
+
+.actor-sheet-v2-inline-controls {
+    align-items: center;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 4px;
+}
+
+.actor-sheet-v2-used-input {
+    width: 42px;
+}
+
+.app.window-app.dialog .dialog-buttons,
+.window-app.dx3rd-emanim .dialog-buttons,
+.dx3rd-emanim.dialog .dialog-buttons {
+    padding: 6px 12px 6px 12px;
+}
+
+.app.window-app.dialog button,
+.app.window-app.dialog .dialog-buttons button,
+.app.window-app.dialog .dialog-button,
+.window-app.dx3rd-emanim button,
+.window-app.dx3rd-emanim .dialog-buttons button,
+.window-app.dx3rd-emanim .dialog-button,
+.application.dx3rd-emanim button,
+.application.dx3rd-emanim .dialog-buttons button,
+.application.dx3rd-emanim .dialog-button,
+.dx3rd-emanim.dialog button,
+.dx3rd-emanim.dialog .dialog-buttons button,
+.dx3rd-emanim.dialog .dialog-button {
+    background: #2a2a2a;
+    color: #f5f5f5;
+    border: 1px solid #444;
+    border-radius: 4px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.app.window-app.dialog button:hover:not(:disabled),
+.app.window-app.dialog .dialog-buttons button:hover:not(:disabled),
+.app.window-app.dialog .dialog-button:hover:not(:disabled),
+.window-app.dx3rd-emanim button:hover:not(:disabled),
+.window-app.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
+.window-app.dx3rd-emanim .dialog-button:hover:not(:disabled),
+.application.dx3rd-emanim button:hover:not(:disabled),
+.application.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
+.application.dx3rd-emanim .dialog-button:hover:not(:disabled),
+.dx3rd-emanim.dialog button:hover:not(:disabled),
+.dx3rd-emanim.dialog .dialog-buttons button:hover:not(:disabled),
+.dx3rd-emanim.dialog .dialog-button:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+.app.window-app.dialog button:disabled,
+.app.window-app.dialog .dialog-buttons button:disabled,
+.app.window-app.dialog .dialog-button:disabled,
+.window-app.dx3rd-emanim button:disabled,
+.window-app.dx3rd-emanim .dialog-buttons button:disabled,
+.window-app.dx3rd-emanim .dialog-button:disabled,
+.application.dx3rd-emanim button:disabled,
+.application.dx3rd-emanim .dialog-buttons button:disabled,
+.application.dx3rd-emanim .dialog-button:disabled,
+.dx3rd-emanim.dialog button:disabled,
+.dx3rd-emanim.dialog .dialog-buttons button:disabled,
+.dx3rd-emanim.dialog .dialog-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.app.window-app.dialog input,
+.app.window-app.dialog select,
+.app.window-app.dialog textarea,
+.window-app.dx3rd-emanim input,
+.window-app.dx3rd-emanim select,
+.window-app.dx3rd-emanim textarea,
+.application.dx3rd-emanim input,
+.application.dx3rd-emanim select,
+.application.dx3rd-emanim textarea,
+.dx3rd-emanim.dialog input,
+.dx3rd-emanim.dialog select,
+.dx3rd-emanim.dialog textarea {
+    background: #181818;
+    border: 1px solid #3c3c3c;
+    color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.app.window-app.dialog input:focus,
+.app.window-app.dialog select:focus,
+.app.window-app.dialog textarea:focus,
+.window-app.dx3rd-emanim input:focus,
+.window-app.dx3rd-emanim select:focus,
+.window-app.dx3rd-emanim textarea:focus,
+.application.dx3rd-emanim input:focus,
+.application.dx3rd-emanim select:focus,
+.application.dx3rd-emanim textarea:focus,
+.dx3rd-emanim.dialog input:focus,
+.dx3rd-emanim.dialog select:focus,
+.dx3rd-emanim.dialog textarea:focus {
+    outline: none;
+    border-color: #6a6a6a;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+/* Sheet-specific inputs (ensure dark background even if overridden elsewhere) */
+.dx3rd-emanim .sheet-wrapper .sheet-stat input:not([type="checkbox"]):not([type="radio"]),
+.dx3rd-emanim .sheet-wrapper .sheet-stat select,
+.dx3rd-emanim .sheet-wrapper .sheet-stat textarea {
+    color: #f5f5f5 !important;
+    background: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat input:not([type="checkbox"]):not([type="radio"]):focus,
+.dx3rd-emanim .sheet-wrapper .sheet-stat select:focus,
+.dx3rd-emanim .sheet-wrapper .sheet-stat textarea:focus {
+    background: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    border-color: #6a6a6a !important;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.dx3rd-emanim .sheet-wrapper input::placeholder,
+.dx3rd-emanim .sheet-wrapper textarea::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-main input:not([type="checkbox"]):not([type="radio"]),
+.dx3rd-emanim .sheet-wrapper .sheet-main select,
+.dx3rd-emanim .sheet-wrapper .sheet-main textarea {
+    color: #f5f5f5 !important;
+    background: #404040 !important;
+    border: none !important;
+    border-radius: 0px !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-main input:not([type="checkbox"]):not([type="radio"]):focus,
+.dx3rd-emanim .sheet-wrapper .sheet-main select:focus,
+.dx3rd-emanim .sheet-wrapper .sheet-main textarea:focus {
+    background: #404040 !important;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    border-color: #6a6a6a !important;
+    border-radius: 0px !important;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+}
+
+.app.window-app.dx3rd-emanim.sheet.actor {
+    min-width: 850px;
+    max-width: 850px;
+}
+
+.dx3rd-emanim .highlight {
+    font-weight: bold;
+    color: #19499b !important;
+}
+
+/* DX 주사위 시각적 효과 */
+.dx3rd-emanim .dice-term.dx .dice-face.fumble {
+    color: #d32f2f !important;
+    text-shadow: none !important;
+}
+
+.dx3rd-emanim .dice-term.dx .dice-face.exploded {
+    color: #2e7d32 !important;
+    text-shadow: none !important;
+}
+
+/* DS 주사위 시각적 효과 */
+.dx3rd-emanim .dice-term.ds .dice-face.fumble {
+    color: #2e7d32 !important;
+    text-shadow: none !important;
+}
+
+.dx3rd-emanim .dice-term.ds .dice-face.exploded {
+    color: #d32f2f !important;
+    text-decoration: line-through !important;
+    opacity: 0.7 !important;
+    text-shadow: none !important;
+}
+
+/* DX 주사위 전용 스타일 - 다양한 선택자로 커버 */
+.dx3rd-emanim .dice-term.dx .dice-face.fumble,
+.dx3rd-emanim .dice .dice-face.fumble,
+.dx3rd-emanim .dice-face.fumble,
+.dx3rd-emanim .dice-result .dice-face.fumble {
+    color: #d32f2f !important;
+    text-shadow: none !important;
+}
+
+
+.dx3rd-emanim .dice-term.dx .dice-face.exploded,
+.dx3rd-emanim .dice .dice-face.exploded,
+.dx3rd-emanim .dice-face.exploded,
+.dx3rd-emanim .dice-result .dice-face.exploded {
+    color: #2e7d32 !important;
+    text-shadow: none !important;
+}
+
+/* Book Sheet 스펠 리스트 중앙 정렬 */
+.dx3rd-emanim .spell-item .attribute-value {
+    text-align: center;
+}
+
+.dx3rd-emanim .spell-item .attribute-name {
+    text-align: center;
+}
+
+.dx3rd-emanim .spell-item .attribute-controls {
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Book Sheet 스펠 아이템 배경색 (어트리뷰트 리스트와 통일) */
+.dx3rd-emanim .spell-item {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.dx3rd-emanim .spell-item:hover {
+    background-color: transparent;
+}
+
+/* 스펠 아이템 입력칸 배경색 통일 (밑줄 제거) */
+.dx3rd-emanim .spell-item input {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+/* 스펠 아이템 컨트롤 영역 통일 (밑줄 제거) */
+.dx3rd-emanim .spell-item .attribute-controls {
+    height: 28px;
+    line-height: 24px;
+    margin: 0 3px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+/* Book Sheet 술식 아이템 레이아웃 */
+.dx3rd-emanim .combo-item {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+}
+
+.dx3rd-emanim .combo-item .item-name {
+    width: 100%;
+}
+
+.dx3rd-emanim .spell-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #000;
+    color: #fff;
+    padding: 2px 0px;
+}
+
+.dx3rd-emanim .spell-header .item-name {
+    margin: 0;
+    flex: 1;
+}
+
+.dx3rd-emanim .spell-header .item-label {
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.dx3rd-emanim .spell-header .spell-toggle-icon {
+    margin-left: 8px;
+    color: #fff;
+}
+
+.dx3rd-emanim .spell-content {
+    padding: 0px;
+}
+
+.dx3rd-emanim .spell-description {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 4px;
+}
+
+/* 드롭 존 스타일 */
+.dx3rd-emanim .items-list[data-drop-zone="spells"] {
+    min-height: 50px;
+    border: 2px dashed transparent;
+    transition: border-color 0.2s ease;
+}
+
+.dx3rd-emanim .items-list[data-drop-zone="spells"]:empty::before {
+    content: "스펠 아이템을 여기에 드래그하세요";
+    display: block;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    padding: 20px;
+    border: 2px dashed #ccc;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.dx3rd-emanim .items-list[data-drop-zone="spells"].drag-over {
+    border-color: #4CAF50;
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+
+
+/* DS 주사위 전용 스타일 - 다양한 선택자로 커버 */
+.dx3rd-emanim .dice-term.ds .dice-face.fumble,
+.dx3rd-emanim .dice-term.ds .dice-face.fumble,
+.dx3rd-emanim .dice-term.ds .dice-face.fumble,
+.dx3rd-emanim .dice-term.ds .dice-result .dice-face.fumble {
+    color: #2e7d32 !important;
+    text-shadow: none !important;
+}
+
+.dx3rd-emanim .dice-term.ds .dice-face.exploded,
+.dx3rd-emanim .dice-term.ds .dice-face.exploded,
+.dx3rd-emanim .dice-term.ds .dice-face.exploded,
+.dx3rd-emanim .dice-term.ds .dice-result .dice-face.exploded {
+    color: #d32f2f !important;
+    text-decoration: line-through !important;
+    opacity: 0.7 !important;
+    text-shadow: none !important;
+}
+
+/* Foundry VTT 기본 주사위 구조에 맞춘 추가 선택자 - DX */
+.dx3rd-emanim .chat-message .dice .dice-face.fumble,
+.dx3rd-emanim .chat-message .dice-face.fumble {
+    color: #d32f2f !important;
+    text-shadow: none !important;
+}
+
+.dx3rd-emanim .chat-message .dice .dice-face.exploded,
+.dx3rd-emanim .chat-message .dice-face.exploded {
+    color: #2e7d32 !important;
+    text-shadow: none !important;
+}
+
+.dx3rd-emanim .white-btn {
+    border: none;
+    background: none;
+}
+
+.dx3rd-emanim .white-btn * {
+    color: white;
+}
+
+.margin-top-10 {
+    margin-top: 10px;
+}
+
+.width-100 {
+    width: 100%;
+}
+
+.dx3rd-emanim .grid-2 {
+    grid-column: span 2;
+}
+
+.dx3rd-emanim .grid-3 {
+    grid-column: span 3;
+}
+
+.dx3rd-emanim .grid-4 {
+    grid-column: span 4;
+}
+
+.dx3rd-emanim .grid-5 {
+    grid-column: span 5;
+}
+
+.dx3rd-emanim .grid-6 {
+    grid-column: span 6;
+}
+
+.dx3rd-emanim .grid-7 {
+    grid-column: span 7;
+}
+
+.dx3rd-emanim .grid-8 {
+    grid-column: span 8;
+}
+
+.dx3rd-emanim .grid-10 {
+    grid-column: span 10;
+}
+
+.dx3rd-emanim .grid-11 {
+    grid-column: span 11;
+}
+
+.dx3rd-emanim .grid-12 {
+    grid-column: span 12;
+}
+
+.dx3rd-emanim .grid-13 {
+    grid-column: span 13;
+}
+
+.dx3rd-emanim .grid-full {
+    grid-column: span 16;
+}
+
+.dx3rd-emanim .grid-img {
+    grid-row: span 2;
+    grid-column: span 2;
+    text-align: center;
+}
+
+.dx3rd-emanim .sheet-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    height: 100%;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header {
+    width: 100%;
+    margin-bottom: 10px;
+    height: 44px;
+    display: grid;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: 0px 10px;
+    padding: 0;
+    align-items: center;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .select-box {
+    background: black;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 8px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .select-box option {
+    color: black;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn {
+    margin: 0 8px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn * {
+    font-weight: bold;
+    color: white;
+    line-height: 22px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .progress-bar {
+    text-align: center;
+    position: relative;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .progress-bar input {
+    font-weight: bold;
+    color: white;
+    border: 2px solid white;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .progress-bar .dice-addon label {
+    margin-right: 6px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .progress-bar .dice-addon input {
+    background: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    margin: 0;
+    width: 20px;
+    border: 0;
+}
+
+/* encroachment-bar 스타일 */
+.encroachment-bar {
+    position: relative;
+    width: 100%;
+    height: 24px;
+    background: #2b2b2b;
+    border-radius: 0px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    border: 1px solid white
+}
+.enc-bar-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: 0px;
+    pointer-events: none;
+}
+.enc-bar-blue { background: #67848f; z-index: 1; }
+.enc-bar-red { background: #5f2727; z-index: 2; }
+.enc-bar-darkred { background: #000000; z-index: 3; }
+.encroachment-value-text {
+    position: absolute;
+    left: 0; top: 0; width: 100%; height: 100%;
+    text-align: center; line-height: 24px; color: #fff;
+    font-weight: bold; z-index: 10; text-shadow: 0 0 4px #000;
+    pointer-events: auto;
+}
+.encroachment-bar .dice-addon {
+    position: relative;
+    z-index: 20;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    background: transparent;
+}
+
+.encroachment-value-input {
+    background: transparent;
+    color: #fff;
+    border: none;
+    font-weight: bold;
+    font-size: 16px;
+    text-align: center;
+    width: 60px;
+    text-shadow: 0 0 4px #000;
+    outline: none;
+  }
+  
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat {
+    display: grid !important;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 0px 12px;
+    padding: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .title::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: -1;
+    background: black;
+    transform: sKewX(342deg);
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .title {
+    display: inline-block;
+    position: relative;
+    background: transparent;
+
+    color: white;
+    text-align: center;
+    font-weight: bold;
+    padding: 6px 4px;
+    z-index: 2;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box {
+    position: relative;
+    margin-bottom: 3px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 32px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .title {
+    width: 80px;
+    height: 32px;
+    font-size: 16px;
+    margin-right: 0;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 32px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .name-wrapper {
+    position: relative;
+    height: 32px;
+    width: 240px;
+    margin-left: -5px;
+    display: flex;
+    align-items: center;
+    overflow: visible;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .name-wrapper::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: -16px;
+    bottom: 0;
+    background: #404040;
+    border: 1px solid black;
+    border-bottom-right-radius: 0px;
+    border-top-right-radius: 0px;
+    transform: skewX(342deg);
+    z-index: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .name {
+    position: relative;
+    background: transparent;
+    border: none;
+    width: 100%;
+    height: 100%;
+    padding-left: 16px;
+    font-size: 16px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    line-height: 32px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .grid-2 .stat-box .title {
+    left: -14px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .title {
+    width: 80px;
+    height: 32px;
+    font-size: 16px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .name {
+    position: relative;
+    background: transparent;
+    border: none;
+    width: 100%;
+    height: 100%;
+    padding-left: 24px;
+    font-size: 16px;
+    z-index: 1;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .grid-2 .stat-box .stat-list {
+    left: 66px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .stat-list {
+    position: absolute;
+    left: 74px;
+    top: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .stat-list::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    background: #404040;
+    transform: sKewX(342deg);
+    border: 1px solid black;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .stat-list .stat {
+    height: 32px;
+    width: 60px;
+    background: white;
+    text-align: center;
+    position: relative;
+    background: transparent;
+    z-index: 1;
+    border: none;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-grid {
+    display: flex;
+    gap: 10px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-grid .no-flex {
+    flex: none;
+    width: 140px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .stat-box .stat-list .divider {
+    flex: none;
+    z-index: 1;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info {
+    margin: 0 14px;
+    text-align: center;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info .title {
+    width: 100%;
+    margin-bottom: 6px;
+    font-size: 16px;
+    height: 32px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info .title .addon-critical-min {
+    position: absolute;
+    width: 28px;
+    height: 25px;
+    background: white;
+    right: 10px;
+    top: 4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .flex {
+    display: flex;
+}
+
+.dx3rd-emanim .sheet-wrapper .slash {
+    padding-top: 4px;
+    margin: 0 10px;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info .flex input {
+    background: var(--input-background-color) !important;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info .flex select {
+    margin-right: 8px;
+    border: none;
+    font-weight: bold;
+    background: var(--input-background-color) !important;
+    color: white;
+    text-align: center;
+    padding: 0 4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .dice-info .flex option {
+    color: black;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid {
+    display: flex;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    margin-top: 0;
+    margin-bottom: 12px;
+    min-width: 0;
+    height: auto;
+    overflow: visible;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .stat-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    position: relative;
+    width: 100%;
+    margin-bottom: 2px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .title {
+    width: 86px;
+    height: 42px;
+    line-height: 32px;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .skill-create {
+    position: absolute;
+    top: 5px;
+    right: 3px;
+    width: 12px;
+    height: 12px;
+    font-size: 0.7em;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .skill-create:hover i {
+    color: #ffbb00 !important;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .value::before {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    z-index: 0;
+    background: #404040;
+    transform: sKewX(342deg);
+  }
+  
+  .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .value .stat {
+    text-align: center;
+    position: relative;
+    background: transparent;
+    z-index: 1;
+    height: 32px;
+    font-weight: bold;
+    font-size: 15px;
+  }
+  
+  .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .value {
+    position: absolute;
+    width: 40px;
+    left: 83px;
+    top: 10px;
+  }
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .diamond {
+    position: absolute;
+    right: 15px;
+    top: 5px;
+    width: 27px;
+    height: 27px;
+    background: #404040;
+    transform: rotate(45deg);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(25,73,155,0.10), 0 0 0 2px #fff inset;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .diamond:hover {
+    box-shadow: 0 2px 8px rgba(25,73,155,0.10), 0 0 0 2px #ffbb00 inset;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .diamond .total {
+    transform: rotate(-45deg);
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    font-size: 17px;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+    z-index: 3;
+    letter-spacing: 0.5px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box {
+    position: static;
+    width: 100%;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    pointer-events: auto;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .title::before {
+    background: #404040;
+    border: 2px solid rgb(0, 0, 0);
+    top: -4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .title {
+    width: 145px;
+    height: 25px;
+    line-height: 12px;
+    font-size: 14px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box label.skill {
+    position: relative;
+    display: block;
+    padding-right: 28px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .skill-edit {
+    position: absolute;
+    top: 4px;
+    z-index: 2;
+    right: 25px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .skill-edit:hover {
+    color: #ffbb00;
+}
+
+.dx3rd-emanim .sheet-wrapper .ability-roll,
+.dx3rd-emanim .sheet-wrapper .skill-roll {
+    cursor: pointer;
+}
+
+.dx3rd-emanim .sheet-wrapper .ability-roll:hover,
+.dx3rd-emanim .sheet-wrapper .skill-roll:hover,
+.dx3rd-emanim .sheet-wrapper .stock-title:hover {
+    text-shadow: 0 0 8px var(--color-shadow-primary);
+}
+  
+
+.dx3rd-emanim .sheet-wrapper .sheet-attributes {
+    display: grid;
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    gap: 0px 10px;
+    padding: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-attributes .cell {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: horizontal;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: row;
+    flex-direction: row;
+    -ms-flex-wrap: wrap;
+    flex-wrap: wrap;
+    position: relative;
+    align-content: flex-start;
+}
+
+.dx3rd-emanim .sheet-wrapper .cell .cell--title {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: horizontal;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: row;
+    flex-direction: row;
+    -ms-flex-wrap: nowrap;
+    flex-wrap: nowrap;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: justify;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+    -webkit-box-flex: 100%;
+    -ms-flex: 100%;
+    flex: 100%;
+    padding: 5px;
+    margin-bottom: 5px;
+    font-weight: bold;
+
+
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    flex-basis: 100px;
+    background: black;
+    color: #fff;
+    justify-content: center;
+    height: 34px;
+}
+
+.dx3rd-emanim .sheet-attributes .syndrome-type,
+.dx3rd-emanim .dice-addon,
+.dx3rd-emanim .cell--title .left-addon {
+    position: absolute;
+    left: 8px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-attributes .items-list .description-item {
+    padding: 4px;
+    border: 3px solid black;
+    margin-right: 2px;
+}
+
+.dx3rd-emanim .sheet-attributes .plus-addon {
+    position: absolute;
+    top: 2px;
+    width: 35px;
+    height: 35px;
+    right: 5px;
+}
+
+
+.dx3rd-emanim .sheet-attributes .plus-addon button {
+    background: none !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: inherit;
+}
+
+.dx3rd-emanim .sheet-attributes .plus-addon button:hover i {
+    color: #ffbb00 !important;
+}
+
+.dx3rd-emanim .diamond input {
+    pointer-events: none;
+}
+
+.dx3rd-emanim .cell--title .left-addon {
+    background: white;
+}
+
+.dx3rd-emanim .item-addon {
+    text-align: right;
+    font-size: 17px;
+    font-weight: bold;
+    flex: initial;
+    display: flex;
+    justify-content: center;
+}
+
+.dx3rd-emanim .item-addon .btn-titus,
+.dx3rd-emanim .item-addon .btn-sublimation {
+    background: black;
+    color: white;
+    border: 0;
+    font-weight: bold;
+    width: 70px;
+}
+
+.dx3rd-emanim .sheet-attributes input,
+.dx3rd-emanim .sheet-attributes select {
+    background: var(--input-background-color);
+    border-radius: 0px !important;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+
+.dx3rd-emanim .sheet-attributes .horizon-input {
+    height: calc(100% - 4px);
+    background: var(--input-background-color);
+    border: 1px solid rgb(0, 0, 0);
+}
+
+
+.dx3rd-emanim .sheet-attributes select {
+    width: 100%;
+}
+
+.dx3rd-emanim .sheet-attributes .attributes .attribute-key {
+    flex: none;
+    width: 20%;
+}
+
+.dx3rd-emanim .sheet-wrapper .space-between .cell--title {
+    justify-content: space-between;
+}
+
+.dx3rd-emanim .sheet-wrapper .cell--crit {
+    margin: 0;
+    width: 40px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.dx3rd-emanim .sheet-wrapper .checkbox-input {
+    width: 22px;
+    height: 22px;
+    margin: 2px 5px;
+    text-align: center;
+}
+
+.dx3rd-emanim .item .sheet-header {
+    width: 100%;
+    margin-bottom: 10px;
+    height: 64px;
+}
+
+.dx3rd-emanim .item .sheet-header {
+    background: #2d2d2d;
+    color: #fff;
+}
+
+.dx3rd-emanim .item .sheet-header input {
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    border: 0;
+    margin: 0 10px;
+    font-size: 18px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.dx3rd-emanim .item .sheet-header .flex-item {
+    flex: none;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: horizontal;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: row;
+    flex-direction: row;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    position: relative;
+    text-align: right;
+    margin-left: auto;
+    margin-right: 8px;
+    padding: 4px 0px;
+}
+
+.dx3rd-emanim .item .sheet-header .flex-item label {
+    -webkit-box-flex: 2;
+    -ms-flex: 2;
+    flex: 2;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .item .sheet-header input {
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    border: 0;
+    margin: 0 10px;
+    font-size: 18px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.dx3rd-emanim .item .sheet-header .flex-item input {
+    color: black;
+    background: white;
+    text-align: center;
+    width: 100px;
+}
+
+.dx3rd-emanim .item .sheet-header .header-fields input {
+    color: white;
+    border-bottom: 2px solid #5b7094;
+}
+
+.dx3rd-emanim .item .sheet-header .header-fields {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+}
+
+.dx3rd-emanim .item .sheet-header .header-fields .level {
+    flex: 0 0 50px;
+    text-align: center;
+    font-weight: bold;
+    height: 54px;
+}
+
+.dx3rd-emanim .item .sheet-header .header-fields .level label {
+    line-height: 20px;
+}
+
+.dx3rd-emanim .item .sheet-header .header-fields .level input {
+    background: white;
+    border: none;
+    color: black;
+    width: 32px;
+}
+
+.dx3rd-emanim .item-controls {
+    text-align: center;
+    -webkit-box-flex: 0;
+    -ms-flex: 0 0 54px;
+    flex: 0 0 54px;
+}
+
+.dx3rd-emanim .item-controls .item-checkbox {
+    margin: 0;
+    margin-right: 4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-body .tab,
+.dx3rd-emanim .sheet-wrapper .sheet-body .sheet-tab {
+    height: 100%;
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-body .sheet-tab {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    margin: 10px 0;
+    padding: 0;
+}
+
+.dx3rd-emanim nav.tabs {
+    border-bottom: 1px solid rgb(0, 0, 0);
+    border-top: 0;
+    padding-bottom: 0;
+}
+
+.dx3rd-emanim .tabs .item {
+    border: 1px solid;
+    background: #bcc8de;
+    border-radius: 4px 4px 0 0;
+    margin: 0 5px -1px;
+    width: 100%;
+}
+
+.dx3rd-emanim .tabs .item.active {
+    background: #fff;
+    color: #000;
+    border-bottom: 0;
+    text-shadow: none;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .cell--bio {
+    -webkit-box-flex: 100;
+    -ms-flex: 100;
+    flex: 100;
+    position: relative;
+}
+
+.dx3rd-emanim .editor,
+.dx3rd-emanim .editor-content {
+    min-height: 350px;
+    resize: none;
+    flex: 1 1 100%;
+}
+
+/* Foundry AppV2 renders prose-mirror outside the legacy editor wrapper. */
+.application.sheet.dx3rd-emanim prose-mirror,
+.application.sheet.dx3rd-emanim prose-mirror .editor-content,
+.application.sheet.dx3rd-emanim prose-mirror .editor-content *,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror * {
+    color: var(--fe-ac-80, #cccccc) !important;
+}
+
+.application.sheet.dx3rd-emanim prose-mirror .editor-content,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror {
+    min-height: 350px;
+}
+
+body.fe-retro-theme .dx3rd-emanim prose-mirror .editor-content,
+body.fe-retro-theme .dx3rd-emanim prose-mirror .editor-content *,
+body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror,
+body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
+    color: var(--fe-ac-80) !important;
+}
+
+.dx3rd-emanim .cell--title .addon {
+    position: absolute;
+    right: 8px;
+    top: 3px;
+    background: white;
+    border: none;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .sheet-wrapper .add-skills {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.dx3rd-emanim .sheet-wrapper .add-skills select {
+    flex: 1;
+    min-width: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .add-skills button {
+    width: 32px;
+    flex-shrink: 0;
+    line-height: 25px;
+}
+
+.dx3rd-emanim .attributes-header {
+    padding: 5px;
+    margin: 5px 0;
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid #AAA;
+    border-radius: 2px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .attributes-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dx3rd-emanim .attributes-list li>* {
+    margin: 0 3px;
+    height: 28px;
+    line-height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid #AAA;
+    text-align: center;
+}
+
+.dx3rd-emanim .skills .attribute-control,
+.dx3rd-emanim .attributes .attribute-control {
+    flex: 0 0 20px;
+    text-align: center;
+    line-height: 28px;
+    border: none;
+}
+
+.dx3rd-emanim .flexrow {
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+}
+
+.dx3rd-emanim .tabs .item {
+    border: 1px solid;
+    background: #404040;
+    color: white;
+    border-radius: 4px 4px 0 0;
+    border-color: black;
+    margin: 0 5px -1px;
+    flex: 1;
+}
+
+.dx3rd-emanim .tabs .item.active {
+    background: #fff;
+    color: #000;
+    border-bottom: 0;
+    text-shadow: none;
+    font-weight: bold;
+}
+
+.dx3rd-emanim .sheet-wrapper .items-list {
+    flex-basis: 100%;
+    margin: 0;
+    padding-left: 2px;
+    margin-bottom: 6px;
+}
+
+.dx3rd-emanim .sheet-wrapper .items-list .item {
+    padding: 10px 0;
+    margin: 2px;
+}
+
+.dx3rd-emanim .cell--works .items-list .item,
+.dx3rd-emanim .cell--syndrome .items-list .item {
+    padding: 4px;
+    border: 3px solid black;
+    margin-right: 2px;
+}
+
+.dx3rd-emanim .item-description {
+    display: none;
+    -webkit-box-flex: 0;
+    -ms-flex: none;
+    flex: none;
+    width: 100%;
+}
+
+/* 아이템 클릭 스타일 */
+.dx3rd-emanim .echo-item {
+    cursor: pointer;
+}
+
+.dx3rd-emanim .item-label {
+    cursor: pointer;
+}
+
+
+
+.dx3rd-emanim .item-name {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 0px;
+    -webkit-box-flex: 2;
+    -ms-flex: 2;
+    flex: 2;
+}
+
+/* 사용 횟수 소진된 아이템 스타일 */
+.dx3rd-emanim .item.item-exhausted {
+    background-color: #000000 !important;
+}
+
+.dx3rd-emanim .item.item-exhausted .item-name .item-label {
+    color: #dc143c !important;
+    margin: 0;
+}
+
+.dx3rd-emanim .item.item-exhausted .item-control {
+    color: #dc143c !important;
+}
+
+.dx3rd-emanim .item-label:hover::after {
+    width: 100%;
+}
+
+.dx3rd-emanim .item-label::after {
+    display: block;
+    content: '';
+    width: 0;
+    height: 0;
+    margin-top: 2px;
+    border-bottom: 2px solid;
+    -webkit-transition: all ease-in-out 0.25s;
+    -o-transition: all ease-in-out 0.25s;
+    transition: all ease-in-out 0.25s;
+}
+
+.dx3rd-emanim .sheet-wrapper .items-list .combo-item {
+    padding: 4px 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .item-name {
+    background: black;
+    color: white;
+    padding-left: 8px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    flex-basis: 100%;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .item-name .level {
+    padding: 0 6px;
+    background-color: white;
+    color: black;
+    margin-right: 4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .item-controls {
+    float: right;
+    font-size: 15px;
+    padding-top: 4px;
+    padding-right: 6px;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .info-table {
+    margin: 0;
+    text-align: center;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .info-table .width-18 {
+    width: 18%;
+}
+
+.dx3rd-emanim .sheet-wrapper .combo-item .info-table .width-14 {
+    width: 14%;
+}
+
+
+.dx3rd-emanim .sheet-wrapper .items-list .titus {
+    color: crimson;
+    background: black;
+}
+
+
+.dx3rd-emanim .dialog-content .edit-list {
+    display: flex;
+    text-align: center;
+}
+
+.dx3rd-emanim .dialog-content .edit-list .title {
+    background: black;
+    color: white;
+    padding: 2px;
+    margin: 2px;
+}
+
+.dx3rd-emanim .dialog-content .edit-list .text {
+    background: white;
+}
+
+.dx3rd-emanim .dialog-content .skill-delete {
+    float: right;
+    margin-right: 8px;
+}
+
+.dx3rd-emanim .checkbox-addon {
+    position: absolute;
+    right: 0;
+}
+
+/* 어빌리티 다이얼로그 스타일 */
+.ability-title-box {
+    background: #000;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 0;
+    font-weight: bold;
+    text-align: center;
+  }
+  .ability-input-box {
+    background: rgba(255,255,255,0.8);
+    border: 1px solid #000;
+    border-radius: 0;
+    text-align: center;
+    font-weight: bold;
+    width: 60px;
+    margin-bottom: 2px;
+  }
+  
+  /* 스킬 다이얼로그 스타일 */
+  .skill-input-box {
+      background: rgba(255,255,255,0.8);
+      border: 1px solid #000;
+      border-radius: 0;
+      text-align: center;
+      font-weight: bold;
+      width: 90%;
+      height: 24px;
+      margin: 2px 0;
+  }
+  
+  .skill-input-box:disabled {
+      background: rgba(240,240,240,0.8);
+      color: #666;
+  }
+  
+  .skill-input-box[readonly] {
+      background: rgba(240,240,240,0.8);
+      color: #666;
+  }
+  
+  .dx3rd-emanim-skill-table select.skill-input-box {
+      width: 90%;
+      height: 24px;
+      padding: 0 4px;
+  }
+  
+  .dice-roll {
+    margin-top: 2px;
+    margin-bottom: 2px;
+  }
+  /* 다이스 테이블 스타일 */
+  .dice-tooltip .dice-rolls .clear {
+    width: 100%;
+    border-bottom: 2px solid var(--color-text-light-6);
+    margin: 4px 0;
+    background-image: none;
+    text-align: right;
+    padding: 0 10px;
+}
+
+.dice-rolls .dice {
+    font-size: 1em;
+    /* 또는 14px, 12px 등 원하는 크기로 */
+}
+
+.dice-rolls .dice.exploded::after,
+.dice-rolls .dice.exploded::before {
+    content: none !important;
+    background: none !important;
+}
+
+
+.dice-rolls .dice.exploded {
+    color: #3d6856;
+    text-shadow:
+        0 0 2px #aec3a6,
+        1px 0 0 #aec3a6,
+        -1px 0 0 #aec3a6,
+        0 1px 0 #aec3a6,
+        0 -1px 0 #aec3a6,
+        1px 1px 0 #aec3a6,
+        -1px 1px 0 #aec3a6,
+        1px -1px 0 #aec3a6,
+        -1px -1px 0 #aec3a6;
+}
+
+.dice-rolls .dice.fumble {
+    color: #6c1d62;
+    text-shadow:
+        0 0 2px #d7b5ba,
+        1px 0 0 #d7b5ba,
+        -1px 0 0 #d7b5ba,
+        0 1px 0 #d7b5ba,
+        0 -1px 0 #d7b5ba,
+        1px 1px 0 #d7b5ba,
+        -1px 1px 0 #d7b5ba,
+        1px -1px 0 #d7b5ba,
+        -1px -1px 0 #d7b5ba;
+}
+
+/* 아이템 채팅 메시지 스타일 - 기존 스타일과 일치 */
+.dx3rd-item-chat {
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid #AAA;
+    border-radius: 2px;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin: 4px 0;
+}
+
+.dx3rd-item-chat .item-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #AAA;
+}
+
+.dx3rd-item-chat .item-header img {
+    border: 1px solid black;
+    background: rgba(128, 128, 128, 0.3);
+    border-radius: 2px;
+}
+
+.dx3rd-item-chat .item-header .dx3rd-ruby {
+    ruby-position: over;
+    ruby-align: center;
+}
+
+/* 토글 기능 스타일 */
+.dx3rd-item-chat .item-name-toggle {
+    transition: color 0.3s ease;
+}
+
+.dx3rd-item-chat .item-name-toggle:hover {
+    color: #4a9eff;
+    text-shadow: 0 0 4px rgba(74, 158, 255, 0.3);
+}
+
+
+
+.dx3rd-item-chat .collapsible-content {
+    overflow: hidden;
+}
+
+.dx3rd-item-chat .collapsible-content.collapsed {
+    display: none !important;
+}
+
+/* 콤보 토글 버튼 스타일 */
+.dx3rd-item-chat .combo-section-header {
+    margin-top: 8px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    border: 1px solid #AAA;
+}
+
+.dx3rd-item-chat .combo-toggle-btn {
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+.dx3rd-item-chat .combo-toggle-btn:hover {
+    color: #4a9eff;
+    text-shadow: 0 0 4px rgba(74, 158, 255, 0.3);
+}
+
+.dx3rd-item-chat .combo-items-list {
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid #AAA;
+}
+
+.dx3rd-item-chat .combo-item {
+    margin-bottom: 12px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+    border: 1px solid #DDD;
+}
+
+.dx3rd-item-chat .combo-item-header {
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #DDD;
+}
+
+.dx3rd-item-chat .combo-item-details {
+    font-size: 0.9em;
+}
+
+/* 콤보 아이템 다이얼로그 스타일 - 콤보 시트와 동일 */
+.combo-items-dialog {
+    max-width: 700px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* 콤보 시트의 items-list 스타일 그대로 적용 */
+.combo-items-dialog .items-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.combo-items-dialog .item {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    display: block;
+}
+
+.combo-items-dialog .item-name {
+    margin: 0 0 8px 0;
+    padding: 0;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.combo-items-dialog .item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.combo-items-dialog .item-name {
+    display: block;
+    width: 100%;
+}
+
+.combo-items-dialog .info-table {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.combo-items-dialog .level {
+    background: #ffffff;
+    color: rgb(0, 0, 0);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.combo-items-dialog .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.3px;
+}
+
+.combo-items-dialog .info-table th,
+.combo-items-dialog .info-table td {
+    text-align: center;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+}
+
+.combo-items-dialog .info-table th {
+    background: rgba(0, 0, 0, 0.05);
+    font-weight: bold;
+}
+
+.combo-items-dialog .width-18 {
+    width: 18%;
+}
+
+.combo-items-dialog .width-14 {
+    width: 14%;
+}
+
+/* 마도서 술식 목록 다이얼로그 전용 스타일 */
+.book-spell-list-dialog {
+    max-width: 700px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.book-spell-list-dialog .items-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.book-spell-list-dialog .item {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.02);
+    display: block;
+}
+
+.book-spell-list-dialog .item-name {
+    margin: 0 0 8px 0;
+    padding: 0;
+    font-size: 16px;
+    font-weight: bold;
+    display: block;
+    width: 100%;
+}
+
+.book-spell-list-dialog .item-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.book-spell-list-dialog .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.book-spell-list-dialog .info-table th,
+.book-spell-list-dialog .info-table td {
+    border: 1px solid #ddd;
+    padding: 4px 8px;
+    text-align: center;
+    width: 33.33%;
+    font-size: 12.3px;
+}
+
+.book-spell-list-dialog .info-table th {
+    font-weight: bold;
+}
+
+/* 마도서 술식 목록에서 소유한 술식 스타일 */
+.book-spell-list-dialog .owned-spell {
+    background-color: black !important;
+    color: red !important;
+}
+
+.book-spell-list-dialog .owned-spell .item-name,
+.book-spell-list-dialog .owned-spell .item-label,
+.book-spell-list-dialog .owned-spell .info-table,
+.book-spell-list-dialog .owned-spell .info-table th,
+.book-spell-list-dialog .owned-spell .info-table td {
+    background-color: black !important;
+    color: red !important;
+}
+
+/* 콤보 버튼 세로 배치 */
+.dx3rd-item-chat .item-actions.collapsible-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dx3rd-item-chat .item-actions.collapsible-content .use-item-btn {
+    margin-bottom: 0;
+}
+
+.dx3rd-item-chat .protect-actions {
+    margin-top: 6px;
+    text-align: right;
+}
+
+.dx3rd-item-chat .protect-unequip-btn {
+    background: none;
+    border: 1px solid #888;
+    border-radius: 3px;
+    color: #888;
+    font-size: 0.75em;
+    padding: 1px 8px;
+    cursor: pointer;
+    line-height: 1.6;
+}
+
+.dx3rd-item-chat .protect-unequip-btn:hover:not(:disabled) {
+    border-color: #ccc;
+    color: #ccc;
+}
+
+.dx3rd-item-chat .protect-unequip-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.dx3rd-item-chat .item-header strong {
+    font-weight: bold;
+    font-size: 18px;
+    margin-bottom: 2px;
+    padding: 3px 0;
+}
+
+.dx3rd-item-chat .item-type {
+    color: #888;
+    font-size: 0.6em;
+    margin-left: 8px;
+}
+
+.dx3rd-item-chat .flavor-text {
+    margin-top: 4px;
+}
+
+.dx3rd-item-chat .item-details {
+    margin: 8px 0;
+}
+
+.dx3rd-item-chat .item-details p {
+    margin: 2px 0;
+    font-size: 14px;
+}
+
+.dx3rd-item-chat .item-details strong {
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+/* 이펙트 상세 정보 스타일 - 이미지와 일치 */
+.dx3rd-item-chat .effect-details {
+    margin: 8px 0;
+    border: 1px solid #AAA;
+    border-radius: 2px;
+}
+
+.dx3rd-item-chat .effect-details .detail-row {
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    border-bottom: 1px solid #AAA;
+}
+
+.dx3rd-item-chat .effect-details .detail-row:last-child {
+    border-bottom: none;
+}
+
+.dx3rd-item-chat .effect-details .detail-row:nth-child(even) {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dx3rd-item-chat .effect-details .detail-key {
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.dx3rd-item-chat .effect-details .detail-value {
+    font-weight: normal;
+}
+
+/* 2열 그리드 레이아웃 */
+.dx3rd-item-chat .effect-details .two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.dx3rd-item-chat .effect-details .detail-cell {
+    display: flex;
+    align-items: center;
+}
+
+.dx3rd-item-chat .effect-details .detail-cell .detail-key {
+    margin-right: 4px;
+}
+
+.dx3rd-item-chat .effect-details .detail-cell .detail-value {
+    font-weight: normal;
+}
+
+/* 아이템 사용 버튼 스타일 - 이미지와 일치 */
+.dx3rd-item-chat .item-actions {
+    margin-top: 8px;
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+}
+
+.message-content .item-actions {
+    margin-top: 8px;
+    margin-bottom: 5px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+}
+
+.dx3rd-item-chat .use-item-btn {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.dx3rd-item-chat .use-item-btn:hover {
+    background: #6b6b6b;
+}
+
+.dx3rd-item-chat .attack-roll-btn {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.dx3rd-item-chat .attack-roll-btn:hover {
+    background: #6b6b6b;
+}
+
+.dx3rd-success-btn,
+.dx3rd-win-check-btn {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.dx3rd-success-btn:hover,
+.dx3rd-win-check-btn:hover {
+    background: #6b6b6b;
+}
+
+.dx3rd-item-chat .item-description {
+    margin-top: 8px;
+    border-top: 1px solid #AAA;
+    color: gray;
+    font-size: smaller;
+    padding: 6px 6px 0px 6px;
+}
+
+.dx3rd-item-chat .item-description strong {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.dx3rd-item-chat .description-content {
+    color: gray;
+    line-height: 1.4;
+}
+
+
+/* 어트리뷰트 변경 메시지 스타일 */
+.attribute-changes {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.attribute-change-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.attribute-change-row .detail-key {
+    font-weight: bold;
+    min-width: 80px;
+}
+
+.attribute-change-row .detail-value {
+    color: #198754;
+    font-weight: bold;
+}
+
+/* Applied Effect Dialog Table */
+.applied-effect-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+}
+
+.applied-effect-table th,
+.applied-effect-table td {
+    padding: 8px 12px;
+    text-align: center;
+    border: 1px solid #ccc;
+}
+
+.applied-effect-table th {
+    font-weight: bold;
+}
+
+/* Sublimation Dialog Styles */
+.sublimation-dialog {
+    padding: 10px;
+}
+
+.sublimation-dialog .dialog-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sublimation-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sublimation-action-btn {
+    width: 100%;
+    padding: 5px;
+    text-align: center;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.sublimation-action-btn:hover {
+    background-color: #e0e0e0;
+    border-color: #999;
+}
+
+.sublimation-separator {
+    margin: 10px 0;
+    border: none;
+    border-top: 2px solid #333;
+}
+
+/* Sublimation Used Button Style */
+.btn-sublimation.sublimation-used {
+    background-color: #dc143c !important;
+    color: black !important;
+    text-decoration: line-through;
+}
+
+/* Hide Movement Actions button in Token HUD */
+button.control-icon[data-action="togglePalette"][data-palette="movementActions"] {
+    display: none !important;
+}
+
+/* --- Rolling Dialog (shared) --- */
+.dx3rd-casting-dialog { padding-top: 4px; }
+.dx3rd-row { display: grid; gap: 8px; }
+.dx3rd-3col { grid-template-columns: 1fr 1fr 1fr; }
+.dx3rd-2col { grid-template-columns: 1fr 1fr; }
+.dx3rd-6col { grid-template-columns: 2fr 1fr 2fr 1fr; }
+.dx3rd-8col { 
+    grid-template-columns: 1fr 2fr 1fr 2fr 1fr 1fr; 
+    gap: 4px;
+}
+.dx3rd-casting-dialog .label,
+.dx3rd-rolling-dialog .label {
+  text-align: center; font-weight: 700; color: #444;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.02));
+  border: 1px solid rgba(0,0,0,0.25);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  height: 26px;
+}
+.dx3rd-casting-dialog input[type="text"],
+.dx3rd-casting-dialog input[type="number"],
+.dx3rd-rolling-dialog input[type="text"],
+.dx3rd-rolling-dialog input[type="number"] {
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  color: #f5f5f5;
+  background: #1b1b1b;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  height: 26px;
+}
+.dx3rd-rolling-dialog .dialog-buttons .dialog-button {
+  background: #2a2a2a;
+  color: #f5f5f5;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+.dx3rd-rolling-dialog .dialog-buttons .dialog-button:hover {
+  filter: brightness(1.05);
+  background: #3a3a3a;
+  border-color: #666;
+}
+
+/* Checkbox alignment styles */
+.dx3rd-casting-dialog .checkbox-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+}
+
+.dx3rd-casting-dialog .checkbox-container label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    height: 100%;
+    color: #e0e0e0;
+}
+
+.dx3rd-casting-dialog .checkbox-container input[type="checkbox"] {
+    margin: 0;
+    transform: none;
+    height: 16px;
+    width: 16px;
+}
+
+.dx3rd-casting-dialog .label {
+    color: #bbbbbb;
+    font-weight: 600;
+}
+
+/* 8col specific alignment */
+.dx3rd-8col .checkbox-container {
+    min-height: 28px;
+}
+
+.dx3rd-8col .checkbox-container label {
+    text-align: center;
+    line-height: 1.2;
+}
+
+.spell-invoke-message {
+    margin-top: 8px;
+    padding: 8px;
+    border-top: 1px solid #AAA;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.chat-btn.invoke-spell {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.chat-btn.invoke-spell:hover {
+    background: #6b6b6b;
+}
+
+.spell-overflow-message {
+    padding: 4px 8px 0px 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.chat-btn.spell-overflow {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+.chat-btn.spell-overflow:hover {
+    background: #6b6b6b;
+}
+
+.dx3rd-combat-start-msg,
+.dx3rd-combat-end-msg {
+    font-weight: bold !important;
+    font-size: 1.3em !important;
+    margin: 5px 0px 5px 0px !important;
+    border-bottom: 1px solid #ffffff !important;
+    color: #ffffff !important;
+    line-height: 1.3 !important;
+}
+
+.dx3rd-combat-msg {
+    font-weight: bold !important;
+    font-size: 1.1em !important;
+    margin: 5px 0px 5px 0px !important;
+    border-bottom: 1px solid #ffffff !important;
+    color: #ffffff !important;
+    line-height: 1.3 !important;
+}
+
+/* Weapon Use Dialog */
+.weapon-use-dialog .dialog-buttons {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+}
+
+.weapon-use-dialog .dialog-button {
+    margin: 0 !important;
+}
+
+.damage-roll-message {
+    margin-top: 8px;
+    margin-bottom: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.damage-roll-btn,
+.damage-apply-btn {
+    background: rgb(255, 255, 255);
+    color: rgb(0, 0, 0);
+    border: none;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 2px;
+    width: 100%;
+}
+
+/* 데미지 산출 다이얼로그 스타일 */
+.damage-dialog.window-app {
+    top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
+    left: 50% !important;
+    transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
+}ㅅ
+
+/* 데미지 적용 다이얼로그 (방어 다이얼로그) 스타일 */
+.defense-dialog.window-app {
+    top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
+    left: 50% !important;
+    transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
+}
+
+/* 판정 다이얼로그 스타일 */
+.dx3rd-rolling-dialog.window-app {
+    top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
+    left: 50% !important;
+    transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
+}
+
+/* 충동 판정 다이얼로그 / 장면 등장 전용 다이얼로그 스타일 */
+#dx3rd-urge-dialog,
+#dx3rd-scene-enter-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 10px 20px 12px 20px;
+    border: none;
+    border-radius: 8px;
+    z-index: 9999;
+    text-align: center;
+    font-size: 16px;
+    box-shadow: 0 0 10px black;
+    min-width: 260px;
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-title,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-title {
+    margin-bottom: 12px;
+    font-size: 0.9em;
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-buttons,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-buttons {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-button,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-button {
+    width: 100%;
+    height: 28px;
+    background: white;
+    color: black;
+    border-radius: 4px;
+    border: none;
+    opacity: 0.5;
+    font-weight: bold;
+    font-size: 0.75em;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-button:hover,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-button:hover {
+    opacity: 0.8;
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel {
+    background: white;
+    color: rgba(255, 68, 68, 1);
+}
+
+#dx3rd-urge-dialog .dx3rd-urge-dialog-divider,
+#dx3rd-scene-enter-dialog .dx3rd-urge-dialog-divider {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 공포 효과 다이얼로그 스타일 (충동 판정 다이얼로그와 동일) */
+#dx3rd-panic-effect-dialog,
+#dx3rd-panic-select-dialog,
+#dx3rd-madness-effect-dialog,
+#dx3rd-madness-select-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 10px 20px 12px 20px;
+    border: none;
+    border-radius: 8px;
+    z-index: 9999;
+    text-align: center;
+    font-size: 16px;
+    box-shadow: 0 0 10px black;
+    min-width: 260px;
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-title,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-title,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-title,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-title {
+    margin-bottom: 12px;
+    font-size: 0.9em;
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-buttons,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-buttons,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-buttons,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-buttons {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-button,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-button,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-button,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-button {
+    width: 100%;
+    height: 28px;
+    background: white;
+    color: black;
+    border-radius: 4px;
+    border: none;
+    opacity: 0.5;
+    font-weight: bold;
+    font-size: 0.75em;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-button:hover,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-button:hover,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-button:hover,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-button:hover {
+    opacity: 0.8;
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-button.dx3rd-urge-dialog-cancel {
+    background: white;
+    color: rgba(255, 68, 68, 1);
+}
+
+#dx3rd-panic-effect-dialog .dx3rd-urge-dialog-divider,
+#dx3rd-panic-select-dialog .dx3rd-urge-dialog-divider,
+#dx3rd-madness-effect-dialog .dx3rd-urge-dialog-divider,
+#dx3rd-madness-select-dialog .dx3rd-urge-dialog-divider {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+#dx3rd-panic-select-dialog select,
+#dx3rd-madness-select-dialog select {
+    background: white;
+    color: black;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.damage-dialog .calc-dialog {
+    font-weight: bold;
+    font-size: 14px;
+    text-align: center;
+    padding-bottom: 8px;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    min-width: 0px;
+}
+
+.damage-dialog .calc-dialog input {
+    background: white;
+}
+
+.damage-dialog .calc-dialog th {
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #ccc;
+    white-space: nowrap;
+    min-width: 80px;
+    padding: 8px 4px;
+}
+
+.damage-dialog .calc-dialog td {
+    padding: 4px;
+    border: 1px solid #ccc;
+    text-align: center;
+    width: 60px;
+}
+
+.damage-dialog .calc-dialog input[type="number"] {
+    width: 90px;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    text-align: center;
+}
+
+.damage-dialog .calc-dialog input#add-damage {
+    width: 95%;
+}
+
+/* 매크로 설정 창 form-group 마진 조정 */
+.macro-config .window-content.standard-form .form-group {
+    margin-top: 0em !important;
+}
+
+/* 장면 열기 다이얼로그: #N과 입력 칸 한 줄 배치 */
+.dx3rd-scene-open-dialog {
+    padding: 0px 12px;
+}
+.dx3rd-scene-open-dialog .form-group {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+    margin-top: 0;
+}
+/* 라벨은 내용 너비만 사용(flex로 고정), Foundry 기본 폼 스타일 덮어씀 */
+.dx3rd-scene-open-dialog .form-group label {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none;
+}
+.dx3rd-scene-open-dialog .form-group input {
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    width: 0 !important; /* flex: 1 1 0%와 함께 남은 공간 채움 */
+}
+.dx3rd-scene-open-dialog .dx3rd-scene-open-user-list {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.dx3rd-scene-open-dialog .dx3rd-scene-open-user-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    cursor: pointer;
+    gap: 8px;
+}
+.dx3rd-scene-open-dialog .dx3rd-scene-open-user-row span {
+    flex: 1;
+    margin-right: 0;
+}
+.dx3rd-scene-open-dialog .dx3rd-scene-open-user-row input[type="checkbox"] {
+    flex-shrink: 0;
+}
+.dx3rd-scene-open-dialog .dx3rd-scene-open-no-users {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9em;
+}
+
+/* 백트랙 메시지 스타일 */
+.dx3rd-backtrack-result {
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+    border: 2px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dx3rd-backtrack-result .backtrack-header {
+    text-align: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #4a4a4a;
+    padding-bottom: 10px;
+}
+
+.dx3rd-backtrack-result .backtrack-header h3 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.dx3rd-backtrack-result .backtrack-details {
+    color: #cccccc;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.dx3rd-backtrack-result .backtrack-details p {
+    margin: 8px 0;
+    padding: 5px 0;
+}
+
+.dx3rd-backtrack-result .backtrack-details strong {
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.dx3rd-backtrack-result .backtrack-result {
+    text-align: center;
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dx3rd-backtrack-result .backtrack-result.success {
+    background: linear-gradient(135deg, #2d5a2d 0%, #1a3a1a 100%);
+    color: #90ee90;
+    border: 2px solid #4a7c4a;
+}
+
+.dx3rd-backtrack-result .backtrack-result.failure {
+    background: linear-gradient(135deg, #5a2d2d 0%, #3a1a1a 100%);
+    color: #ff6b6b;
+    border: 2px solid #7c4a4a;
+}
+
+/* 유틸리티 클래스 - 메시지 상태 스타일 */
+.dx3rd-item-chat .dx3rd-error,
+.dx3rd-item-chat .dx3rd-error strong {
+    color: #ff6b6b;
+}
+
+.dx3rd-item-chat .dx3rd-success,
+.dx3rd-item-chat .dx3rd-success strong {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.dx3rd-item-chat .dx3rd-failure,
+.dx3rd-item-chat .dx3rd-failure strong {
+    color: #f44336;
+    font-weight: bold;
+}
+
+/* 유틸리티 클래스 - 마진/패딩 */
+.dx3rd-mt-4 {
+    margin-top: 4px;
+}
+
+.dx3rd-mt-8 {
+    margin-top: 8px;
+}
+
+.dx3rd-mb-4 {
+    margin-bottom: 4px;
+}
+
+.dx3rd-mb-8 {
+    margin-bottom: 8px;
+}
+
+/* 유틸리티 클래스 - 폰트 스타일 */
+.dx3rd-bold {
+    font-weight: bold;
+}
+
+.dx3rd-text-center {
+    text-align: center;
+}
+
+/* 유틸리티 클래스 - 폰트 크기 */
+.dx3rd-text-small {
+    font-size: 12px;
+}
+
+.dx3rd-text-normal {
+    font-size: 14px;
+}
+
+/* 유틸리티 클래스 - 패딩 */
+.dx3rd-p-6 {
+    padding: 0px 6px;
+}
+
+/* 결과 메시지 스타일 (판정 성공/실패) */
+.dx3rd-item-chat .dx3rd-result-success {
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+.dx3rd-item-chat .dx3rd-result-failure {
+    color: #f44336;
+    font-weight: bold;
+}
+
+/* 백트랙 성공/실패 메시지 */
+.dx3rd-item-chat .dx3rd-backtrack-success {
+    color: #4CAF50;
+}
+
+.dx3rd-item-chat .dx3rd-backtrack-failure {
+    color: #f44336;
+}
+
+/* 채팅 메시지 헤더 - actor일 때 호버 효과 */
+.message-header[data-actor-id] .message-sender:hover {
+    text-shadow: 0 0 8px var(--color-shadow-primary);
+    cursor: pointer;
+}
+
+/* 로이스 추가 다이얼로그 스타일 */
+.dx3rd-add-lois-dialog {
+    padding: 10px;
+}
+
+.lois-dialog-field {
+    margin-bottom: 12px;
+}
+
+.lois-dialog-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.lois-dialog-select {
+    flex: 1;
+    padding: 4px;
+}
+
+.lois-dialog-hint {
+    margin-top: 5px;
+    font-size: 11px;
+    color: #888;
+}
+
+.lois-dialog-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lois-dialog-row-label {
+    min-width: 30px;
+    font-weight: bold;
+    margin: 0;
+}
+
+.lois-dialog-input {
+    flex: 1;
+    padding: 4px;
+}
+
+.lois-dialog-checkbox {
+    margin: 0;
+}
+
+.lois-dialog-checkbox-label {
+    margin: 0;
+    font-weight: normal;
+}
+
+/* 로이스 감정 표시 스타일 */
+.rois-emotion {
+    color: inherit;
+}
+
+.rois-emotion.rois-emotion-active.rois-emotion-positive {
+    color: #73aae6;
+    font-weight: bold;
+}
+
+.rois-emotion.rois-emotion-active.rois-emotion-negative {
+    color: #f16060;
+    font-weight: bold;
+}
+
+/* Ensure select dropdown lists use dark background */
+select {
+    background-color: var(--input-background-color) !important;
+    color: #fff !important;
+}
+
+select option {
+    background-color: #101010 !important;
+    color: #fff !important;
+}
+
+/* Simple Actor Sheet Styles - Override default sheet-wrapper styles */
+.sheet-wrapper.simple-sheet-wrapper {
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+}
+
+.sheet-wrapper.simple-sheet-wrapper .simple-sheet-content {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 0 !important;
+    height: 100% !important;
+    width: 100% !important;
+    flex: 1 !important;
+    align-items: stretch !important;
+}
+
+.simple-sheet-portrait {
+    flex: 0 0 250px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    width: 250px !important;
+    height: 250px !important;
+    min-width: 250px !important;
+    min-height: 250px !important;
+}
+
+.simple-sheet-portrait .profile-img {
+    width: 250px !important;
+    height: 250px !important;
+    object-fit: cover !important;
+    display: block !important;
+}
+
+.simple-sheet-right {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    height: 100% !important;
+    min-width: 0 !important;
+}
+
+.simple-sheet-name {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 0 !important;
+}
+
+.simple-sheet-name .actor-name {
+    margin: 0 !important;
+    color: #fff !important;
+    font-size: 24px !important;
+    font-weight: bold !important;
+    text-align: center !important;
+}
+
+.simple-sheet-description {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #1a1a1a !important;
+    margin: 10px !important;
+    min-height: 0 !important;
+}
+
+.simple-sheet-description .cell--title {
+    height: 34px;
+    color: #fff !important;
+    font-weight: bold !important;
+    text-align: center !important;
+    padding: 5px !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 0 !important;
+}
+
+.simple-sheet-description .description-content {
+    flex: 1 !important;
+    padding: 5px !important;
+    border-radius: 0 !important;
+    color: #fff !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
+}
+
+.simple-sheet-description .description-content .no-description {
+    color: #999 !important;
+    font-style: italic !important;
+    margin: 0 !important;
+}

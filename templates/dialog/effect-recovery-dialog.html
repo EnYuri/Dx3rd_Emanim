@@ -1,0 +1,12 @@
+<div class="sublimation-dialog">
+    <div class="dialog-content">
+        <p>회복할 이펙트를 선택하세요:</p>
+        <div class="sublimation-section normal-actions">
+            {{#each effects}}
+            <button class="sublimation-action-btn effect-recovery-btn" data-effect-id="{{id}}">
+                {{name}} ({{safeNumber state}}/{{safeNumber max}})
+            </button>
+            {{/each}}
+        </div>
+    </div>
+</div>
