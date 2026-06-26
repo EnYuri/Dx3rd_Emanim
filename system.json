@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.2.7",
+  "version": "1.2.8",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -200,7 +200,7 @@
   },
   "url": "https://github.com/EnYuri/Dx3rd_Emanim",
   "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
-  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.7/dx3rd-emanim.zip",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.8/dx3rd-emanim.zip",
   "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
   "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
 }

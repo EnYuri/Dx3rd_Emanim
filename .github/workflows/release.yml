@@ -1,0 +1,72 @@
+name: Release
+
+# system.json 의 버전이 바뀐 채로 main 에 푸시되면 해당 버전 태그로
+# FVTT 릴리즈(매니페스트 + zip)를 자동 생성한다. 같은 버전이 이미 릴리즈돼
+# 있으면 건너뛴다. 수동 실행(workflow_dispatch)도 가능.
+on:
+  push:
+    branches: [main]
+    paths: ['system.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from system.json
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./system.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "DX3rd | release version: $VERSION"
+
+      - name: Check if release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "DX3rd | release ${{ steps.ver.outputs.version }} already exists, skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin manifest/download URLs to this version
+        if: steps.check.outputs.exists == 'false'
+        env:
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const p = "./system.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            const repo = process.env.REPO;
+            const v = process.env.VERSION;
+            j.manifest = `https://github.com/${repo}/releases/latest/download/system.json`;
+            j.download = `https://github.com/${repo}/releases/download/${v}/dx3rd-emanim.zip`;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+            console.log("DX3rd | pinned download:", j.download);
+          '
+
+      - name: Build system zip
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          zip -r dx3rd-emanim.zip . -x '.git/*' '.github/*'
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: ${{ steps.ver.outputs.version }}
+          files: |
+            system.json
+            dx3rd-emanim.zip
