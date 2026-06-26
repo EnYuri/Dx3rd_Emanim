@@ -88,6 +88,12 @@
       const root = this.element;
       if (!root) return;
 
+      // AppV2 액터 시트는 part 루트가 벗겨져 콘텐츠가 .window-content 바로 밑에 놓인다.
+      // 기존 AppV1 레이아웃 CSS는 전부 `.dx3rd-emanim .sheet-wrapper ...`로 스코프돼
+      // 있으므로, .window-content에 sheet-wrapper 클래스를 부여해 그 그리드 규칙을
+      // 그대로 재사용한다(CSS 중복 없이 AppV1과 동일한 레이아웃 확보).
+      root.querySelector('.window-content')?.classList.add('sheet-wrapper');
+
       this._eventListeners?.abort();
       this._eventListeners = new AbortController();
       const listenerOptions = {signal: this._eventListeners.signal};

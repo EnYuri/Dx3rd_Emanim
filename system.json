@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.2.10",
+  "version": "1.2.11",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -97,7 +97,8 @@
     "styles/skills-settings-dialog.css",
     "styles/combo-dialog.css",
     "styles/dx3rd-combat-ui.css",
-    "styles/dx3rd-action-ui.css"
+    "styles/dx3rd-action-ui.css",
+    "styles/appv2-sheets.css"
   ],
   "languages": [
     {
@@ -202,7 +203,7 @@
   },
   "url": "https://github.com/EnYuri/Dx3rd_Emanim",
   "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
-  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.10/dx3rd-emanim.zip",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.11/dx3rd-emanim.zip",
   "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
   "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
 }
