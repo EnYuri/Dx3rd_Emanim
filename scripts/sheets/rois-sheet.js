@@ -1,23 +1,12 @@
 // Rois 아이템 시트
 (function() {
-class DX3rdRoisSheet extends window.DX3rdItemSheet {
-  /** @override */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      template: "systems/dx3rd-emanim/templates/item/rois-sheet.html",
-      width: 520,
-      height: 480
-    });
-  }
+const compat = window.DX3rdApplicationCompat;
+const itemSheetData = window.DX3rdItemSheetData;
 
+class DX3rdRoisSheet extends window.DX3rdItemSheet {
   /** @override */
   async getData(options) {
     let data = await super.getData(options);
-
-    // Description 원문을 아이템에서 보강
-    if (data.system.description === undefined) {
-      data.system.description = this.item.system?.description || "";
-    }
 
     // 기본 시스템 데이터 초기화 (기존 데이터 보존)
     if (!data.system.type) data.system.type = this.item.system?.type || "-";
@@ -42,7 +31,7 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
     if (!data.system.used.disable) data.system.used.disable = this.item.system?.used?.disable || "notCheck";
 
     // Description 에디터를 위한 데이터 추가 (helpers.js 사용)
-    data = await window.DX3rdDescriptionManager.enrichSheetData(data, this.item);
+    data = await itemSheetData.enrichSheetData(this.item, data);
 
     return data;
   }
@@ -50,32 +39,33 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   /** @override */
   activateListeners(html) {
     // 부모 클래스의 기본 activateListeners 호출
-    (foundry.appv1?.sheets?.ItemSheet ?? ItemSheet).prototype.activateListeners.call(this, html);
+    itemSheetData.activateBaseItemListeners(this, html);
+    const root = compat.unwrapRoot(html);
 
     // Positive/Negative 체크박스 상호 배타 로직
-    html.on('change', 'input[name="system.positive.state"]', this._onPositiveChange.bind(this));
-    html.on('change', 'input[name="system.negative.state"]', this._onNegativeChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.positive.state"]', this._onPositiveChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.negative.state"]', this._onNegativeChange.bind(this));
     
     // Titus/Sublimation 체크박스 로직
-    html.on('change', 'input[name="system.titus"]', this._onTitusChange.bind(this));
-    html.on('change', 'input[name="system.sublimation"]', this._onSublimationChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.titus"]', this._onTitusChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.sublimation"]', this._onSublimationChange.bind(this));
 
     // system.type 변경 시 Titus/Sublimation 상태 처리
-    html.on('change', 'select[name="system.type"]', this._onTypeChange.bind(this));
+    compat.on(root, 'change', 'select[name="system.type"]', this._onTypeChange.bind(this));
 
     // 일반적인 system 필드 변경 시 즉시 저장 (체크박스 제외 - 위에서 별도 처리)
-    html.on('change', 'input[name^="system."]:not([name*=".state"]):not([name="system.titus"]):not([name="system.sublimation"]), select[name^="system."], textarea[name^="system."]', async (event) => {
-      const element = event.currentTarget;
+    compat.on(root, 'change', 'input[name^="system."]:not([name*=".state"]):not([name="system.titus"]):not([name="system.sublimation"]), select[name^="system."]:not([name="system.type"]), textarea[name^="system."]', async (event) => {
+      const element = event.target;
       const name = element.name;
       let value = element.value;
 
       // 숫자 필드 처리
-      if (element.dataset.dtype === 'Number') {
+      if (element.type === 'number' || element.dataset.dtype === 'Number') {
         value = parseInt(value) || 0;
       }
       
       try {
-        await this.item.update({ [name]: value });
+        await itemSheetData.updateAfterDefault(this.item, { [name]: value });
       } catch (error) {
         console.error("DX3rd | RoisSheet field update failed", error);
       }
@@ -83,18 +73,18 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   }
 
   async _onPositiveChange(event) {
-    const isChecked = event.currentTarget.checked;
+    const isChecked = event.target.checked;
     
     try {
       if (isChecked) {
         // Positive가 체크되면 Negative 해제
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.positive.state': true,
           'system.negative.state': false
         });
       } else {
         // Positive가 해제되면 그대로
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.positive.state': false
         });
       }
@@ -104,18 +94,18 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   }
 
   async _onNegativeChange(event) {
-    const isChecked = event.currentTarget.checked;
+    const isChecked = event.target.checked;
     
     try {
       if (isChecked) {
         // Negative가 체크되면 Positive 해제
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.negative.state': true,
           'system.positive.state': false
         });
       } else {
         // Negative가 해제되면 그대로
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.negative.state': false
         });
       }
@@ -125,18 +115,18 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   }
 
   async _onTitusChange(event) {
-    const isChecked = event.currentTarget.checked;
+    const isChecked = event.target.checked;
     
     try {
       if (!isChecked) {
         // Titus가 해제되면 Sublimation도 해제
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.titus': false,
           'system.sublimation': false
         });
       } else {
         // Titus가 체크되면 그대로
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.titus': true
         });
       }
@@ -146,25 +136,25 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   }
 
   async _onSublimationChange(event) {
-    const isChecked = event.currentTarget.checked;
+    const isChecked = event.target.checked;
     const currentTitus = this.item.system.titus;
     
     if (isChecked && !currentTitus) {
       // Sublimation을 체크하려고 하는데 Titus가 체크되지 않은 경우
       ui.notifications.warn('타이터스를 먼저 체크해야 승화를 체크할 수 있습니다.');
-      event.currentTarget.checked = false;
+      event.target.checked = false;
       return;
     }
     
     try {
       if (isChecked) {
         // Sublimation이 체크되면 그대로
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.sublimation': true
         });
       } else {
         // Sublimation이 해제되면 그대로
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.sublimation': false
         });
       }
@@ -174,19 +164,19 @@ class DX3rdRoisSheet extends window.DX3rdItemSheet {
   }
 
   async _onTypeChange(event) {
-    const newType = event.currentTarget.value;
+    const newType = event.target.value;
     
     try {
       // Memory 타입으로 변경되면 Titus와 Sublimation 체크 해제
       if (newType === "M") {
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.type': newType,
           'system.titus': false,
           'system.sublimation': false
         });
       } else {
         // 다른 타입으로 변경되면 type만 업데이트
-        await this.item.update({
+        await itemSheetData.updateAfterDefault(this.item, {
           'system.type': newType
         });
       }

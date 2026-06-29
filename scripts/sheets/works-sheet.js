@@ -1,26 +1,15 @@
 // Works 아이템 시트
 (function() {
-class DX3rdWorksSheet extends window.DX3rdItemSheet {
-  /** @override */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      template: "systems/dx3rd-emanim/templates/item/works-sheet.html",
-      width: 520,
-      height: 480
-    });
-  }
+const compat = window.DX3rdApplicationCompat;
+const itemSheetData = window.DX3rdItemSheetData;
 
+class DX3rdWorksSheet extends window.DX3rdItemSheet {
   /** @override */
   async getData(options) {
     let data = await super.getData(options);
 
-    // Description 원문을 아이템에서 보강
-    if (data.system.description === undefined) {
-      data.system.description = this.item.system?.description || "";
-    }
-    
     // Description 에디터를 위한 데이터 추가 (helpers.js 사용)
-    data = await window.DX3rdDescriptionManager.enrichSheetData(data, this.item);
+    data = await itemSheetData.enrichSheetData(this.item, data);
 
     // actorSkills를 액터의 시스템에서 가져와서 정렬
     const actor = this.item.actor;
@@ -68,21 +57,7 @@ class DX3rdWorksSheet extends window.DX3rdItemSheet {
     }
 
     // 아이템의 실제 attributes를 우선 사용하고, 없을 때만 기본값 보충
-    const currentAttrs = this.item.system?.attributes || {};
-    data.system.attributes = data.system.attributes || {};
-
-    // body
-    data.system.attributes.body = currentAttrs.body || data.system.attributes.body || {};
-    if (data.system.attributes.body.value == null) data.system.attributes.body.value = 0;
-    // sense
-    data.system.attributes.sense = currentAttrs.sense || data.system.attributes.sense || {};
-    if (data.system.attributes.sense.value == null) data.system.attributes.sense.value = 0;
-    // mind
-    data.system.attributes.mind = currentAttrs.mind || data.system.attributes.mind || {};
-    if (data.system.attributes.mind.value == null) data.system.attributes.mind.value = 0;
-    // social
-    data.system.attributes.social = currentAttrs.social || data.system.attributes.social || {};
-    if (data.system.attributes.social.value == null) data.system.attributes.social.value = 0;
+    itemSheetData.prepareAbilityAttributeValues(this.item, data);
 
     return data;
   }
@@ -90,19 +65,11 @@ class DX3rdWorksSheet extends window.DX3rdItemSheet {
   /** @override */
   activateListeners(html) {
     super.activateListeners(html);
-
-    // 스킬 생성 버튼
-    html.find('.skill-create').click(this._onCreateSkill.bind(this));
-    
-    // 부모 클래스의 스킬 삭제 리스너 제거 후 재등록
-    html.find('.attribute-control[data-action="delete"]').off('click').on('click', this._onDeleteSkill.bind(this));
-    
-    // 스킬 적용 체크박스
-    html.find('.attribute-control[type="checkbox"]').change(this._onToggleSkill.bind(this));
+    const root = compat.unwrapRoot(html);
 
     // 기능치 드롭다운 선택 변경 시 즉시 저장하여 선택 상태 유지
-    html.on('change', 'select[name="system.skillTmp"]', async (event) => {
-      const selected = event.currentTarget.value;
+    compat.on(root, 'change', 'select[name="system.skillTmp"]', async (event) => {
+      const selected = event.target.value;
       try {
         await this.item.update({ 'system.skillTmp': selected });
       } catch (e) {
@@ -111,15 +78,15 @@ class DX3rdWorksSheet extends window.DX3rdItemSheet {
     });
 
     // 능력치 입력 변경 리스너 (body/sense/mind/social)
-    html.on('change', 'input[name="system.attributes.body.value"]', this._onAttrChange.bind(this));
-    html.on('change', 'input[name="system.attributes.sense.value"]', this._onAttrChange.bind(this));
-    html.on('change', 'input[name="system.attributes.mind.value"]', this._onAttrChange.bind(this));
-    html.on('change', 'input[name="system.attributes.social.value"]', this._onAttrChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.attributes.body.value"]', this._onAttrChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.attributes.sense.value"]', this._onAttrChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.attributes.mind.value"]', this._onAttrChange.bind(this));
+    compat.on(root, 'change', 'input[name="system.attributes.social.value"]', this._onAttrChange.bind(this));
   }
 
   async _onAttrChange(event) {
     event.preventDefault();
-    const input = event.currentTarget;
+    const input = event.target;
     const path = input.name; // e.g., system.attributes.body.value
     const value = Number(input.value) || 0;
 
@@ -132,7 +99,8 @@ class DX3rdWorksSheet extends window.DX3rdItemSheet {
   
   async _onCreateSkill(event) {
     event.preventDefault();
-    const skillKey = $(event.currentTarget).closest('.add-skills').find('#actor-skill').val();
+    const addSkills = compat.closest(event.target, '.add-skills');
+    const skillKey = compat.query(addSkills, '#actor-skill')?.value;
     if (!skillKey) return;
 
     const actor = this.item.actor;
@@ -167,27 +135,18 @@ class DX3rdWorksSheet extends window.DX3rdItemSheet {
 
   async _onDeleteSkill(event) {
     event.preventDefault();
-    const skillKey = $(event.currentTarget).closest('.attribute').data('attribute');
+    const skillKey = compat.closest(event.target, '.attribute')?.dataset.attribute;
     if (!skillKey) return;
 
-    const confirmed = await Dialog.confirm({
-      title: game.i18n.localize("DX3rd.DeleteSkill"),
-      content: game.i18n.format("DX3rd.ConfirmDeleteSkill", { name: this.item.system.skills[skillKey].name })
-    });
-
-    if (confirmed) {
-      await this.item.update({
-        [`system.skills.-=${skillKey}`]: null
-      });
-    }
+    await window.DX3rdItemSheetDialogs.deleteSkillEntry(this.item, skillKey);
   }
 
   async _onToggleSkill(event) {
     event.preventDefault();
-    const skillKey = $(event.currentTarget).closest('.attribute').data('attribute');
+    const skillKey = compat.closest(event.target, '.attribute')?.dataset.attribute;
     if (!skillKey) return;
 
-    const apply = $(event.currentTarget).prop('checked');
+    const apply = event.target.checked;
     await this.item.update({
       [`system.skills.${skillKey}.apply`]: apply
     });

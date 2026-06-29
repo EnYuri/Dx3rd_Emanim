@@ -1,5 +1,11 @@
 // Book 아이템 핸들러
 (function() {
+const DialogV2 = foundry.applications?.api?.DialogV2;
+
+function getRoot(element) {
+    return element?.[0] || element;
+}
+
 window.DX3rdBookHandler = {
     /**
      * Spell 선택 다이얼로그 표시
@@ -40,95 +46,100 @@ window.DX3rdBookHandler = {
             return;
         }
         
+        if (!DialogV2?.wait) {
+            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            return;
+        }
+
         // 다이얼로그 렌더링
         const content = await renderTemplate('systems/dx3rd-emanim/templates/dialog/spell-selection-dialog.html', {
             spells: spells
         });
-        
-        new Dialog({
-            title: `${game.i18n.localize('DX3rd.Spell')} ${game.i18n.localize('DX3rd.SelectItem')}`,
+
+        const selectedSpellId = await DialogV2.wait({
+            window: {
+                title: `${game.i18n.localize('DX3rd.Spell')} ${game.i18n.localize('DX3rd.SelectItem')}`
+            },
+            classes: ['dx3rd-emanim', 'spell-selection-dialog'],
+            position: { width: 600 },
             content,
-            buttons: {
-                confirm: {
+            rejectClose: false,
+            buttons: [
+                {
+                    action: 'confirm',
                     icon: '<i class="fas fa-check"></i>',
                     label: game.i18n.localize('DX3rd.Confirm'),
-                    callback: async (html) => {
-                        const selectedSpellId = html.find('input[name="selected-spell"]:checked').val();
-                        
-                        if (!selectedSpellId) {
-                            ui.notifications.warn('술식을 선택해주세요.');
-                            return;
-                        }
-                        
-                        const selectedSpell = game.items.get(selectedSpellId);
-                        if (!selectedSpell) {
-                            ui.notifications.error('선택한 술식을 찾을 수 없습니다.');
-                            return;
-                        }
-                        
-                        // 이미 보유한 술식인지 체크
-                        const alreadyOwned = actor.items.some(i => i.type === 'spell' && i.name === selectedSpell.name);
-                        if (alreadyOwned) {
-                            ui.notifications.warn(`${selectedSpell.name} 술식은 이미 보유하고 있습니다.`);
-                            return;
-                        }
-                        
-                        // 액터에게 Spell 아이템 추가 (복사)
-                        const spellData = selectedSpell.toObject();
-                        await actor.createEmbeddedDocuments('Item', [spellData]);
-                        
-                        // 성공 메시지
-                        ui.notifications.info(`${selectedSpell.name} 술식을 획득했습니다.`);
-                        
-                        // 채팅 메시지
-                        await ChatMessage.create({
-                            content: `${selectedSpell.name} ${game.i18n.localize('DX3rd.Spell')} ${game.i18n.localize('DX3rd.Acquired')}`,
-                            speaker: ChatMessage.getSpeaker({ actor: actor }),
-                        });
+                    default: true,
+                    callback: (event, button) => {
+                        const selected = button.form?.querySelector('input[name="selected-spell"]:checked');
+                        if (!selected?.value) ui.notifications.warn('술식을 선택해주세요.');
+                        return selected?.value || null;
                     }
                 },
-                cancel: {
+                {
+                    action: 'cancel',
                     icon: '<i class="fas fa-times"></i>',
-                    label: game.i18n.localize('DX3rd.Cancel')
+                    label: game.i18n.localize('DX3rd.Cancel'),
+                    callback: () => null
                 }
-            },
-            default: 'confirm',
-            render: (html) => {
-                // 이미 보유한 술식은 비활성화
-                html.find('.spell-row').each(function() {
-                    const row = $(this);
-                    const radio = row.find('input[type="radio"]');
-                    const spellId = radio.val();
-                    const spell = game.items.get(spellId);
-                    
-                    if (spell && actorSpellNames.includes(spell.name)) {
-                        row.addClass('already-owned');
-                        radio.prop('disabled', true);
-                    }
-                });
-                
+            ],
+            render: (event, dialog) => {
+                const root = getRoot(dialog.element);
+                if (!root) return;
+
                 // 행 클릭 시 라디오 버튼 선택
-                html.find('.spell-row').on('click', function(e) {
+                root.addEventListener('click', (clickEvent) => {
+                    const row = clickEvent.target.closest('.spell-row');
+                    if (!row || !root.contains(row)) return;
+
                     // 이미 보유한 술식은 클릭 무시
-                    if ($(this).hasClass('already-owned')) return;
-                    
+                    if (row.classList.contains('already-owned')) return;
+
                     // 라디오 버튼을 직접 클릭한 경우는 중복 처리 방지
-                    if (e.target.type === 'radio') return;
-                    
-                    const radio = $(this).find('input[type="radio"]');
-                    radio.prop('checked', true);
-                    
+                    if (clickEvent.target.type === 'radio') return;
+
+                    const radio = row.querySelector('input[type="radio"]');
+                    if (!radio || radio.disabled) return;
+                    radio.checked = true;
+
                     // 모든 행의 스타일 초기화
-                    html.find('.spell-row').removeClass('selected');
-                    
+                    for (const spellRow of root.querySelectorAll('.spell-row')) {
+                        spellRow.classList.remove('selected');
+                    }
+
                     // 선택된 행 강조
-                    $(this).addClass('selected');
+                    row.classList.add('selected');
                 });
             }
-        }, {
-            width: 600,
-            classes: ['dx3rd-emanim', 'spell-selection-dialog']
-        }).render(true);
+        });
+
+        if (!selectedSpellId) return;
+
+        const selectedSpell = game.items.get(selectedSpellId);
+        if (!selectedSpell) {
+            ui.notifications.error('선택한 술식을 찾을 수 없습니다.');
+            return;
+        }
+
+        // 이미 보유한 술식인지 체크
+        const alreadyOwned = actor.items.some(i => i.type === 'spell' && i.name === selectedSpell.name);
+        if (alreadyOwned) {
+            ui.notifications.warn(`${selectedSpell.name} 술식은 이미 보유하고 있습니다.`);
+            return;
+        }
+
+        // 액터에게 Spell 아이템 추가 (복사)
+        const spellData = selectedSpell.toObject();
+        await actor.createEmbeddedDocuments('Item', [spellData]);
+
+        // 성공 메시지
+        ui.notifications.info(`${selectedSpell.name} 술식을 획득했습니다.`);
+
+        // 채팅 메시지
+        await ChatMessage.create({
+            content: `${selectedSpell.name} ${game.i18n.localize('DX3rd.Spell')} ${game.i18n.localize('DX3rd.Acquired')}`,
+            speaker: ChatMessage.getSpeaker({ actor: actor }),
+        });
     },
     
     async handle(actorId, itemId) {
@@ -159,74 +170,79 @@ window.DX3rdBookHandler = {
             actorTokens[0].control({ releaseOthers: true });
         }
         
+        if (!DialogV2?.confirm) {
+            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            return;
+        }
+
         // 콤보 확인 다이얼로그
         const title = game.i18n.localize('DX3rd.Combo');
-        new Dialog({
-            title,
-            buttons: {
-                yes: {
-                    label: 'Yes',
-                    callback: async () => {
-                        // 콤보 빌더 열기 (cthulhu 스킬, book 아이템 전달)
-                        if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.openComboBuilder) {
-                            // 난이도 데이터 생성 (book의 decipher 값 사용)
-                            const difficultyValue = item.system?.decipher || 0;
-                            const predefinedDifficulty = difficultyValue > 0 
-                                ? { type: 'number', value: difficultyValue }
-                                : null;
-
-                            await window.DX3rdUniversalHandler.openComboBuilder(
-                                actor,
-                                'skill',
-                                'cthulhu',
-                                item,
-                                {
-                                    // 마도서 해독 콤보라는 정보를 넘겨서 이후 판정 다이얼로그에서 난이도/원본 북 정보를 복원
-                                    isBookDecipher: true,
-                                    originalItem: item,
-                                    predefinedDifficulty
-                                }
-                            );
-                        }
-                        // 이전 토큰 복원
-                        if (previousToken && canvas.tokens) {
-                            previousToken.control({ releaseOthers: true });
-                        }
-                    }
-                },
-                no: {
-                    label: 'No',
-                    callback: () => {
-                        // 바로 cthulhu 스킬 체크 (난이도는 book의 system.decipher)
-                        if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showStatRollDialog) {
-                            const skillName = cthulhuSkill.name?.startsWith('DX3rd.') 
-                                ? game.i18n.localize(cthulhuSkill.name) 
-                                : cthulhuSkill.name;
-                            
-                            // 난이도 데이터 생성 (book의 decipher 값 사용)
-                            const difficultyValue = item.system?.decipher || 0;
-                            const predefinedDifficulty = difficultyValue > 0 
-                                ? { type: 'number', value: difficultyValue }
-                                : null;
-                            
-                            window.DX3rdUniversalHandler.showStatRollDialog(
-                                actor, 
-                                cthulhuSkill, 
-                                skillName, 
-                                'major', 
-                                item, 
-                                previousToken,
-                                null, // weaponBonus
-                                null, // comboAfterSuccessData
-                                null, // comboAfterDamageData
-                                predefinedDifficulty // 미리 정의된 난이도 전달 (마지막 매개변수)
-                            );
-                        }
-                    }
-                }
+        const useCombo = await DialogV2.confirm({
+            window: { title },
+            yes: {
+                label: 'Yes'
             },
-            default: 'no'
-        }).render(true);
+            no: {
+                label: 'No'
+            },
+            defaultYes: false
+        });
+
+        if (useCombo === null) return;
+
+        if (useCombo) {
+            // 콤보 빌더 열기 (cthulhu 스킬, book 아이템 전달)
+            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.openComboBuilder) {
+                // 난이도 데이터 생성 (book의 decipher 값 사용)
+                const difficultyValue = item.system?.decipher || 0;
+                const predefinedDifficulty = difficultyValue > 0
+                    ? { type: 'number', value: difficultyValue }
+                    : null;
+
+                await window.DX3rdUniversalHandler.openComboBuilder(
+                    actor,
+                    'skill',
+                    'cthulhu',
+                    item,
+                    {
+                        // 마도서 해독 콤보라는 정보를 넘겨서 이후 판정 다이얼로그에서 난이도/원본 북 정보를 복원
+                        isBookDecipher: true,
+                        originalItem: item,
+                        predefinedDifficulty
+                    }
+                );
+            }
+            // 이전 토큰 복원
+            if (previousToken && canvas.tokens) {
+                previousToken.control({ releaseOthers: true });
+            }
+        } else {
+            // 바로 cthulhu 스킬 체크 (난이도는 book의 system.decipher)
+            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showStatRollDialog) {
+                const skillName = cthulhuSkill.name?.startsWith('DX3rd.')
+                    ? game.i18n.localize(cthulhuSkill.name)
+                    : cthulhuSkill.name;
+
+                // 난이도 데이터 생성 (book의 decipher 값 사용)
+                const difficultyValue = item.system?.decipher || 0;
+                const predefinedDifficulty = difficultyValue > 0
+                    ? { type: 'number', value: difficultyValue }
+                    : null;
+
+                window.DX3rdUniversalHandler.showStatRollDialog(
+                    actor,
+                    cthulhuSkill,
+                    skillName,
+                    'major',
+                    item,
+                    previousToken,
+                    null, // weaponBonus
+                    null, // comboAfterSuccessData
+                    null, // comboAfterDamageData
+                    predefinedDifficulty // 미리 정의된 난이도 전달 (마지막 매개변수)
+                );
+            }
+        }
     }
 };
 })();

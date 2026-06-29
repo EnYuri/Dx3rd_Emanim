@@ -1,6 +1,6 @@
 .app.window-app.dialog .window-header,
 .window-app.dx3rd-emanim .window-header,
-.application.dx3rd-emanim .window-header,
+.application.dialog.dx3rd-emanim .window-header,
 .dx3rd-emanim.dialog .window-header {
     background: #1f1f1f;
     border-bottom: 1px solid #383838;
@@ -9,202 +9,10 @@
 
 .app.window-app.dialog .window-content,
 .window-app.dx3rd-emanim .window-content,
-.application.dx3rd-emanim .window-content,
+.application.dialog.dx3rd-emanim .window-content,
 .dx3rd-emanim.dialog .window-content {
     background: #121212;
     color: #e0e0e0;
-}
-
-/* AppV2 document sheets use the application element itself as the form root. */
-.application.sheet.dx3rd-emanim {
-    color: #e0e0e0;
-}
-
-.application.sheet.dx3rd-emanim .window-header {
-    background: #1f1f1f !important;
-    border-bottom-color: #383838 !important;
-    color: #f5f5f5 !important;
-}
-
-.application.sheet.dx3rd-emanim .window-content {
-    background: #121212 !important;
-    color: #e0e0e0 !important;
-}
-
-.application.sheet.dx3rd-emanim.item > .window-content,
-.application.sheet.dx3rd-emanim.actor > .window-content {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow-y: auto;
-}
-
-.application.sheet.dx3rd-emanim.item > .window-content > [class$="-sheet-v2-content"],
-.application.sheet.dx3rd-emanim.actor > .window-content > [class$="-sheet-v2-content"] {
-    color: inherit;
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header {
-    align-items: center;
-    background: #2d2d2d !important;
-    color: #fff !important;
-    display: flex;
-    gap: 10px;
-    min-height: 64px;
-    margin-bottom: 10px;
-    padding: 0;
-    width: 100%;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header .profile-img {
-    flex: 0 0 64px;
-    height: 64px;
-    object-fit: cover;
-    width: 64px;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header .header-fields {
-    align-items: center;
-    display: flex;
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header h1.charname {
-    border: 0;
-    flex: 1 1 auto;
-    margin: 0;
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header h1.charname input {
-    color: #fff !important;
-    font-size: 18px;
-    height: 32px;
-    line-height: 32px;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header .level {
-    flex: 0 0 60px;
-    font-weight: bold;
-    text-align: center;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-header .level input {
-    text-align: center;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-body,
-.application.sheet.dx3rd-emanim.actor .sheet-body {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
-.actor-sheet-v2-content,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content {
-    min-height: 0;
-}
-
-.actor-sheet-v2-content .sheet-header,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-header {
-    align-items: center;
-    gap: 10px;
-}
-
-.actor-sheet-v2-content .profile-img,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .profile-img {
-    flex: 0 0 80px;
-    width: 80px;
-    height: 80px;
-    object-fit: cover;
-}
-
-.actor-sheet-v2-content .header-fields,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields {
-    flex: 1;
-}
-
-.actor-sheet-v2-skill-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.actor-sheet-v2-item-section {
-    margin: 8px 0;
-}
-
-.actor-sheet-v2-item-section .items-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.actor-sheet-v2-compact-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.actor-sheet-v2-item-section .item {
-    align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
-    border-bottom: 1px solid #333;
-}
-
-.actor-sheet-v2-item-section .item-name {
-    flex: 1;
-}
-
-.actor-sheet-v2-item-section .item-summary,
-.actor-sheet-v2-item-summary,
-.actor-sheet-v2-empty {
-    color: #999;
-}
-
-.actor-sheet-v2-item-summary {
-    flex: 0 0 auto;
-    font-size: 0.85em;
-}
-
-.actor-sheet-v2-small-button,
-.actor-sheet-v2-icon-button,
-.actor-sheet-v2-text-button,
-.actor-sheet-v2-item-section button {
-    flex: 0 0 auto;
-    line-height: 1;
-    padding: 3px 6px;
-}
-
-.actor-sheet-v2-text-button {
-    background: transparent;
-    border: 0;
-    color: inherit;
-    cursor: pointer;
-    padding: 0;
-    text-align: left;
-}
-
-.actor-sheet-v2-text-button:hover {
-    text-decoration: underline;
-}
-
-.actor-sheet-v2-icon-button {
-    float: right;
-}
-
-.actor-sheet-v2-inline-controls {
-    align-items: center;
-    display: inline-flex;
-    flex: 0 0 auto;
-    gap: 4px;
-}
-
-.actor-sheet-v2-used-input {
-    width: 42px;
 }
 
 .app.window-app.dialog .dialog-buttons,
@@ -219,9 +27,9 @@
 .window-app.dx3rd-emanim button,
 .window-app.dx3rd-emanim .dialog-buttons button,
 .window-app.dx3rd-emanim .dialog-button,
-.application.dx3rd-emanim button,
-.application.dx3rd-emanim .dialog-buttons button,
-.application.dx3rd-emanim .dialog-button,
+.application.dialog.dx3rd-emanim button,
+.application.dialog.dx3rd-emanim .dialog-buttons button,
+.application.dialog.dx3rd-emanim .dialog-button,
 .dx3rd-emanim.dialog button,
 .dx3rd-emanim.dialog .dialog-buttons button,
 .dx3rd-emanim.dialog .dialog-button {
@@ -238,9 +46,9 @@
 .window-app.dx3rd-emanim button:hover:not(:disabled),
 .window-app.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
 .window-app.dx3rd-emanim .dialog-button:hover:not(:disabled),
-.application.dx3rd-emanim button:hover:not(:disabled),
-.application.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
-.application.dx3rd-emanim .dialog-button:hover:not(:disabled),
+.application.dialog.dx3rd-emanim button:hover:not(:disabled),
+.application.dialog.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
+.application.dialog.dx3rd-emanim .dialog-button:hover:not(:disabled),
 .dx3rd-emanim.dialog button:hover:not(:disabled),
 .dx3rd-emanim.dialog .dialog-buttons button:hover:not(:disabled),
 .dx3rd-emanim.dialog .dialog-button:hover:not(:disabled) {
@@ -254,9 +62,9 @@
 .window-app.dx3rd-emanim button:disabled,
 .window-app.dx3rd-emanim .dialog-buttons button:disabled,
 .window-app.dx3rd-emanim .dialog-button:disabled,
-.application.dx3rd-emanim button:disabled,
-.application.dx3rd-emanim .dialog-buttons button:disabled,
-.application.dx3rd-emanim .dialog-button:disabled,
+.application.dialog.dx3rd-emanim button:disabled,
+.application.dialog.dx3rd-emanim .dialog-buttons button:disabled,
+.application.dialog.dx3rd-emanim .dialog-button:disabled,
 .dx3rd-emanim.dialog button:disabled,
 .dx3rd-emanim.dialog .dialog-buttons button:disabled,
 .dx3rd-emanim.dialog .dialog-button:disabled {
@@ -270,9 +78,9 @@
 .window-app.dx3rd-emanim input,
 .window-app.dx3rd-emanim select,
 .window-app.dx3rd-emanim textarea,
-.application.dx3rd-emanim input,
-.application.dx3rd-emanim select,
-.application.dx3rd-emanim textarea,
+.application.dialog.dx3rd-emanim input,
+.application.dialog.dx3rd-emanim select,
+.application.dialog.dx3rd-emanim textarea,
 .dx3rd-emanim.dialog input,
 .dx3rd-emanim.dialog select,
 .dx3rd-emanim.dialog textarea {
@@ -288,9 +96,9 @@
 .window-app.dx3rd-emanim input:focus,
 .window-app.dx3rd-emanim select:focus,
 .window-app.dx3rd-emanim textarea:focus,
-.application.dx3rd-emanim input:focus,
-.application.dx3rd-emanim select:focus,
-.application.dx3rd-emanim textarea:focus,
+.application.dialog.dx3rd-emanim input:focus,
+.application.dialog.dx3rd-emanim select:focus,
+.application.dialog.dx3rd-emanim textarea:focus,
 .dx3rd-emanim.dialog input:focus,
 .dx3rd-emanim.dialog select:focus,
 .dx3rd-emanim.dialog textarea:focus {
@@ -757,7 +565,7 @@
     right: 0;
     z-index: -1;
     background: black;
-    transform: sKewX(342deg);
+    transform: skewX(342deg);
 }
 
 .dx3rd-emanim .sheet-wrapper .sheet-stat .title {
@@ -872,7 +680,7 @@
     right: 0;
     z-index: 0;
     background: #404040;
-    transform: sKewX(342deg);
+    transform: skewX(342deg);
     border: 1px solid black;
 }
 
@@ -1012,7 +820,7 @@
     top: 0; bottom: 0; left: 0; right: 0;
     z-index: 0;
     background: #404040;
-    transform: sKewX(342deg);
+    transform: skewX(342deg);
   }
   
   .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .stat-box .value .stat {
@@ -1443,20 +1251,6 @@
     min-height: 350px;
     resize: none;
     flex: 1 1 100%;
-}
-
-/* Foundry AppV2 renders prose-mirror outside the legacy editor wrapper. */
-.application.sheet.dx3rd-emanim prose-mirror,
-.application.sheet.dx3rd-emanim prose-mirror .editor-content,
-.application.sheet.dx3rd-emanim prose-mirror .editor-content *,
-.application.sheet.dx3rd-emanim prose-mirror .ProseMirror,
-.application.sheet.dx3rd-emanim prose-mirror .ProseMirror * {
-    color: var(--fe-ac-80, #cccccc) !important;
-}
-
-.application.sheet.dx3rd-emanim prose-mirror .editor-content,
-.application.sheet.dx3rd-emanim prose-mirror .ProseMirror {
-    min-height: 350px;
 }
 
 body.fe-retro-theme .dx3rd-emanim prose-mirror .editor-content,
@@ -2537,7 +2331,7 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
     left: 50% !important;
     transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
-}ㅅ
+}
 
 /* 데미지 적용 다이얼로그 (방어 다이얼로그) 스타일 */
 .defense-dialog.window-app {
@@ -3028,12 +2822,16 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 }
 
 /* Ensure select dropdown lists use dark background */
-select {
+.window-app.dx3rd-emanim select,
+.application.dialog.dx3rd-emanim select,
+.dx3rd-emanim.dialog select {
     background-color: var(--input-background-color) !important;
     color: #fff !important;
 }
 
-select option {
+.window-app.dx3rd-emanim select option,
+.application.dialog.dx3rd-emanim select option,
+.dx3rd-emanim.dialog select option {
     background-color: #101010 !important;
     color: #fff !important;
 }

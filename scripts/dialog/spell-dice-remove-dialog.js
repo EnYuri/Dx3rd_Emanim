@@ -12,6 +12,9 @@ class SpellDiceRemoveDialog {
         this.baseTotal = typeof options.baseTotal === 'number' ? options.baseTotal : null;
         this.cancelled = false;
         this.dialogWindow = null;
+        this._keydownHandler = null;
+        this._dragMoveHandler = null;
+        this._dragUpHandler = null;
     }
 
     /**
@@ -89,28 +92,30 @@ class SpellDiceRemoveDialog {
      * 이벤트 설정
      */
     setupEvents() {
-        const $window = $(this.dialogWindow);
-
         // 주사위 클릭 이벤트
-        $window.find('.spell-dice-item').on('click', (event) => {
-            const diceElement = event.currentTarget;
-            this.toggleDiceSelection(diceElement);
+        this.dialogWindow.querySelectorAll('.spell-dice-item').forEach(diceElement => {
+            diceElement.addEventListener('click', (event) => {
+                this.toggleDiceSelection(event.currentTarget);
+            });
         });
 
         // 확인 버튼 클릭
-        $window.find('.spell-dice-confirm-button').on('click', (event) => {
+        this.dialogWindow.querySelector('.spell-dice-confirm-button')?.addEventListener('click', (event) => {
             event.preventDefault();
             this.confirmSelection();
         });
 
         // ESC 키 차단
-        $(document).on('keydown.spellDiceDialog', (event) => {
+        if (this._keydownHandler) {
+            document.removeEventListener('keydown', this._keydownHandler);
+        }
+        this._keydownHandler = (event) => {
             if (event.key === 'Escape' && this.dialogWindow) {
                 event.preventDefault();
                 event.stopPropagation();
-                return false;
             }
-        });
+        };
+        document.addEventListener('keydown', this._keydownHandler);
     }
 
     /**
@@ -132,7 +137,7 @@ class SpellDiceRemoveDialog {
             this.dialogWindow.style.transition = 'none';
         });
 
-        document.addEventListener('mousemove', (e) => {
+        this._dragMoveHandler = (e) => {
             if (!isDragging) return;
             e.preventDefault();
             currentX = e.clientX - initialX;
@@ -140,14 +145,17 @@ class SpellDiceRemoveDialog {
             this.dialogWindow.style.left = `${currentX}px`;
             this.dialogWindow.style.top = `${currentY}px`;
             this.dialogWindow.style.transform = 'none';
-        });
+        };
 
-        document.addEventListener('mouseup', () => {
+        this._dragUpHandler = () => {
             if (isDragging) {
                 isDragging = false;
                 this.dialogWindow.style.transition = '';
             }
-        });
+        };
+
+        document.addEventListener('mousemove', this._dragMoveHandler);
+        document.addEventListener('mouseup', this._dragUpHandler);
     }
 
     /**
@@ -189,16 +197,19 @@ class SpellDiceRemoveDialog {
      */
     updateSelectionDisplay() {
         const selectedCount = this.selectedDice.length;
-        const $window = $(this.dialogWindow);
-        $window.find('#spellSelectedCount').text(selectedCount);
+        const selectedCountElement = this.dialogWindow?.querySelector('#spellSelectedCount');
+        if (selectedCountElement) {
+            selectedCountElement.textContent = selectedCount;
+        }
         
-        const confirmButton = $window.find('.spell-dice-confirm-button');
+        const confirmButton = this.dialogWindow?.querySelector('.spell-dice-confirm-button');
+        if (!confirmButton) return;
         if (this.onlyOverflow) {
             // a 제거식: 선택하지 않아도 확인 가능, 단 선택 시 최대 1개
-            confirmButton.prop('disabled', selectedCount > this.maxRemove);
+            confirmButton.disabled = selectedCount > this.maxRemove;
         } else {
             // n개 제거식: 정확히 지정한 개수만 가능
-            confirmButton.prop('disabled', selectedCount !== this.maxRemove);
+            confirmButton.disabled = selectedCount !== this.maxRemove;
         }
     }
 
@@ -206,11 +217,16 @@ class SpellDiceRemoveDialog {
      * 합계 업데이트
      */
     updateTotals() {
-        const $window = $(this.dialogWindow);
         const total = (this.baseTotal ?? this.allDice.reduce((s, v) => s + v, 0));
-        $window.find('#spellCurrentTotal').text(total);
+        const currentTotalElement = this.dialogWindow?.querySelector('#spellCurrentTotal');
+        if (currentTotalElement) {
+            currentTotalElement.textContent = total;
+        }
         const removedSum = this.selectedDice.reduce((s, idx) => s + this.allDice[idx], 0);
-        $window.find('#spellPreviewTotal').text(total - removedSum);
+        const previewTotalElement = this.dialogWindow?.querySelector('#spellPreviewTotal');
+        if (previewTotalElement) {
+            previewTotalElement.textContent = total - removedSum;
+        }
     }
 
     /**
@@ -247,7 +263,22 @@ class SpellDiceRemoveDialog {
                 }
             }, 200);
         }
-        $(document).off('keydown.spellDiceDialog');
+        this._removeDocumentListeners();
+    }
+
+    _removeDocumentListeners() {
+        if (this._keydownHandler) {
+            document.removeEventListener('keydown', this._keydownHandler);
+            this._keydownHandler = null;
+        }
+        if (this._dragMoveHandler) {
+            document.removeEventListener('mousemove', this._dragMoveHandler);
+            this._dragMoveHandler = null;
+        }
+        if (this._dragUpHandler) {
+            document.removeEventListener('mouseup', this._dragUpHandler);
+            this._dragUpHandler = null;
+        }
     }
 }
 

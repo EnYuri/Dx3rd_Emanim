@@ -3,7 +3,8 @@
   const Base = window.DX3rdActiveItemSheetV2;
   const compat = window.DX3rdApplicationCompat;
   const weaponManager = window.DX3rdWeaponTabManager;
-  if (!Base || !compat || !weaponManager) return;
+  const itemSheetData = window.DX3rdItemSheetData;
+  if (!Base || !compat || !weaponManager || !itemSheetData) return;
 
   class DX3rdEffectSheetV2 extends Base {
     static DEFAULT_OPTIONS = {
@@ -33,14 +34,7 @@
       system.actorSkills = actor?.system?.attributes?.skills || {};
       system.skillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', system.actorSkills, actor?.type);
 
-      system.level ??= {};
-      system.level.init = Number(this.item.system.level?.init ?? 0);
-      system.level.max = Number(this.item.system.level?.max ?? 1);
-      system.level.upgrade = this.item.system.level?.upgrade ?? false;
-      const encroachmentLevel = system.level.upgrade
-        ? Number(actor?.system?.attributes?.encroachment?.level) || 0
-        : 0;
-      system.level.value = system.level.init + encroachmentLevel;
+      system.level = itemSheetData.prepareEffectLevelData(this.item, actor, this.item.system.level || {});
 
       system.used ??= {};
       system.used.state ??= 0;
@@ -50,7 +44,7 @@
       system.exp ??= {own: false, upgrade: false};
       system.exp.own ??= false;
       system.exp.upgrade ??= false;
-      system.macros = Array.isArray(this.item.system.macros) ? foundry.utils.deepClone(this.item.system.macros) : [];
+      system.macros = itemSheetData.getEmbeddedMacros(this.item);
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
 
       weaponManager.prepareWeaponTabData(context, this.item);
@@ -74,106 +68,65 @@
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
     }
 
-    _macros() {
-      return Array.isArray(this.item.system.macros) ? foundry.utils.deepClone(this.item.system.macros) : [];
-    }
-
     async _toggleWeaponSelection(event) {
       if (event.target.checked) await this.item.update({'system.weapon': []});
       this.render(false);
     }
 
     async _toggleDifficulty(checked) {
-      if (checked) {
-        await this.item.update({'system.roll': 'major', 'system.difficulty': ''});
-      } else {
-        const freepass = game.i18n.localize('DX3rd.Freepass');
-        const current = this.item.system.difficulty || '';
-        await this.item.update({
-          'system.roll': '-',
-          'system.difficulty': current === freepass || current === '-' ? current : freepass,
-          'system.attackRoll': '-'
-        });
-      }
+      await this.item.update(itemSheetData.getRollDifficultyToggleUpdate(this.item, checked));
       this.render(false);
     }
 
     async _normalizeRoll(value) {
-      if (value === '-' || value === 'dodge') await this.item.update({'system.attackRoll': '-'});
+      const update = itemSheetData.getRollChangeUpdate(value);
+      if (Object.keys(update).length) await this.item.update(update);
     }
 
     async _validateDifficulty(event) {
       const value = event.target.value.trim();
       if (!value) return;
-      const roll = this.item.system.roll || '-';
-      const freepass = game.i18n.localize('DX3rd.Freepass');
-      const competition = game.i18n.localize('DX3rd.Competition');
-      const reference = game.i18n.localize('DX3rd.Reference');
-      const number = Number(value);
-      const valid = roll === '-'
-        ? value === freepass || value === '-'
-        : (Number.isInteger(number) && number >= 1) || value === competition || value === reference;
-      if (valid) return;
+      if (itemSheetData.isRollDifficultyValueValid(this.item, value)) return;
       event.target.value = '';
       await this.item.update({'system.difficulty': ''});
-      ui.notifications.warn('현재 판정 설정에 사용할 수 없는 난이도입니다.');
+      ui.notifications.warn(itemSheetData.getRollDifficultyValidationMessage(this.item));
     }
 
     async _updateMacro(event, property) {
       const index = Number(event.target.dataset.index);
-      const macros = this._macros();
-      if (!macros[index]) return;
-      macros[index][property] = property === 'disabled' ? event.target.checked : event.target.value;
-      await this.item.update({'system.macros': macros});
+      const value = property === 'disabled' ? event.target.checked : event.target.value;
+      await itemSheetData.updateEmbeddedMacro(this.item, index, property, value);
     }
 
     _prepareSubmitData(event, form, formData, updateData) {
       const data = super._prepareSubmitData(event, form, formData, updateData);
-      const level = data.system?.level || this.item.system.level || {};
-      const rawLevelInit = Number(level.init ?? 0);
-      const rawLevelMax = Number(level.max ?? 1);
-      const levelInit = Number.isFinite(rawLevelInit) ? rawLevelInit : 0;
-      const levelMax = Number.isFinite(rawLevelMax) ? rawLevelMax : 1;
-      const levelUpgrade = Boolean(level.upgrade);
-      const encroachmentLevel = levelUpgrade
-        ? Number(this.item.actor?.system?.attributes?.encroachment?.level) || 0
-        : 0;
-      foundry.utils.setProperty(data, 'system.level', {
-        ...level,
-        init: levelInit,
-        max: levelMax,
-        upgrade: levelUpgrade,
-        value: levelInit + encroachmentLevel
-      });
+      const level = itemSheetData.prepareEffectLevelData(this.item, this.item.actor, data.system?.level || this.item.system.level || {});
+      foundry.utils.setProperty(data, 'system.level', level);
 
       const submittedWeapons = Array.isArray(data.system?.weapon)
         ? data.system.weapon
         : (this.item.system.weapon || []);
-      foundry.utils.setProperty(data, 'system.weapon', submittedWeapons.filter(id => id && id !== '-'));
+      foundry.utils.setProperty(data, 'system.weapon', itemSheetData.normalizeIdList(submittedWeapons));
       if (Array.isArray(data.system?.getTarget)) {
         foundry.utils.setProperty(data, 'system.getTarget', data.system.getTarget.some(Boolean));
       }
-      if (data.system?.roll === '-' || data.system?.roll === 'dodge') {
-        foundry.utils.setProperty(data, 'system.attackRoll', '-');
+      for (const [key, value] of Object.entries(itemSheetData.getRollChangeUpdate(data.system?.roll))) {
+        foundry.utils.setProperty(data, key, value);
       }
       return data;
     }
 
     static async _onMacroAdd(event) {
       event.preventDefault();
-      const macros = this._macros();
-      macros.push({timing: 'instant', command: '', disabled: false});
-      await this.item.update({'system.macros': macros});
+      await itemSheetData.addEmbeddedMacro(this.item);
       this.render(false);
     }
 
     static async _onMacroDelete(event, target) {
       event.preventDefault();
       const index = Number(target.dataset.index);
-      const macros = this._macros();
-      if (index < 0 || index >= macros.length) return;
-      macros.splice(index, 1);
-      await this.item.update({'system.macros': macros});
+      const updated = await itemSheetData.removeEmbeddedMacro(this.item, index);
+      if (!updated) return;
       this.render(false);
     }
   }

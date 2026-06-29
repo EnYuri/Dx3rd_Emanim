@@ -67,7 +67,7 @@
             <td><input type="checkbox" name="system.active.state" {{#if system.active.state}} checked {{/if}}></td>
             <th><label for="system.active.runTiming">{{localize "DX3rd.RunTiming"}}</label></th>
             <td>
-              <select name="system.active.runTiming" data-dtype="String"">
+              <select name="system.active.runTiming" data-dtype="String">
                 {{#select system.active.runTiming}}
                 <option value="instant">{{localize "DX3rd.Instant"}}</option>
                 <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
@@ -77,7 +77,7 @@
             </td>
             <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
             <td>
-              <select name="system.active.disable" data-dtype="String" style="width: 100%;"">
+              <select name="system.active.disable" data-dtype="String" style="width: 100%;">
                 {{#select system.active.disable}}
                 <option value="-">-</option>
                 <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>

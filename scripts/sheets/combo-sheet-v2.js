@@ -41,51 +41,28 @@
     }
 
     _effectIds() {
-      const value = this.item.system.effectIds;
-      return Array.isArray(value) ? value : [];
-    }
-
-    _encroachment(effectIds) {
-      let dice = 0;
-      let add = 0;
-      for (const id of effectIds) {
-        const value = String(this.item.actor?.items.get(id)?.system?.encroach?.value || '0').trim();
-        const diceMatch = value.match(/(\d+)d10/i);
-        const addMatch = value.match(/([+-]\d+)$/);
-        if (diceMatch) dice += Number(diceMatch[1]) || 0;
-        if (addMatch) add += Number(addMatch[1]) || 0;
-        else if (!diceMatch && Number.isFinite(Number.parseInt(value))) add += Number.parseInt(value) || 0;
-      }
-      if (dice && add > 0) return `${dice}d10+${add}`;
-      if (dice) return `${dice}d10`;
-      return String(add);
+      return comboData.getEffectIds(this.item);
     }
 
     async _addEffect(event) {
       event.preventDefault();
       const id = compat.query(this.element, '#actor-effect')?.value;
-      if (!id || id === '-') return ui.notifications.warn('추가할 이펙트를 선택해주세요.');
-      const ids = this._effectIds();
-      if (ids.includes(id)) return ui.notifications.warn('이미 추가된 이펙트입니다.');
-      const next = [...ids, id];
-      await this.item.update({'system.effectIds': next, 'system.encroach.value': this._encroachment(next)});
+      const updated = await comboData.addRegisteredEffect(this.item, this.item.actor, id);
+      if (!updated) return;
       this.render(false);
     }
 
     _editEffect(event, target) {
       event.preventDefault();
       const id = compat.closest(target, '.item', this.element)?.dataset.itemId;
-      const effect = this.item.actor?.items.get(id);
-      if (effect?.type === 'effect') effect.sheet.render(true);
-      else ui.notifications.warn('이펙트 아이템을 찾을 수 없습니다.');
+      comboData.openRegisteredEffectSheet(this.item.actor, id);
     }
 
     async _deleteEffect(event, target) {
       event.preventDefault();
       const id = compat.closest(target, '.item', this.element)?.dataset.itemId;
-      if (!id) return;
-      const next = this._effectIds().filter(effectId => effectId !== id);
-      await this.item.update({'system.effectIds': next, 'system.encroach.value': this._encroachment(next)});
+      const updated = await comboData.removeRegisteredEffect(this.item, this.item.actor, id);
+      if (!updated) return;
       this.render(false);
     }
 
@@ -95,11 +72,7 @@
     }
 
     async _updateBaseAttribute(skill) {
-      if (!skill || skill === '-') return;
-      const base = ['body', 'sense', 'mind', 'social'].includes(skill)
-        ? skill
-        : this.item.actor?.system?.attributes?.skills?.[skill]?.base;
-      if (base) await this.item.update({'system.base': base});
+      await comboData.updateBaseAttributeForSkill(this.item, this.item.actor, skill);
     }
 
     async _normalizeRoll(value) {
@@ -107,39 +80,21 @@
     }
 
     async _toggleDifficulty(checked) {
-      if (checked) {
-        await this.item.update({'system.roll': 'major', 'system.difficulty': ''});
-      } else {
-        const freepass = game.i18n.localize('DX3rd.Freepass');
-        const current = this.item.system.difficulty || '';
-        await this.item.update({
-          'system.roll': '-',
-          'system.difficulty': current === freepass || current === '-' ? current : freepass,
-          'system.attackRoll': '-'
-        });
-      }
+      await this.item.update(comboData.getDifficultyToggleUpdate(this.item, checked));
       this.render(false);
     }
 
     async _validateDifficulty(event) {
       const value = event.target.value.trim();
       if (!value) return;
-      const roll = this.item.system.roll || '-';
-      const freepass = game.i18n.localize('DX3rd.Freepass');
-      const competition = game.i18n.localize('DX3rd.Competition');
-      const reference = game.i18n.localize('DX3rd.Reference');
-      const number = Number(value);
-      const valid = roll === '-'
-        ? value === freepass || value === '-'
-        : (Number.isInteger(number) && number >= 1) || value === competition || value === reference;
-      if (valid) return;
+      if (comboData.isDifficultyValueValid(this.item, value)) return;
       event.target.value = '';
       await this.item.update({'system.difficulty': ''});
-      ui.notifications.warn('현재 판정 설정에 사용할 수 없는 난이도입니다.');
+      ui.notifications.warn(comboData.getDifficultyValidationMessage(this.item));
     }
 
     _validateLimit(event) {
-      if (!event.target.value || /^(-|\d+|\d+%)$/.test(event.target.value)) return;
+      if (comboData.isLimitValueValid(event.target.value)) return;
       event.target.value = this.item.system.limit || '-';
       ui.notifications.warn("제한은 '-', 숫자, 또는 숫자%만 입력 가능합니다.");
     }
@@ -148,22 +103,15 @@
       const data = super._prepareSubmitData(event, form, formData, updateData);
       const system = data.system || {};
       if (Array.isArray(system.getTarget)) system.getTarget = system.getTarget.some(Boolean);
-      const ids = Array.isArray(system.effectIds) ? system.effectIds.filter(id => id !== '-') : this._effectIds();
-      foundry.utils.setProperty(data, 'system.effectIds', ids);
-      foundry.utils.setProperty(data, 'system.encroach.value', this._encroachment(ids));
-      const submittedWeapons = Array.isArray(system.weapon) ? system.weapon : (this.item.system.weapon || []);
-      const weapons = submittedWeapons.filter(id => id && id !== '-');
-      foundry.utils.setProperty(data, 'system.weapon', weapons);
-
-      const attackRoll = system.attackRoll ?? this.item.system.attackRoll;
-      if (!attackRoll || attackRoll === '-') {
-        foundry.utils.setProperty(data, 'system.attack.value', '-');
-        return data;
-      }
-      let attack = Number(this.item.actor?.system?.attributes?.attack?.value) || 0;
-      attack += Number(this.item.actor?.system?.attributes?.attack?.[attackRoll]) || 0;
-      for (const id of weapons) attack += Number(this.item.actor?.items.get(id)?.system?.attack) || 0;
-      foundry.utils.setProperty(data, 'system.attack.value', attack);
+      const submitValues = comboData.prepareSubmittedCombatValues(this.item, this.item.actor, {
+        effectIds: Array.isArray(system.effectIds) ? system.effectIds : this._effectIds(),
+        weapons: system.weapon,
+        attackRoll: system.attackRoll
+      });
+      foundry.utils.setProperty(data, 'system.effectIds', submitValues.effectIds);
+      foundry.utils.setProperty(data, 'system.encroach.value', submitValues.encroachValue);
+      foundry.utils.setProperty(data, 'system.weapon', submitValues.weapons);
+      foundry.utils.setProperty(data, 'system.attack.value', submitValues.attackValue);
       return data;
     }
   }

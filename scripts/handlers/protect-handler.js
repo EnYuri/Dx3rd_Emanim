@@ -120,15 +120,27 @@ window.DX3rdProtectHandler = {
         const rubyMatch = itemName.match(/^(.+)\|\|(.+)$/);
         if (rubyMatch) itemName = rubyMatch[1];
 
+        const DialogV2 = foundry.applications?.api?.DialogV2;
+        if (!DialogV2?.confirm) {
+            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            return;
+        }
+
         // 판정 다이얼로그: DX3rd 규칙에 따라 결과를 GM이 직접 입력
-        const failed = await Dialog.confirm({
-            title: `${itemName} — 셀 세이빙 (방어구 파괴 판정)`,
+        const failed = await DialogV2.confirm({
+            window: { title: `${itemName} — ${game.i18n.localize('DX3rd.SellSavingCheck')}` },
             content:
-                `<p><strong>판정 기준</strong>: ${difficulty}</p>` +
-                `<p><strong>필요 성공 수</strong>: ${required}</p>` +
-                `<p>판정에 <strong>실패</strong>했습니까?</p>`,
-            yes:        () => true,
-            no:         () => false,
+                `<p><strong>${game.i18n.localize('DX3rd.SellSavingDifficulty')}</strong>: ${difficulty}</p>` +
+                `<p><strong>${game.i18n.localize('DX3rd.SellSavingRequired')}</strong>: ${required}</p>` +
+                `<p>${game.i18n.localize('DX3rd.SellSavingFailedQuestion')}</p>`,
+            yes: {
+                icon: '<i class="fas fa-times-circle"></i>',
+                label: game.i18n.localize('DX3rd.Failure')
+            },
+            no: {
+                icon: '<i class="fas fa-check"></i>',
+                label: game.i18n.localize('DX3rd.Cancel')
+            },
             defaultYes: false
         });
 

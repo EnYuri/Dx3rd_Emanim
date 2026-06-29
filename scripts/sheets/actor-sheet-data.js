@@ -89,6 +89,189 @@
         return skillKey;
     }
 
+    function getAbilityDice(actor, abilityId) {
+        const baseAbility = actor.system?.attributes?.[abilityId];
+        return baseAbility ? baseAbility.dice || 0 : 0;
+    }
+
+    function getCreateSkillDialogOptions(actor, abilityId) {
+        if (!abilityId) return null;
+
+        return {
+            title: game.i18n.localize("DX3rd.CreateSkill"),
+            skill: {
+                key: "",
+                name: "",
+                point: 0,
+                bonus: 0,
+                extra: 0,
+                works: 0,
+                base: abilityId,
+                dice: getAbilityDice(actor, abilityId),
+                total: 0
+            },
+            actorId: actor.id
+        };
+    }
+
+    function getEditSkillDialogOptions(actor, skillId) {
+        if (!skillId) return null;
+        const skill = actor.system?.attributes?.skills?.[skillId];
+        if (!skill) return null;
+
+        return {
+            title: game.i18n.localize("DX3rd.EditSkill"),
+            width: 900,
+            skill: {
+                key: skillId,
+                name: skill.name || "",
+                point: skill.point || 0,
+                bonus: skill.bonus || 0,
+                extra: skill.extra || 0,
+                works: skill.works || 0,
+                base: skill.base,
+                dice: getAbilityDice(actor, skill.base),
+                total: skill.total || 0,
+                delete: skill.delete
+            },
+            actorId: actor.id
+        };
+    }
+
+    function validateOwnedItemCreate(actor, type) {
+        if (!game.settings.get("dx3rd-emanim", "stageCRC") && ["spell", "psionic", "book"].includes(type)) {
+            return {
+                ok: false,
+                level: "warn",
+                message: "CRC 스테이지 비활성화 시 스펠, 사이오닉, 마도서 아이템을 생성할 수 없습니다."
+            };
+        }
+
+        if (type === "works" && actor.items.filter(item => item.type === "works").length >= 1) {
+            return {
+                ok: false,
+                level: "info",
+                message: "Each character can only have one Works item."
+            };
+        }
+
+        if (type === "syndrome" && actor.items.filter(item => item.type === "syndrome").length >= 3) {
+            return {
+                ok: false,
+                level: "info",
+                message: "Each character can only have up to three Syndrome items."
+            };
+        }
+
+        return { ok: true };
+    }
+
+    function getOwnedItemCreateData({ type = "item", effectType, roisType } = {}) {
+        const key = `DX3rd.${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+        const typeLabel = game.i18n.localize(key);
+        const itemData = {
+            name: `New ${typeLabel !== key ? typeLabel : type}`,
+            type,
+            system: {}
+        };
+
+        if (effectType) itemData.system.type = effectType;
+        if (roisType) itemData.system.type = roisType;
+        if (type === "effect") itemData.system.level = { init: 1, max: 1 };
+
+        return itemData;
+    }
+
+    async function createOwnedItem(actor, options = {}) {
+        const type = options.type || "item";
+        const validation = validateOwnedItemCreate(actor, type);
+        if (!validation.ok) {
+            const notify = ui.notifications[validation.level] || ui.notifications.warn;
+            notify.call(ui.notifications, validation.message);
+            return null;
+        }
+
+        const itemData = getOwnedItemCreateData({
+            type,
+            effectType: options.effectType,
+            roisType: options.roisType
+        });
+        const created = await actor.createEmbeddedDocuments("Item", [itemData]);
+        return created?.[0] || null;
+    }
+
+    function getOwnedItem(actor, itemId) {
+        if (!actor || !itemId) return null;
+        return actor.items.get(itemId) || null;
+    }
+
+    async function updateOwnedItemUsedState(actor, itemId, value) {
+        const item = getOwnedItem(actor, itemId);
+        if (!item) return null;
+
+        const state = Number.parseInt(value, 10) || 0;
+        await item.update({ "system.used.state": state });
+        return item;
+    }
+
+    async function updateOwnedItemActiveState(actor, itemId, checked) {
+        const item = getOwnedItem(actor, itemId);
+        if (!item) return null;
+
+        await item.update({ "system.active.state": !!checked });
+        return item;
+    }
+
+    async function updateOwnedItemEquipmentState(actor, itemId, checked) {
+        const item = getOwnedItem(actor, itemId);
+        if (!item) return null;
+
+        const equipped = !!checked;
+        if (item.type === "vehicle" && equipped) {
+            const updates = actor.items
+                .filter(other => other.type === "vehicle" && other.id !== itemId && other.system?.equipment === true)
+                .map(other => ({ _id: other.id, "system.equipment": false }));
+            if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+        }
+
+        await item.update({ "system.equipment": equipped });
+        return item;
+    }
+
+    function getSyndromeSelectionUpdate(actor, itemId, checked) {
+        const item = getOwnedItem(actor, itemId);
+        if (!item || item.type !== "syndrome") {
+            return { ok: false, reason: "invalidItem", selectedIds: null, changed: false };
+        }
+
+        const current = Array.isArray(actor.system?.attributes?.syndrome)
+            ? [...actor.system.attributes.syndrome]
+            : [];
+        const selected = new Set(current);
+
+        if (checked) selected.add(itemId);
+        else selected.delete(itemId);
+
+        const selectedIds = [...selected].filter(id => actor.items.get(id)?.type === "syndrome");
+        const syndromeCount = actor.items.filter(actorItem => actorItem.type === "syndrome").length;
+        const maxSelected = syndromeCount >= 3 ? 2 : syndromeCount;
+
+        if (selectedIds.length > maxSelected) {
+            return { ok: false, reason: "optionalLimit", selectedIds: current, changed: false };
+        }
+
+        const changed = selectedIds.length !== current.length || selectedIds.some((id, index) => id !== current[index]);
+        return { ok: true, reason: null, selectedIds, changed };
+    }
+
+    async function updateActorSyndromeSelection(actor, itemId, checked) {
+        const result = getSyndromeSelectionUpdate(actor, itemId, checked);
+        if (!result.ok || !result.changed) return result;
+
+        await actor.update({ "system.attributes.syndrome": result.selectedIds });
+        return result;
+    }
+
     function normalizeItems(items) {
         if (Array.isArray(items)) return items;
         try {
@@ -254,6 +437,17 @@
         shouldUseSimpleSheet,
         getTemplate,
         getSkillDisplay,
+        getCreateSkillDialogOptions,
+        getEditSkillDialogOptions,
+        validateOwnedItemCreate,
+        getOwnedItemCreateData,
+        createOwnedItem,
+        getOwnedItem,
+        updateOwnedItemUsedState,
+        updateOwnedItemActiveState,
+        updateOwnedItemEquipmentState,
+        getSyndromeSelectionUpdate,
+        updateActorSyndromeSelection,
         prepareCharacterItems,
         generateAppliedEffectDescription,
         prepareSheetData

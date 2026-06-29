@@ -13,7 +13,7 @@
                 </thead>
                 <tbody>
                     {{#each spells as |spell|}}
-                    <tr class="equipment-row spell-row">
+                    <tr class="equipment-row spell-row {{#if spell.alreadyOwned}}already-owned{{/if}}">
                         <td class="item-name">{{spell.name}}</td>
                         <td>{{localize spell.type}}</td>
                         <td>{{spell.invoke}}</td>
@@ -22,7 +22,8 @@
                             <input type="radio" 
                                    name="selected-spell"
                                    class="equipment-checkbox" 
-                                   value="{{spell.id}}">
+                                   value="{{spell.id}}"
+                                   {{#if spell.alreadyOwned}}disabled{{/if}}>
                         </td>
                     </tr>
                     {{/each}}

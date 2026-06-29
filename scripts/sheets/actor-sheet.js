@@ -4,6 +4,7 @@
 (function () {
     // v13 호환: foundry.appv1 네임스페이스 사용
     const ActorSheetClass = foundry.appv1?.sheets?.ActorSheet || ActorSheet;
+    const compat = window.DX3rdApplicationCompat;
 
     class DX3rdActorSheet extends ActorSheetClass {
         /** @override */
@@ -82,97 +83,93 @@
 
         activateListeners(html) {
             super.activateListeners(html);
+            const root = compat.unwrapRoot(html);
 
-            html.find('.backtrack-roll').click(this._onBacktrackRoll.bind(this));
+            compat.on(root, 'click', '.backtrack-roll', this._onBacktrackRoll.bind(this));
             // .skill-roll/.ability-roll 클릭은 아래 _onSkillNameClick/_onAbilityNameClick에서 처리됨
 
             // 전역 토글 리스너는 main.js에서 등록됨
 
             // 스킬 관리 리스너
-            html.find('.skill-create').click(this._onCreateSkill.bind(this));
-            html.find('.skill-edit').click(this._onEditSkill.bind(this));
-            html.find('.skill-delete').click(this._onDeleteSkill.bind(this));
+            compat.on(root, 'click', '.skill-create', this._onCreateSkill.bind(this));
+            compat.on(root, 'click', '.skill-edit', this._onEditSkill.bind(this));
+            compat.on(root, 'click', '.skill-delete', this._onDeleteSkill.bind(this));
 
-            html.find('.diamond').click(this._onAbilityDiamondClick.bind(this));
+            compat.on(root, 'click', '.diamond', this._onAbilityDiamondClick.bind(this));
             
             // 에너미 HP max 클릭 리스너
-            html.find('.hp-max-clickable').click(this._onEnemyHPMaxClick.bind(this));
+            compat.on(root, 'click', '.hp-max-clickable', this._onEnemyHPMaxClick.bind(this));
             
             // 에너미 행동치 클릭 리스너
-            html.find('.init-clickable').click(this._onEnemyInitClick.bind(this));
+            compat.on(root, 'click', '.init-clickable', this._onEnemyInitClick.bind(this));
             
             // 에너미 이동(전투) 클릭 리스너
-            html.find('.move-battle-clickable').click(this._onEnemyMoveClick.bind(this));
+            compat.on(root, 'click', '.move-battle-clickable', this._onEnemyMoveClick.bind(this));
             
             // 에너미 회피치 클릭 리스너
-            html.find('.evasion-clickable').click(this._onEnemyEvasionClick.bind(this));
+            compat.on(root, 'click', '.evasion-clickable', this._onEnemyEvasionClick.bind(this));
             
             // 에너미 장갑치 클릭 리스너
-            html.find('.armor-clickable').click(this._onEnemyArmorClick.bind(this));
+            compat.on(root, 'click', '.armor-clickable', this._onEnemyArmorClick.bind(this));
 
             // 아이템 에딧/삭제 리스너
-            html.find('.item-edit').click(this._onItemEdit.bind(this));
-            html.find('.item-delete').click(this._onItemDelete.bind(this));
-            html.find('.item-create').click(this._onItemCreate.bind(this));
+            compat.on(root, 'click', '.item-edit', this._onItemEdit.bind(this));
+            compat.on(root, 'click', '.item-delete', this._onItemDelete.bind(this));
+            compat.on(root, 'click', '.item-create', this._onItemCreate.bind(this));
 
             // echo-item 클릭 시 채팅 출력 리스너
-            html.find('.echo-item').click(this._onItemNameClick.bind(this));
+            compat.on(root, 'click', '.echo-item', this._onItemNameClick.bind(this));
             
             // item-label 클릭 시 설명 토글 리스너
-            html.find('.item-label').click(this._onItemLabelClick.bind(this));
+            compat.on(root, 'click', '.item-label', this._onItemLabelClick.bind(this));
 
             // 사용횟수 수정 리스너 (disabled되지 않는 첫 번째 입력필드만)
-            html.find('.used-input:not([disabled])').on('change', this._onUsedStateChange.bind(this));
+            compat.on(root, 'change', '.used-input:not([disabled])', this._onUsedStateChange.bind(this));
 
             // 활성화 체크박스 리스너
-            html.find('.active-check').on('change', this._onActiveChange.bind(this));
+            compat.on(root, 'change', '.active-check', this._onActiveChange.bind(this));
 
             // 장비 체크박스 리스너
-            html.find('.active-equipment').on('change', this._onEquipmentChange.bind(this));
+            compat.on(root, 'change', '.active-equipment', this._onEquipmentChange.bind(this));
 
             // Applied 효과 제거 리스너
-            html.find('.remove-applied').click(this._onRemoveApplied.bind(this));
+            compat.on(root, 'click', '.remove-applied', this._onRemoveApplied.bind(this));
 
             // Applied 효과 보기 리스너
-            html.find('.show-applied').click(this._onShowApplied.bind(this));
+            compat.on(root, 'click', '.show-applied', this._onShowApplied.bind(this));
 
             // 신드롬 체크박스 토글 - mousedown과 click 둘 다 처리하여 완전한 차단
-            html.on('mousedown', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onToggleSyndrome.bind(this));
-            html.on('click', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onSyndromeClick.bind(this));
+            compat.on(root, 'mousedown', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onToggleSyndrome.bind(this));
+            compat.on(root, 'click', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onSyndromeClick.bind(this));
 
             // 드래그 앤 드롭 이벤트 처리
-            html.on('dragstart', '.item', this._onDragStart.bind(this));
-            html.on('dragover', this._onDragOver.bind(this));
-            html.on('drop', this._onDrop.bind(this));
+            compat.on(root, 'dragstart', '.item', this._onDragStart.bind(this));
+            compat.on(root, 'dragover', this._onDragOver.bind(this));
+            compat.on(root, 'drop', this._onDrop.bind(this));
 
             // 능력치 이름 클릭 시 dice 정보 출력
-            html.find('.ability-roll').click(this._onAbilityNameClick.bind(this));
+            compat.on(root, 'click', '.ability-roll', this._onAbilityNameClick.bind(this));
 
             // 스킬 이름 클릭 시 dice 정보 출력
-            html.find('.skill-roll').click(this._onSkillNameClick.bind(this));
+            compat.on(root, 'click', '.skill-roll', this._onSkillNameClick.bind(this));
 
             // 능력치/스킬 호버 시 dice-info 업데이트
-            html.find('.ability-roll').hover(
-                this._onAbilityHover.bind(this),
-                this._onAbilityHoverOut.bind(this)
-            );
-
-            html.find('.skill-roll').hover(
-                this._onSkillHover.bind(this),
-                this._onSkillHoverOut.bind(this)
-            );
+            compat.on(root, 'mouseover', '.ability-roll', this._onAbilityHover.bind(this));
+            compat.on(root, 'mouseout', '.ability-roll', this._onAbilityHoverOut.bind(this));
+            compat.on(root, 'mouseover', '.skill-roll', this._onSkillHover.bind(this));
+            compat.on(root, 'mouseout', '.skill-roll', this._onSkillHoverOut.bind(this));
 
             // 로이스 Titus 버튼 클릭
-            html.find('.btn-titus').click(this._onTitusClick.bind(this));
+            compat.on(root, 'click', '.btn-titus', this._onTitusClick.bind(this));
 
             // 로이스 Sublimation 버튼 클릭
-            html.find('.btn-sublimation').click(this._onSublimationClick.bind(this));
+            compat.on(root, 'click', '.btn-sublimation', this._onSublimationClick.bind(this));
 
             // 재산점 클릭
-            html.find('.stock-title').click(this._onStockClick.bind(this));
+            compat.on(root, 'click', '.stock-title', this._onStockClick.bind(this));
         }
 
-        async _onCreateSkill(event) {
+        async _onCreateSkill(event, target = event.currentTarget) {
             event.preventDefault();
             
             // OWNER 권한 체크
@@ -183,36 +180,14 @@
             
             // 클릭 버블링으로 능력치 이름(.ability-roll) 클릭 핸들러가 함께 실행되지 않도록 차단
             event.stopPropagation();
-            const abilityId = $(event.currentTarget).data('ability-id');
+            const abilityId = target?.dataset?.abilityId;
             if (!abilityId) return;
 
-            const baseAbility = this.actor.system.attributes[abilityId];
-            const dice = baseAbility ? baseAbility.dice || 0 : 0;
+            const options = window.DX3rdActorSheetData.getCreateSkillDialogOptions(this.actor, abilityId);
+            if (!options) return;
 
-            // Works 보너스 계산 (임시로 0으로 설정, 실제 계산은 다이얼로그에서)
-            const worksBonus = 0;
-
-            // 아이템 보너스 계산 (임시로 0으로 설정, 실제 계산은 다이얼로그에서)
-            const itemBonus = 0;
-
-            // Applied 보너스 계산 (임시로 0으로 설정, 실제 계산은 다이얼로그에서)
-            const appliedBonus = 0;
-
-            const title = game.i18n.localize("DX3rd.CreateSkill");
             new DX3rdSkillCreateDialog({
-                title,
-                skill: {
-                    key: "",
-                    name: "",
-                    point: 0,
-                    bonus: itemBonus + appliedBonus,
-                    extra: 0,
-                    works: worksBonus,
-                    base: abilityId,
-                    dice: dice,
-                    total: worksBonus + itemBonus + appliedBonus
-                },
-                actorId: this.actor.id,
+                ...options,
                 buttons: {
                     create: {
                         label: game.i18n.localize("DX3rd.Create"),
@@ -226,7 +201,7 @@
             }).render(true);
         }
 
-        async _onEditSkill(event) {
+        async _onEditSkill(event, target = event.currentTarget) {
             event.preventDefault();
             
             // OWNER 권한 체크
@@ -235,33 +210,14 @@
                 return;
             }
             
-            const skillId = $(event.currentTarget).closest('.skill').data('skill-id');
+            const skillId = target?.closest('.skill')?.dataset?.skillId;
             if (!skillId) return;
 
-            const skill = this.actor.system.attributes.skills[skillId];
-            if (!skill) return;
+            const options = window.DX3rdActorSheetData.getEditSkillDialogOptions(this.actor, skillId);
+            if (!options) return;
 
-            // 현재 스킬의 모든 데이터를 가져옴
-            const baseAbility = this.actor.system.attributes[skill.base];
-            const dice = baseAbility ? baseAbility.dice || 0 : 0;
-
-            const title = game.i18n.localize("DX3rd.EditSkill");
             new DX3rdSkillEditDialog({
-                title,
-                width: 900,
-                skill: {
-                    key: skillId,
-                    name: skill.name || "",
-                    point: skill.point || 0,
-                    bonus: skill.bonus || 0,
-                    extra: skill.extra || 0,
-                    works: skill.works || 0,
-                    base: skill.base,
-                    dice: dice,
-                    total: skill.total || 0,
-                    delete: skill.delete
-                },
-                actorId: this.actor.id,
+                ...options,
                 buttons: {
                     cancel: {
                         label: game.i18n.localize("DX3rd.Close"),
@@ -272,49 +228,24 @@
             }).render(true);
         }
 
-        async _onDeleteSkill(event) {
+        async _onDeleteSkill(event, target = event.currentTarget) {
             event.preventDefault();
-            
-            // OWNER 권한 체크
-            if (!this._hasOwnerPermission()) {
-                ui.notifications.warn(game.i18n.localize("DX3rd.NoPermission"));
-                return;
-            }
-            
-            const skillId = $(event.currentTarget).closest('.skill').data('skill-id');
+
+            const skillId = target?.closest('.skill')?.dataset?.skillId;
             if (!skillId) return;
 
-            const skill = this.actor.system.attributes.skills[skillId];
-            if (!skill) return;
-
-            // 기본 스킬은 삭제 불가
-            if (!skill.delete) {
-                ui.notifications.error(game.i18n.localize("DX3rd.ErrorCannotDeleteDefaultSkill"));
+            if (!window.DX3rdActorDeleteDialogs) {
+                ui.notifications.error('DX3rdActorDeleteDialogs를 찾을 수 없습니다.');
                 return;
             }
 
-            // 삭제 확인
-            const confirmed = await Dialog.confirm({
-                title: game.i18n.localize("DX3rd.DeleteSkill"),
-                content: game.i18n.format("DX3rd.ConfirmDeleteSkill", { name: skill.name })
-            });
-
-            if (confirmed) {
-                // cthulhu 스킬 삭제 시 플래그 설정
-                if (skillId === 'cthulhu') {
-                    await this.actor.setFlag('dx3rd-emanim', 'cthulhuDeleted', true);
-                }
-
-                await this.actor.update({
-                    [`system.attributes.skills.-=${skillId}`]: null
-                });
-            }
+            await window.DX3rdActorDeleteDialogs.deleteSkill(this.actor, skillId);
         }
 
-        async _onAbilityDiamondClick(event) {
+        async _onAbilityDiamondClick(event, target = event.currentTarget) {
             event.preventDefault();
             // 캐릭터 시트는 .diamond에 data-ability, 에너미 시트는 부모에 data-ability-id
-            const el = event.currentTarget;
+            const el = target;
             const ability = el.dataset.ability || el.closest("[data-ability-id]")?.dataset.abilityId;
             return window.DX3rdActorEditDialogs.openAbility(this.actor, ability);
         }
@@ -344,7 +275,7 @@
             return window.DX3rdEnemyStatDialogs.open(this.actor, "armor");
         }
 
-        async _onItemEdit(event) {
+        async _onItemEdit(event, target = event.currentTarget) {
             event.preventDefault();
             
             // OWNER 권한 체크
@@ -353,41 +284,30 @@
                 return;
             }
             
-            const li = $(event.currentTarget).closest('.item');
-            const itemId = li.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
             if (!itemId) return;
             const item = this.actor.items.get(itemId);
             if (item) item.sheet.render(true);
         }
 
-        async _onItemDelete(event) {
+        async _onItemDelete(event, target = event.currentTarget) {
             event.preventDefault();
-            
-            // OWNER 권한 체크
-            if (!this._hasOwnerPermission()) {
-                ui.notifications.warn(game.i18n.localize("DX3rd.NoPermission"));
+
+            const itemId = target?.closest('.item')?.dataset?.itemId;
+            if (!itemId) return;
+
+            if (!window.DX3rdActorDeleteDialogs) {
+                ui.notifications.error('DX3rdActorDeleteDialogs를 찾을 수 없습니다.');
                 return;
             }
-            
-            const li = $(event.currentTarget).closest('.item');
-            const itemId = li.data('item-id');
-            if (!itemId) return;
-            const item = this.actor.items.get(itemId);
-            if (!item) return;
-            const confirmed = await Dialog.confirm({
-                title: game.i18n.localize("DX3rd.DeleteItem"),
-                content: game.i18n.format("DX3rd.ConfirmDeleteItem", { name: item.name })
-            });
-            if (confirmed) {
-                await this.actor.deleteEmbeddedDocuments("Item", [itemId]);
-            }
+
+            await window.DX3rdActorDeleteDialogs.deleteItem(this.actor, itemId);
         }
 
-        async _onItemNameClick(event) {
+        async _onItemNameClick(event, target = event.currentTarget) {
             event.preventDefault();
             event.stopPropagation();
-            const li = $(event.currentTarget).closest('.item');
-            const itemId = li.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
             if (!itemId) return;
 
             // 권한 체크
@@ -409,33 +329,33 @@
             await this._sendItemToChat(item);
         }
 
-        async _onItemLabelClick(event) {
+        async _onItemLabelClick(event, target = event.currentTarget) {
             event.preventDefault();
             event.stopPropagation();
             
             // echo-item 클릭이면 채팅 출력으로 처리하지 않음
-            if ($(event.target).closest('.echo-item').length > 0) {
+            if (event.target?.closest?.('.echo-item')) {
                 return;
             }
             
-            const li = $(event.currentTarget).closest('.item');
-            const itemId = li.data('item-id');
+            const li = target?.closest('.item');
+            const itemId = li?.dataset?.itemId;
             if (!itemId) return;
             
-            const itemDescription = li.find('.item-description');
-            const toggleIcon = li.find('.item-details-toggle i');
+            const itemDescription = li.querySelector('.item-description');
+            const toggleIcon = li.querySelector('.item-details-toggle i');
             
-            if (!itemDescription.length) return;
+            if (!itemDescription) return;
             
-            // 토글 애니메이션
-            if (itemDescription.is(':visible')) {
-                itemDescription.slideUp(250, () => {
-                    toggleIcon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
-                });
+            const isVisible = getComputedStyle(itemDescription).display !== 'none';
+            if (isVisible) {
+                itemDescription.style.display = 'none';
+                toggleIcon?.classList.remove('fa-chevron-up');
+                toggleIcon?.classList.add('fa-chevron-down');
             } else {
-                itemDescription.slideDown(250, () => {
-                    toggleIcon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
-                });
+                itemDescription.style.display = 'block';
+                toggleIcon?.classList.remove('fa-chevron-down');
+                toggleIcon?.classList.add('fa-chevron-up');
             }
         }
 
@@ -775,12 +695,11 @@
 
                 // 새로 생성된 메시지에 토글 기능 초기화
                 setTimeout(() => {
-                    const newMessage = $(`#chat-log .message[data-message-id="${message.id}"]`);
-                    if (newMessage.length > 0) {
-                        const collapsibleElements = newMessage.find('.collapsible-content');
-                        collapsibleElements.each((i, element) => {
-                            const $el = $(element);
-                            $el.removeAttr('style').addClass('collapsed');
+                    const newMessage = this._getChatMessageElement(message.id);
+                    if (newMessage) {
+                        newMessage.querySelectorAll('.collapsible-content').forEach(element => {
+                            element.removeAttribute('style');
+                            element.classList.add('collapsed');
                         });
                     }
                 }, 500);
@@ -1227,121 +1146,107 @@
             // DOM이 완전히 렌더링될 때까지 대기
             setTimeout(() => {
                 // Foundry VTT의 채팅 메시지 구조에 맞게 수정
-                const messageElement = $(`#chat-log .message[data-message-id="${messageId}"] .message-content`);
-                if (!messageElement.length) {
+                const messageElement = this._getChatMessageContent(messageId);
+                if (!messageElement) {
                     return;
                 }
 
-                const toggleElement = messageElement.find('.item-name-toggle');
-                if (!toggleElement.length) {
+                const toggleElement = messageElement.querySelector('.item-name-toggle');
+                if (!toggleElement) {
                     return;
                 }
 
                 // 이벤트 위임을 사용하여 더 안정적으로 처리
-                toggleElement.on('click.dx3rd-toggle', (event) => {
+                toggleElement.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
 
-                    const collapsibleElements = messageElement.find('.collapsible-content');
-
-                    // 애니메이션 중복 방지
-                    if (collapsibleElements.is(':animated')) {
-                        return;
-                    }
-
-                    if (collapsibleElements.hasClass('collapsed')) {
-                        collapsibleElements.removeClass('collapsed').slideDown(250, 'swing');
-                    } else {
-                        collapsibleElements.slideUp(250, 'swing', () => {
-                            collapsibleElements.addClass('collapsed');
-                        });
-                    }
+                    this._toggleCollapsibleElements(messageElement.querySelectorAll('.collapsible-content'));
                 });
             }, 1000); // 대기 시간을 더 늘림
         }
 
         _addGlobalChatToggleListeners() {
             // 전역 이벤트 위임으로 채팅 로그의 모든 토글 요소 처리
-            $(document).off('click.dx3rd-global-toggle').on('click.dx3rd-global-toggle', '.item-name-toggle', (event) => {
+            if (this.constructor._globalChatToggleListener) {
+                document.removeEventListener('click', this.constructor._globalChatToggleListener);
+            }
+
+            this.constructor._globalChatToggleListener = (event) => {
+                const toggle = event.target?.closest?.('.item-name-toggle');
+                if (!toggle) return;
+
                 event.preventDefault();
                 event.stopPropagation();
 
                 // Foundry VTT 채팅 메시지 구조 확인
-                const messageElement = $(event.currentTarget).closest('.message');
+                const messageElement = toggle.closest('.message');
+                if (!messageElement) return;
 
                 // 다양한 선택자 시도
-                let collapsibleElements = messageElement.find('.collapsible-content');
+                let collapsibleElements = Array.from(messageElement.querySelectorAll('.collapsible-content'));
                 if (collapsibleElements.length === 0) {
                     // message-content 내부에서 찾기
-                    const messageContent = messageElement.find('.message-content');
-                    collapsibleElements = messageContent.find('.collapsible-content');
-                }
-                if (collapsibleElements.length === 0) {
-                    // 직접 message 내부에서 찾기
-                    collapsibleElements = messageElement.find('.collapsible-content');
+                    const messageContent = messageElement.querySelector('.message-content');
+                    collapsibleElements = Array.from(messageContent?.querySelectorAll?.('.collapsible-content') || []);
                 }
 
                 if (collapsibleElements.length === 0) {
                     return;
                 }
 
-                // 애니메이션 중복 방지
-                if (collapsibleElements.is(':animated')) {
-                    return;
-                }
+                this._toggleCollapsibleElements(collapsibleElements);
+            };
 
-                if (collapsibleElements.hasClass('collapsed')) {
-                    collapsibleElements.removeClass('collapsed').slideDown(250, 'swing');
-                } else {
-                    collapsibleElements.slideUp(250, 'swing', () => {
-                        collapsibleElements.addClass('collapsed');
-                    });
-                }
-            });
+            document.addEventListener('click', this.constructor._globalChatToggleListener);
         }
 
         _initializeExistingChatMessages() {
             // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
-            const existingMessages = $('#chat-log .message');
-
-            existingMessages.each((index, messageElement) => {
-                const $message = $(messageElement);
-                const collapsibleElements = $message.find('.collapsible-content');
-
-                if (collapsibleElements.length > 0) {
-                    // 인라인 스타일 제거하고 CSS 클래스로 초기화
-                    collapsibleElements.each((i, element) => {
-                        const $el = $(element);
-                        $el.removeAttr('style').addClass('collapsed');
-                    });
-                }
+            document.querySelectorAll('#chat-log .message, .chat-log .message').forEach(messageElement => {
+                messageElement.querySelectorAll('.collapsible-content').forEach(element => {
+                    element.removeAttribute('style');
+                    element.classList.add('collapsed');
+                });
             });
         }
 
-        async _onUsedStateChange(event) {
+        _getChatMessageElement(messageId) {
+            return document.querySelector(
+                `#chat-log .message[data-message-id="${messageId}"], .chat-log .message[data-message-id="${messageId}"]`
+            );
+        }
+
+        _getChatMessageContent(messageId) {
+            const messageElement = this._getChatMessageElement(messageId);
+            return messageElement?.querySelector('.message-content') || messageElement;
+        }
+
+        _toggleCollapsibleElements(elements) {
+            const list = Array.from(elements || []);
+            if (!list.length) return;
+
+            const shouldShow = list.some(element => element.classList.contains('collapsed'));
+            list.forEach(element => {
+                element.classList.toggle('collapsed', !shouldShow);
+                element.style.display = shouldShow ? '' : 'none';
+            });
+        }
+
+        async _onUsedStateChange(event, target = event.currentTarget) {
             event.preventDefault();
 
-            const input = $(event.currentTarget);
-            const li = input.closest('.item');
-            const itemId = li.data('item-id');
+            const input = target;
+            const itemId = input?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
             }
 
-            const item = this.actor.items.get(itemId);
-            if (!item) {
-                return;
-            }
-
-            const newState = parseInt(input.val()) || 0;
-
             // disabled 상태가 아닌 경우에만 업데이트
-            if (!input.prop('disabled')) {
+            if (!input.disabled) {
                 try {
-                    await item.update({
-                        'system.used.state': newState
-                    });
+                    await window.DX3rdActorSheetData.updateOwnedItemUsedState(this.actor, itemId, input.value);
                 } catch (err) {
                     console.error("DX3rd | ActorSheet _onUsedStateChange - update failed", err);
                     ui.notifications.error(`사용횟수 업데이트 실패: ${err.message}`);
@@ -1349,79 +1254,43 @@
             }
         }
 
-        async _onActiveChange(event) {
+        async _onActiveChange(event, target = event.currentTarget) {
             event.preventDefault();
 
-            const checkbox = $(event.currentTarget);
-            const li = checkbox.closest('.item');
-            const itemId = li.data('item-id');
+            const checkbox = target;
+            const itemId = checkbox?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
             }
 
-            const item = this.actor.items.get(itemId);
-            if (!item) {
-                return;
-            }
-
-            const newState = checkbox.prop('checked');
-
             try {
-                await item.update({
-                    'system.active.state': newState
-                });
+                await window.DX3rdActorSheetData.updateOwnedItemActiveState(this.actor, itemId, checkbox.checked);
             } catch (err) {
                 console.error("DX3rd | ActorSheet _onActiveChange - update failed", err);
                 ui.notifications.error(`활성화 상태 업데이트 실패: ${err.message}`);
             }
         }
 
-        async _onEquipmentChange(event) {
+        async _onEquipmentChange(event, target = event.currentTarget) {
             event.preventDefault();
 
-            const checkbox = $(event.currentTarget);
-            const li = checkbox.closest('.item');
-            const itemId = li.data('item-id');
+            const checkbox = target;
+            const itemId = checkbox?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
             }
 
-            const item = this.actor.items.get(itemId);
-            if (!item) {
-                return;
-            }
-
-            const newState = checkbox.prop('checked');
-
             try {
-                // 비클 아이템의 경우 하나만 장착 가능
-                if (item.type === 'vehicle' && newState === true) {
-                    // 현재 장착된 다른 비클들을 모두 해제
-                    const otherVehicles = this.actor.items.filter(i =>
-                        i.type === 'vehicle' &&
-                        i.id !== itemId &&
-                        i.system?.equipment === true
-                    );
-
-                    for (const otherVehicle of otherVehicles) {
-                        await otherVehicle.update({
-                            'system.equipment': false
-                        });
-                    }
-                }
-
-                await item.update({
-                    'system.equipment': newState
-                });
+                await window.DX3rdActorSheetData.updateOwnedItemEquipmentState(this.actor, itemId, checkbox.checked);
             } catch (err) {
                 console.error("DX3rd | ActorSheet _onEquipmentChange - update failed", err);
                 ui.notifications.error(`장비 상태 업데이트 실패: ${err.message}`);
             }
         }
 
-        async _onItemCreate(event) {
+        async _onItemCreate(event, target = event.currentTarget) {
             event.preventDefault();
             
             // OWNER 권한 체크
@@ -1430,53 +1299,16 @@
                 return;
             }
             
-            const button = $(event.currentTarget);
-            const type = button.data('type') || "item";
-            const effectType = button.data('effectType');
-            const roisType = button.data('roisType');
+            const button = target;
+            const type = button?.dataset?.type || "item";
+            const effectType = button?.dataset?.effectType;
+            const roisType = button?.dataset?.roisType;
 
-            // StageCRC 비활성화 시 스펠/사이오닉/마도서 아이템 생성 차단
-            if (!game.settings.get("dx3rd-emanim", "stageCRC") && (type === "spell" || type === "psionic" || type === "book")) {
-                ui.notifications.warn("CRC 스테이지 비활성화 시 스펠, 사이오닉, 마도서 아이템을 생성할 수 없습니다.");
-                return;
-            }
-
-            // 워크스 아이템 제한 (1개)
-            if (type === "works") {
-                const existingWorks = this.actor.items.filter(item => item.type === 'works');
-                if (existingWorks.length >= 1) {
-                    ui.notifications.info("Each character can only have one Works item.");
-                    return;
-                }
-            }
-
-            // 신드롬 아이템 제한 (3개)
-            if (type === "syndrome") {
-                const existingSyndromes = this.actor.items.filter(item => item.type === 'syndrome');
-                if (existingSyndromes.length >= 3) {
-                    ui.notifications.info("Each character can only have up to three Syndrome items.");
-                    return;
-                }
-            }
-
-            let typeLabel = game.i18n.localize(`DX3rd.${type.charAt(0).toUpperCase() + type.slice(1)}`);
-            let itemData = {
-                name: `New ${typeLabel !== `DX3rd.${type.charAt(0).toUpperCase() + type.slice(1)}` ? typeLabel : type}`,
-                type: type,
-                system: {}
-            };
-            if (effectType) itemData.system.type = effectType;
-            if (roisType) itemData.system.type = roisType;
-            // effect 아이템 생성 시 레벨 기본값 추가
-            if (type === 'effect') {
-                itemData.system.level = { init: 1, max: 1 };
-            }
-
-            await this.actor.createEmbeddedDocuments("Item", [itemData]);
+            await window.DX3rdActorSheetData.createOwnedItem(this.actor, { type, effectType, roisType });
         }
 
-        async _onToggleSyndrome(event) {
-            const input = event.currentTarget;
+        async _onToggleSyndrome(event, matched) {
+            const input = matched || event.currentTarget;
             // name 예: system.attributes.syndrome.<itemId>
             const parts = String(input.name).split('.');
             const itemId = parts[parts.length - 1];
@@ -1484,55 +1316,34 @@
 
             // mousedown에서는 현재 상태의 반대값이 될 예정
             const willBeChecked = !input.checked;
-            const current = Array.isArray(this.actor.system.attributes?.syndrome)
-                ? [...this.actor.system.attributes.syndrome]
-                : [];
+            const result = window.DX3rdActorSheetData.getSyndromeSelectionUpdate(this.actor, itemId, willBeChecked);
 
-            // 신드롬 아이템 개수 확인
-            const syndromeItems = this.actor.items.filter(item => item.type === 'syndrome');
-            const totalSyndromeCount = syndromeItems.length;
+            if (!result.ok && result.reason === "optionalLimit") {
+                ui.notifications.info("You cannot check Optional Syndrome.");
 
-            const idx = current.indexOf(itemId);
+                // 기본 이벤트 동작 완전 차단
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
 
-            // 체크하려는 경우 (현재 체크되지 않은 상태에서 체크하려는 경우)
-            if (willBeChecked && idx === -1) {
-                // 트라이브리드이고 이미 2개가 체크된 경우 제한
-                if (totalSyndromeCount === 3 && current.length >= 2) {
-                    ui.notifications.info("You cannot check Optional Syndrome.");
+                // 체크박스 상태를 강제로 되돌림
+                input.checked = false;
+                input.setAttribute('checked', false);
+                input.removeAttribute('checked');
 
-                    // 기본 이벤트 동작 완전 차단
-                    event.preventDefault();
-                    event.stopPropagation();
-                    event.stopImmediatePropagation();
+                // 체크박스를 일시적으로 비활성화
+                input.disabled = true;
+                setTimeout(() => {
+                    input.disabled = false;
+                }, 100);
 
-                    // 체크박스 상태를 강제로 되돌림
-                    input.checked = false;
-                    input.setAttribute('checked', false);
-                    input.removeAttribute('checked');
-
-                    // 체크박스를 일시적으로 비활성화
-                    input.disabled = true;
-                    setTimeout(() => {
-                        input.disabled = false;
-                    }, 100);
-
-                    // 이벤트 전파 완전 차단
-                    return false;
-                }
-                current.push(itemId);
+                // 이벤트 전파 완전 차단
+                return false;
             }
 
-            // 체크 해제하는 경우 (현재 체크된 상태에서 해제하려는 경우)
-            if (!willBeChecked && idx !== -1) {
-                current.splice(idx, 1);
-            }
-
-            // 업데이트가 필요한 경우에만 실행
-            const needsUpdate = (willBeChecked && idx === -1) || (!willBeChecked && idx !== -1);
-
-            if (needsUpdate) {
+            if (result.changed) {
                 try {
-                    await this.actor.update({ 'system.attributes.syndrome': current });
+                    await window.DX3rdActorSheetData.updateActorSyndromeSelection(this.actor, itemId, willBeChecked);
                     this.render(false);
                 } catch (e) {
                     console.error('DX3rd | ActorSheet syndrome toggle failed', e);
@@ -1540,25 +1351,17 @@
             }
         }
 
-        async _onSyndromeClick(event) {
-            const input = event.currentTarget;
+        async _onSyndromeClick(event, matched) {
+            const input = matched || event.currentTarget;
             const parts = String(input.name).split('.');
             const itemId = parts[parts.length - 1];
             if (!itemId) return;
 
-            const current = Array.isArray(this.actor.system.attributes?.syndrome)
-                ? [...this.actor.system.attributes.syndrome]
-                : [];
-
-            // 신드롬 아이템 개수 확인
-            const syndromeItems = this.actor.items.filter(item => item.type === 'syndrome');
-            const totalSyndromeCount = syndromeItems.length;
-
-            const idx = current.indexOf(itemId);
             const checked = input.checked;
+            const result = window.DX3rdActorSheetData.getSyndromeSelectionUpdate(this.actor, itemId, checked);
 
             // 3번째 체크 시도 차단
-            if (checked && idx === -1 && totalSyndromeCount === 3 && current.length >= 2) {
+            if (!result.ok && result.reason === "optionalLimit") {
                 event.preventDefault();
                 event.stopPropagation();
                 event.stopImmediatePropagation();
@@ -1571,18 +1374,13 @@
                 return false;
             }
 
-            // 정상적인 체크/해제 처리
-            if (checked && idx === -1) {
-                current.push(itemId);
-            } else if (!checked && idx !== -1) {
-                current.splice(idx, 1);
-            }
-
-            try {
-                await this.actor.update({ 'system.attributes.syndrome': current });
-                this.render(false);
-            } catch (e) {
-                console.error('DX3rd | ActorSheet syndrome click failed', e);
+            if (result.changed) {
+                try {
+                    await window.DX3rdActorSheetData.updateActorSyndromeSelection(this.actor, itemId, checked);
+                    this.render(false);
+                } catch (e) {
+                    console.error('DX3rd | ActorSheet syndrome click failed', e);
+                }
             }
         }
 
@@ -1590,8 +1388,8 @@
             event.preventDefault();
         }
 
-        _onDragStart(event) {
-            const li = event.currentTarget;
+        _onDragStart(event, matched) {
+            const li = matched || event.currentTarget;
             const itemId = li.dataset.itemId;
 
             if (!itemId) return;
@@ -1719,171 +1517,42 @@
             return window.DX3rdActorSheetData.generateAppliedEffectDescription(appliedEffect, appliedKey);
         }
 
-        async _onRemoveApplied(event) {
+        async _onRemoveApplied(event, target = event.currentTarget) {
             event.preventDefault();
-            const button = $(event.currentTarget);
-            const itemElement = button.closest('.item');
-            const itemId = itemElement.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
             }
 
-            // applied 효과 제거 확인
-            const confirmed = await Dialog.confirm({
-                title: 'Applied 효과 제거',
-                content: '이 효과를 제거하시겠습니까?',
-                yes: () => true,
-                no: () => false,
-                defaultYes: false
-            });
-
-            if (!confirmed) return;
-
-            try {
-                // applied에서 해당 효과 제거
-                const applied = this.actor.system.attributes.applied || {};
-                const updates = {};
-
-                // 해당 키 찾기 - itemId가 applied_${index} 형태이므로 인덱스로 찾기
-                if (itemId.startsWith('applied_')) {
-                    const index = parseInt(itemId.replace('applied_', ''));
-                    const appliedKeys = Object.keys(applied);
-                    const appliedValues = Object.values(applied);
-
-                    if (index >= 0 && index < appliedKeys.length) {
-                        const targetKey = appliedKeys[index];
-                        const appliedEffect = appliedValues[index];
-
-                        // applied 효과 제거만 수행 (actor.js에서 자동으로 계산 반영)
-
-                        // applied에서 효과 제거
-                        updates[`system.attributes.applied.-=${targetKey}`] = null;
-                    }
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    await this.actor.update(updates);
-                    ui.notifications.info('Applied 효과가 제거되었습니다.');
-                } else {
-                    ui.notifications.warn('제거할 효과를 찾을 수 없습니다.');
-                }
-
-            } catch (error) {
-                console.error('DX3rd | Error removing applied effect:', error);
-                ui.notifications.error('효과 제거 중 오류가 발생했습니다.');
+            if (!window.DX3rdActorAppliedDialogs) {
+                ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
+                return;
             }
+
+            await window.DX3rdActorAppliedDialogs.remove(this.actor, itemId);
         }
 
-        async _onShowApplied(event) {
+        async _onShowApplied(event, target = event.currentTarget) {
             event.preventDefault();
-            const button = $(event.currentTarget);
-            const itemElement = button.closest('.item');
-            const itemId = itemElement.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
             }
 
-            // applied 효과 데이터 찾기
-            const applied = this.actor.system.attributes.applied || {};
-            const appliedValues = Object.values(applied);
-
-            if (itemId.startsWith('applied_')) {
-                const index = parseInt(itemId.replace('applied_', ''));
-                if (index >= 0 && index < appliedValues.length) {
-                    const appliedEffect = appliedValues[index];
-
-                    // 데이터 검증 및 기본값 설정
-                    const effectName = appliedEffect.name || '알 수 없는 효과';
-                    const effectSource = appliedEffect.source || '알 수 없는 시전자';
-                    const effectTimestamp = appliedEffect.timestamp || Date.now();
-                    const effectDisable = appliedEffect.disable || '-';
-
-                    // 다이얼로그 생성
-                    let tableContent = '';
-
-                    // 새로운 구조 (key, label, value가 직접 있는 경우) 처리
-                    if (appliedEffect.key && appliedEffect.label && appliedEffect.value !== undefined) {
-                        const localizedKey = window.DX3rdAttributeLocalizer?.localize(appliedEffect.key) || appliedEffect.key;
-                        const localizedLabel = window.DX3rdAttributeLocalizer?.localize(appliedEffect.label) || appliedEffect.label;
-
-                        tableContent = `
-                            <table class="applied-effect-table">
-                                <thead>
-                                    <tr>
-                                        <th>Key</th>
-                                        <th>Label</th>
-                                        <th>값</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>${localizedKey}</td>
-                                        <td>${localizedLabel}</td>
-                                        <td>${appliedEffect.value >= 0 ? '+' : ''}${appliedEffect.value}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        `;
-                    }
-                    // 기존 구조 (attributes 객체가 있는 경우) 처리
-                    else if (appliedEffect.attributes && Object.keys(appliedEffect.attributes).length > 0) {
-                        tableContent = `
-                            <table class="applied-effect-table">
-                                <thead>
-                                    <tr>
-                                        <th>Key</th>
-                                        <th>Label</th>
-                                        <th>값</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${Object.entries(appliedEffect.attributes).map(([attrName, attrValue]) => {
-                            const key = (typeof attrValue === 'object' && attrValue) ? (attrValue.key ?? (attrName.split(':')[0] || attrName)) : (attrName.split(':')[0] || attrName);
-                            const labelRaw = (typeof attrValue === 'object' && attrValue) ? (attrValue.label ?? (attrName.split(':')[1] || attrName)) : (attrName.split(':')[1] || attrName);
-                            const value = (typeof attrValue === 'object' && attrValue && 'value' in attrValue) ? attrValue.value : attrValue;
-
-                            const localizedKey = window.DX3rdAttributeLocalizer?.localize(key) || key;
-                            const localizedLabel = window.DX3rdAttributeLocalizer?.localize(labelRaw) || labelRaw;
-
-                            return `<tr>
-                                            <td>${localizedKey}</td>
-                                            <td>${localizedLabel}</td>
-                                            <td>${value >= 0 ? '+' : ''}${value}</td>
-                                        </tr>`;
-                        }).join('')}
-                                </tbody>
-                            </table>
-                        `;
-                    }
-
-                    const content = `
-                        <div class="applied-effect-dialog">
-                            ${tableContent || '<p>적용된 어트리뷰트가 없습니다.</p>'}
-                        </div>
-                    `;
-
-                    new Dialog({
-                        title: `${effectName} - 상세 정보`,
-                        content: content,
-                        buttons: {
-                            close: {
-                                icon: '<i class="fas fa-times"></i>',
-                                label: '닫기',
-                                callback: () => { }
-                            }
-                        },
-                        default: 'close'
-                    }).render(true);
-                }
+            if (!window.DX3rdActorAppliedDialogs) {
+                ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
+                return;
             }
+
+            await window.DX3rdActorAppliedDialogs.open(this.actor, itemId);
         }
 
-        async _onAbilityNameClick(event) {
+        async _onAbilityNameClick(event, target = event.currentTarget) {
             event.preventDefault();
             event.stopPropagation();
-            const abilityId = $(event.currentTarget).closest('[data-ability-id]').data('ability-id');
+            const abilityId = target?.closest('[data-ability-id]')?.dataset?.abilityId;
             if (!abilityId) return;
 
             // 권한 체크
@@ -1903,10 +1572,10 @@
             }
         }
 
-        async _onSkillNameClick(event) {
+        async _onSkillNameClick(event, target = event.currentTarget) {
             event.preventDefault();
             event.stopPropagation();
-            const skillId = $(event.currentTarget).closest('[data-skill-id]').data('skill-id');
+            const skillId = target?.closest('[data-skill-id]')?.dataset?.skillId;
             if (!skillId) return;
 
             // 권한 체크
@@ -2010,8 +1679,8 @@
             return sortedOptions;
         }
 
-        _onAbilityHover(event) {
-            const abilityId = $(event.currentTarget).closest('[data-ability-id]').data('ability-id');
+        _onAbilityHover(event, target = event.currentTarget) {
+            const abilityId = target?.closest('[data-ability-id]')?.dataset?.abilityId;
             if (!abilityId) return;
 
             const ability = this.actor.system.attributes[abilityId];
@@ -2020,13 +1689,14 @@
             this._updateDiceInfo(ability);
         }
 
-        _onAbilityHoverOut(event) {
+        _onAbilityHoverOut(event, target = event.currentTarget) {
+            if (target?.contains?.(event.relatedTarget)) return;
             // 원래 값으로 되돌리기 (현재 선택된 판정 타입 기준)
             this._resetDiceInfo();
         }
 
-        _onSkillHover(event) {
-            const skillId = $(event.currentTarget).closest('[data-skill-id]').data('skill-id');
+        _onSkillHover(event, target = event.currentTarget) {
+            const skillId = target?.closest('[data-skill-id]')?.dataset?.skillId;
             if (!skillId) return;
 
             const skill = this.actor.system.attributes.skills[skillId];
@@ -2035,7 +1705,8 @@
             this._updateDiceInfo(skill);
         }
 
-        _onSkillHoverOut(event) {
+        _onSkillHoverOut(event, target = event.currentTarget) {
+            if (target?.contains?.(event.relatedTarget)) return;
             // 원래 값으로 되돌리기
             this._resetDiceInfo();
         }
@@ -2044,38 +1715,40 @@
             const diceView = this.actor.system.attributes.dice?.view || 'major';
             const rollType = diceView; // 'major', 'reaction', 'dodge'
 
-            const $diceInput = this.element.find('#dice');
-            const $criticalInput = this.element.find('#critical');
-            const $addInput = this.element.find('#add');
+            const root = compat.unwrapRoot(this.element);
+            const diceInput = root?.querySelector?.('#dice');
+            const criticalInput = root?.querySelector?.('#critical');
+            const addInput = root?.querySelector?.('#add');
+            if (!diceInput || !criticalInput || !addInput) return;
 
             if (stat[rollType]) {
-                $diceInput.val(stat[rollType].dice || 0);
-                $criticalInput.val(stat[rollType].critical || (game.settings.get("dx3rd-emanim", "defaultCritical") || 10));
-                $addInput.val(stat[rollType].add || 0);
+                diceInput.value = stat[rollType].dice || 0;
+                criticalInput.value = stat[rollType].critical || (game.settings.get("dx3rd-emanim", "defaultCritical") || 10);
+                addInput.value = stat[rollType].add || 0;
             } else {
                 // 판정 타입별 데이터가 없으면 기본값 사용
-                $diceInput.val(stat.dice || 0);
-                $criticalInput.val(stat.critical || (game.settings.get("dx3rd-emanim", "defaultCritical") || 10));
-                $addInput.val(stat.add || 0);
+                diceInput.value = stat.dice || 0;
+                criticalInput.value = stat.critical || (game.settings.get("dx3rd-emanim", "defaultCritical") || 10);
+                addInput.value = stat.add || 0;
             }
         }
 
         _resetDiceInfo() {
             // dice-info를 기본 값으로 복원 (0, defaultCritical, 0)
-            const $diceInput = this.element.find('#dice');
-            const $criticalInput = this.element.find('#critical');
-            const $addInput = this.element.find('#add');
+            const root = compat.unwrapRoot(this.element);
+            const diceInput = root?.querySelector?.('#dice');
+            const criticalInput = root?.querySelector?.('#critical');
+            const addInput = root?.querySelector?.('#add');
+            if (!diceInput || !criticalInput || !addInput) return;
 
-            $diceInput.val(0);
-            $criticalInput.val(game.settings.get("dx3rd-emanim", "defaultCritical") || 10);
-            $addInput.val(0);
+            diceInput.value = 0;
+            criticalInput.value = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
+            addInput.value = 0;
         }
 
-        async _onTitusClick(event) {
+        async _onTitusClick(event, target = event.currentTarget) {
             event.preventDefault();
-            const button = $(event.currentTarget);
-            const li = button.closest('.item');
-            const itemId = li.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
@@ -2094,11 +1767,9 @@
             }
         }
 
-        async _onSublimationClick(event) {
+        async _onSublimationClick(event, target = event.currentTarget) {
             event.preventDefault();
-            const button = $(event.currentTarget);
-            const li = button.closest('.item');
-            const itemId = li.data('item-id');
+            const itemId = target?.closest('.item')?.dataset?.itemId;
 
             if (!itemId) {
                 return;
@@ -2109,33 +1780,11 @@
                 return;
             }
 
-            // 이미 승화가 사용된 경우 초기화 확인 다이얼로그 표시
-            if (item.system.sublimation) {
-                const confirmed = await Dialog.confirm({
-                    title: "Initialize this item",
-                    content: "<p>Do you want to reset Titus and Sublimation for this item?</p>",
-                    yes: () => true,
-                    no: () => false,
-                    defaultYes: false
-                });
-
-                if (confirmed) {
-                    // Titus와 Sublimation 초기화
-                    await item.update({
-                        "system.titus": false,
-                        "system.sublimation": false
-                    });
-                    ui.notifications.info("로이스가 초기화되었습니다.");
-                }
+            if (window.DX3rdActorRoisDialogs) {
+                await window.DX3rdActorRoisDialogs.useSublimation(this.actor, item);
                 return;
             }
-
-            // 승화가 아직 사용되지 않은 경우 Sublimation 핸들러 호출
-            if (window.DX3rdRoisHandler) {
-                await window.DX3rdRoisHandler.handleSublimation(this.actor.id, itemId);
-            } else {
-                ui.notifications.error('로이스 핸들러를 찾을 수 없습니다.');
-            }
+            ui.notifications.error('DX3rdActorRoisDialogs를 찾을 수 없습니다.');
         }
 
         /**

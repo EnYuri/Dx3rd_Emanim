@@ -1,5 +1,7 @@
 // Rois 아이템 핸들러
 (function() {
+const DialogV2 = foundry.applications?.api?.DialogV2;
+
 window.DX3rdRoisHandler = {
     async handle(actorId, itemId) {
         try {
@@ -113,74 +115,83 @@ window.DX3rdRoisHandler = {
             const template = 'systems/dx3rd-emanim/templates/dialog/sublimation-dialog.html';
             const html = await renderTemplate(template, { isSuperior });
             
+            if (!DialogV2) {
+                ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                return;
+            }
+
             // 다이얼로그 생성
-            new Dialog({
-                title: `${game.i18n.localize("DX3rd.Sublimation")} - ${item.name}`,
+            const dialog = new DialogV2({
+                window: { title: `${game.i18n.localize("DX3rd.Sublimation")} - ${item.name}` },
                 content: html,
-                buttons: {
-                    cancel: {
-                        icon: '<i class="fas fa-times"></i>',
-                        label: game.i18n.localize("DX3rd.Cancel")
+                buttons: [{
+                    action: "cancel",
+                    icon: "fas fa-times",
+                    label: game.i18n.localize("DX3rd.Cancel"),
+                    default: true
+                }]
+            });
+            await dialog.render(true);
+            const root = dialog.element;
+            if (!root) return;
+
+            // SubAction 5와 9는 HP가 0일 때만 활성화
+            const currentHP = actor.system.attributes.hp.value;
+            if (currentHP > 0) {
+                root.querySelector('.sublimation-action-btn[data-action="5"]')?.setAttribute('disabled', 'disabled');
+                root.querySelector('.sublimation-action-btn[data-action="9"]')?.setAttribute('disabled', 'disabled');
+            }
+
+            // 각 버튼에 클릭 이벤트 추가
+            root.querySelectorAll('.sublimation-action-btn').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                    const actionNumber = event.currentTarget?.dataset?.action;
+                    if (event.currentTarget?.disabled || !actionNumber) return;
+
+                    // SubAction별 기능 구현
+                    const actionText = game.i18n.localize(`DX3rd.SubAction${actionNumber}`);
+
+                    // 승화 효과 적용 (각 SubAction별 반환값: 모든 액션은 true/false/결과값 반환)
+                    const actionResult = await window.DX3rdRoisHandler.applySublimationEffect(actor, item, actionNumber);
+
+                    // 취소된 경우만 null 반환 (0번 액션의 취소 또는 다이얼로그 닫기)
+                    if (actionResult === null) {
+                        return; // 승화 다이얼로그는 그대로 유지
                     }
-                },
-                default: "cancel",
-                render: (html) => {
-                    // SubAction 5와 9는 HP가 0일 때만 활성화
-                    const currentHP = actor.system.attributes.hp.value;
-                    if (currentHP > 0) {
-                        html.find('.sublimation-action-btn[data-action="5"]').prop('disabled', true);
-                        html.find('.sublimation-action-btn[data-action="9"]').prop('disabled', true);
+
+                    // 채팅 메시지 출력
+                    let content = `${game.i18n.localize("DX3rd.Sublimation")}(${item.name})<br>· ${actionText}`;
+
+                    // SubAction 2인 경우 롤 결과 추가
+                    if (actionNumber === "2" && actionResult) {
+                        content += `<br>${actionResult}`;
                     }
-                    
-                    // 각 버튼에 클릭 이벤트 추가
-                    html.find('.sublimation-action-btn').click(async (event) => {
-                        const actionNumber = $(event.currentTarget).data('action');
-                        
-                        // SubAction별 기능 구현
-                        const actionText = game.i18n.localize(`DX3rd.SubAction${actionNumber}`);
-                        
-                        // 승화 효과 적용 (각 SubAction별 반환값: 모든 액션은 true/false/결과값 반환)
-                        const actionResult = await window.DX3rdRoisHandler.applySublimationEffect(actor, item, actionNumber);
-                        
-                        // 취소된 경우만 null 반환 (0번 액션의 취소 또는 다이얼로그 닫기)
-                        if (actionResult === null) {
-                            return; // 승화 다이얼로그는 그대로 유지
-                        }
-                        
-                        // 채팅 메시지 출력
-                        let content = `${game.i18n.localize("DX3rd.Sublimation")}(${item.name})<br>· ${actionText}`;
-                        
-                        // SubAction 2인 경우 롤 결과 추가
-                        if (actionNumber === 2 && actionResult) {
-                            content += `<br>${actionResult}`;
-                        }
-                        
-                        // SubAction 9인 경우 상태이상 해제 여부 추가
-                        if (actionNumber === 9 && actionResult) {
-                            content += `<br>· ${game.i18n.localize("DX3rd.AllConditionClear")}`;
-                        }
-                        
-                        // 채팅 메시지 생성 (SubAction 0은 다이얼로그에서 이미 생성됨)
-                        if (actionNumber !== 0) {
-                            const chatData = {
-                                speaker: ChatMessage.getSpeaker({ actor: actor }),
-                                content: `<div class="dx3rd-item-chat">${content}</div>`,
-                                style: CONST.CHAT_MESSAGE_STYLES.OTHER,
-                            };
-                            
-                            await ChatMessage.create(chatData);
-                        }
-                        
-                        // Sublimation 체크 (Titus는 유지)
-                        await item.update({
-                            "system.sublimation": true
-                        });
-                        
-                        // 다이얼로그 닫기
-                        $(event.currentTarget).closest('.dialog').find('.dialog-button.cancel').click();
+
+                    // SubAction 9인 경우 상태이상 해제 여부 추가
+                    if (actionNumber === "9" && actionResult) {
+                        content += `<br>· ${game.i18n.localize("DX3rd.AllConditionClear")}`;
+                    }
+
+                    // 채팅 메시지 생성 (SubAction 0은 다이얼로그에서 이미 생성됨)
+                    if (actionNumber !== "0") {
+                        const chatData = {
+                            speaker: ChatMessage.getSpeaker({ actor: actor }),
+                            content: `<div class="dx3rd-item-chat">${content}</div>`,
+                            style: CONST.CHAT_MESSAGE_STYLES.OTHER,
+                        };
+
+                        await ChatMessage.create(chatData);
+                    }
+
+                    // Sublimation 체크 (Titus는 유지)
+                    await item.update({
+                        "system.sublimation": true
                     });
-                }
-            }).render(true);
+
+                    // 다이얼로그 닫기
+                    dialog.close();
+                });
+            });
             
         } catch (error) {
             console.error("DX3rd | Error in handleSublimation:", error);
@@ -402,58 +413,64 @@ window.DX3rdRoisHandler = {
                     
                     const html = await renderTemplate(template, { effects: effectsData });
                     
+                    if (!DialogV2) {
+                        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                        return null;
+                    }
+
                     return new Promise((resolve) => {
-                        const dialog = new Dialog({
-                            title: `${game.i18n.localize("DX3rd.Sublimation")} - 이펙트 사용 횟수 회복`,
-                            content: html,
-                            buttons: {
-                                cancel: {
-                                    label: "취소",
-                                    callback: () => resolve(null)
-                                }
+                        const dialog = new DialogV2({
+                            window: {
+                                title: `${game.i18n.localize("DX3rd.Sublimation")} - 이펙트 사용 횟수 회복`
                             },
-                            default: "cancel",
-                            close: () => resolve(null)
-                        }, {
-                            width: 400,
-                            height: 300
+                            content: html,
+                            position: {
+                                width: 400,
+                                height: 300
+                            },
+                            buttons: [{
+                                action: "cancel",
+                                label: "취소",
+                                default: true
+                            }]
                         });
-                        
-                        dialog.render(true);
-                        
-                        // 다이얼로그가 렌더링된 후 이벤트 핸들러 등록
-                        setTimeout(() => {
-                            const dialogElement = dialog.element;
-                            $(dialogElement).find('.effect-recovery-btn').click(async (event) => {
-                                const effectId = $(event.currentTarget).data('effect-id');
-                                
-                                const effect = actor.items.get(effectId);
-                                
-                                if (effect) {
-                                    const currentState = effect.system?.used?.state || 0;
-                                    const newState = Math.max(0, currentState - 1);
-                                    
-                                    await effect.update({
-                                        'system.used.state': newState
-                                    });
-                                    
-                                    ui.notifications.info(`${effect.name.split('||')[0]}의 사용 횟수를 회복했습니다. (${currentState} → ${newState})`);
-                                    
-                                    // SubAction 0의 경우 채팅 메시지를 직접 생성
-                                    const effectName = effect.name.split('||')[0];
-                                    const chatData = {
-                                        speaker: ChatMessage.getSpeaker({ actor: actor }),
-                                        content: `<div class="dx3rd-item-chat">${game.i18n.localize("DX3rd.Sublimation")}(${item.name})<br>· ${effectName} 사용 횟수 회복</div>`,
-                                        style: CONST.CHAT_MESSAGE_STYLES.OTHER
-                                    };
-                                    
-                                    await ChatMessage.create(chatData);
-                                    
-                                    resolve(effectName); // 회복된 아이템 이름 반환
-                                    dialog.close();
-                                }
+
+                        dialog.addEventListener("close", () => resolve(null), { once: true });
+                        Promise.resolve(dialog.render(true)).then(() => {
+                            const root = dialog.element;
+                            if (!root) return;
+
+                            root.querySelectorAll('.effect-recovery-btn').forEach(button => {
+                                button.addEventListener('click', async (event) => {
+                                    const effectId = event.currentTarget?.dataset?.effectId;
+                                    const effect = actor.items.get(effectId);
+
+                                    if (effect) {
+                                        const currentState = effect.system?.used?.state || 0;
+                                        const newState = Math.max(0, currentState - 1);
+
+                                        await effect.update({
+                                            'system.used.state': newState
+                                        });
+
+                                        ui.notifications.info(`${effect.name.split('||')[0]}의 사용 횟수를 회복했습니다. (${currentState} → ${newState})`);
+
+                                        // SubAction 0의 경우 채팅 메시지를 직접 생성
+                                        const effectName = effect.name.split('||')[0];
+                                        const chatData = {
+                                            speaker: ChatMessage.getSpeaker({ actor: actor }),
+                                            content: `<div class="dx3rd-item-chat">${game.i18n.localize("DX3rd.Sublimation")}(${item.name})<br>· ${effectName} 사용 횟수 회복</div>`,
+                                            style: CONST.CHAT_MESSAGE_STYLES.OTHER
+                                        };
+
+                                        await ChatMessage.create(chatData);
+
+                                        resolve(effectName); // 회복된 아이템 이름 반환
+                                        dialog.close();
+                                    }
+                                });
                             });
-                        }, 100);
+                        });
                     });
                     
                 default:

@@ -6,7 +6,8 @@
   const ItemSheetV2 = window.DX3rdItemSheetV2;
   const compat = window.DX3rdApplicationCompat;
   const DialogV2 = foundry.applications?.api?.DialogV2;
-  if (!ItemSheetV2 || !compat || !DialogV2) {
+  const bookSheetData = window.DX3rdBookSheetData;
+  if (!ItemSheetV2 || !compat || !DialogV2 || !bookSheetData) {
     console.warn('DX3rd | AppV2 book sheet is unavailable in this Foundry version.');
     return;
   }
@@ -37,66 +38,16 @@
 
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
-      const system = context.system;
-
-      system.description ??= '';
-      system.type ??= 'book';
-      system.decipher ??= 0;
-      system.exp ??= 0;
-      system.equipment ??= false;
-      system.macro ??= '';
-      system.spells ??= [];
-      system.saving ??= {};
-      system.saving.difficulty ??= '';
-      system.saving.value ??= 0;
+      const system = bookSheetData.prepareBookSystem(this.item, context.system);
 
       context.displayType = 'DX3rd.Book';
-      context.spellItems = this._resolveSpellItems(system.spells);
+      context.spellItems = bookSheetData.resolveSpellItems(system.spells);
       return context;
     }
 
-    _resolveSpellItems(spellIds) {
-      const spells = [];
-      const foundIds = new Set();
-      for (const spellId of spellIds) {
-        const worldSpell = game.items?.get(spellId);
-        if (worldSpell?.type === 'spell') {
-          spells.push(worldSpell);
-          foundIds.add(spellId);
-        }
-      }
-
-      for (const actor of game.actors || []) {
-        for (const spellId of spellIds) {
-          if (foundIds.has(spellId)) continue;
-          const spell = actor.items?.get(spellId);
-          if (spell?.type !== 'spell') continue;
-          spells.push(spell);
-          foundIds.add(spellId);
-        }
-      }
-      return spells;
-    }
-
-    async _findSpell(spellId) {
-      const worldItem = game.items?.get(spellId);
-      if (worldItem?.type === 'spell') return worldItem;
-      for (const actor of game.actors || []) {
-        const spell = actor.items?.get(spellId);
-        if (spell?.type === 'spell') return spell;
-      }
-      return null;
-    }
-
     async _addSpell(spell) {
-      const currentSpells = this.item.system.spells || [];
-      if (currentSpells.includes(spell.id)) {
-        ui.notifications.warn(game.i18n.localize('DX3rd.SpellAlreadyAdded'));
-        return;
-      }
-      await this.item.update({'system.spells': [...currentSpells, spell.id]});
-      ui.notifications.info(`스펠 "${spell.name}"이 추가되었습니다.`);
-      this.render(false);
+      const added = await bookSheetData.addSpell(this.item, spell);
+      if (added) this.render(false);
     }
 
     async _onDrop(event) {
@@ -104,25 +55,10 @@
       if (!dropZone) return super._onDrop(event);
       dropZone.classList.remove('drag-over');
 
-      let data;
-      try {
-        data = JSON.parse(event.dataTransfer?.getData?.('text/plain') || '');
-      } catch (error) {
-        return;
-      }
-      if (data.type !== 'Item') return super._onDrop(event);
-      if (!data.uuid) return;
-
-      const item = await fromUuid(data.uuid);
-      if (!item) {
-        ui.notifications.warn('아이템을 찾을 수 없습니다.');
-        return;
-      }
-      if (item.type !== 'spell') {
-        ui.notifications.warn('스펠 아이템만 추가할 수 있습니다.');
-        return;
-      }
-      await this._addSpell(item);
+      const result = await bookSheetData.resolveDroppedSpell(event);
+      if (result.status === 'unsupported') return super._onDrop(event);
+      if (result.status !== 'ok') return;
+      await this._addSpell(result.spell);
     }
 
     async _onRender(context, options) {
@@ -149,25 +85,15 @@
         content: `<div class="form-group"><label>${game.i18n.localize('DX3rd.SpellID')}</label><input type="text" name="spellId"></div>`,
         ok: {label: game.i18n.localize('DX3rd.Confirm')}
       });
-      let spellId = result?.spellId?.trim();
-      if (!spellId) return;
-      if (spellId.startsWith('Item.')) spellId = spellId.slice(5);
-
-      const spell = await this._findSpell(spellId);
-      if (!spell) {
-        ui.notifications.warn(game.i18n.localize('DX3rd.SpellNotFound'));
-        return;
-      }
-      await this._addSpell(spell);
+      const added = await bookSheetData.addSpellById(this.item, result?.spellId);
+      if (added) this.render(false);
     }
 
     static async _onDeleteSpell(event, target) {
       event.preventDefault();
       const spellId = compat.closest(target, '.item', this.element)?.dataset.itemId;
       if (!spellId) return;
-      const spells = (this.item.system.spells || []).filter(id => id !== spellId);
-      await this.item.update({'system.spells': spells});
-      ui.notifications.info('스펠이 삭제되었습니다.');
+      await bookSheetData.removeSpell(this.item, spellId);
       this.render(false);
     }
 

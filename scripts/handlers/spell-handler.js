@@ -1,5 +1,7 @@
 // Spell 아이템 핸들러
 (function() {
+const DialogV2 = foundry.applications?.api?.DialogV2;
+
 /**
  * Execute macros by prefix (GM only)
  * @param {string} prefix - Macro name prefix
@@ -22,6 +24,42 @@ async function executeMacrosByPrefix(prefix) {
             console.error(`DX3rd | Error executing macro ${macro.name}:`, error);
         }
     }
+}
+
+async function promptRoisSelection({ title, content }) {
+    if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return null;
+    }
+
+    return await DialogV2.wait({
+        window: { title },
+        content,
+        rejectClose: false,
+        buttons: [
+            {
+                action: 'confirm',
+                icon: 'fas fa-check',
+                label: game.i18n.localize('DX3rd.Confirm'),
+                default: true,
+                callback: (event, button) => {
+                    const selectedId = button.form?.querySelector('#rois-select')?.value;
+                    if (!selectedId) {
+                        ui.notifications.warn('로이스를 선택해주세요.');
+                        return null;
+                    }
+                    return selectedId;
+                }
+            },
+            {
+                action: 'cancel',
+                icon: 'fas fa-times',
+                label: game.i18n.localize('DX3rd.Cancel'),
+                callback: () => null
+            }
+        ],
+        close: () => null
+    });
 }
 
 window.DX3rdSpellHandler = {
@@ -54,33 +92,41 @@ window.DX3rdSpellHandler = {
 
         // 둘 중 하나만 있는 경우: 해당 값을 난이도로 콘솔 출력
         if (hasInvoke && !hasEvocation) {
-            this.showCastingRollDialog(actor, item, invokeStr, getTarget);
+            await this.showCastingRollDialog(actor, item, invokeStr, getTarget);
             return;
         }
         if (!hasInvoke && hasEvocation) {
-            this.showCastingRollDialog(actor, item, evocationStr, getTarget);
+            await this.showCastingRollDialog(actor, item, evocationStr, getTarget);
             return;
         }
 
         // 둘 다 있는 경우: 다이얼로그로 선택
         if (hasInvoke && hasEvocation) {
+            if (!DialogV2?.wait) {
+                ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                return;
+            }
             const title = game.i18n.localize('DX3rd.CastingRoll');
             const diffLabel = game.i18n.localize('DX3rd.Invoke');
-            new Dialog({
-                title,
+            const selectedDifficulty = await DialogV2.wait({
+                window: { title },
                 content: '',
-                buttons: {
-                    invoke: {
+                rejectClose: false,
+                buttons: [
+                    {
+                        action: 'invoke',
                         label: `${diffLabel}(${invokeStr})`,
-                        callback: () => this.showCastingRollDialog(actor, item, invokeStr, getTarget)
+                        default: true,
+                        callback: () => invokeStr
                     },
-                    evocation: {
+                    {
+                        action: 'evocation',
                         label: `${diffLabel}(${evocationStr})`,
-                        callback: () => this.showCastingRollDialog(actor, item, evocationStr, getTarget)
+                        callback: () => evocationStr
                     }
-                },
-                default: 'invoke'
-            }).render(true);
+                ]
+            });
+            if (selectedDifficulty) await this.showCastingRollDialog(actor, item, selectedDifficulty, getTarget);
             return;
         }
 
@@ -94,7 +140,12 @@ window.DX3rdSpellHandler = {
         }
     }
     ,
-    showCastingRollDialog(actor, item, difficulty, getTarget) {
+    async showCastingRollDialog(actor, item, difficulty, getTarget) {
+        if (!DialogV2?.wait) {
+            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            return;
+        }
+
         const l = (k) => game.i18n.localize(k);
         const diceLabel = l('DX3rd.CastingDice');
         const addLabel = l('DX3rd.CastingAdd');
@@ -142,15 +193,19 @@ window.DX3rdSpellHandler = {
             </div>
         `;
 
-        const dialog = new Dialog({
-            title: `${rollLabel} - ${diffLabel} ${difficulty}`,
+        await DialogV2.wait({
+            window: { title: `${rollLabel} - ${diffLabel} ${difficulty}` },
+            classes: ['dx3rd-emanim', 'dx3rd-rolling-dialog'],
             content,
-            buttons: {
-                roll: {
+            rejectClose: false,
+            buttons: [
+                {
+                    action: 'roll',
                     label: rollLabel,
-                    callback: async (html) => {
-                        const useEibon = html.find('input[name="eibon"]').is(':checked');
-                        const useAngel = html.find('input[name="angel"]').is(':checked');
+                    default: true,
+                    callback: async (event, button) => {
+                        const useEibon = button.form?.elements?.eibon?.checked || false;
+                        const useAngel = button.form?.elements?.angel?.checked || false;
                         
                         await this.performCastingRoll(actor, item, {
                             castDice,
@@ -163,33 +218,35 @@ window.DX3rdSpellHandler = {
                         });
                     }
                 }
-            },
-            default: 'roll',
-            render: (html) => {
+            ],
+            render: (event, dialog) => {
+                const root = dialog.element;
+                if (!root) return;
                 // 체크박스 변경 이벤트 리스너 추가
-                html.find('#eibon-checkbox').on('change', () => {
-                    this.updateDiceDisplay(html, castDice, eibonDice);
+                root.querySelector('#eibon-checkbox')?.addEventListener('change', () => {
+                    this.updateDiceDisplay(root, castDice, eibonDice);
                 });
-                html.find('#angel-checkbox').on('change', () => {
-                    this.updateDiceDisplay(html, castDice, eibonDice);
+                root.querySelector('#angel-checkbox')?.addEventListener('change', () => {
+                    this.updateDiceDisplay(root, castDice, eibonDice);
                 });
             }
-        }, { classes: ['dx3rd-emanim', 'dx3rd-rolling-dialog'] }).render(true);
+        });
     }
     ,
-    updateDiceDisplay(html, castDice, eibonDice) {
-        const useEibon = html.find('#eibon-checkbox').is(':checked');
-        const diceInput = html.find('input[name="dice"]');
+    updateDiceDisplay(root, castDice, eibonDice) {
+        const useEibon = root.querySelector('#eibon-checkbox')?.checked || false;
+        const diceInput = root.querySelector('input[name="dice"]');
+        if (!diceInput) return;
         
         if (useEibon && eibonDice > 0) {
             // 에이본의 금주법이 체크된 경우: 마술주사위 + 에이본의 주사위(빨간색)
             const totalDice = castDice + eibonDice;
-            diceInput.val(`${castDice} + ${eibonDice}`);
-            diceInput.css('color', '#ff8a80');
+            diceInput.value = `${castDice} + ${eibonDice}`;
+            diceInput.style.color = '#ff8a80';
         } else {
             // 에이본의 금주법이 체크되지 않은 경우: 기본 마술주사위
-            diceInput.val(castDice);
-            diceInput.css('color', '#f5f5f5');
+            diceInput.value = castDice;
+            diceInput.style.color = '#f5f5f5';
         }
     }
     ,
@@ -1100,55 +1157,36 @@ window.DX3rdSpellHandler = {
                 </style>
             `;
 
-            new Dialog({
+            const selectedId = await promptRoisSelection({
                 title: game.i18n.localize('DX3rd.SpellCatastrophe'),
-                content: template,
-                buttons: {
-                    confirm: {
-                        icon: '<i class="fas fa-check"></i>',
-                        label: game.i18n.localize('DX3rd.Confirm'),
-                        callback: async (html) => {
-                            const selectedId = html.find('#rois-select').val();
-                            if (!selectedId) {
-                                ui.notifications.warn('로이스를 선택해주세요.');
-                                return;
-                            }
+                content: template
+            });
+            if (!selectedId) return;
 
-                            const selectedRois = actor.items.get(selectedId);
-                            if (!selectedRois) {
-                                ui.notifications.error('선택한 로이스를 찾을 수 없습니다.');
-                                return;
-                            }
+            const selectedRois = actor.items.get(selectedId);
+            if (!selectedRois) {
+                ui.notifications.error('선택한 로이스를 찾을 수 없습니다.');
+                return;
+            }
 
-                            // 타이터스 체크
-                            await selectedRois.update({
-                                'system.titus': true
-                            });
+            // 타이터스 체크
+            await selectedRois.update({
+                'system.titus': true
+            });
 
-                            // 채팅 메시지 출력
-                            const content = `
-                                <div class="dx3rd-item-chat">
-                                    <div class="item-details">
-                                        <p>${game.i18n.localize('DX3rd.Titus')}(${selectedRois.name})</p>
-                                    </div>
-                                </div>
-                            `;
+            // 채팅 메시지 출력
+            const content = `
+                <div class="dx3rd-item-chat">
+                    <div class="item-details">
+                        <p>${game.i18n.localize('DX3rd.Titus')}(${selectedRois.name})</p>
+                    </div>
+                </div>
+            `;
 
-                            await ChatMessage.create({
-                                content: content,
-                                speaker: ChatMessage.getSpeaker({ actor: actor })
-                            });
-                        }
-                    },
-                    cancel: {
-                        icon: '<i class="fas fa-times"></i>',
-                        label: game.i18n.localize('DX3rd.Cancel'),
-                        callback: () => {}
-                    }
-                },
-                default: 'confirm',
-                close: () => {}
-            }).render(true);
+            await ChatMessage.create({
+                content: content,
+                speaker: ChatMessage.getSpeaker({ actor: actor })
+            });
 
         } catch (error) {
             console.error("DX3rd | Error in handleSpellCatastrophe5:", error);
@@ -1269,46 +1307,19 @@ window.DX3rdSpellHandler = {
                 </style>
             `;
 
-            return new Promise((resolve) => {
-                new Dialog({
-                    title: title,
-                    content: template,
-                    buttons: {
-                        confirm: {
-                            icon: '<i class="fas fa-check"></i>',
-                            label: game.i18n.localize('DX3rd.Confirm'),
-                            callback: async (html) => {
-                                const selectedId = html.find('#rois-select').val();
-                                if (!selectedId) {
-                                    ui.notifications.warn('로이스를 선택해주세요.');
-                                    resolve(null);
-                                    return;
-                                }
-
-                                const selectedRois = actor.items.get(selectedId);
-                                if (!selectedRois) {
-                                    ui.notifications.error('선택한 로이스를 찾을 수 없습니다.');
-                                    resolve(null);
-                                    return;
-                                }
-
-                                resolve(selectedRois);
-                            }
-                        },
-                        cancel: {
-                            icon: '<i class="fas fa-times"></i>',
-                            label: game.i18n.localize('DX3rd.Cancel'),
-                            callback: () => {
-                                resolve(null);
-                            }
-                        }
-                    },
-                    default: 'confirm',
-                    close: () => {
-                        resolve(null);
-                    }
-                }).render(true);
+            const selectedId = await promptRoisSelection({
+                title: title,
+                content: template
             });
+            if (!selectedId) return null;
+
+            const selectedRois = actor.items.get(selectedId);
+            if (!selectedRois) {
+                ui.notifications.error('선택한 로이스를 찾을 수 없습니다.');
+                return null;
+            }
+
+            return selectedRois;
         } catch (error) {
             console.error("DX3rd | Error in selectRoisForSpellEffect:", error);
             ui.notifications.error("로이스 선택 중 오류가 발생했습니다.");

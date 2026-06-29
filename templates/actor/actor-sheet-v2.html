@@ -4,6 +4,7 @@
     <div class="header-fields">
       <h1 class="charname">
         <input name="name" type="text" value="{{actor.name}}" placeholder="{{localize "DX3rd.Name"}}"/>
+        {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editActorType" title="{{localize "DX3rd.ActorType"}}"><i class="fas fa-user-cog"></i></button>{{/if}}
       </h1>
       {{#unless isEnemy}}
       <div class="flexrow">
@@ -30,7 +31,12 @@
       <div class="flex">
         <input type="number" name="system.attributes.hp.value" value="{{system.attributes.hp.value}}" data-dtype="Number"/>
         <span class="slash"> / </span>
+        {{#if isEnemy}}
+        <input type="number" value="{{system.attributes.hp.max}}" data-dtype="Number" disabled/>
+        {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editEnemyStat" data-stat="hp" title="{{localize "DX3rd.HP"}}"><i class="fas fa-pen"></i></button>{{/if}}
+        {{else}}
         <input type="number" name="system.attributes.hp.max" value="{{system.attributes.hp.max}}" data-dtype="Number"/>
+        {{/if}}
       </div>
     </div>
     <div class="cell grid-3">
@@ -57,23 +63,47 @@
     {{/unless}}
     <div class="cell grid-3">
       <label class="cell--title">{{localize "DX3rd.Init"}}</label>
+      {{#if isEnemy}}
+      <div class="flex">
+        <input type="number" value="{{system.attributes.init.value}}" data-dtype="Number" disabled/>
+        {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editEnemyStat" data-stat="init" title="{{localize "DX3rd.Init"}}"><i class="fas fa-pen"></i></button>{{/if}}
+      </div>
+      {{else}}
       <input type="number" name="system.attributes.init.value" value="{{system.attributes.init.value}}" data-dtype="Number"/>
+      {{/if}}
     </div>
     <div class="cell grid-3">
       <label class="cell--title">{{localize "DX3rd.Armor"}}</label>
+      {{#if isEnemy}}
+      <div class="flex">
+        <input type="number" value="{{system.attributes.armor.value}}" data-dtype="Number" disabled/>
+        {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editEnemyStat" data-stat="armor" title="{{localize "DX3rd.Armor"}}"><i class="fas fa-pen"></i></button>{{/if}}
+      </div>
+      {{else}}
       <input type="number" name="system.attributes.armor.value" value="{{system.attributes.armor.value}}" data-dtype="Number"/>
+      {{/if}}
     </div>
     <div class="cell grid-3">
       <label class="cell--title">{{localize "DX3rd.Move"}}</label>
       <div class="flex">
-        <input type="number" name="system.attributes.move.battle" value="{{system.attributes.move.battle}}" data-dtype="Number" {{#unless isEnemy}}disabled{{/unless}}/>
+        <input type="number" {{#if isEnemy}}value="{{system.attributes.move.battle}}" disabled{{else}}name="system.attributes.move.battle" value="{{system.attributes.move.battle}}" disabled{{/if}} data-dtype="Number"/>
         <span class="slash"> / </span>
         <input type="number" name="system.attributes.move.full" value="{{system.attributes.move.full}}" data-dtype="Number" disabled/>
+        {{#if isEnemy}}{{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editEnemyStat" data-stat="move" title="{{localize "DX3rd.Move"}}"><i class="fas fa-pen"></i></button>{{/if}}{{/if}}
       </div>
     </div>
+    {{#if isEnemy}}
+    <div class="cell grid-3">
+      <label class="cell--title">{{localize "DX3rd.Evasion"}}</label>
+      <div class="flex">
+        <input type="text" value="{{#if system.attributes.evasion.disabled}}-{{else}}{{system.attributes.evasion.value}}{{/if}}" disabled/>
+        {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editEnemyStat" data-stat="evasion" title="{{localize "DX3rd.Evasion"}}"><i class="fas fa-pen"></i></button>{{/if}}
+      </div>
+    </div>
+    {{/if}}
     {{#unless isEnemy}}
     <div class="cell grid-3">
-      <label class="cell--title">{{localize "DX3rd.Stock"}}</label>
+      <label class="cell--title">{{localize "DX3rd.Stock"}}{{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="useStock" title="{{localize "DX3rd.Stock"}}"><i class="fas fa-coins"></i></button>{{/if}}</label>
       <div class="flex">
         <input type="number" name="system.attributes.stock.value" value="{{system.attributes.stock.value}}" data-dtype="Number"/>
         <span class="slash"> / </span>
@@ -154,6 +184,7 @@
             <span class="slash"> / </span>
             <input type="text" value="{{system.attributes.body.total}}" disabled/>
           </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editAbility" data-ability="body" title="{{localize "DX3rd.EditAbility"}}"><i class="fas fa-pen"></i></button>{{/if}}
           {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="body"><i class="fas fa-plus"></i></button>{{/if}}
         </div>
         <div class="cell grid-3" data-ability-id="sense">
@@ -163,6 +194,7 @@
             <span class="slash"> / </span>
             <input type="text" value="{{system.attributes.sense.total}}" disabled/>
           </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editAbility" data-ability="sense" title="{{localize "DX3rd.EditAbility"}}"><i class="fas fa-pen"></i></button>{{/if}}
           {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="sense"><i class="fas fa-plus"></i></button>{{/if}}
         </div>
         <div class="cell grid-3" data-ability-id="mind">
@@ -172,6 +204,7 @@
             <span class="slash"> / </span>
             <input type="text" value="{{system.attributes.mind.total}}" disabled/>
           </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editAbility" data-ability="mind" title="{{localize "DX3rd.EditAbility"}}"><i class="fas fa-pen"></i></button>{{/if}}
           {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="mind"><i class="fas fa-plus"></i></button>{{/if}}
         </div>
         <div class="cell grid-3" data-ability-id="social">
@@ -181,6 +214,7 @@
             <span class="slash"> / </span>
             <input type="text" value="{{system.attributes.social.total}}" disabled/>
           </div>
+          {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="editAbility" data-ability="social" title="{{localize "DX3rd.EditAbility"}}"><i class="fas fa-pen"></i></button>{{/if}}
           {{#if canEdit}}<button type="button" class="actor-sheet-v2-small-button" data-action="createSkill" data-ability-id="social"><i class="fas fa-plus"></i></button>{{/if}}
         </div>
       </section>

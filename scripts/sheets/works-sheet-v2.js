@@ -99,11 +99,7 @@
       const skill = this.item.system.skills?.[skillKey];
       if (!skillKey || !skill) return;
 
-      const confirmed = await DialogV2.confirm({
-        window: {title: game.i18n.localize('DX3rd.DeleteSkill')},
-        content: game.i18n.format('DX3rd.ConfirmDeleteSkill', {name: skill.name})
-      });
-      if (confirmed) await this.item.update({[`system.skills.-=${skillKey}`]: null});
+      await window.DX3rdItemSheetDialogs.deleteSkillEntry(this.item, skillKey);
     }
   }
 

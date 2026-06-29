@@ -81,6 +81,8 @@
     "scripts/sheets/backtrack-workflow.js",
     "scripts/sheets/enemy-stat-dialogs.js",
     "scripts/sheets/actor-edit-dialogs.js",
+    "scripts/sheets/actor-applied-dialogs.js",
+    "scripts/sheets/actor-delete-dialogs.js",
     "scripts/sheets/actor-sheet.js",
     "scripts/sheets/actor-sheet-v2.js",
     "scripts/document/actor.js",

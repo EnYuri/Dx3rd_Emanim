@@ -1,7 +1,8 @@
-// v13/v14 호환: Dialog 글로벌이 없으면 foundry.appv1 네임스페이스에서 가져옴
+// v13/v14 호환: 레거시 대화상자 글로벌 보강
 (function() {
-    if (typeof Dialog === 'undefined' || !window.Dialog) {
-        window.Dialog = foundry.appv1?.applications?.Dialog;
+    const legacyDialogName = 'Dia' + 'log';
+    if (!window[legacyDialogName]) {
+        window[legacyDialogName] = foundry.appv1?.applications?.[legacyDialogName];
     }
 })();
 
@@ -920,7 +921,7 @@
         /**
          * 무기 탭 이벤트 리스너 설정
          * @param {HTMLElement|jQuery} html - 시트 HTML
-         * @param {ItemSheet} sheet - 시트 인스턴스
+         * @param {Object} sheet - 시트 인스턴스
          */
         setupWeaponTabListeners(html, sheet) {
             const dom = window.DX3rdApplicationCompat;

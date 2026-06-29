@@ -2,18 +2,440 @@
  * AppV2 시트 전용 스타일.
  *
  * 마이그레이션 중 AppV2 파일럿 시트에만 필요한 보정을 여기에 격리한다.
- * AppV1 본체 스타일(styles/styles.css)은 건드리지 않는다.
+ * AppV1 본체 스타일(styles/styles.css)은 AppV1/공용 규칙만 유지한다.
  *
- * 배경: AppV2 액터 파일럿은 part 루트 요소가 벗겨져 콘텐츠가 .window-content
- * 바로 아래에 놓인다. 기존 AppV1 레이아웃 규칙은 전부 `.dx3rd-emanim .sheet-wrapper`
- * 하위로 스코프돼 있어, 액터 시트의 _onRender 에서 .window-content 에 sheet-wrapper
- * 클래스를 부여해 그 규칙을 재사용한다(scripts/sheets/actor-sheet-v2.js 참고).
- * 이 파일은 그 재사용으로 채워지지 않는 AppV2 고유 보정만 담는다.
+ * AppV2 파일럿 시트가 AppV1 전용 sheet-wrapper 레이아웃에 의존하지 않도록
+ * AppV2 root/class 아래에서 필요한 보정만 유지한다.
  */
 
-/* 재사용된 .sheet-wrapper(=.window-content) 가 height:100% 가 되더라도
- * 콘텐츠가 길면 스크롤되도록 보장한다. */
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content.sheet-wrapper {
-  overflow-y: auto;
-  min-height: 0;
+.application.sheet.dx3rd-emanim {
+    color: #e0e0e0;
+}
+
+.application.sheet.dx3rd-emanim .window-header {
+    background: #1f1f1f !important;
+    border-bottom-color: #383838 !important;
+    color: #f5f5f5 !important;
+}
+
+.application.sheet.dx3rd-emanim .window-content {
+    background: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+.application.sheet.dx3rd-emanim button,
+.application.sheet.dx3rd-emanim .dialog-buttons button,
+.application.sheet.dx3rd-emanim .dialog-button {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #f5f5f5;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.application.sheet.dx3rd-emanim button:hover:not(:disabled),
+.application.sheet.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
+.application.sheet.dx3rd-emanim .dialog-button:hover:not(:disabled) {
+    background: #3a3a3a;
+    border-color: #666;
+}
+
+.application.sheet.dx3rd-emanim button:disabled,
+.application.sheet.dx3rd-emanim .dialog-buttons button:disabled,
+.application.sheet.dx3rd-emanim .dialog-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.application.sheet.dx3rd-emanim input,
+.application.sheet.dx3rd-emanim select,
+.application.sheet.dx3rd-emanim textarea {
+    background: #181818;
+    border: 1px solid #3c3c3c;
+    border-radius: 4px;
+    color: #f5f5f5;
+}
+
+.application.sheet.dx3rd-emanim input:focus,
+.application.sheet.dx3rd-emanim select:focus,
+.application.sheet.dx3rd-emanim textarea:focus {
+    border-color: #6a6a6a;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+    outline: none;
+}
+
+.application.sheet.dx3rd-emanim select {
+    background-color: var(--input-background-color) !important;
+    color: #fff !important;
+}
+
+.application.sheet.dx3rd-emanim select option {
+    background-color: #101010 !important;
+    color: #fff !important;
+}
+
+.application.sheet.dx3rd-emanim.item > .window-content,
+.application.sheet.dx3rd-emanim.actor > .window-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.application.sheet.dx3rd-emanim.item > .window-content > [class$="-sheet-v2-content"],
+.application.sheet.dx3rd-emanim.actor > .window-content > [class$="-sheet-v2-content"] {
+    color: inherit;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header {
+    align-items: center;
+    background: #2d2d2d !important;
+    color: #fff !important;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    min-height: 64px;
+    padding: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .profile-img {
+    flex: 0 0 64px;
+    height: 64px;
+    object-fit: cover;
+    width: 64px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .header-fields {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header h1.charname {
+    border: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header h1.charname input {
+    color: #fff !important;
+    font-size: 18px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .level {
+    flex: 0 0 60px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-header .level input {
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-body,
+.application.sheet.dx3rd-emanim.actor .sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content,
+.actor-sheet-v2-content {
+    min-height: 0;
+}
+
+.actor-sheet-v2-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .flex {
+    display: flex;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .slash {
+    font-weight: bold;
+    margin: 0 10px;
+    padding-top: 4px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-header {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    height: auto;
+    min-height: 128px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .profile-img {
+    flex: 0 0 80px;
+    height: 80px;
+    object-fit: cover;
+    width: 80px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname {
+    border: 0;
+    display: flex;
+    gap: 6px;
+    height: 40px;
+    margin: 0 0 6px;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname input {
+    color: #fff !important;
+    flex: 1 1 auto;
+    font-size: 26px;
+    height: 38px;
+    line-height: 38px;
+    min-width: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname button {
+    align-self: center;
+    height: 30px;
+    width: 34px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields .flexrow {
+    align-items: center;
+    gap: 8px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields label {
+    flex: 0 0 110px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes {
+    display: grid;
+    gap: 0 10px;
+    grid-auto-rows: minmax(54px, auto);
+    grid-template-columns: repeat(16, minmax(0, 1fr));
+    padding: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell {
+    align-content: flex-start;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-width: 0;
+    position: relative;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .cell .cell--title {
+    align-items: center;
+    background: black;
+    color: #fff;
+    display: flex;
+    flex: 1 1 100px;
+    flex-basis: 100px;
+    font-weight: bold;
+    height: 34px;
+    justify-content: center;
+    margin-bottom: 5px;
+    padding: 5px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .space-between .cell--title {
+    justify-content: space-between;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .cell--crit {
+    font-weight: bold;
+    margin: 0;
+    text-align: center;
+    width: 40px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .checkbox-input {
+    height: 22px;
+    margin: 2px 5px;
+    text-align: center;
+    width: 22px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes input,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes select {
+    border-radius: 0 !important;
+    margin-bottom: 8px;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex {
+    align-items: center;
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex input,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex select {
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-body .tab,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-body .sheet-tab {
+    height: 100%;
+}
+
+.actor-sheet-v2-skill-grid {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.actor-sheet-v2-skill {
+    min-width: 0;
+}
+
+.actor-sheet-v2-item-section {
+    margin: 8px 0;
+}
+
+.actor-sheet-v2-item-section .items-header {
+    align-items: center;
+    background: #000;
+    color: #fff;
+    gap: 6px;
+    min-height: 28px;
+    padding: 2px 6px;
+}
+
+.actor-sheet-v2-item-section .items-header label {
+    flex: 1 1 auto;
+    font-weight: bold;
+    min-width: 0;
+}
+
+.actor-sheet-v2-item-section .items-list,
+.actor-sheet-v2-compact-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.actor-sheet-v2-compact-list .item {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    min-height: 32px;
+    min-width: 0;
+    padding: 4px 6px;
+}
+
+.actor-sheet-v2-item-section .item {
+    align-items: center;
+    border-bottom: 1px solid #333;
+    display: flex;
+    gap: 6px;
+    min-height: 32px;
+    min-width: 0;
+    padding: 4px 6px;
+}
+
+.actor-sheet-v2-item-section .item-image {
+    flex: 0 0 24px;
+    height: 24px;
+    object-fit: cover;
+    width: 24px;
+}
+
+.actor-sheet-v2-item-section .item-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.actor-sheet-v2-compact-list .item-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.actor-sheet-v2-compact-list input[type="checkbox"],
+.actor-sheet-v2-compact-list button {
+    flex: 0 0 auto;
+}
+
+.actor-sheet-v2-item-section .item-summary,
+.actor-sheet-v2-item-summary,
+.actor-sheet-v2-empty {
+    color: #999;
+}
+
+.actor-sheet-v2-item-summary {
+    flex: 0 1 auto;
+    font-size: 0.85em;
+    min-width: 0;
+}
+
+.actor-sheet-v2-small-button,
+.actor-sheet-v2-icon-button,
+.actor-sheet-v2-text-button,
+.actor-sheet-v2-item-section button {
+    flex: 0 0 auto;
+    line-height: 1;
+    padding: 3px 6px;
+}
+
+.actor-sheet-v2-text-button {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+}
+
+.actor-sheet-v2-text-button:hover {
+    text-decoration: underline;
+}
+
+.actor-sheet-v2-icon-button {
+    float: right;
+}
+
+.actor-sheet-v2-inline-controls {
+    align-items: center;
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.actor-sheet-v2-used-input {
+    width: 42px;
+}
+
+.application.sheet.dx3rd-emanim prose-mirror,
+.application.sheet.dx3rd-emanim prose-mirror .editor-content,
+.application.sheet.dx3rd-emanim prose-mirror .editor-content *,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror * {
+    color: var(--fe-ac-80, #cccccc) !important;
+}
+
+.application.sheet.dx3rd-emanim prose-mirror .editor-content,
+.application.sheet.dx3rd-emanim prose-mirror .ProseMirror {
+    min-height: 350px;
 }

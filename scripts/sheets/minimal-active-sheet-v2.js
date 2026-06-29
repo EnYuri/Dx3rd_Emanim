@@ -1,7 +1,8 @@
 /** Minimum-compatibility AppV2 sheet for low-use psionic and spell items. */
 (function() {
   const Base = window.DX3rdActiveItemSheetV2;
-  if (!Base) return;
+  const itemSheetData = window.DX3rdItemSheetData;
+  if (!Base || !itemSheetData) return;
 
   class DX3rdMinimalActiveSheetV2 extends Base {
     static DEFAULT_OPTIONS = {classes: ['minimal-active-sheet-v2']};
@@ -26,10 +27,7 @@
           this.item.actor?.system?.attributes?.skills || {},
           this.item.actor?.type
         );
-        system.level ??= {};
-        system.level.init ??= 1;
-        system.level.max ??= 1;
-        system.level.value = Number(system.level.init) || 0;
+        system.level = itemSheetData.preparePsionicLevelData(this.item, system.level || this.item.system?.level || {});
         system.hp ??= {value: ''};
         system.hp.value ??= '';
       } else {
@@ -46,28 +44,21 @@
     _prepareSubmitData(event, form, formData, updateData) {
       const data = super._prepareSubmitData(event, form, formData, updateData);
       if (this.item.type === 'psionic') {
-        const level = data.system?.level || this.item.system.level || {};
-        const init = Number(level.init ?? 1);
-        const max = Number(level.max ?? 1);
-        const normalizedInit = Number.isFinite(init) ? init : 1;
-        foundry.utils.setProperty(data, 'system.level.init', normalizedInit);
-        foundry.utils.setProperty(data, 'system.level.max', Number.isFinite(max) ? max : 1);
+        const level = itemSheetData.preparePsionicLevelData(this.item, data.system?.level || this.item.system.level || {});
+        foundry.utils.setProperty(data, 'system.level.init', level.init);
+        foundry.utils.setProperty(data, 'system.level.max', level.max);
         if (data.system?.level) delete data.system.level.value;
         if (event?.target?.name === 'system.level.init') {
-          foundry.utils.setProperty(data, 'system.level.value', normalizedInit);
+          foundry.utils.setProperty(data, 'system.level.value', level.value);
         }
-        if (data.system?.roll === '-' || data.system?.roll === 'dodge') {
-          foundry.utils.setProperty(data, 'system.attackRoll', '-');
+        for (const [key, value] of Object.entries(itemSheetData.getRollChangeUpdate(data.system?.roll))) {
+          foundry.utils.setProperty(data, key, value);
         }
         if (event?.target?.matches?.('.difficulty-check')) {
-          const checked = event.target.checked;
-          const freepass = game.i18n.localize('DX3rd.Freepass');
-          const current = this.item.system.difficulty || '';
-          foundry.utils.setProperty(data, 'system.roll', checked ? 'major' : '-');
-          foundry.utils.setProperty(data, 'system.difficulty', checked
-            ? ''
-            : current === freepass || current === '-' ? current : freepass);
-          if (!checked) foundry.utils.setProperty(data, 'system.attackRoll', '-');
+          const update = itemSheetData.getRollDifficultyToggleUpdate(this.item, event.target.checked);
+          for (const [key, value] of Object.entries(update)) {
+            foundry.utils.setProperty(data, key, value);
+          }
         }
       } else if (event?.target?.matches?.('[data-casting-roll-check]')) {
         const checked = event.target.checked;

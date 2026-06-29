@@ -68,7 +68,7 @@
           <div class="cell grid-4 space-between">
             <label class="cell--title">
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Difficulty"}}</span>
-              <input type="checkbox" class="cell--crit difficulty-check" name="system.roll-check" {{#unless (eq system.roll "-")}} checked {{/unless}}>
+              <input type="checkbox" class="cell--crit difficulty-check" {{#unless (eq system.roll "-")}} checked {{/unless}}>
             </label>
             <input type="text" class="difficulty-input" name="system.difficulty" value="{{system.difficulty}}" data-dtype="String" />
           </div>

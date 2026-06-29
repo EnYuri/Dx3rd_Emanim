@@ -1,5 +1,46 @@
 // Universal handler - shared routines for item use/activation
 (function() {
+  window.DX3rdUniversalConfirmDialogV2 = async function({ title, content, defaultYes = true, yesLabel, noLabel } = {}) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2?.confirm) {
+      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      return false;
+    }
+
+    return DialogV2.confirm({
+      window: { title },
+      content,
+      yes: {
+        icon: '<i class="fas fa-check"></i>',
+        label: yesLabel || game.i18n.localize('DX3rd.Confirm')
+      },
+      no: {
+        icon: '<i class="fas fa-times"></i>',
+        label: noLabel || game.i18n.localize('DX3rd.Cancel')
+      },
+      defaultYes
+    });
+  };
+
+  window.DX3rdUniversalAlertDialogV2 = async function({ title, content, label } = {}) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2?.wait) {
+      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      return;
+    }
+
+    return DialogV2.wait({
+      window: { title },
+      content,
+      buttons: [{
+        action: 'confirm',
+        icon: '<i class="fas fa-check"></i>',
+        label: label || game.i18n.localize('DX3rd.Confirm'),
+        default: true
+      }]
+    });
+  };
+
   window.DX3rdUniversalHandler = {
     // AfterMain 큐 (이니셔티브 직전 실행) - 월드 설정에 저장
     get _afterMainQueue() {
@@ -1406,26 +1447,37 @@
 
     /** 소거할 배드 스테이터스를 플레이어가 고르는 다이얼로그(최대 count개). */
     async _promptBadStatusChoice(pool, count) {
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return [];
+      }
+
       const labelKey = { poisoned: 'Poisoned', hatred: 'Hatred', fear: 'Fear', berserk: 'Berserk', rigor: 'Rigor', pressure: 'Pressure', dazed: 'Dazed' };
       const rows = pool.map(s => `<label style="display:block;"><input type="checkbox" name="${s}"> ${game.i18n.localize('DX3rd.' + labelKey[s])}</label>`).join('');
       const content = `<p>${game.i18n.localize('DX3rd.Remove') || '소거'} (최대 ${count})</p>${rows}`;
-      return await new Promise((resolve) => {
-        new Dialog({
-          title: game.i18n.localize('DX3rd.Status') || '배드 스테이터스 소거',
-          content,
-          buttons: {
-            ok: {
-              label: 'OK',
-              callback: (html) => {
-                const picked = pool.filter(s => html.find(`input[name="${s}"]`).is(':checked'));
-                resolve(picked.slice(0, count));
-              },
-            },
-            cancel: { label: 'Cancel', callback: () => resolve([]) },
+      return await DialogV2.wait({
+        window: { title: game.i18n.localize('DX3rd.Status') || '배드 스테이터스 소거' },
+        content,
+        rejectClose: false,
+        buttons: [
+          {
+            action: 'ok',
+            label: 'OK',
+            default: true,
+            callback: (event, button) => {
+              const form = button.form;
+              const picked = pool.filter(s => form?.querySelector(`input[name="${s}"]`)?.checked);
+              return picked.slice(0, count);
+            }
           },
-          default: 'ok',
-          close: () => resolve([]),
-        }).render(true);
+          {
+            action: 'cancel',
+            label: 'Cancel',
+            callback: () => []
+          }
+        ],
+        close: () => []
       });
     },
 
@@ -2141,17 +2193,29 @@
       // HTML 템플릿 렌더링
       const dialogContent = await foundry.applications.handlebars.renderTemplate("systems/dx3rd-emanim/templates/dialog/damage-calc-dialog.html", templateData);
 
-      new Dialog({
-        title: game.i18n.localize('DX3rd.CalcDamage'),
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      await DialogV2.wait({
+        window: {
+          title: game.i18n.localize('DX3rd.CalcDamage')
+        },
         content: dialogContent,
-        buttons: {
-          confirm: {
+        rejectClose: false,
+        buttons: [
+          {
+            action: "confirm",
             label: game.i18n.localize('DX3rd.Confirm'),
-            callback: async (html) => {
-              const penetrate = parseInt(html.find('#penetrate').val()) || 0;
-              const addResult = parseInt(html.find('#add-result').val()) || 0;
-              const addDamageRoll = parseInt(html.find('#add-damage-roll').val()) || 0;
-              const addDamage = parseInt(html.find('#add-damage').val()) || 0;
+            default: true,
+            callback: async (event, button) => {
+              const form = button.form;
+              const penetrate = parseInt(form?.querySelector('#penetrate')?.value) || 0;
+              const addResult = parseInt(form?.querySelector('#add-result')?.value) || 0;
+              const addDamageRoll = parseInt(form?.querySelector('#add-damage-roll')?.value) || 0;
+              const addDamage = parseInt(form?.querySelector('#add-damage')?.value) || 0;
               
               // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
               const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + actorDamageRoll + addDamageRoll + madness6Bonus;
@@ -2228,11 +2292,9 @@
               }
             }
           }
-        },
-        default: "confirm"
-      }, {
-        classes: ["dx3rd-emanim", "dialog", "damage-dialog"]
-      }).render(true);
+        ],
+        classes: ["dx3rd-emanim", "damage-dialog"]
+      });
     },
 
     /**
@@ -2553,109 +2615,28 @@
       
       const dialogContent = await foundry.applications.handlebars.renderTemplate('systems/dx3rd-emanim/templates/dialog/defense-dialog.html', templateData);
       
-      new Dialog({
-        title: `${game.i18n.localize('DX3rd.DefenseDamage')} (${attackerName})`,
-        content: dialogContent,
-        render: (html) => {
-          // Berserk 상태이상 체크 (normal, slaughter, battlelust, delusion, fear, hatred)
-          const berserkActive = targetActor.system?.conditions?.berserk?.active || false;
-          const berserkType = targetActor.system?.conditions?.berserk?.type || '';
-          const berserkTypes = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
-          
-          if (berserkActive && berserkTypes.includes(berserkType)) {
-            // 가드 입력 필드 비활성화 및 0으로 설정
-            const guardInput = html.find('#guard');
-            guardInput.prop('disabled', true);
-            guardInput.val(0);
-            
-            // 가드 체크박스 비활성화 및 체크 해제
-            const guardCheckbox = html.find('#guard-check');
-            guardCheckbox.prop('disabled', true);
-            guardCheckbox.prop('checked', false);
-            
-            // 모든 무기 체크박스 비활성화 및 체크 해제
-            const weaponCheckboxes = html.find('.weapon-checkbox');
-            weaponCheckboxes.prop('disabled', true);
-            weaponCheckboxes.prop('checked', false);
-            
-            // 총 가드값을 0으로 설정
-            html.find('#total-guard').text('0');
-            
-            console.log(`DX3rd | Defense dialog - Guard/Weapon disabled due to berserk type: ${berserkType}`);
-          }
-          
-          // 실시간 데미지 계산 업데이트
-          const updateDamage = () => {
-            const actorGuardValue = parseInt(html.find('#guard').val()) || 0;
-            const guardChecked = html.find('#guard-check').is(':checked');
-            const armorValue = parseInt(html.find('#armor').val()) || 0;
-            const reduceValue = parseInt(html.find('#reduce').val()) || 0;
-            const coveringValue = parseInt(html.find('#covering').val()) || 0;
-            
-            // 무기 가드값 합산
-            let weaponGuardTotal = 0;
-            html.find('.weapon-checkbox:checked').each(function() {
-              weaponGuardTotal += parseInt($(this).data('guard')) || 0;
-            });
-            
-            // 총 가드값 = 액터 가드 + 무기 가드
-            const totalGuardValue = actorGuardValue + weaponGuardTotal;
-            const effectiveGuard = guardChecked ? totalGuardValue : 0;
-            
-            // 장갑무시 적용: 장갑치는 음수가 될 수 없음
-            const effectiveArmor = Math.max(0, armorValue - penetrate);
-            
-            let calculatedDamage;
-            
-            if (coveringValue > 0) {
-              // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
-              const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
-              const multiplier = coveringValue + 1; // 1이면 2배, 2면 3배
-              calculatedDamage = Math.max(0, (intermediateDamage * multiplier) - reduceValue);
-            } else {
-              // 일반 상황: 데미지 - 가드 - 장갑 - 경감
-              calculatedDamage = Math.max(0, damage - effectiveGuard - effectiveArmor - reduceValue);
-            }
-            
-            html.find('#realDamage').text(calculatedDamage);
-            html.find('#life').text(Math.max(0, currentHP - calculatedDamage));
-          };
-          
-          // 초기 데미지 계산 (berserk로 인해 가드가 변경되었을 수 있음)
-          updateDamage();
-          
-          // 무기 체크박스 변경 시 총 가드값 업데이트
-          html.find('.weapon-checkbox').on('change', function() {
-            let weaponGuard = 0;
-            html.find('.weapon-checkbox:checked').each(function() {
-              weaponGuard += parseInt($(this).data('guard')) || 0;
-            });
-            html.find('#total-guard').text(weaponGuard);
-            updateDamage();
-          });
-          
-          // 리셋 버튼
-          html.find('#reset').on('click', () => {
-            html.find('.weapon-checkbox').prop('checked', false);
-            html.find('#total-guard').text('0');
-            html.find('#guard').val(guard);
-            html.find('#guard-check').prop('checked', false);
-            html.find('#armor').val(armor);
-            html.find('#reduce').val(reduce);
-            html.find('#covering').val('0');
-            updateDamage();
-          });
-          
-          // 입력값 변경 시 데미지 재계산
-          html.find('#guard, #armor, #reduce, #covering').on('input', updateDamage);
-          html.find('#guard-check').on('change', updateDamage);
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const dialog = new DialogV2({
+        window: {
+          title: `${game.i18n.localize('DX3rd.DefenseDamage')} (${attackerName})`
         },
-        buttons: {
-          confirm: {
+        content: dialogContent,
+        position: { width: 500 },
+        classes: ['dx3rd-emanim', 'defense-dialog'],
+        buttons: [
+          {
+            action: 'confirm',
             icon: '<i class="fas fa-check"></i>',
             label: game.i18n.localize('DX3rd.Confirm'),
-            callback: async (html) => {
-              const finalDamage = parseInt(html.find('#realDamage').text()) || 0;
+            default: true,
+            callback: async (event, button) => {
+              const form = button.form;
+              const finalDamage = parseInt(form?.querySelector('#realDamage')?.textContent) || 0;
               const newHP = Math.max(0, currentHP - finalDamage);
               const hpChange = currentHP - newHP; // 실제 HP 변동량
               
@@ -2664,7 +2645,7 @@
               });
               
               // 커버링 정보 확인
-              const coveringValue = parseInt(html.find('#covering').val()) || 0;
+              const coveringValue = parseInt(form?.querySelector('#covering')?.value) || 0;
               let chatMessage = `HP-${hpChange}`;
               
               if (coveringValue > 0) {
@@ -3031,18 +3012,10 @@
                         // 아무도 데미지 안 받음: NoDamage 알림
                         if (!hasActiveNonGMOwner) {
                           // 접속 중인 non-GM 소유자 없음: GM이 직접 표시
-                          new Dialog({
+                          await window.DX3rdUniversalAlertDialogV2({
                             title: game.i18n.localize('DX3rd.NoDamage'),
-                            content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`,
-                            buttons: {
-                              confirm: {
-                                icon: '<i class="fas fa-check"></i>',
-                                label: game.i18n.localize('DX3rd.Confirm'),
-                                callback: () => {}
-                              }
-                            },
-                            default: 'confirm'
-                          }).render(true);
+                            content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`
+                          });
                           console.log('DX3rd | No damage notification shown directly by GM');
                         } else {
                           // 공격자 소유자에게 소켓 전송
@@ -3160,12 +3133,127 @@
               ui.notifications.info(`${targetActor.name}: HP ${currentHP} → ${newHP} (-${finalDamage})`);
             }
           }
-        },
-        default: 'confirm'
-      }, {
-        width: 500,
-        classes: ['dx3rd-emanim', 'dialog', 'defense-dialog']
-      }).render(true);
+        ]
+      });
+
+      await dialog.render(true);
+      const root = dialog.element;
+      if (!root) return;
+
+      // Berserk 상태이상 체크 (normal, slaughter, battlelust, delusion, fear, hatred)
+      const berserkActive = targetActor.system?.conditions?.berserk?.active || false;
+      const berserkType = targetActor.system?.conditions?.berserk?.type || '';
+      const berserkTypes = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
+
+      if (berserkActive && berserkTypes.includes(berserkType)) {
+        // 가드 입력 필드 비활성화 및 0으로 설정
+        const guardInput = root.querySelector('#guard');
+        if (guardInput) {
+          guardInput.disabled = true;
+          guardInput.value = 0;
+        }
+
+        // 가드 체크박스 비활성화 및 체크 해제
+        const guardCheckbox = root.querySelector('#guard-check');
+        if (guardCheckbox) {
+          guardCheckbox.disabled = true;
+          guardCheckbox.checked = false;
+        }
+
+        // 모든 무기 체크박스 비활성화 및 체크 해제
+        root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
+          checkbox.disabled = true;
+          checkbox.checked = false;
+        });
+
+        // 총 가드값을 0으로 설정
+        const totalGuard = root.querySelector('#total-guard');
+        if (totalGuard) totalGuard.textContent = '0';
+
+        console.log(`DX3rd | Defense dialog - Guard/Weapon disabled due to berserk type: ${berserkType}`);
+      }
+
+      const getNumberValue = (selector) => parseInt(root.querySelector(selector)?.value) || 0;
+      const updateWeaponGuard = () => {
+        let weaponGuard = 0;
+        root.querySelectorAll('.weapon-checkbox:checked').forEach(checkbox => {
+          weaponGuard += parseInt(checkbox.dataset.guard) || 0;
+        });
+        const totalGuard = root.querySelector('#total-guard');
+        if (totalGuard) totalGuard.textContent = String(weaponGuard);
+        return weaponGuard;
+      };
+
+      // 실시간 데미지 계산 업데이트
+      const updateDamage = () => {
+        const actorGuardValue = getNumberValue('#guard');
+        const guardChecked = root.querySelector('#guard-check')?.checked || false;
+        const armorValue = getNumberValue('#armor');
+        const reduceValue = getNumberValue('#reduce');
+        const coveringValue = getNumberValue('#covering');
+
+        // 무기 가드값 합산
+        const weaponGuardTotal = updateWeaponGuard();
+
+        // 총 가드값 = 액터 가드 + 무기 가드
+        const totalGuardValue = actorGuardValue + weaponGuardTotal;
+        const effectiveGuard = guardChecked ? totalGuardValue : 0;
+
+        // 장갑무시 적용: 장갑치는 음수가 될 수 없음
+        const effectiveArmor = Math.max(0, armorValue - penetrate);
+
+        let calculatedDamage;
+
+        if (coveringValue > 0) {
+          // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
+          const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
+          const multiplier = coveringValue + 1; // 1이면 2배, 2면 3배
+          calculatedDamage = Math.max(0, (intermediateDamage * multiplier) - reduceValue);
+        } else {
+          // 일반 상황: 데미지 - 가드 - 장갑 - 경감
+          calculatedDamage = Math.max(0, damage - effectiveGuard - effectiveArmor - reduceValue);
+        }
+
+        const realDamageElement = root.querySelector('#realDamage');
+        if (realDamageElement) realDamageElement.textContent = String(calculatedDamage);
+        const lifeElement = root.querySelector('#life');
+        if (lifeElement) lifeElement.textContent = String(Math.max(0, currentHP - calculatedDamage));
+      };
+
+      // 초기 데미지 계산 (berserk로 인해 가드가 변경되었을 수 있음)
+      updateDamage();
+
+      // 무기 체크박스 변경 시 총 가드값 업데이트
+      root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateDamage);
+      });
+
+      // 리셋 버튼
+      root.querySelector('#reset')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
+          checkbox.checked = false;
+        });
+        const totalGuard = root.querySelector('#total-guard');
+        if (totalGuard) totalGuard.textContent = '0';
+        const guardInput = root.querySelector('#guard');
+        if (guardInput) guardInput.value = guard;
+        const guardCheckbox = root.querySelector('#guard-check');
+        if (guardCheckbox) guardCheckbox.checked = false;
+        const armorInput = root.querySelector('#armor');
+        if (armorInput) armorInput.value = armor;
+        const reduceInput = root.querySelector('#reduce');
+        if (reduceInput) reduceInput.value = reduce;
+        const coveringInput = root.querySelector('#covering');
+        if (coveringInput) coveringInput.value = '0';
+        updateDamage();
+      });
+
+      // 입력값 변경 시 데미지 재계산
+      ['#guard', '#armor', '#reduce', '#covering'].forEach(selector => {
+        root.querySelector(selector)?.addEventListener('input', updateDamage);
+      });
+      root.querySelector('#guard-check')?.addEventListener('change', updateDamage);
     },
 
     /**
@@ -3470,30 +3558,33 @@
       
       // 콤보 확인 다이얼로그 먼저 표시
       const title = game.i18n.localize('DX3rd.Combo');
-      new Dialog({
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.confirm) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return false;
+      }
+
+      const useCombo = await DialogV2.confirm({
         title,
-        buttons: {
-          yes: {
-            label: 'Yes',
-            callback: async () => {
-              // 콤보 빌더 열기 (스킬 타입으로, 무기 아이템 전달하여 attackRoll 초기값 설정)
-              await this.openComboBuilder(actor, 'skill', skillKey, item);
-              // 이전 토큰 복원
-              if (previousToken && canvas.tokens) {
-                previousToken.control({ releaseOthers: true });
-              }
-            }
-          },
-          no: {
-            label: 'No',
-            callback: () => {
-              // 판정 다이얼로그 표시 (메이저만, 무기 아이템 전달)
-              this.showStatRollDialog(actor, skillData, skillName, 'major', item, previousToken);
-            }
-          }
-        },
-        default: 'no'
-      }).render(true);
+        content: '',
+        yes: { label: 'Yes' },
+        no: { label: 'No' },
+        defaultYes: false,
+        rejectClose: false
+      });
+      if (useCombo === null) return true;
+
+      if (useCombo) {
+        // 콤보 빌더 열기 (스킬 타입으로, 무기 아이템 전달하여 attackRoll 초기값 설정)
+        await this.openComboBuilder(actor, 'skill', skillKey, item);
+        // 이전 토큰 복원
+        if (previousToken && canvas.tokens) {
+          previousToken.control({ releaseOthers: true });
+        }
+      } else {
+        // 판정 다이얼로그 표시 (메이저만, 무기 아이템 전달)
+        this.showStatRollDialog(actor, skillData, skillName, 'major', item, previousToken);
+      }
       
       return true;
     },
@@ -3881,8 +3972,14 @@
 
         // 범위값 입력 요청
         if (range === null || range === undefined) {
-          const input = await Dialog.wait({
-            title: '범위 하이라이트',
+          const DialogV2 = foundry.applications?.api?.DialogV2;
+          if (!DialogV2?.wait) {
+            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            return false;
+          }
+
+          const input = await DialogV2.wait({
+            window: { title: '범위 하이라이트' },
             content: `
               <form>
                 <div class="form-group">
@@ -3891,22 +3988,25 @@
                 </div>
               </form>
             `,
-            buttons: {
-              confirm: {
+            rejectClose: false,
+            buttons: [
+              {
+                action: 'confirm',
                 icon: '<i class="fas fa-check"></i>',
                 label: '확인',
-                callback: (html) => {
-                  const rangeInput = html.find('input[name="range"]').val();
+                default: true,
+                callback: (event, button) => {
+                  const rangeInput = button.form?.querySelector('input[name="range"]')?.value;
                   return parseInt(rangeInput) || null;
                 }
               },
-              cancel: {
+              {
+                action: 'cancel',
                 icon: '<i class="fas fa-times"></i>',
                 label: '취소',
                 callback: () => null
               }
-            },
-            default: 'confirm'
+            ]
           });
 
           if (input === null || isNaN(input) || input < 1) {
@@ -4857,25 +4957,35 @@
         initialAttackRoll: initialAttackRoll
       });
 
-      new Dialog({
-        title: game.i18n.localize('DX3rd.Combo'),
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const dialog = new DialogV2({
+        window: { title: game.i18n.localize('DX3rd.Combo') },
         content,
-        buttons: {
-          apply: {
+        position: { width: 700 },
+        classes: [ 'dx3rd-emanim', 'combo-dialog' ],
+        buttons: [
+          {
+            action: 'apply',
             icon: '<i class="fas fa-dice-d20"></i>',
             label: game.i18n.localize('DX3rd.Apply'),
-            callback: async (html) => {
+            default: true,
+            callback: async (event, button) => {
+              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
               // 선택된 이펙트 ID 수집 (선택하지 않아도 진행 가능)
-              const selectedEffectIds = [];
-              html.find('.active-effect:checked').each((i, el) => {
-                selectedEffectIds.push($(el).data('id'));
-              });
+              const selectedEffectIds = Array.from(root?.querySelectorAll('.active-effect:checked') || [])
+                .map(el => el.dataset.id)
+                .filter(Boolean);
               
               // 다이얼로그 값 수집
-              const skill = html.find('#skill').val();
-              const base = html.find('#base').val();
-              const roll = html.find('#roll').val();
-              const attackRoll = html.find('#attackRoll').val();
+              const skill = root?.querySelector('#skill')?.value || '-';
+              const base = root?.querySelector('#base')?.value || '-';
+              const roll = root?.querySelector('#roll')?.value || 'major';
+              const attackRoll = root?.querySelector('#attackRoll')?.value || '-';
               
               console.log('DX3rd | Combo Builder - Dialog values:', { skill, base, roll, attackRoll, selectedEffectIds });
               
@@ -4963,12 +5073,9 @@
               }
             }
           }
-        },
-        default: 'apply'
-      }, {
-        width: 700,
-        classes: [ 'dx3rd-emanim', 'combo-dialog' ]
-      }).render(true);
+        ]
+      });
+      dialog.render(true);
     },
     
     showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
@@ -5003,42 +5110,31 @@
       const rollDirectly = () => this.showStatRollDialog(actor, stat, label, specificRollType);
 
       const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (DialogV2?.confirm) {
-        DialogV2.confirm({
-          window: {title},
-          content: `<p>${title}?</p>`,
-          yes: {
-            label: 'Yes',
-            callback: async () => {
-              await openCombo();
-              return true;
-            }
-          },
-          no: {
-            label: 'No',
-            callback: () => {
-              rollDirectly();
-              return false;
-            }
-          }
-        });
+      if (!DialogV2?.confirm) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
         return;
       }
 
-      new Dialog({
-        title,
-        buttons: {
-          yes: {
-            label: 'Yes',
-            callback: openCombo
-          },
-          no: {
-            label: 'No',
-            callback: rollDirectly
+      DialogV2.confirm({
+        window: { title },
+        content: `<p>${title}?</p>`,
+        yes: {
+          label: 'Yes',
+          callback: async () => {
+            await openCombo();
+            return true;
           }
         },
-        default: 'no'
-      }).render(true);
+        no: {
+          label: 'No',
+          callback: () => {
+            rollDirectly();
+            return false;
+          }
+        },
+        defaultYes: false,
+        rejectClose: false
+      });
     },
 
     /**
@@ -5054,7 +5150,7 @@
      * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택사항)
      * @param {Object} predefinedDifficulty - 미리 정의된 난이도 (선택사항, Book 등에서 사용)
      */
-    showStatRollDialog(actor, stat, label, specificRollType = null, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, predefinedDifficulty = null, requireDifficulty = false, isUrgeTest = false, afterRollCallback = null, isPanicTest = false) {
+    async showStatRollDialog(actor, stat, label, specificRollType = null, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, predefinedDifficulty = null, requireDifficulty = false, isUrgeTest = false, afterRollCallback = null, isPanicTest = false) {
       const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
       
       // stat은 얕은 복사 시 major/reaction/dodge가 원본과 공유되어 패널티 누적 발생 → deepClone 사용
@@ -5471,102 +5567,109 @@
       // 충동 판정 또는 공포 판정인 경우 제목 변경
       const dialogTitle = isUrgeTest ? game.i18n.localize('DX3rd.UrgeTest') : (isPanicTest ? game.i18n.localize('DX3rd.PanicTest') : label);
       
-      const dlg = new Dialog({
-        title: dialogTitle,
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const dlg = new DialogV2({
+        window: { title: dialogTitle },
         content,
-        buttons: {},
-        default: 'close',
         classes: ['dx3rd-emanim','dx3rd-rolling-dialog'],
-        render: html => {
-          const $diceDisplay = html.find('.dx-dice-display');
-          const $diceInput = html.find('.dx-dice-input');
-          const $critDisplay = html.find('.dx-critical-display');
-          const $critInput = html.find('.dx-critical-input');
-          const $addDisplay = html.find('.dx-add-display');
-          const $addInput = html.find('.dx-add-input');
-          const $difficulty = html.find('.dx-difficulty');
-          
-          // 현재 선택된 타입의 기본값 업데이트 함수
-          const updateDisplayValues = (t) => {
-            const data = effectiveStat[t] || { dice: effectiveStat.dice||0, critical: effectiveStat.critical||defaultCritical, add: effectiveStat.add||0 };
-            const baseDice = data.dice || 0;
-            const baseCrit = data.critical || defaultCritical;
-            const baseAdd = data.add || 0; // effectiveStat.add가 이미 무기 보너스가 적용된 값
-            
-            // 사용자 입력값 가져오기
-            const diceModifier = parseInt($diceInput.val()) || 0;
-            const critModifier = parseInt($critInput.val()) || 0;
-            const addModifier = parseInt($addInput.val()) || 0;
-            
-            // 기본값 + 입력값 + 공포 패널티 표시 (의존 패널티는 이미 effectiveStat.dice에 적용됨)
-            // 최소 다이스 1개 보장
-            const displayDice = Math.max(1, baseDice + diceModifier + fearPenalty);
-            $diceDisplay.val(displayDice);
-            $critDisplay.val(baseCrit + critModifier);
-            $addDisplay.val(baseAdd + addModifier + distastePenalty);
-            
-            return { baseDice: baseDice + fearPenalty, baseCrit, baseAdd: baseAdd + distastePenalty };
-          };
-          
-          // 입력 필드 변경 시 디스플레이 업데이트
-          $diceInput.on('input', () => {
-            const selectedBtn = html.find('.roll-type-btn.selected');
-            if (selectedBtn.length > 0) {
-              updateDisplayValues(selectedBtn.data('roll-type'));
-            }
-          });
-          
-          $critInput.on('input', () => {
-            const selectedBtn = html.find('.roll-type-btn.selected');
-            if (selectedBtn.length > 0) {
-              updateDisplayValues(selectedBtn.data('roll-type'));
-            }
-          });
-          
-          $addInput.on('input', () => {
-            const selectedBtn = html.find('.roll-type-btn.selected');
-            if (selectedBtn.length > 0) {
-              updateDisplayValues(selectedBtn.data('roll-type'));
-            }
-          });
-          
-          const $btns = html.find('.roll-type-btn');
-          
-          // 특정 타입만 있는 경우 자동으로 선택 및 표시
-          if (specificRollType && $btns.length === 1) {
-            $btns.addClass('selected');
-            updateDisplayValues(specificRollType);
-          } else {
-            // 다이얼로그가 열릴 때 첫 번째 버튼의 기본값으로 초기화
-            const firstBtn = $btns.first();
-            if (firstBtn.length > 0) {
-              firstBtn.addClass('selected');
-              updateDisplayValues(firstBtn.data('roll-type'));
-            }
-          }
-          
-          const hoverIn = ev => {
-            const $btn = $(ev.currentTarget);
-            $btns.removeClass('selected');
-            $btn.addClass('selected');
-            updateDisplayValues($btn.data('roll-type'));
-          };
-          const hoverOut = () => { 
-            $btns.removeClass('selected');
-            // 호버 아웃 시에도 마지막 선택된 타입 유지 (초기화하지 않음)
-          };
-          $btns.on('mouseenter', hoverIn);
-          $btns.on('mouseleave', hoverOut);
-          $btns.on('click', async ev => {
-            const t = $(ev.currentTarget).data('roll-type');
+        buttons: [{
+          action: 'noop',
+          label: '',
+          callback: () => {}
+        }]
+      });
+      await dlg.render(true);
+
+      const root = dlg.element;
+      if (!root) return;
+      const noopButton = root.querySelector('button[data-action="noop"]');
+      const noopFooter = noopButton?.closest('footer');
+      if (noopButton) noopButton.hidden = true;
+      if (noopFooter) noopFooter.hidden = true;
+
+      const diceDisplay = root.querySelector('.dx-dice-display');
+      const diceInput = root.querySelector('.dx-dice-input');
+      const critDisplay = root.querySelector('.dx-critical-display');
+      const critInput = root.querySelector('.dx-critical-input');
+      const addDisplay = root.querySelector('.dx-add-display');
+      const addInput = root.querySelector('.dx-add-input');
+
+      // 현재 선택된 타입의 기본값 업데이트 함수
+      const updateDisplayValues = (t) => {
+        const data = effectiveStat[t] || { dice: effectiveStat.dice||0, critical: effectiveStat.critical||defaultCritical, add: effectiveStat.add||0 };
+        const baseDice = data.dice || 0;
+        const baseCrit = data.critical || defaultCritical;
+        const baseAdd = data.add || 0; // effectiveStat.add가 이미 무기 보너스가 적용된 값
+
+        // 사용자 입력값 가져오기
+        const diceModifier = parseInt(diceInput?.value) || 0;
+        const critModifier = parseInt(critInput?.value) || 0;
+        const addModifier = parseInt(addInput?.value) || 0;
+
+        // 기본값 + 입력값 + 공포 패널티 표시 (의존 패널티는 이미 effectiveStat.dice에 적용됨)
+        // 최소 다이스 1개 보장
+        const displayDice = Math.max(1, baseDice + diceModifier + fearPenalty);
+        if (diceDisplay) diceDisplay.value = displayDice;
+        if (critDisplay) critDisplay.value = baseCrit + critModifier;
+        if (addDisplay) addDisplay.value = baseAdd + addModifier + distastePenalty;
+
+        return { baseDice: baseDice + fearPenalty, baseCrit, baseAdd: baseAdd + distastePenalty };
+      };
+
+      // 입력 필드 변경 시 디스플레이 업데이트
+      const updateSelectedDisplay = () => {
+        const selectedBtn = root.querySelector('.roll-type-btn.selected');
+        if (selectedBtn) {
+          updateDisplayValues(selectedBtn.dataset.rollType);
+        }
+      };
+      diceInput?.addEventListener('input', updateSelectedDisplay);
+      critInput?.addEventListener('input', updateSelectedDisplay);
+      addInput?.addEventListener('input', updateSelectedDisplay);
+
+      const btns = Array.from(root.querySelectorAll('.roll-type-btn'));
+
+      // 특정 타입만 있는 경우 자동으로 선택 및 표시
+      if (specificRollType && btns.length === 1) {
+        btns[0].classList.add('selected');
+        updateDisplayValues(specificRollType);
+      } else {
+        // 다이얼로그가 열릴 때 첫 번째 버튼의 기본값으로 초기화
+        const firstBtn = btns[0];
+        if (firstBtn) {
+          firstBtn.classList.add('selected');
+          updateDisplayValues(firstBtn.dataset.rollType);
+        }
+      }
+
+      const hoverIn = ev => {
+        const btn = ev.currentTarget;
+        btns.forEach(other => other.classList.remove('selected'));
+        btn.classList.add('selected');
+        updateDisplayValues(btn.dataset.rollType);
+      };
+      const hoverOut = () => {
+        btns.forEach(btn => btn.classList.remove('selected'));
+        // 호버 아웃 시에도 마지막 선택된 타입 유지 (초기화하지 않음)
+      };
+      btns.forEach(btn => {
+        btn.addEventListener('mouseenter', hoverIn);
+        btn.addEventListener('mouseleave', hoverOut);
+        btn.addEventListener('click', async ev => {
+            const t = ev.currentTarget.dataset.rollType;
             
             // updateDisplayValues를 호출하여 현재 표시값 가져오기 (공포 패널티 포함)
             const { baseDice, baseCrit, baseAdd } = updateDisplayValues(t);
             
             // 사용자 입력 추가
-            const diceModifier = parseInt($diceInput.val()) || 0;
-            const critModifier = parseInt($critInput.val()) || 0;
-            const addModifier = parseInt($addInput.val()) || 0;
+            const diceModifier = parseInt(diceInput?.value) || 0;
+            const critModifier = parseInt(critInput?.value) || 0;
+            const addModifier = parseInt(addInput?.value) || 0;
             
             // 최종 계산 (baseDice에 이미 공포 패널티가 포함됨)
             const finalDice = Math.max(1, baseDice + diceModifier);
@@ -5614,8 +5717,7 @@
               await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData);
             } else {
               // 일반 판정: 난이도 처리
-              const $difficulty = html.find('.dx-difficulty');
-              const difficultyInput = $difficulty.val().trim();
+              const difficultyInput = root.querySelector('.dx-difficulty')?.value.trim() || '';
               
               // 난이도 필수 입력 체크
               if (requireDifficulty && !difficultyInput) {
@@ -5646,10 +5748,8 @@
               await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, isUrgeTest, afterRollCallback, isPanicTest);
             }
             dlg.close();
-          });
-        }
+        });
       });
-      dlg.render(true);
     },
 
     /**
@@ -7012,11 +7112,11 @@
         
         if (rangeHighlightActive) {
           // 하이라이트가 활성화되어 있으면 제거 확인
-          const shouldClearHighlight = await Dialog.confirm({
+          const shouldClearHighlight = await window.DX3rdUniversalConfirmDialogV2({
             title: game.i18n.localize('DX3rd.RangeOffCheck'),
             content: `<p style="text-align: center;">${game.i18n.localize('DX3rd.RangeOffCheckText')}</p>`,
-            yes: () => true,
-            no: () => false,
+            yesLabel: game.i18n.localize('DX3rd.Confirm'),
+            noLabel: game.i18n.localize('DX3rd.Cancel'),
             defaultYes: true
           });
           
@@ -7616,11 +7716,11 @@ window.DX3rdUniversalHandler.handleHealRequest = async function(requestData) {
   const skipDialog = requestData.skipDialog || false;
   
   if (!autoApply && !skipDialog) {
-    const confirmed = await Dialog.confirm({
+    const confirmed = await window.DX3rdUniversalConfirmDialogV2({
       title: 'HP 회복 확인',
       content: confirmContent,
-      yes: () => true,
-      no: () => false,
+      yesLabel: game.i18n.localize('DX3rd.Confirm'),
+      noLabel: game.i18n.localize('DX3rd.Cancel'),
       defaultYes: true
     });
     
@@ -7815,7 +7915,7 @@ window.DX3rdUniversalHandler.executeDamageExtension = async function(actor, dama
  * @returns {Promise<{dice: string, add: string}|null>}
  */
 window.DX3rdUniversalHandler.promptConditionalDamageFormula = async function() {
-  return await new Promise((resolve) => {
+  return await new Promise(async (resolve) => {
     const dialogContent = `
       <div style="padding: 10px;">
         <div style="margin-bottom: 10px;">
@@ -7829,51 +7929,57 @@ window.DX3rdUniversalHandler.promptConditionalDamageFormula = async function() {
       </div>
     `;
 
-    const dialog = new Dialog({
-      title: `${game.i18n.localize('DX3rd.Conditional')} ${game.i18n.localize('DX3rd.Formula')}`,
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2) {
+      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      resolve(null);
+      return;
+    }
+
+    const dialog = new DialogV2({
+      window: { title: `${game.i18n.localize('DX3rd.Conditional')} ${game.i18n.localize('DX3rd.Formula')}` },
       content: dialogContent,
-      buttons: {
-        confirm: {
+      buttons: [
+        {
+          action: 'confirm',
           icon: '<i class="fas fa-check"></i>',
           label: game.i18n.localize('DX3rd.Confirm'),
-          callback: (html) => {
-            const dice = html.find('#custom-dice').val();
-            const add = html.find('#custom-add').val();
+          default: true,
+          callback: (event, button) => {
+            const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+            const dice = root?.querySelector('#custom-dice')?.value || '';
+            const add = root?.querySelector('#custom-add')?.value || '';
             resolve({ dice, add });
           }
         },
-        cancel: {
+        {
+          action: 'cancel',
           icon: '<i class="fas fa-times"></i>',
           label: game.i18n.localize('DX3rd.Cancel'),
           callback: () => resolve(null)
         }
-      },
-      default: 'confirm',
-      render: (html) => {
-        const diceInput = html.find('#custom-dice');
-        const addInput = html.find('#custom-add');
-        const confirmButton = html.find('.dialog-button.confirm');
-
-        const checkInputs = () => {
-          const diceValue = diceInput.val().trim();
-          const addValue = addInput.val().trim();
-
-          if (!diceValue && !addValue) {
-            confirmButton.prop('disabled', true);
-            confirmButton.css('opacity', '0.5');
-          } else {
-            confirmButton.prop('disabled', false);
-            confirmButton.css('opacity', '1');
-          }
-        };
-
-        checkInputs();
-        diceInput.on('input', checkInputs);
-        addInput.on('input', checkInputs);
-      }
+      ]
     });
+    await dialog.render(true);
 
-    dialog.render(true);
+    const root = dialog.element;
+    const diceInput = root?.querySelector('#custom-dice');
+    const addInput = root?.querySelector('#custom-add');
+    const confirmButton = root?.querySelector('button[data-action="confirm"]');
+
+    const checkInputs = () => {
+      const diceValue = diceInput?.value.trim() || '';
+      const addValue = addInput?.value.trim() || '';
+
+      if (confirmButton) {
+        confirmButton.disabled = !diceValue && !addValue;
+        confirmButton.style.opacity = confirmButton.disabled ? '0.5' : '1';
+      }
+    };
+
+    checkInputs();
+    diceInput?.addEventListener('input', checkInputs);
+    addInput?.addEventListener('input', checkInputs);
   });
 };
 
@@ -8012,30 +8118,41 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
  */
 window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
   const enc = game.i18n.localize('DX3rd.Encroachment') || '침식률';
-  return await new Promise((resolve) => {
-    const content = `
-      <div style="padding:10px;">
-        <p style="margin-bottom:8px;"><b>${item?.name || ''}</b> — ${enc} ${game.i18n.localize('DX3rd.Reduce') || '감소'} (0~${cap})</p>
-        <input type="number" id="enc-amount" value="${cap}" min="0" max="${cap}" step="1" style="width:100%; padding:5px;">
-      </div>`;
-    const dialog = new Dialog({
-      title: enc,
-      content,
-      buttons: {
-        confirm: {
-          icon: '<i class="fas fa-check"></i>',
-          label: game.i18n.localize('DX3rd.Confirm') || '확인',
-          callback: (html) => { let v = parseInt(html.find('#enc-amount').val()); if (!Number.isFinite(v)) v = 0; v = Math.max(0, Math.min(cap, v)); resolve(v); }
-        },
-        cancel: {
-          icon: '<i class="fas fa-times"></i>',
-          label: game.i18n.localize('DX3rd.Cancel') || '취소',
-          callback: () => resolve(null)
+  const DialogV2 = foundry.applications?.api?.DialogV2;
+  if (!DialogV2?.wait) {
+    ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+    return null;
+  }
+
+  const content = `
+    <div style="padding:10px;">
+      <p style="margin-bottom:8px;"><b>${item?.name || ''}</b> — ${enc} ${game.i18n.localize('DX3rd.Reduce') || '감소'} (0~${cap})</p>
+      <input type="number" id="enc-amount" value="${cap}" min="0" max="${cap}" step="1" style="width:100%; padding:5px;">
+    </div>`;
+  return await DialogV2.wait({
+    window: { title: enc },
+    content,
+    rejectClose: false,
+    buttons: [
+      {
+        action: 'confirm',
+        icon: '<i class="fas fa-check"></i>',
+        label: game.i18n.localize('DX3rd.Confirm') || '확인',
+        default: true,
+        callback: (event, button) => {
+          const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+          let v = parseInt(root?.querySelector('#enc-amount')?.value);
+          if (!Number.isFinite(v)) v = 0;
+          return Math.max(0, Math.min(cap, v));
         }
       },
-      default: 'confirm'
-    });
-    dialog.render(true);
+      {
+        action: 'cancel',
+        icon: '<i class="fas fa-times"></i>',
+        label: game.i18n.localize('DX3rd.Cancel') || '취소',
+        callback: () => null
+      }
+    ]
   });
 };
 
@@ -8077,36 +8194,42 @@ window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
 
 /** 자원소비량 n 입력 다이얼로그(0~max). 취소 시 null. */
 window.DX3rdUniversalHandler.promptResourceAmount = async function(item, resource, max, initial = max) {
-  return await new Promise((resolve) => {
-    const promptKey = (resource === 'input') ? 'DX3rd.ResourceCostInputPrompt' : 'DX3rd.ResourceCostPrompt';
-    const content = `
-      <div style="padding:10px;">
-        <p style="margin-bottom:8px;">${item.name}: ${game.i18n.localize(promptKey)} <b>(0 ~ ${max})</b></p>
-        <input type="number" id="res-amt" value="${initial}" min="0" max="${max}" step="1" style="width:100%; padding:5px;">
-      </div>`;
-    const dialog = new Dialog({
-      title: game.i18n.localize('DX3rd.ResourceCost'),
-      content,
-      buttons: {
-        confirm: {
-          icon: '<i class="fas fa-check"></i>',
-          label: game.i18n.localize('DX3rd.Confirm'),
-          callback: (html) => {
-            let v = parseInt(html.find('#res-amt').val(), 10);
-            if (!Number.isFinite(v)) v = 0;
-            v = Math.max(0, Math.min(max, v));
-            resolve(v);
-          }
-        },
-        cancel: {
-          icon: '<i class="fas fa-times"></i>',
-          label: game.i18n.localize('DX3rd.Cancel'),
-          callback: () => resolve(null)
+  const DialogV2 = foundry.applications?.api?.DialogV2;
+  if (!DialogV2?.wait) {
+    ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+    return null;
+  }
+
+  const promptKey = (resource === 'input') ? 'DX3rd.ResourceCostInputPrompt' : 'DX3rd.ResourceCostPrompt';
+  const content = `
+    <div style="padding:10px;">
+      <p style="margin-bottom:8px;">${item.name}: ${game.i18n.localize(promptKey)} <b>(0 ~ ${max})</b></p>
+      <input type="number" id="res-amt" value="${initial}" min="0" max="${max}" step="1" style="width:100%; padding:5px;">
+    </div>`;
+  return await DialogV2.wait({
+    window: { title: game.i18n.localize('DX3rd.ResourceCost') },
+    content,
+    rejectClose: false,
+    buttons: [
+      {
+        action: 'confirm',
+        icon: '<i class="fas fa-check"></i>',
+        label: game.i18n.localize('DX3rd.Confirm'),
+        default: true,
+        callback: (event, button) => {
+          const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+          let v = parseInt(root?.querySelector('#res-amt')?.value, 10);
+          if (!Number.isFinite(v)) v = 0;
+          return Math.max(0, Math.min(max, v));
         }
       },
-      default: 'confirm'
-    });
-    dialog.render(true);
+      {
+        action: 'cancel',
+        icon: '<i class="fas fa-times"></i>',
+        label: game.i18n.localize('DX3rd.Cancel'),
+        callback: () => null
+      }
+    ]
   });
 };
 
@@ -8289,11 +8412,11 @@ window.DX3rdUniversalHandler.handleDamageRequest = async function(requestData) {
   const skipDialog = requestData.skipDialog || false;
   
   if (!autoApplyDamage && !skipDialog) {
-    const confirmed = await Dialog.confirm({
+    const confirmed = await window.DX3rdUniversalConfirmDialogV2({
       title: 'HP 데미지 확인',
       content: confirmContent,
-      yes: () => true,
-      no: () => false,
+      yesLabel: game.i18n.localize('DX3rd.Confirm'),
+      noLabel: game.i18n.localize('DX3rd.Cancel'),
       defaultYes: true
     });
     
@@ -8611,7 +8734,13 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
   const autoApplyCondition = game.settings.get('dx3rd-emanim', 'DX3rd.AutoApplyExtensions');
   
   if (!autoApplyCondition) {
-    const confirmed = await Dialog.confirm({ title: '상태이상 부여 확인', content: confirmContent, yes: () => true, no: () => false, defaultYes: true });
+    const confirmed = await window.DX3rdUniversalConfirmDialogV2({
+      title: '상태이상 부여 확인',
+      content: confirmContent,
+      yesLabel: game.i18n.localize('DX3rd.Confirm'),
+      noLabel: game.i18n.localize('DX3rd.Cancel'),
+      defaultYes: true
+    });
     if (!confirmed) {
       if (userId !== game.user.id) game.socket.emit('system.dx3rd-emanim', { type: 'conditionRejected', data: { userId } });
       return;
@@ -8662,22 +8791,34 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         </style>
       `;
       
-      const hatredTarget = await Dialog.wait({
-        title: game.i18n.localize("DX3rd.Hatred"),
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const hatredTarget = await DialogV2.wait({
+        window: { title: game.i18n.localize("DX3rd.Hatred") },
         content: template,
-        buttons: {
-          confirm: {
+        rejectClose: false,
+        buttons: [
+          {
+            action: 'confirm',
             icon: '<i class="fas fa-check"></i>',
             label: game.i18n.localize("DX3rd.Confirm"),
-            callback: (html) => html.find("#condition-target").val()
+            default: true,
+            callback: (event, button) => {
+              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+              return root?.querySelector("#condition-target")?.value || null;
+            }
           },
-          cancel: {
+          {
+            action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
             callback: () => null
           }
-        },
-        default: "confirm"
+        ]
       });
       
       if (hatredTarget) {
@@ -8726,22 +8867,34 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         </style>
       `;
       
-      const fearTarget = await Dialog.wait({
-        title: game.i18n.localize("DX3rd.Fear"),
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const fearTarget = await DialogV2.wait({
+        window: { title: game.i18n.localize("DX3rd.Fear") },
         content: template,
-        buttons: {
-          confirm: {
+        rejectClose: false,
+        buttons: [
+          {
+            action: 'confirm',
             icon: '<i class="fas fa-check"></i>',
             label: game.i18n.localize("DX3rd.Confirm"),
-            callback: (html) => html.find("#condition-target").val()
+            default: true,
+            callback: (event, button) => {
+              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+              return root?.querySelector("#condition-target")?.value || null;
+            }
           },
-          cancel: {
+          {
+            action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
             callback: () => null
           }
-        },
-        default: "confirm"
+        ]
       });
       
       if (fearTarget) {
@@ -8787,22 +8940,34 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         </style>
       `;
       
-      const berserkType = await Dialog.wait({
-        title: game.i18n.localize("DX3rd.Berserk"),
+      const DialogV2 = foundry.applications?.api?.DialogV2;
+      if (!DialogV2?.wait) {
+        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        return;
+      }
+
+      const berserkType = await DialogV2.wait({
+        window: { title: game.i18n.localize("DX3rd.Berserk") },
         content: template,
-        buttons: {
-          confirm: {
+        rejectClose: false,
+        buttons: [
+          {
+            action: 'confirm',
             icon: '<i class="fas fa-check"></i>',
             label: game.i18n.localize("DX3rd.Confirm"),
-            callback: (html) => html.find("#condition-type").val()
+            default: true,
+            callback: (event, button) => {
+              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+              return root?.querySelector("#condition-type")?.value || null;
+            }
           },
-          cancel: {
+          {
+            action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
             callback: () => null
           }
-        },
-        default: "confirm"
+        ]
       });
       
       if (berserkType) {
@@ -8977,11 +9142,11 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
   const autoApplyConditionSingle = game.settings.get('dx3rd-emanim', 'DX3rd.AutoApplyExtensions');
   
   if (!autoApplyConditionSingle) {
-    const confirmed = await Dialog.confirm({
+    const confirmed = await window.DX3rdUniversalConfirmDialogV2({
       title: '상태이상 부여 확인',
       content: confirmContent,
-      yes: () => true,
-      no: () => false,
+      yesLabel: game.i18n.localize('DX3rd.Confirm'),
+      noLabel: game.i18n.localize('DX3rd.Cancel'),
       defaultYes: true
     });
     
