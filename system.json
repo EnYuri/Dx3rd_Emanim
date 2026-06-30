@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.2.12",
+  "version": "1.2.13",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -83,6 +83,7 @@
     "scripts/sheets/actor-edit-dialogs.js",
     "scripts/sheets/actor-applied-dialogs.js",
     "scripts/sheets/actor-delete-dialogs.js",
+    "scripts/sheets/actor-chat.js",
     "scripts/sheets/actor-sheet.js",
     "scripts/sheets/actor-sheet-v2.js",
     "scripts/document/actor.js",
@@ -205,7 +206,7 @@
   },
   "url": "https://github.com/EnYuri/Dx3rd_Emanim",
   "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
-  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.12/dx3rd-emanim.zip",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.13/dx3rd-emanim.zip",
   "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
   "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
 }

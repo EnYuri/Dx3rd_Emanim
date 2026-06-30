@@ -439,3 +439,29 @@
 .application.sheet.dx3rd-emanim prose-mirror .ProseMirror {
     min-height: 350px;
 }
+
+/* 아이템 행 인라인 컨트롤: 채팅 출력 / 설명 펼침 버튼 + 인라인 설명 */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .actor-sheet-v2-item-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding: 0 4px;
+    line-height: 1.4;
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
+}
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .actor-sheet-v2-item-btn:hover {
+    opacity: 1;
+}
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item-description {
+    flex: 1 0 100%;
+    width: 100%;
+    margin-top: 4px;
+    padding: 6px 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 0.85em;
+    line-height: 1.5;
+}

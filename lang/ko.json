@@ -110,6 +110,8 @@
   "DX3rd.CastingAttributes": "마술 속성",
 
   "DX3rd.Description": "해설",
+  "DX3rd.SendToChat": "채팅 출력",
+  "DX3rd.Edit": "편집",
   "DX3rd.Combo": "콤보",
   "DX3rd.ComboEffects": "구성 이펙트",
   

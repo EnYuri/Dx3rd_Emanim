@@ -272,6 +272,168 @@
         return result;
     }
 
+    // 능력/스킬 굴림 dispatch와 콤보 빌더 위임. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    function openComboBuilder(actor, targetType, targetId) {
+        const handler = window.DX3rdUniversalHandler;
+        if (!handler?.openComboBuilder) {
+            ui.notifications.error("ComboBuilder를 찾을 수 없습니다.");
+            return Promise.resolve();
+        }
+        return handler.openComboBuilder(actor, targetType, targetId);
+    }
+
+    function showStatRoll(actor, targetType, targetId) {
+        const handler = window.DX3rdUniversalHandler;
+        if (!handler?.showStatRollConfirmDialog) {
+            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            return;
+        }
+        handler.showStatRollConfirmDialog(
+            actor,
+            targetType,
+            targetId,
+            (type, id) => openComboBuilder(actor, type, id)
+        );
+    }
+
+    // 드래그/드롭 정렬 dispatch. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    function buildItemDragData(actor, item) {
+        if (!actor || !item) return null;
+        return {
+            type: 'Item',
+            uuid: item.uuid,
+            actorId: actor.id,
+            itemId: item.id,
+            itemType: item.type,
+            sortValue: item.sort || 0
+        };
+    }
+
+    // 같은 액터 내 아이템 순서 변경(sort). 정렬을 수행했으면 true.
+    async function sortOwnedItem(actor, data, targetEl) {
+        const target = targetEl?.closest?.('[data-item-id]');
+        if (!target) return false;
+
+        const sourceItem = actor.items.get(data.itemId);
+        const targetItem = actor.items.get(target.dataset.itemId);
+        if (!sourceItem || !targetItem || sourceItem.id === targetItem.id || sourceItem.type !== targetItem.type) return false;
+
+        const siblings = actor.items.filter(i => i.type === sourceItem.type && i.id !== sourceItem.id);
+        const performIntegerSort = foundry.utils?.performIntegerSort
+            || foundry.utils?.SortingHelpers?.performIntegerSort
+            || SortingHelpers.performIntegerSort;
+        const sortUpdates = performIntegerSort(sourceItem, { target: targetItem, siblings });
+        await actor.updateEmbeddedDocuments('Item', sortUpdates.map(u => ({ _id: u.target.id, sort: u.update.sort })));
+        return true;
+    }
+
+    // 외부 아이템 드롭 → 타입별 제한 체크 후 생성. 생성했으면 true, 막혔으면 false.
+    async function createDroppedItem(actor, item) {
+        if (!item) return false;
+
+        if (['spell', 'psionic', 'book'].includes(item.type) && !game.settings.get('dx3rd-emanim', 'stageCRC')) {
+            ui.notifications.warn('CRC 스테이지 비활성화 시 스펠, 사이오닉, 마도서 아이템을 추가할 수 없습니다.');
+            return false;
+        }
+        if (item.type === 'works' && actor.items.filter(i => i.type === 'works').length >= 1) {
+            ui.notifications.info('Each character can only have one Works item.');
+            return false;
+        }
+        if (item.type === 'syndrome' && actor.items.filter(i => i.type === 'syndrome').length >= 3) {
+            ui.notifications.info('Each character can only have up to three Syndrome items.');
+            return false;
+        }
+
+        await actor.createEmbeddedDocuments('Item', [item.toObject()]);
+        return true;
+    }
+
+    // 액터 시트 드롭 통합 처리. parsedData = 드래그 데이터(JSON.parse 결과), targetEl = 드롭 대상 엘리먼트.
+    async function handleActorItemDrop(actor, parsedData, targetEl) {
+        if (!actor || !parsedData || parsedData.type !== 'Item') return;
+
+        // 같은 액터의 아이템을 드래그한 경우 순서 변경
+        if (parsedData.actorId === actor.id) {
+            await sortOwnedItem(actor, parsedData, targetEl);
+            return;
+        }
+
+        // 외부에서 새 아이템을 드롭하는 경우
+        const item = await fromUuid(parsedData.uuid);
+        await createDroppedItem(actor, item);
+    }
+
+    // 스킬 생성/편집 다이얼로그 오픈. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 다이얼로그는 ApplicationV2 기반이라 buttons/default 설정은 받지 않는다(클래스가 자체 렌더).
+    function openCreateSkillDialog(actor, abilityId) {
+        if (!window.DX3rdSkillCreateDialog) {
+            ui.notifications.error("DX3rdSkillCreateDialog를 찾을 수 없습니다.");
+            return;
+        }
+        const options = getCreateSkillDialogOptions(actor, abilityId);
+        if (!options) return;
+        new window.DX3rdSkillCreateDialog(options).render(true);
+    }
+
+    function openEditSkillDialog(actor, skillId) {
+        if (!window.DX3rdSkillEditDialog) {
+            ui.notifications.error("DX3rdSkillEditDialog를 찾을 수 없습니다.");
+            return;
+        }
+        const options = getEditSkillDialogOptions(actor, skillId);
+        if (!options) return;
+        new window.DX3rdSkillEditDialog(options).render(true);
+    }
+
+    // 로이스 Titus화. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 채팅 '사용' 버튼(DX3rdRoisHandler.handle)과 동일하게 handleTitus를 직접 호출한다.
+    // handleItemUse 경유 시 비용 게이트 추가 부과 + instant 매크로 이중 실행 문제가 있어 직접 호출로 통일.
+    function useTitus(actor, item) {
+        if (!window.DX3rdRoisHandler?.handleTitus) {
+            ui.notifications.error("로이스 핸들러를 찾을 수 없습니다.");
+            return Promise.resolve();
+        }
+        return window.DX3rdRoisHandler.handleTitus(actor.id, item.id);
+    }
+
+    // 아이템을 채팅으로 출력하기 전 게이트(권한 + 사용횟수 소진). AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // raw 전송(_sendItemToChat → DX3rdActorChat)은 외부 호출자(combat-ui/action-ui)도 직접 쓰므로
+    // 여기서는 게이트 판정만 반환하고 전송은 시트가 수행한다.
+    function checkItemChatGate(actor, item) {
+        if (!actor || !item) {
+            return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
+        }
+        if (!actor.isOwner && !game.user.isGM) {
+            return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
+        }
+        if (window.DX3rdItemExhausted?.isItemExhausted(item)) {
+            return { ok: false, level: "warn", message: `${item.name}의 사용 횟수가 모두 소진되었습니다.` };
+        }
+        return { ok: true };
+    }
+
+    // 아이템 사용/공격 굴림 dispatch. 현재는 AppV2 시트 전용 버튼이지만,
+    // V2 default 승격을 대비해 단일 테스트 경로를 확보한다(UniversalHandler 직접 호출 통일).
+    function useItem(actor, item, roisAction = undefined, getTarget = undefined) {
+        const handler = window.DX3rdUniversalHandler;
+        if (!handler?.handleItemUse) {
+            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            return Promise.resolve(false);
+        }
+        if (!actor || !item) return Promise.resolve(false);
+        return handler.handleItemUse(actor.id, item.id, item.type, roisAction, getTarget);
+    }
+
+    function attackRoll(actor, item) {
+        const handler = window.DX3rdUniversalHandler;
+        if (!handler?.handleAttackRoll) {
+            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            return Promise.resolve();
+        }
+        if (!actor || !item) return Promise.resolve();
+        return handler.handleAttackRoll(actor, item);
+    }
+
     function normalizeItems(items) {
         if (Array.isArray(items)) return items;
         try {
@@ -448,6 +610,16 @@
         updateOwnedItemEquipmentState,
         getSyndromeSelectionUpdate,
         updateActorSyndromeSelection,
+        showStatRoll,
+        openComboBuilder,
+        buildItemDragData,
+        handleActorItemDrop,
+        openCreateSkillDialog,
+        openEditSkillDialog,
+        useTitus,
+        checkItemChatGate,
+        useItem,
+        attackRoll,
         prepareCharacterItems,
         generateAppliedEffectDescription,
         prepareSheetData
