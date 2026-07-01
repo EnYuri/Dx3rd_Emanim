@@ -299,6 +299,7 @@ class DX3rdComboSheet extends window.DX3rdItemSheet {
 // Combo 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdComboSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['combo'],
   makeDefault: true
 });

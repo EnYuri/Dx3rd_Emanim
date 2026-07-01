@@ -84,6 +84,7 @@ class DX3rdProtectSheet extends window.DX3rdItemSheet {
 // Protect 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdProtectSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['protect'],
   makeDefault: true
 });

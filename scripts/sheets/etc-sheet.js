@@ -83,6 +83,7 @@ class DX3rdEtcSheet extends window.DX3rdItemSheet {
 // Etc 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdEtcSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['etc'],
   makeDefault: true
 });

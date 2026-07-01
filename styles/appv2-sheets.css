@@ -1,31 +1,40 @@
 /*
  * AppV2 시트 전용 스타일.
  *
- * 마이그레이션 중 AppV2 파일럿 시트에만 필요한 보정을 여기에 격리한다.
+ * 마이그레이션 중 AppV2 시트에만 필요한 보정을 여기에 격리한다.
  * AppV1 본체 스타일(styles/styles.css)은 AppV1/공용 규칙만 유지한다.
  *
- * AppV2 파일럿 시트가 AppV1 전용 sheet-wrapper 레이아웃에 의존하지 않도록
- * AppV2 root/class 아래에서 필요한 보정만 유지한다.
+ * 액터 V2 시트는 AppV1 마크업/CSS를 그대로 이식했고, 컨테이너(window-content)에
+ * .sheet-wrapper 클래스를 부여(actor-sheet-v2.js _onRender)하므로 styles.css 의
+ * .sheet-wrapper 스코프 규칙이 외형을 담당한다. 여기서는 AppV2 윈도우 크롬과
+ * 충돌하는 부분만 최소한으로 보정한다.
  */
 
+/* ---------- 공용 다크 테마(아이템/액터 V2) ---------- */
 .application.sheet.dx3rd-emanim {
     color: #e0e0e0;
 }
 
+/* 헤더/콘텐츠 배경: Foundry v13 은 이 색을 CSS 변수로만 넣어 background 속성 직접 경쟁이
+   없다(실측: !important 를 벗겨도 값 유지). !important 없이 우리 특이도로 이기므로 제거해
+   테마 모듈이 재정의할 여지를 남긴다. */
 .application.sheet.dx3rd-emanim .window-header {
-    background: #1f1f1f !important;
-    border-bottom-color: #383838 !important;
-    color: #f5f5f5 !important;
+    background: #1f1f1f;
+    border-bottom-color: #383838;
+    color: #f5f5f5;
 }
 
 .application.sheet.dx3rd-emanim .window-content {
-    background: #121212 !important;
-    color: #e0e0e0 !important;
+    background: #121212;
+    color: #e0e0e0;
 }
 
-.application.sheet.dx3rd-emanim button,
-.application.sheet.dx3rd-emanim .dialog-buttons button,
-.application.sheet.dx3rd-emanim .dialog-button {
+/* 버튼/입력 기본 톤은 아이템 V2 시트에만 적용한다.
+   액터 V2 시트는 AppV1 .sheet-wrapper 규칙(styles.css)이 입력/버튼을 담당하므로
+   여기서 덮어쓰지 않는다. */
+.application.sheet.dx3rd-emanim.item button,
+.application.sheet.dx3rd-emanim.item .dialog-buttons button,
+.application.sheet.dx3rd-emanim.item .dialog-button {
     background: #2a2a2a;
     border: 1px solid #444;
     border-radius: 4px;
@@ -33,66 +42,265 @@
     transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.application.sheet.dx3rd-emanim button:hover:not(:disabled),
-.application.sheet.dx3rd-emanim .dialog-buttons button:hover:not(:disabled),
-.application.sheet.dx3rd-emanim .dialog-button:hover:not(:disabled) {
+.application.sheet.dx3rd-emanim.item button:hover:not(:disabled),
+.application.sheet.dx3rd-emanim.item .dialog-buttons button:hover:not(:disabled),
+.application.sheet.dx3rd-emanim.item .dialog-button:hover:not(:disabled) {
     background: #3a3a3a;
     border-color: #666;
 }
 
-.application.sheet.dx3rd-emanim button:disabled,
-.application.sheet.dx3rd-emanim .dialog-buttons button:disabled,
-.application.sheet.dx3rd-emanim .dialog-button:disabled {
+.application.sheet.dx3rd-emanim.item button:disabled,
+.application.sheet.dx3rd-emanim.item .dialog-buttons button:disabled,
+.application.sheet.dx3rd-emanim.item .dialog-button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
 }
 
-.application.sheet.dx3rd-emanim input,
-.application.sheet.dx3rd-emanim select,
-.application.sheet.dx3rd-emanim textarea {
+.application.sheet.dx3rd-emanim.item input,
+.application.sheet.dx3rd-emanim.item select,
+.application.sheet.dx3rd-emanim.item textarea {
     background: #181818;
     border: 1px solid #3c3c3c;
     border-radius: 4px;
     color: #f5f5f5;
 }
 
-.application.sheet.dx3rd-emanim input:focus,
-.application.sheet.dx3rd-emanim select:focus,
-.application.sheet.dx3rd-emanim textarea:focus {
+.application.sheet.dx3rd-emanim.item input:focus,
+.application.sheet.dx3rd-emanim.item select:focus,
+.application.sheet.dx3rd-emanim.item textarea:focus {
     border-color: #6a6a6a;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
     outline: none;
 }
 
-.application.sheet.dx3rd-emanim select {
-    background-color: var(--input-background-color) !important;
+/* 드롭다운 배경: Foundry v13 테마가 select 요소에 --input-background-color(#302831,
+   보라빛)을 직접 주입해 AppV1 모노 톤과 어긋난다. select 자체에 변수를 덮어 모노로
+   되돌린다(조상 오버라이드는 self-set 변수에 가려 닿지 않음). */
+.application.sheet.dx3rd-emanim.item select {
+    --input-background-color: rgba(0, 0, 0, 0.1) !important;
+    background-color: rgba(0, 0, 0, 0.1) !important;
     color: #fff !important;
 }
 
-.application.sheet.dx3rd-emanim select option {
+.application.sheet.dx3rd-emanim.item select option {
     background-color: #101010 !important;
     color: #fff !important;
 }
 
-.application.sheet.dx3rd-emanim.item > .window-content,
-.application.sheet.dx3rd-emanim.actor > .window-content {
+/* ---------- 윈도우 콘텐츠 레이아웃 ---------- */
+.application.sheet.dx3rd-emanim.item > .window-content {
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
+    /* AppV2 기본 window-content 패딩(16px)은 고정폭 그리드/표를 좁혀 라벨 줄바꿈을
+       유발한다. AppV1(.window-app) 기본값 8px 으로 맞춰 가용폭을 일치시킨다. */
+    padding: 8px;
 }
 
-.application.sheet.dx3rd-emanim.item > .window-content > [class$="-sheet-v2-content"],
-.application.sheet.dx3rd-emanim.actor > .window-content > [class$="-sheet-v2-content"] {
+/* ---------- 아이템 V2 본문 표 레이아웃 보정 (AppV1 외형 일치) ----------
+   효과/대상 탭은 <table> 마크업을 쓰는데, ApplicationV2 프레임워크 기본 표 스타일이
+   th/td 에 padding:8px 16px 를 주어 라벨 칸이 좁아지고("활성화 → 활/성/화" 줄바꿈)
+   행 높이가 비대해진다. AppV1 의 th/td(padding:3.5px 0, line-height:normal) 박스모델로
+   되돌리고, 짧은 항목 라벨은 nowrap 으로 한 줄을 보장한다. */
+/* 실측 결과 Foundry 표 기본값은 우리 특이도로 이겨서 !important 불필요. */
+.application.sheet.dx3rd-emanim.item table th,
+.application.sheet.dx3rd-emanim.item table td {
+    padding: 3.5px 0;
+    line-height: normal;
+    white-space: nowrap;
+}
+
+/* 입력/셀렉트 클리핑 보정:
+   AppV2 프레임워크가 input/select 에 line-height(약 32px)와 min-height 를 크게 주어,
+   AppV1 의 작은 고정 박스(숫자칸 22px 등) 안에서 텍스트가 세로로 잘리고, 좌우 패딩
+   8px 이 좁은 숫자칸 폭을 먹어 값이 보이지 않는다. line-height/min-height/padding 을
+   AppV1 값으로 되돌린다. */
+/* line-height 는 Foundry 프레임워크의 :where() 규칙(약 32px)이 실제로 경쟁하므로 !important
+   유지 필요(실측: 벗기면 32px 로 되돌아감). min-height 는 경쟁 규칙이 우리 특이도 아래라 제거. */
+.application.sheet.dx3rd-emanim.item input:not([type="checkbox"]):not([type="radio"]),
+.application.sheet.dx3rd-emanim.item select,
+.application.sheet.dx3rd-emanim.item textarea {
+    line-height: normal !important;
+    min-height: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes input:not([type="checkbox"]):not([type="radio"]),
+.application.sheet.dx3rd-emanim.item .sheet-attributes select,
+.application.sheet.dx3rd-emanim.item table input:not([type="checkbox"]):not([type="radio"]),
+.application.sheet.dx3rd-emanim.item table select {
+    padding: 1px 3px;
+}
+
+/* 체크박스/토글 박스: AppV2 는 .flexrow > * 에 flex:1 을 줘서 체크박스를 ~40px 까지
+   가로로 늘려(여백 과다) AppV1 의 20px 정사각과 어긋난다. 아이템/액터 공통으로 20px
+   정사각 고정한다. */
+.application.sheet.dx3rd-emanim.item input[type="checkbox"],
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 input[type="checkbox"] {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    min-height: 0;
+    /* 체크 시 강조색(주황)이 네이티브로 그려져 배경색/accent-color 로는 못 잡는다
+       (appearance:none 이어도 페인트에 주황이 남음). 소스와 무관하게 grayscale 필터로
+       탈색해 모노 톤(밝은 회색 체크)으로 통일한다. */
+    filter: grayscale(1) brightness(1.15);
+}
+
+.application.sheet.dx3rd-emanim.item > .window-content > [class$="-sheet-v2-content"] {
     color: inherit;
     flex: 1 1 auto;
     min-height: 0;
 }
 
+/* 액터 V2: window-content 가 .sheet-wrapper(=flex column, height:100%) 역할을 겸한다.
+   세로 스크롤만 허용하고 내부는 AppV1 규칙에 맡긴다.
+   - padding 8px: AppV1(.window-app) 기본값과 동일하게 맞춰 내부 가용폭을 일치시킨다.
+     (AppV2 기본 패딩은 더 커서 고정폭 그리드가 넘쳐 줄바꿈이 발생함)
+   - gap 0: AppV2 기본 window-content gap 으로 섹션 사이가 벌어지는 것을 막는다.
+   - scrollbar-gutter stable: 콤보/로이스처럼 내용이 짧아 스크롤바가 없는 탭과
+     이팩트/장비처럼 스크롤바가 생기는 탭 사이에서 스크롤바 폭(약 10px)만큼
+     가용폭이 달라져 탭 전환 시 내용이 좌우로 밀려 시트가 커졌다 작아졌다 하는 것처럼
+     보인다. 스크롤바 유무와 무관하게 항상 자리를 예약해 폭을 고정한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content {
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    min-height: 0;
+    padding: 8px;
+    gap: 0;
+    box-sizing: border-box;
+}
+
+/* ---------- 액터 V2 비주얼 보정 (AppV1 외형 일치) ---------- */
+
+/* #2 최소 너비: AppV1 은 .app.window-app...actor 에 min/max-width:850px 가 걸려 있으나
+   AppV2 외곽은 .application 이라 미적용 → 고정폭 그리드가 줄바꿈으로 깨진다.
+   동일하게 850px 최소폭을 보장한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 {
+    min-width: 850px;
+}
+
+/* AppV2 기본 input/select min-height 가 AppV1 고정 높이 박스를 밀어내며
+   "박스 내 공백 과다"를 유발 → 0 으로 리셋(높이는 AppV1 규칙이 지정). */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 input,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select {
+    min-height: 0;
+}
+
+/* #2 입력 박스 공백/폭: AppV1 flex 모델을 그대로 재현한다.
+   AppV1 은 .stat 을 flex:1 1 0% + flex-wrap:wrap 으로 두어, 각 칸(155~162px 셀) 안에서
+   가변 분배한다 → 행동치(단일 입력)=60px, 이동/상비점=41px, 경험점=36px 처럼 칸마다 다르다.
+   이전에 이를 일괄 flex:0 0 36px 로 고정했더니 행동치가 60→36 으로 과도하게 줄고 다른 칸도
+   어긋났다(실측 확인). 폭/높이는 styles.css(.sheet-stat .stat width:60px 등)에 맡기고
+   여기선 flex 분배와 shrink 만 AppV1 과 동일하게 보정한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .stat-box .stat-list {
+    flex-wrap: wrap;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .stat-box .stat-list .stat {
+    flex: 1 1 0%;
+    min-width: 0;
+    padding: 1px 3px;
+}
+
+/* 다이스 라벨 옆 임계치 표시(addon-critical-min)·이펙트 사용횟수(used-input) 등 작은 고정폭
+   입력은 AppV2 기본 좌우 패딩(8px)이 내부 가용폭을 먹어 숫자가 잘린다(예: 22px 박스에
+   16px 패딩 → 내용 6px). 아이템 시트와 동일하게 좁은 패딩으로 되돌리고 가운데 정렬한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .dice-info .addon-critical-min,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .item-addon .used-input,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .checkbox-input {
+    padding: 1px 2px !important;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .dice-info .flex {
+    flex-wrap: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .dice-info .flex input {
+    flex: 0 0 40px;
+    width: 40px;
+    min-width: 0;
+    text-align: center;
+}
+
+/* dice-info 의 다이스 표시(메이저/리액션 등) select 는 같은 행의 DX 보정 입력들과
+   294px 폭을 나눠 써야 한다. AppV2 기본 flex:0 0 auto(축소 불가)면 select 가 내용폭
+   전체를 점유해 뒤 입력(DX 값·상비점)을 밀어낸다 → AppV1 과 동일하게 0 1 auto(축소
+   허용)로 둔다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .dice-info .flex select {
+    flex: 0 1 auto !important;
+}
+
+/* #3 헤더 인라인 버튼(액터 타입/프로토타입 토큰/아이템 확장 도구): AppV2 header-control 은
+   아이콘 전용이라 라벨이 안 보인다 → 아이콘+텍스트가 보이도록 폭/패딩을 풀어준다.
+   액터 시트와 아이템 시트(확장 도구) 공통. */
+.application.sheet.dx3rd-emanim .window-header .dx3rd-header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: auto;
+    padding: 0 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim .window-header .dx3rd-header-btn > span {
+    line-height: 1;
+}
+
+/* #1 드롭다운 항목: AppV1 의 option { color:black } 규칙이 AppV2 다크 팝업에서
+   검정 글씨가 되어 거의 안 보인다 → 흰 글씨/어두운 배경으로 강제. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select option {
+    background-color: #101010 !important;
+    color: #fff !important;
+}
+
+/* #6 드롭다운 본체: (a) Foundry v13 테마가 select 에 --input-background-color(#302831,
+   보라빛)을 직접 주입해 모노 톤과 어긋난다 → 변수/배경을 AppV1 모노로 되돌린다.
+   (b) AppV2 기본 select 는 flex:0 0 auto + 내용폭(긴 옵션 기준)으로 커져 메이저/DX 행을
+   넘쳐 뒤 필드(DX 보정값·상비점)를 가린다 → 축소를 허용해 AppV1 처럼 줄어들게 한다.
+   (단, .dice-info 의 고정폭 select 는 자체 규칙이 우선하도록 건드리지 않는다.) */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select {
+    --input-background-color: rgba(0, 0, 0, 0.1) !important;
+    background-color: rgba(0, 0, 0, 0.1) !important;
+    color: #fff !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+}
+
+/* #4 포트레이트: 상단 기준으로 크롭(머리/얼굴을 살리고 아래쪽을 잘라낸다). */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .grid-img .profile-img,
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .enemy-portrait-img .profile-img {
+    object-fit: cover !important;
+    object-position: center top !important;
+}
+
+/* #5 침식 바: AppV2 기본 input 높이가 바(24px)보다 커서 텍스트가 상하로 잘린다.
+   바 내부 입력들의 높이/정렬을 바에 맞춘다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .encroachment-bar input {
+    height: 22px;
+    line-height: 22px;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .encroachment-value-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .encroachment-bar .dice-addon {
+    align-items: center;
+}
+
+/* ---------- 아이템 V2 공통 헤더 ---------- */
 .application.sheet.dx3rd-emanim.item .sheet-header {
     align-items: center;
-    background: #2d2d2d !important;
-    color: #fff !important;
+    background: #2d2d2d;
+    color: #fff;
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
@@ -123,7 +331,7 @@
 }
 
 .application.sheet.dx3rd-emanim.item .sheet-header h1.charname input {
-    color: #fff !important;
+    color: #fff;
     font-size: 18px;
     height: 32px;
     line-height: 32px;
@@ -139,294 +347,12 @@
     text-align: center;
 }
 
-.application.sheet.dx3rd-emanim.item .sheet-body,
-.application.sheet.dx3rd-emanim.actor .sheet-body {
+.application.sheet.dx3rd-emanim.item .sheet-body {
     flex: 1 1 auto;
     min-height: 0;
 }
 
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 > .window-content,
-.actor-sheet-v2-content {
-    min-height: 0;
-}
-
-.actor-sheet-v2-content {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .flex {
-    display: flex;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .slash {
-    font-weight: bold;
-    margin: 0 10px;
-    padding-top: 4px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-header {
-    align-items: center;
-    display: flex;
-    gap: 10px;
-    height: auto;
-    min-height: 128px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .profile-img {
-    flex: 0 0 80px;
-    height: 80px;
-    object-fit: cover;
-    width: 80px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname {
-    border: 0;
-    display: flex;
-    gap: 6px;
-    height: 40px;
-    margin: 0 0 6px;
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname input {
-    color: #fff !important;
-    flex: 1 1 auto;
-    font-size: 26px;
-    height: 38px;
-    line-height: 38px;
-    min-width: 0;
-    width: 100%;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields h1.charname button {
-    align-self: center;
-    height: 30px;
-    width: 34px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields .flexrow {
-    align-items: center;
-    gap: 8px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .header-fields label {
-    flex: 0 0 110px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes {
-    display: grid;
-    gap: 0 10px;
-    grid-auto-rows: minmax(54px, auto);
-    grid-template-columns: repeat(16, minmax(0, 1fr));
-    padding: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell {
-    align-content: flex-start;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    min-width: 0;
-    position: relative;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .cell .cell--title {
-    align-items: center;
-    background: black;
-    color: #fff;
-    display: flex;
-    flex: 1 1 100px;
-    flex-basis: 100px;
-    font-weight: bold;
-    height: 34px;
-    justify-content: center;
-    margin-bottom: 5px;
-    padding: 5px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .space-between .cell--title {
-    justify-content: space-between;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .cell--crit {
-    font-weight: bold;
-    margin: 0;
-    text-align: center;
-    width: 40px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .checkbox-input {
-    height: 22px;
-    margin: 2px 5px;
-    text-align: center;
-    width: 22px;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes input,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes select {
-    border-radius: 0 !important;
-    margin-bottom: 8px;
-    text-align: center;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex {
-    align-items: center;
-    display: flex;
-    gap: 4px;
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex input,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-attributes .cell .flex select {
-    min-width: 0;
-}
-
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-body .tab,
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-body .sheet-tab {
-    height: 100%;
-}
-
-.actor-sheet-v2-skill-grid {
-    display: grid;
-    gap: 6px;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.actor-sheet-v2-skill {
-    min-width: 0;
-}
-
-.actor-sheet-v2-item-section {
-    margin: 8px 0;
-}
-
-.actor-sheet-v2-item-section .items-header {
-    align-items: center;
-    background: #000;
-    color: #fff;
-    gap: 6px;
-    min-height: 28px;
-    padding: 2px 6px;
-}
-
-.actor-sheet-v2-item-section .items-header label {
-    flex: 1 1 auto;
-    font-weight: bold;
-    min-width: 0;
-}
-
-.actor-sheet-v2-item-section .items-list,
-.actor-sheet-v2-compact-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.actor-sheet-v2-compact-list .item {
-    align-items: center;
-    display: flex;
-    gap: 6px;
-    min-height: 32px;
-    min-width: 0;
-    padding: 4px 6px;
-}
-
-.actor-sheet-v2-item-section .item {
-    align-items: center;
-    border-bottom: 1px solid #333;
-    display: flex;
-    gap: 6px;
-    min-height: 32px;
-    min-width: 0;
-    padding: 4px 6px;
-}
-
-.actor-sheet-v2-item-section .item-image {
-    flex: 0 0 24px;
-    height: 24px;
-    object-fit: cover;
-    width: 24px;
-}
-
-.actor-sheet-v2-item-section .item-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.actor-sheet-v2-compact-list .item-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.actor-sheet-v2-compact-list input[type="checkbox"],
-.actor-sheet-v2-compact-list button {
-    flex: 0 0 auto;
-}
-
-.actor-sheet-v2-item-section .item-summary,
-.actor-sheet-v2-item-summary,
-.actor-sheet-v2-empty {
-    color: #999;
-}
-
-.actor-sheet-v2-item-summary {
-    flex: 0 1 auto;
-    font-size: 0.85em;
-    min-width: 0;
-}
-
-.actor-sheet-v2-small-button,
-.actor-sheet-v2-icon-button,
-.actor-sheet-v2-text-button,
-.actor-sheet-v2-item-section button {
-    flex: 0 0 auto;
-    line-height: 1;
-    padding: 3px 6px;
-}
-
-.actor-sheet-v2-text-button {
-    background: transparent;
-    border: 0;
-    color: inherit;
-    cursor: pointer;
-    padding: 0;
-    text-align: left;
-}
-
-.actor-sheet-v2-text-button:hover {
-    text-decoration: underline;
-}
-
-.actor-sheet-v2-icon-button {
-    float: right;
-}
-
-.actor-sheet-v2-inline-controls {
-    align-items: center;
-    display: inline-flex;
-    flex: 0 0 auto;
-    gap: 4px;
-    white-space: nowrap;
-}
-
-.actor-sheet-v2-used-input {
-    width: 42px;
-}
-
+/* ---------- ProseMirror(아이템/액터 공통) ---------- */
 .application.sheet.dx3rd-emanim prose-mirror,
 .application.sheet.dx3rd-emanim prose-mirror .editor-content,
 .application.sheet.dx3rd-emanim prose-mirror .editor-content *,
@@ -440,22 +366,34 @@
     min-height: 350px;
 }
 
-/* 아이템 행 인라인 컨트롤: 채팅 출력 / 설명 펼침 버튼 + 인라인 설명 */
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .actor-sheet-v2-item-btn {
+/* 워크스/신드롬은 채팅 아이콘이 추가돼 컨트롤이 3~4개가 되는데, 기본 .item-controls 는
+   flex: 0 0 54px 고정폭이라 삭제 버튼이 다음 줄로 밀려 정렬이 어긋난다. 채팅 아이콘이
+   들어간 컨트롤에 한해 고정폭을 풀고 한 줄(nowrap)로 우측 정렬한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .item-controls:has(.echo-chat) {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
     flex: 0 0 auto;
-    width: auto;
-    min-width: 0;
-    padding: 0 4px;
-    line-height: 1.4;
-    background: transparent;
-    border: none;
-    color: inherit;
+    gap: 4px;
+}
+
+/* 워크스/신드롬 채팅 표시 버튼: 기존 아이템 이미지(기본 아이콘이 '주머니'로 보임) 대신
+   채팅 아이콘으로 교체했다. 24px 정사각 클릭 영역에 아이콘을 가운데 정렬한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .item-controls .echo-item.echo-chat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
     cursor: pointer;
-    opacity: 0.7;
+    color: var(--fe-ac-80, #cccccc);
 }
-.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .actor-sheet-v2-item-btn:hover {
-    opacity: 1;
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .echo-item.echo-chat:hover {
+    color: #fff;
 }
+
+/* ---------- 액터 V2 인라인 설명 펼침(AppV1 마크업과 동일 동작) ---------- */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item-description {
     flex: 1 0 100%;
     width: 100%;
@@ -464,4 +402,12 @@
     border-top: 1px solid rgba(255, 255, 255, 0.15);
     font-size: 0.85em;
     line-height: 1.5;
+}
+
+/* 목록 항목 행 높이: AppV1 환경은 목록 항목 h4 의 브라우저 기본 마진을 리셋하지만 AppV2
+   (.application)는 그렇지 않아, item-addon(h4)의 기본 상하 마진(≈32/16px)이 flex 교차축을
+   부풀려 콤보/이펙트/장비/로이스 탭의 행 높이가 과도하게 커진다(실측 99px vs AppV1 68px).
+   AppV1 처럼 마진을 제거해 행 높이를 맞춘다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item h4 {
+    margin: 0;
 }

@@ -15,7 +15,7 @@
     static DEFAULT_OPTIONS = {
       classes: ['dx3rd-emanim', 'sheet', 'actor', 'actor-sheet-v2'],
       position: {
-        width: 800,
+        width: 850,
         height: 650
       },
       window: {
@@ -84,10 +84,135 @@
       return prepared;
     }
 
+    /**
+     * AppV2 헤더 컨트롤(⋮ 메뉴). AppV1 은 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로
+     * 노출하므로, 여기서는 동일한 항목들을 드롭다운에서 제거하고 _injectHeaderButtons 로
+     * 헤더에 직접 주입한다(중복 방지).
+     */
+    _getHeaderControls() {
+      return super._getHeaderControls()
+        .filter(control => !/token/i.test(control.action || ''));
+    }
+
+    /**
+     * AppV1 _getHeaderButtons 의 인라인 버튼(액터 타입/프로토타입 토큰)을 AppV2 윈도우 헤더에
+     * 직접 주입한다. AppV2 는 _getHeaderControls 를 ⋮ 드롭다운으로만 렌더하므로,
+     * "헤더에 노출"하려면 DOM 주입이 필요하다.
+     */
+    _injectHeaderButtons() {
+      const header = this.element?.querySelector('.window-header');
+      if (!header) return;
+
+      // 재렌더 시 중복 주입 방지
+      header.querySelectorAll('.dx3rd-header-btn').forEach(el => el.remove());
+
+      // simple 시트(enemy 등 일부)는 액터 타입 편집을 노출하지 않는다(AppV1과 동일).
+      if (actorData.shouldUseSimpleSheet(this.document)) return;
+
+      const anchor = header.querySelector('[data-action="toggleControls"]')
+        || header.querySelector('[data-action="close"]');
+
+      const makeButton = (icon, label, handler) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'header-control dx3rd-header-btn';
+        button.dataset.tooltip = label;
+        button.innerHTML = `<i class="${icon}"></i><span>${label}</span>`;
+        button.addEventListener('click', handler);
+        if (anchor) header.insertBefore(button, anchor);
+        else header.appendChild(button);
+      };
+
+      if (game.user.isGM) {
+        makeButton('fa-solid fa-user-tag', game.i18n.localize('DX3rd.ActorType'),
+          event => DX3rdActorSheetV2._onEditActorType.call(this, event, event.currentTarget));
+      }
+      makeButton('fa-solid fa-user-circle', '토큰',
+        event => this._onConfigurePrototypeToken(event));
+    }
+
+    /**
+     * 헤더 버튼 최종 정렬. AppV2 헤더에는 여러 출처가 버튼을 주입한다:
+     *   - 우리 시트: 액터 타입/토큰 (.dx3rd-header-btn)
+     *   - female_edition: 스테이터스(.fedr-sheet-btn), 무대에 추가(.fet-stage-btn) — close 앞에 삽입
+     *   - 코어: 시트UUID(인라인 컨트롤), 드롭다운(⋮, toggleControls), 닫기(close)
+     * 원하는 좌→우 순서로 재배열한다:
+     *   [스테이터스·무대에추가] → [액터타입·토큰] → [시트UUID] → [드롭다운 ⋮] → [닫기]
+     * appendChild 는 기존 노드를 이동시키므로 desired 순서대로 다시 붙이면 정렬된다.
+     */
+    _reorderHeaderButtons() {
+      const header = this.element?.querySelector('.window-header');
+      if (!header) return;
+
+      const children = Array.from(header.children);
+      const icon = children.find(c => c.classList.contains('window-icon'));
+      const title = children.find(c => c.classList.contains('window-title'));
+      const toggle = header.querySelector('[data-action="toggleControls"]');
+      const close = header.querySelector('[data-action="close"]');
+
+      const isHeadFixed = c => c === icon || c === title;
+      const isFront = c => c.classList.contains('fedr-sheet-btn') || c.classList.contains('fet-stage-btn');
+      const isOurs = c => c.classList.contains('dx3rd-header-btn');
+      const isTail = c => c === toggle || c === close;
+
+      const frontMods = children.filter(isFront);
+      const ours = children.filter(isOurs);
+      const misc = children.filter(c => !isHeadFixed(c) && !isFront(c) && !isOurs(c) && !isTail(c));
+
+      const desired = [...frontMods, ...ours, ...misc];
+      if (toggle) desired.push(toggle);
+      if (close) desired.push(close);
+
+      // 이미 정렬되어 있으면 DOM 변경을 하지 않는다(MutationObserver 재귀 방지).
+      const current = children.filter(c => !isHeadFixed(c));
+      const same = current.length === desired.length && current.every((c, i) => c === desired[i]);
+      if (same) return;
+
+      desired.forEach(el => header.appendChild(el));
+    }
+
+    /**
+     * female_edition 등은 우리 _onRender 이후(renderActorSheetV2 훅) 헤더에 버튼을 주입하고,
+     * 상태 변경 시 전체 재렌더 없이 재주입하기도 한다. childList 변화를 관찰해 그때마다 재정렬한다.
+     * _reorderHeaderButtons 는 이미 정렬된 경우 no-op 이므로 관찰 루프가 자연히 종료된다.
+     */
+    _observeHeaderButtons() {
+      this._headerObserver?.disconnect();
+      const header = this.element?.querySelector('.window-header');
+      if (!header) return;
+      this._headerObserver = new MutationObserver(() => this._reorderHeaderButtons());
+      this._headerObserver.observe(header, {childList: true});
+    }
+
+    _onConfigurePrototypeToken(event) {
+      event?.preventDefault();
+      const PrototypeTokenConfig = foundry.applications?.sheets?.PrototypeTokenConfig;
+      if (!PrototypeTokenConfig) {
+        ui.notifications.warn('PrototypeTokenConfig를 사용할 수 없습니다.');
+        return;
+      }
+      try {
+        new PrototypeTokenConfig({prototype: this.document.prototypeToken}).render(true);
+      } catch (error) {
+        console.error('DX3rd | ActorSheetV2 prototype token config failed:', error);
+      }
+    }
+
     async _onRender(context, options) {
       await super._onRender(context, options);
       const root = this.element;
       if (!root) return;
+
+      // AppV1 styles.css는 .sheet-wrapper 스코프이므로, 컨테이너(window-content)에
+      // sheet-wrapper 클래스를 부여해 동일한 외형 규칙을 그대로 적용한다.
+      root.querySelector('.window-content')?.classList.add('sheet-wrapper');
+
+      // 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로 노출(AppV1 동작과 동일).
+      this._injectHeaderButtons();
+
+      // 헤더 버튼 정렬 + 이후 모듈 주입(female_edition 등)까지 관찰해 원하는 순서 유지.
+      this._reorderHeaderButtons();
+      this._observeHeaderButtons();
 
       this._eventListeners?.abort();
       this._eventListeners = new AbortController();
@@ -98,16 +223,17 @@
         element.addEventListener('contextmenu', event => this._onItemContextMenu(event), listenerOptions);
       });
 
-      root.querySelectorAll('.actor-sheet-v2-used-input:not([disabled])').forEach(input => {
+      // 변경 이벤트는 AppV1 마크업과 동일한 클래스 훅으로 바인딩한다.
+      root.querySelectorAll('.used-input:not([disabled])').forEach(input => {
         input.addEventListener('change', event => this._onUsedStateChange(event), listenerOptions);
       });
-      root.querySelectorAll('.actor-sheet-v2-active-check').forEach(input => {
+      root.querySelectorAll('.active-check').forEach(input => {
         input.addEventListener('change', event => this._onActiveChange(event), listenerOptions);
       });
-      root.querySelectorAll('.actor-sheet-v2-equipment-check').forEach(input => {
+      root.querySelectorAll('.active-equipment').forEach(input => {
         input.addEventListener('change', event => this._onEquipmentChange(event), listenerOptions);
       });
-      root.querySelectorAll('.actor-sheet-v2-syndrome-check').forEach(input => {
+      root.querySelectorAll('.syndrome-check').forEach(input => {
         input.addEventListener('change', event => this._onSyndromeChange(event), listenerOptions);
       });
     }
@@ -115,6 +241,8 @@
     async _onClose(options) {
       this._eventListeners?.abort();
       this._eventListeners = null;
+      this._headerObserver?.disconnect();
+      this._headerObserver = null;
       await super._onClose(options);
     }
 
@@ -466,7 +594,7 @@
 
   const ActorsClass = foundry.documents?.collections?.Actors || Actors;
   ActorsClass.registerSheet('dx3rd-emanim', DX3rdActorSheetV2, {
-    label: 'DX3rd.AppV2PilotSheet',
+    label: 'DX3rd.SheetV2',
     types: ['character', 'enemy'],
     makeDefault: false
   });

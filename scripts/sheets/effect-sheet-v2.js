@@ -133,7 +133,7 @@
 
   const ItemsClass = foundry.documents?.collections?.Items || Items;
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdEffectSheetV2, {
-    label: 'DX3rd.AppV2PilotSheet',
+    label: 'DX3rd.SheetV2',
     types: ['effect'],
     makeDefault: false
   });

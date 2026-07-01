@@ -116,7 +116,7 @@
 
   const ItemsClass = foundry.documents?.collections?.Items || Items;
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdConnectionSheetV2, {
-    label: 'DX3rd.AppV2PilotSheet',
+    label: 'DX3rd.SheetV2',
     types: ['connection'],
     makeDefault: false
   });

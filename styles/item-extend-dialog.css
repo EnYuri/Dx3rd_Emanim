@@ -1,7 +1,8 @@
 /* Item Extend Dialog - 기존 스타일과 일관성 유지 */
+/* 4열 그리드가 좁아지면 라벨이 2줄로 접히고 행 높이가 어긋난다. 최소 폭을 보장해
+   기본(650px) 폭이 유지되도록 하고, 과도한 max-width 제한을 제거한다. */
 .item-extend-dialog {
-    max-width: 500px;
-    max-height: 420px;
+    min-width: 600px;
 }
 
 .item-extend-dialog .window-content {
@@ -18,33 +19,42 @@
     border-bottom: none;
 }
 
-.item-extend-dialog .top-tabs button {
+/* 탭 색 스코프:
+   appv2-sheets.css 의 .item button(배경 #2a2a2a, 0,4,1)·:hover:not(:disabled)(0,6,1)이
+   광범위하게 덮는다. 그 파일이 뒤에 로드되므로 동률이면 그쪽이 이긴다.
+   !important 로 힘겨루기하면 이 다이얼로그를 테마 모듈이 다시 못 덮으므로(모듈 호환성),
+   대신 루트 실클래스 체인(.application.sheet.dx3rd-emanim.item.item-extend-dialog)으로
+   특이도를 올려 순서와 무관하게 자연스럽게 이긴다. 테마 모듈은 !important 하나로 재정의 가능. */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .top-tabs button {
     flex: 1;
     padding: 8px 16px;
     background: #404040;
-    color: white;
+    color: #fff;
     border: 1px solid #000;
     cursor: pointer;
     font-size: 14px;
-    font-weight: bold;
+    font-weight: normal;
     border-radius: 4px 4px 0 0;
     transition: background 0.2s ease;
     height: 40px;
     box-sizing: border-box;
 }
 
-.item-extend-dialog .top-tabs button:last-child {
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .top-tabs button:last-child {
     border-right: 1px solid #000;
 }
 
-.item-extend-dialog .top-tabs button:hover {
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .top-tabs button:hover {
     background: #555;
+    color: #fff;
 }
 
-.item-extend-dialog .top-tabs button.active {
-    background: #fff;
+/* 활성 탭: 아이템 시트 탭과 동일하게 흰 배경/검정 글씨/굵게. hover 규칙보다 뒤에 두어
+   활성 탭에 hover 가 겹칠 때도 흰 배경이 유지되게 한다. */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .top-tabs button.active {
+    background: #909090;
     color: #000;
-    border-bottom: 0;
+    border-color: #000;
     text-shadow: none;
     font-weight: bold;
 }
@@ -64,7 +74,7 @@
     padding: 0;
     gap: 0;
     background: transparent;
-    border-bottom: 1px solid #AAA;
+    border-bottom: 1px solid #383838;
     margin: 0;
 }
 
@@ -72,15 +82,16 @@
     display: flex;
 }
 
-.item-extend-dialog .sub-tabs button {
+/* 서브탭도 top-tabs 와 같은 이유로 루트 실클래스 체인으로 특이도만 올린다(!important 없음). */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .sub-tabs button {
     flex: 1;
     padding: 6px 12px;
     background: #404040;
-    color: white;
-    border: 1px solid #AAA;
+    color: #fff;
+    border: 1px solid #000;
     cursor: pointer;
     font-size: 12px;
-    font-weight: bold;
+    font-weight: normal;
     border-radius: 4px 4px 0 0;
     margin: 0 2px -1px;
     transition: background 0.2s ease;
@@ -88,14 +99,15 @@
     box-sizing: border-box;
 }
 
-.item-extend-dialog .sub-tabs button:hover {
-    background: #d0dce8;
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .sub-tabs button:hover {
+    background: #555;
+    color: #fff;
 }
 
-.item-extend-dialog .sub-tabs button.active {
-    background: #fff;
+.application.sheet.dx3rd-emanim.item.item-extend-dialog .sub-tabs button.active {
+    background: #909090;
     color: #000;
-    border-bottom: 0;
+    border-color: #000;
     text-shadow: none;
     font-weight: bold;
 }
@@ -104,7 +116,8 @@
 .item-extend-dialog .sub-tab-content {
     padding: 20px;
     min-height: 250px;
-    border: 1px solid #AAA;
+    background: #181818;
+    border: 1px solid #383838;
     border-radius: 0 0 4px 4px;
     margin: 0 8px 8px 8px;
 }
@@ -127,21 +140,36 @@
 }
 
 .item-extend-dialog .form-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     font-weight: bold;
-    background: rgba(0, 0, 0, 0.05);
-    border: 1px solid #AAA;
+    color: #e0e0e0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #3c3c3c;
     border-radius: 2px;
     height: 26px;
+    /* 긴 라벨(예: 상한회복(목표HP))이 26px 박스를 넘겨 2줄로 접히면 행 높이가 어긋난다.
+       한 줄 유지 + 살짝 작은 글씨로 셀 안에 들어오게 한다. */
+    white-space: nowrap;
+    font-size: 11px;
+    padding: 0 2px;
+    box-sizing: border-box;
+}
+
+/* 체크박스 옆 라벨도 좁은 셀에서 접히지 않도록 한 줄 유지. */
+.item-extend-dialog .form-grid label {
+    white-space: nowrap;
 }
 
 .item-extend-dialog input[type="text"],
 .item-extend-dialog input[type="number"],
 .item-extend-dialog select {
-    border: 1px solid #AAA;
+    border: 1px solid #3c3c3c;
     border-radius: 0;
-    background: white;
-    color: #000;
+    background: #181818;
+    color: #e0e0e0;
     width: 100%;
     box-sizing: border-box;
     text-align: center;
@@ -152,8 +180,8 @@
 .item-extend-dialog input[type="number"]:focus,
 .item-extend-dialog select:focus {
     outline: none;
-    border-color: #19499b;
-    box-shadow: 0 0 3px rgba(25, 73, 155, 0.3);
+    border-color: #6a6a6a;
+    box-shadow: 0 0 3px rgba(255, 255, 255, 0.15);
 }
 
 .item-extend-dialog input[type="checkbox"] {
@@ -177,12 +205,12 @@
     gap: 8px;
     margin-top: 15px;
     padding: 10px 0;
-    border-top: 1px solid #AAA;
+    border-top: 1px solid #383838;
 }
 
 .item-extend-dialog .form-buttons button {
     padding: 8px 16px;
-    border: 1px solid #AAA;
+    border: 1px solid #444;
     border-radius: 2px;
     cursor: pointer;
     font-size: 14px;
@@ -191,25 +219,25 @@
 }
 
 .item-extend-dialog .btn-primary {
-    background: #19499b;
-    color: white;
-    border-color: #19499b;
-}
-
-.item-extend-dialog .btn-secondary {
-    background: #666;
-    color: white;
+    background: #3a3a3a;
+    color: #f5f5f5;
     border-color: #666;
 }
 
+.item-extend-dialog .btn-secondary {
+    background: #2a2a2a;
+    color: #ddd;
+    border-color: #444;
+}
+
 .item-extend-dialog .btn-primary:hover {
-    background: #0d47a1;
-    border-color: #0d47a1;
+    background: #4a4a4a;
+    border-color: #888;
 }
 
 .item-extend-dialog .btn-secondary:hover {
-    background: #555;
-    border-color: #555;
+    background: #3a3a3a;
+    border-color: #666;
 }
 
 /* 기존 시트의 특수 스타일 적용 */
@@ -241,7 +269,7 @@
 /* 기존 시트의 입력 필드 스타일 일치 */
 .item-extend-dialog .sheet-attributes input,
 .item-extend-dialog .sheet-attributes select {
-    background: white;
+    background: #181818;
     margin-bottom: 8px;
     text-align: center;
 }
@@ -250,19 +278,14 @@
     width: 100%;
 }
 
-/* 비활성화된 필드 스타일 */
-.item-extend-dialog input.disabled,
-.item-extend-dialog select.disabled {
-    background-color: #f5f5f5 !important;
-    color: #999 !important;
-    cursor: not-allowed;
-    opacity: 0.6;
-}
-
-.item-extend-dialog input[disabled],
-.item-extend-dialog select[disabled] {
-    background-color: #f5f5f5 !important;
-    color: #999 !important;
+/* 비활성화된 필드 스타일: appv2-sheets.css 의 .item input(색/배경)을 이겨야 하므로 !important
+   대신 루트 실클래스 체인으로 특이도만 올린다(테마 모듈은 !important 로 재정의 가능). */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog input.disabled,
+.application.sheet.dx3rd-emanim.item.item-extend-dialog select.disabled,
+.application.sheet.dx3rd-emanim.item.item-extend-dialog input[disabled],
+.application.sheet.dx3rd-emanim.item.item-extend-dialog select[disabled] {
+    background-color: #0d0d0d;
+    color: #666;
     cursor: not-allowed;
     opacity: 0.6;
 }

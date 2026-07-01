@@ -29,7 +29,7 @@
 
   const ItemsClass = foundry.documents?.collections?.Items || Items;
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdVehicleSheetV2, {
-    label: 'DX3rd.AppV2PilotSheet',
+    label: 'DX3rd.SheetV2',
     types: ['vehicle'],
     makeDefault: false
   });

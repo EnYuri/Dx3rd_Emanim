@@ -33,15 +33,35 @@
       return context;
     }
 
+    /**
+     * AppV1 은 확장 도구를 헤더 버튼(_getHeaderButtons)으로 직접 노출하지만, AppV2 는
+     * _getHeaderControls 를 ⋮ 드롭다운으로만 렌더한다. AppV1 과 동일하게 헤더에 바로
+     * 노출하기 위해 드롭다운에서는 제거하고 _injectItemExtendButton 으로 직접 주입한다.
+     */
     _getHeaderControls() {
-      const controls = super._getHeaderControls();
-      controls.unshift({
-        label: 'DX3rd.ItemExtend',
-        icon: 'fa-solid fa-screwdriver-wrench',
-        action: 'itemExtend',
-        onClick: event => this._openItemExtend(event)
-      });
-      return controls;
+      return super._getHeaderControls()
+        .filter(control => control.action !== 'itemExtend');
+    }
+
+    _injectItemExtendButton() {
+      const header = this.element?.querySelector('.window-header');
+      if (!header) return;
+
+      // 재렌더 시 중복 주입 방지
+      header.querySelectorAll('.dx3rd-header-btn.item-extend').forEach(el => el.remove());
+
+      const label = game.i18n.localize('DX3rd.ItemExtend');
+      const anchor = header.querySelector('[data-action="toggleControls"]')
+        || header.querySelector('[data-action="close"]');
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'header-control dx3rd-header-btn item-extend';
+      button.dataset.tooltip = label;
+      button.innerHTML = `<i class="fa-solid fa-screwdriver-wrench"></i><span>${label}</span>`;
+      button.addEventListener('click', event => this._openItemExtend(event));
+      if (anchor) header.insertBefore(button, anchor);
+      else header.appendChild(button);
     }
 
     _openItemExtend(event) {
@@ -58,6 +78,7 @@
     async _onRender(context, options) {
       await super._onRender(context, options);
       await manager.initializeAttributeLabels(this.element, this.item);
+      this._injectItemExtendButton();
     }
 
     _prepareSubmitData(event, form, formData, updateData) {

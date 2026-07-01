@@ -64,4 +64,26 @@
 
 // 전역 노출 (non-ESM 환경)
 window.DX3rdEffect = DX3rdEffect;
+
+// 아이템 타입 라벨 등록 (AppV2 시트 제목 현지화)
+// AppV1 ItemSheet 제목은 item.name만 사용해 노출되지 않았지만,
+// AppV2 DocumentSheetV2 제목은 `타입라벨: 이름` 형식이라 매핑이 없으면
+// 기본 키("TYPES.Item.<type>")가 미현지화 상태로 그대로 노출된다.
+CONFIG.Item.typeLabels = {
+  works: "DX3rd.Works",
+  syndrome: "DX3rd.Syndrome",
+  combo: "DX3rd.Combo",
+  effect: "DX3rd.Effect",
+  spell: "DX3rd.Spell",
+  psionic: "DX3rd.Psionic",
+  rois: "DX3rd.Rois",
+  vehicle: "DX3rd.Vehicle",
+  weapon: "DX3rd.Weapon",
+  protect: "DX3rd.Protect",
+  connection: "DX3rd.Connection",
+  book: "DX3rd.Book",
+  once: "DX3rd.Once",
+  etc: "DX3rd.Etc",
+  record: "DX3rd.Record"
+};
 })();

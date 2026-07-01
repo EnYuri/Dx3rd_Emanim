@@ -14,6 +14,6 @@
     }
   }
   const ItemsClass = foundry.documents?.collections?.Items || Items;
-  ItemsClass.registerSheet('dx3rd-emanim', DX3rdEtcSheetV2, {label: 'DX3rd.AppV2PilotSheet', types: ['etc'], makeDefault: false});
+  ItemsClass.registerSheet('dx3rd-emanim', DX3rdEtcSheetV2, {label: 'DX3rd.SheetV2', types: ['etc'], makeDefault: false});
   window.DX3rdEtcSheetV2 = DX3rdEtcSheetV2;
 })();

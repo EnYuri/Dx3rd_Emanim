@@ -135,6 +135,7 @@ class DX3rdOnceSheet extends window.DX3rdItemSheet {
 // Once 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdOnceSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['once'],
   makeDefault: true
 });

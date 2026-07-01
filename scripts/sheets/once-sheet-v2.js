@@ -23,6 +23,6 @@
     }
   }
   const ItemsClass = foundry.documents?.collections?.Items || Items;
-  ItemsClass.registerSheet('dx3rd-emanim', DX3rdOnceSheetV2, {label: 'DX3rd.AppV2PilotSheet', types: ['once'], makeDefault: false});
+  ItemsClass.registerSheet('dx3rd-emanim', DX3rdOnceSheetV2, {label: 'DX3rd.SheetV2', types: ['once'], makeDefault: false});
   window.DX3rdOnceSheetV2 = DX3rdOnceSheetV2;
 })();

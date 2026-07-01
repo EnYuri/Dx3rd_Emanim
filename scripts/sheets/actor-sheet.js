@@ -728,6 +728,7 @@
     // 액터 시트 등록 (v13 호환)
     const ActorsClass = foundry.documents?.collections?.Actors || Actors;
     ActorsClass.registerSheet('dx3rd-emanim', DX3rdActorSheet, {
+        label: 'DX3rd.SheetV1',
         types: ['character', 'enemy'],
         makeDefault: true
     });

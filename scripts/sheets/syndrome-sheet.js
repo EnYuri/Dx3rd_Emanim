@@ -43,6 +43,7 @@ class DX3rdSyndromeSheet extends window.DX3rdItemSheet {
 // Syndrome 시트 등록 (v13/v14 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdSyndromeSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['syndrome'],
   makeDefault: true
 });

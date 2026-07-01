@@ -98,6 +98,7 @@ class DX3rdConnectionSheet extends window.DX3rdItemSheet {
 // Connection 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdConnectionSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['connection'],
   makeDefault: true
 });

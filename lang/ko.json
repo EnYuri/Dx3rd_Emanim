@@ -738,5 +738,7 @@
   "DX3rd.ResourceCostAttr.attack": "공격력",
   "DX3rd.ResourceCostAttr.guard": "가드치",
   "DX3rd.ResourceCostAttr.armor": "장갑치",
-  "DX3rd.AppV2PilotSheet": "AppV2 시험 시트"
+  "DX3rd.SheetV1": "DX3rd 시트 (AppV1 · 레거시)",
+  "DX3rd.SheetV2": "DX3rd 시트 (AppV2)",
+  "DX3rd.AppV2SheetsDefault": "AppV2 시트를 기본으로 사용"
 }

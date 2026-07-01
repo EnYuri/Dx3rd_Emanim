@@ -40,7 +40,7 @@
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.SellSaving"}}</label><div class="flex"><input name="system.saving.difficulty" value="{{system.saving.difficulty}}"/><span class="slash"> / </span><input type="number" name="system.saving.value" value="{{system.saving.value}}" data-dtype="Number" min="0"/></div></div>
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.EXP"}}</label><input type="number" name="system.exp" value="{{system.exp}}" data-dtype="Number" min="0"/></div>
         </section>
-        <div class="cell cell--bio"><label class="cell--title">{{localize "DX3rd.Description"}}{{#if isEquipment}}<span class="checkbox-addon flexrow"><span>{{localize "DX3rd.Equipment"}}</span><input type="checkbox" name="system.equipment" {{checked system.equipment}}/></span>{{/if}}</label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" collaborate relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
+        <div class="cell cell--bio"><label class="cell--title">{{localize "DX3rd.Description"}}{{#if isEquipment}}<span class="checkbox-addon flexrow"><span>{{localize "DX3rd.Equipment"}}</span><input type="checkbox" name="system.equipment" {{checked system.equipment}}/></span>{{/if}}</label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
       </div>
     </div>
     <div class="tab {{tabs.attributes.cssClass}}" data-group="primary" data-tab="attributes">

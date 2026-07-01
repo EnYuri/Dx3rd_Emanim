@@ -319,6 +319,7 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
 // 이펙트 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdEffectSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['effect'],
   makeDefault: true
 });

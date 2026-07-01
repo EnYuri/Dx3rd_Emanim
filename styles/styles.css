@@ -443,6 +443,11 @@
     width: 100%;
     margin-bottom: 10px;
     height: 44px;
+    /* AppV2 에서 window-content 가 flex column 이라, 내용이 넘치는 긴 탭(이팩트 등)에서는
+       flex-shrink 가 이 헤더를 min-content(약 32px)까지 눌러 침식률 바 위아래 여백이
+       탭마다 달라진다(짧은 탭은 44px 그대로 → 상대적으로 늘어나 보임).
+       고정 높이 44px 를 항상 유지해 탭 간 일관성을 맞춘다. */
+    flex-shrink: 0;
     display: grid;
     grid-template-columns: repeat(16, minmax(0, 1fr));
     gap: 0px 10px;
@@ -493,7 +498,11 @@
     outline: none !important;
     box-shadow: none !important;
     margin: 0;
-    width: 20px;
+    /* 20px 는 좌우 패딩(4px)까지 감안하면 내용폭이 12px 뿐이라 두 자리 수(예: 침식 증가치
+       88, 침식률 100+)부터 마지막 자리가 잘렸다. 세 자리까지 담기게 폭을 넓히고 패딩을 줄인다. */
+    width: 34px;
+    padding: 0 2px;
+    text-align: center;
     border: 0;
 }
 
@@ -1232,7 +1241,7 @@
 }
 
 .dx3rd-emanim .tabs .item.active {
-    background: #fff;
+    background: #909090;
     color: #000;
     border-bottom: 0;
     text-shadow: none;
@@ -1339,7 +1348,7 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 }
 
 .dx3rd-emanim .tabs .item.active {
-    background: #fff;
+    background: #909090;
     color: #000;
     border-bottom: 0;
     text-shadow: none;

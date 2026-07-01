@@ -127,6 +127,7 @@ class DX3rdWeaponSheet extends window.DX3rdItemSheet {
 // Weapon 시트 등록 (v13 호환)
 const ItemsClass = foundry.documents?.collections?.Items || Items;
 ItemsClass.registerSheet('dx3rd-emanim', DX3rdWeaponSheet, {
+  label: 'DX3rd.SheetV1',
   types: ['weapon'],
   makeDefault: true
 });

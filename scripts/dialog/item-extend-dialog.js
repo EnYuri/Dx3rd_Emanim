@@ -13,7 +13,9 @@
 
     class DX3rdItemExtendDialog extends BaseApplication {
         static DEFAULT_OPTIONS = {
-            classes: ['dx3rd-emanim', 'dialog', 'item-extend-dialog'],
+            // 'sheet'+'item' 을 부여해 아이템 V2 시트의 모노 다크 테마(appv2-sheets.css)를
+            // 그대로 재사용한다. 다이얼로그 전용 스타일 중복을 피한다.
+            classes: ['dx3rd-emanim', 'sheet', 'item', 'dialog', 'item-extend-dialog'],
             tag: 'form',
             window: {
                 title: 'DX3rd.ItemExtend',
@@ -99,14 +101,6 @@
                 event.preventDefault();
                 this.switchSubTab(target.dataset.tab);
             });
-            this._on(root, '.dx3rd-dialog-confirm', 'click', event => {
-                event.preventDefault();
-                this.executeAction();
-            });
-            this._on(root, '.dx3rd-dialog-cancel', 'click', event => {
-                event.preventDefault();
-                this.close();
-            });
             this._on(root, 'input[name="weaponFist"]', 'change', (event, target) => {
                 const weaponContent = this._query('#weapon-content');
                 this.toggleWeaponFields(
@@ -130,6 +124,13 @@
                 const match = target.name.match(/^cond([123])Type$/);
                 if (!match) return;
                 this.setupConditionPoisonedToggle(`condition${match[1]}`);
+            });
+
+            // 자동 저장: 다른 시트들과 동일하게 확인 버튼 없이 필드 변경 즉시 반영한다.
+            // 토글 핸들러(무기 맨손/힐 부활/데미지 조건식/상태이상 종류)들이 값을 프로그램으로
+            // 채운 뒤 실행되도록 이 리스너를 가장 마지막에 등록한다(같은 change 이벤트에서 뒤에 실행).
+            root.addEventListener('change', event => {
+                if (event.target.matches('input, select, textarea')) this._saveCurrentTab();
             });
 
             this.initializeTabs();
@@ -551,44 +552,50 @@
             return formData;
         }
 
-        async executeAction() {
-            this._storeCurrentSubTab();
-
+        /**
+         * 현재 활성 서브탭의 데이터만 저장 플래그에 병합한다. 확인 버튼을 없애고 필드 변경
+         * 즉시(자동) 저장하는 방식이라, 아직 방문하지 않은(=기본값인) 다른 탭의 저장값을
+         * 덮어쓰지 않도록 전체 폼이 아닌 현재 탭만 반영한다.
+         */
+        async _saveCurrentTab() {
             try {
-                let item = null;
-                if (this.actorId) {
-                    const actor = game.actors.get(this.actorId);
-                    item = actor?.items?.get(this.itemId);
-                } else {
-                    item = game.items.get(this.itemId);
-                }
+                const item = this.actorId
+                    ? game.actors.get(this.actorId)?.items?.get(this.itemId)
+                    : game.items.get(this.itemId);
+                if (!item) return;
 
-                if (!item) {
-                    ui.notifications.warn('아이템을 찾을 수 없습니다.');
-                    return;
-                }
+                const sub = this.currentSubTab;
+                if (!sub) return;
+                this._storeCurrentSubTab();
 
                 const existing = foundry.utils.deepClone(item.getFlag('dx3rd-emanim', 'itemExtend') || {});
-                const conditions = [];
-                for (let i = 1; i <= 3; i++) {
-                    const tabName = `condition${i}`;
-                    if (this.tempFormData[tabName]) conditions.push(this.tempFormData[tabName]);
-                    else conditions.push(existing.condition?.conditions?.[i - 1] || {timing: 'instant', target: 'self', type: '', poisonedRank: null, activate: false});
-                }
-                existing.condition = {conditions};
 
-                const fullForm = this.getFormData();
-                for (const [tabName, tabData] of Object.entries(fullForm)) {
-                    if (!tabData || ['condition', 'condition1', 'condition2', 'condition3'].includes(tabName) || !Object.keys(tabData).length) continue;
-                    existing[tabName] = tabData;
+                if (['condition1', 'condition2', 'condition3'].includes(sub)) {
+                    const n = sub === 'condition1' ? 1 : (sub === 'condition2' ? 2 : 3);
+                    const section = this._query(`#${sub}-content`);
+                    const type = this._value(`select[name="cond${n}Type"]`, section);
+                    const cData = {
+                        timing: this._value(`select[name="cond${n}Timing"]`, section),
+                        target: this._value(`select[name="cond${n}Target"]`, section),
+                        type: type || '',
+                        poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${n}PoisonedRank"]`, section) : null,
+                        activate: this._checked(`input[name="cond${n}Activate"]`, section)
+                    };
+                    const conditions = Array.isArray(existing.condition?.conditions)
+                        ? foundry.utils.deepClone(existing.condition.conditions)
+                        : [];
+                    while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, activate: false});
+                    conditions[n - 1] = cData;
+                    existing.condition = {conditions};
+                } else {
+                    const form = this.getFormData();
+                    if (form[sub] && Object.keys(form[sub]).length) existing[sub] = form[sub];
                 }
 
                 await item.setFlag('dx3rd-emanim', 'itemExtend', existing);
-                ui.notifications.info('확장 도구 설정이 모두 저장되었습니다.');
-                this.close();
+                this.savedItemExtend = existing;
             } catch (err) {
-                console.error('DX3rd | ItemExtend save error', err);
-                ui.notifications.error('저장 중 오류가 발생했습니다. 콘솔을 확인하세요.');
+                console.error('DX3rd | ItemExtend auto-save error', err);
             }
         }
     }

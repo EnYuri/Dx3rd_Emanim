@@ -35,7 +35,7 @@
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Encroach"}}</label><input name="system.encroach.value" value="{{system.encroach.value}}"/></div>
           {{/if}}
         </section>
-        <div class="cell cell--bio"><label class="cell--title">{{localize "DX3rd.Description"}}{{#if isSpell}}<span class="checkbox-addon flexrow"><span>{{localize "DX3rd.Temporary"}}</span><input type="checkbox" name="system.temporarySpell" {{checked system.temporarySpell}}/></span>{{/if}}</label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" collaborate relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
+        <div class="cell cell--bio"><label class="cell--title">{{localize "DX3rd.Description"}}{{#if isSpell}}<span class="checkbox-addon flexrow"><span>{{localize "DX3rd.Temporary"}}</span><input type="checkbox" name="system.temporarySpell" {{checked system.temporarySpell}}/></span>{{/if}}</label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
       </div>
     </div>
 
