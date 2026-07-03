@@ -83,6 +83,9 @@ class DX3rdComboSheet extends window.DX3rdItemSheet {
     
     // 무기 탭 통합 리스너 (WeaponTabManager 사용)
     window.DX3rdWeaponTabManager.setupWeaponTabListeners(html, this);
+
+    // 사정거리/대상 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
+    window.DX3rdRangeTarget?.setupFieldListeners(root, this.item, { update: (it, upd) => it.update(upd) });
     
     // 어트리뷰트 관리 이벤트 리스너 설정
     this._isAddingAttribute = false;
@@ -183,6 +186,13 @@ class DX3rdComboSheet extends window.DX3rdItemSheet {
         console.error("DX3rd | ComboSheet textarea update failed", error);
       }
     });
+  }
+
+  /**
+   * 무기 추가 직후: 빈 값이면 무기 기준으로 공격 콤보 자동 구성(기능/공격판정/공격력).
+   */
+  async _onWeaponAdded(weaponId) {
+    await comboData.applyWeaponAutoAttack(this.item, this.actor, weaponId);
   }
 
   /**

@@ -38,6 +38,11 @@
       listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
       listen('blur', '.difficulty-input', event => this._validateDifficulty(event));
       listen('input', 'input[name="system.limit"]', event => this._validateLimit(event));
+
+      // 사정거리/대상/난이도 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
+      window.DX3rdRangeTarget?.setupFieldListeners(this.element, this.item, {
+        update: (it, upd) => it.update(upd)
+      });
     }
 
     _effectIds() {
@@ -64,6 +69,11 @@
       const updated = await comboData.removeRegisteredEffect(this.item, this.item.actor, id);
       if (!updated) return;
       this.render(false);
+    }
+
+    // 무기 추가 직후: 빈 값이면 무기 기준으로 공격 콤보 자동 구성(기능/공격판정/공격력).
+    async _onWeaponAdded(weaponId) {
+      await comboData.applyWeaponAutoAttack(this.item, this.item.actor, weaponId);
     }
 
     async _toggleWeaponSelection(event) {

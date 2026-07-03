@@ -960,11 +960,17 @@
                         'system.weapon': newWeapons
                     });
 
+                    // 콤보 시트 등에서 무기 추가 직후 후처리(공격 콤보 자동화) 훅
+                    if (typeof sheet._onWeaponAdded === 'function') {
+                        try { await sheet._onWeaponAdded(weaponId); }
+                        catch (e) { console.error('DX3rd | WeaponTabManager - _onWeaponAdded failed', e); }
+                    }
+
                     ui.notifications.info("무기가 추가되었습니다.");
-                    
+
                     // 시트 다시 렌더링
                     sheet.render(false);
-                    
+
                 } catch (error) {
                     console.error('DX3rd | WeaponTabManager - add weapon failed', error);
                     ui.notifications.error("무기 추가에 실패했습니다.");

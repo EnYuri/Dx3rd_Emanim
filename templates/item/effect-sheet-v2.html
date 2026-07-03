@@ -45,7 +45,18 @@
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Difficulty"}}</span>
               <input type="checkbox" class="cell--crit difficulty-check" {{#unless (eq system.roll "-")}} checked {{/unless}}>
             </label>
-            <input type="text" class="difficulty-input" name="system.difficulty" value="{{system.difficulty}}" data-dtype="String" />
+            <div class="rt-field" data-rt="difficulty" style="display:flex;gap:4px;align-items:center;">
+              <select class="rt-option" style="flex:1 1 auto;">
+                {{#select difficultyField.option}}
+                {{#each difficultyField.options}}
+                <option value="{{this.value}}">{{this.label}}</option>
+                {{/each}}
+                <option value="기타">{{localize "DX3rd.Other"}}</option>
+                {{/select}}
+              </select>
+              <input type="text" class="rt-param" value="{{difficultyField.param}}" placeholder="{{difficultyField.paramPlaceholder}}" style="width:56px;{{#unless difficultyField.showParam}}display:none;{{/unless}}">
+              <input type="hidden" name="system.difficulty" value="{{system.difficulty}}">
+            </div>
           </div>
 
           <div class="cell grid-4">
@@ -92,14 +103,36 @@
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Target"}}</span>
               <input type="checkbox" class="cell--crit" data-target-field="system.getTarget" {{#if system.getTarget}} checked {{/if}}>
             </label>
-            <input type="text" name="system.target" value="{{system.target}}" data-dtype="String"/>
+            <div class="rt-field" data-rt="target" style="display:flex;gap:4px;align-items:center;">
+              <select class="rt-option" style="flex:1 1 auto;">
+                {{#select targetField.option}}
+                {{#each targetField.options}}
+                <option value="{{this.value}}">{{this.label}}</option>
+                {{/each}}
+                <option value="기타">{{localize "DX3rd.Other"}}</option>
+                {{/select}}
+              </select>
+              <input type="text" class="rt-param" value="{{targetField.param}}" placeholder="{{targetField.paramPlaceholder}}" style="width:56px;{{#unless targetField.showParam}}display:none;{{/unless}}">
+              <input type="hidden" name="system.target" value="{{system.target}}">
+            </div>
           </div>
 
           <div class="cell grid-4">
             <label class="cell--title">
               {{localize "DX3rd.Range"}}
             </label>
-            <input type="text" name="system.range" value="{{system.range}}" data-dtype="String"/>
+            <div class="rt-field" data-rt="range" style="display:flex;gap:4px;align-items:center;">
+              <select class="rt-option" style="flex:1 1 auto;">
+                {{#select rangeField.option}}
+                {{#each rangeField.options}}
+                <option value="{{this.value}}">{{this.label}}</option>
+                {{/each}}
+                <option value="기타">{{localize "DX3rd.Other"}}</option>
+                {{/select}}
+              </select>
+              <input type="text" class="rt-param" value="{{rangeField.param}}" placeholder="{{rangeField.paramPlaceholder}}" style="width:56px;{{#unless rangeField.showParam}}display:none;{{/unless}}">
+              <input type="hidden" name="system.range" value="{{system.range}}">
+            </div>
           </div>
 
           <div class="cell grid-4">
@@ -116,8 +149,8 @@
         </section>
 
         <div class="cell cell--bio">
-          <label class="cell--title">
-            <select class="left-addon" name="system.type" data-dtype="String" style="color: black;">
+          <label class="cell--title bio-title-v2">
+            <select class="bio-type" name="system.type" data-dtype="String" style="color: black;">
               {{#select system.type}}
               <option value="normal">{{localize "DX3rd.Effect"}}</option>
               <option value="easy">{{localize "DX3rd.Easy"}}</option>
@@ -125,14 +158,14 @@
               {{/select}}
             </select>
 
+            <span class="bio-heading">{{localize "DX3rd.Description"}}</span>
 
-            {{localize "DX3rd.Description"}}
             {{#unless (eq system.type "extra")}}
-            <div class="checkbox-addon flexrow">
+            <span class="bio-exp flexrow">
               <span>{{localize "DX3rd.EXP"}} </span>
               <input type="checkbox" name="system.exp.own" {{#if system.exp.own}} checked {{/if}} data-dtype="Boolean"/>
               <input type="checkbox" name="system.exp.upgrade" {{#if system.exp.upgrade}} checked {{/if}} data-dtype="Boolean"/>
-            </div>
+            </span>
             {{/unless}}
           </label>
           {{!-- We're avoiding WYSIWYGs... for now... --}}

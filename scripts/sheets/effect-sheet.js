@@ -70,6 +70,13 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
     itemSheetData.prepareEmbeddedMacroData(this.item, data);
     data.macroTimings = ["instant", "afterSuccess", "afterDamage", "afterMain", "onInvoke"];
 
+    // 사정거리/대상/난이도 드롭다운 컨텍스트(캐노니컬 정규화 후 초기 선택/파라미터 산출)
+    if (window.DX3rdRangeTarget) {
+      data.rangeField = window.DX3rdRangeTarget.fieldContext('range', data.system.range);
+      data.targetField = window.DX3rdRangeTarget.fieldContext('target', data.system.target);
+      data.difficultyField = window.DX3rdRangeTarget.difficultyFieldContext(data.system.difficulty);
+    }
+
     // Description 에디터를 위한 데이터 추가 (helpers.js 사용)
     data = await itemSheetData.enrichSheetData(this.item, data);
 
@@ -91,6 +98,9 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
 
     // 무기 탭 통합 리스너 (WeaponTabManager 사용)
     window.DX3rdWeaponTabManager.setupWeaponTabListeners(html, this);
+
+    // 사정거리/대상 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
+    window.DX3rdRangeTarget?.setupFieldListeners(root, this.item, { update: (it, upd) => it.update(upd) });
 
     // 어트리뷰트 관리 유틸리티 사용
     window.DX3rdAttributeManager.setupAttributeListeners(html, this);

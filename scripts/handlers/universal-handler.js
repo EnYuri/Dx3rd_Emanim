@@ -5185,216 +5185,112 @@
      *   - {Item} originalItem: 원본 아이템 (예: 마도서)
      *   - {Object} predefinedDifficulty: 미리 정의된 난이도 데이터
      */
+    // 콤보 빌더: 즉석 조합을 실제 콤보 아이템으로 액터에 생성하고 그 시트를 연다.
+    // (기존의 가짜 임시 콤보 객체 + 다이얼로그 방식을 대체. 시트에서 이펙트/무기/판정을 직접 편집·사용한다.)
+    // 무기에서 시작하면 공격 콤보로 자동 시드(공격판정=무기 type, 기능=무기 공격기능).
     async openComboBuilder(actor, targetType, targetId, weaponItem = null, options = {}) {
-      // 액터 보유 이펙트 목록 수집 (정렬 포함)
-      const effects = actor.items.filter(i => i.type === 'effect');
-      const effectList = effects.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0)).map(i => i.toObject());
+      const comboData = window.DX3rdComboData;
+      const abilityKeys = ['body', 'sense', 'mind', 'social'];
 
-      // targetType이 'ability'인 경우 key는 targetId, base는 없음
-      // targetType이 'skill'인 경우 key는 targetId, base는 사용자가 선택
-      let targetKey = targetId;
-      let targetBase = '-'; // 자동 설정하지 않고 항상 "-"로 시작
-      
-      // 무기의 type을 attackRoll 초기값으로 사용
-      let initialAttackRoll = '-';
-      if (weaponItem && weaponItem.system?.type) {
-        const weaponType = weaponItem.system.type;
-        if (weaponType === 'melee' || weaponType === 'ranged') {
-          initialAttackRoll = weaponType;
-        }
-      }
+      // 이펙트/장비에서 콤보를 시작한 경우 미리 선택할 이펙트 ID 목록
+      const preselectIds = Array.isArray(options.preselectEffectIds)
+        ? options.preselectEffectIds.filter(Boolean)
+        : [];
 
-      // 스킬 정렬
-      const sortedSkills = this._getSortedSkillOptions(actor);
+      // 무기/비클 아이템만 무기 슬롯·공격 콤보 시드로 사용(연출용으로 넘어온 비무기 아이템은 무시)
+      const seedWeapon = (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle'))
+        ? weaponItem : null;
 
-      const content = await renderTemplate('systems/dx3rd-emanim/templates/dialog/combo-dialog.html', {
-        title: game.i18n.localize('DX3rd.Combo'),
-        actor: actor,
-        actorSkills: actor.system?.attributes?.skills || {},
-        sortedSkills: sortedSkills,
-        effectList,
-        targetType: targetType,
-        targetKey: targetKey,
-        targetBase: targetBase,
-        initialAttackRoll: initialAttackRoll
-      });
+      // ---- 시드 값 계산(빈 값만 채우는 정책) ----
+      let skill = (targetType === 'skill' && targetId && targetId !== '-') ? targetId : '-';
+      let base = '-';
+      let attackRoll = '-';
+      const weaponSetting = [];
 
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2) {
-        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-        return;
-      }
-
-      // 다이얼로그에서 선택된 값들을 콤보 구성으로 정규화한다. Apply(즉석 사용)와 Save(콤보 저장)가 공유한다.
-      const collectComboConfig = (root) => {
-        // 선택된 이펙트 ID 수집 (선택하지 않아도 진행 가능)
-        const selectedEffectIds = Array.from(root?.querySelectorAll('.active-effect:checked') || [])
-          .map(el => el.dataset.id)
-          .filter(Boolean);
-
-        // 다이얼로그 값 수집
-        const skill = root?.querySelector('#skill')?.value || '-';
-        const base = root?.querySelector('#base')?.value || '-';
-        const roll = root?.querySelector('#roll')?.value || 'major';
-        const attackRoll = root?.querySelector('#attackRoll')?.value || '-';
-
-        // 무기 아이템이 전달된 경우 (무기 공격에서 콤보 사용 시)
-        let weaponSetting = ['-', '-', '-'];
-        let shouldShowWeaponSelect = attackRoll !== '-';
-        if (weaponItem && attackRoll !== '-') {
-          // 무기가 선택되어 있으면 해당 무기를 첫 번째 슬롯에 등록
-          weaponSetting = [weaponItem.id, '-', '-'];
-          // 무기 아이템에서 시작한 경우에는 무기 선택 다이얼로그를 띄우지 않음
-          shouldShowWeaponSelect = false;
-        }
-
-        // 선택된 이펙트들 중에서 weaponSelect: false이고 무기가 등록된 이펙트가 있는지 확인
-        if (attackRoll !== '-' && !weaponItem && selectedEffectIds.length > 0) {
-          for (const effectId of selectedEffectIds) {
-            const effectItem = actor.items.get(effectId);
-            if (effectItem && !effectItem.system?.weaponSelect && effectItem.system?.weapon && effectItem.system.weapon.length > 0) {
-              // 이펙트의 무기 설정 상속
-              const effectWeapons = effectItem.system.weapon.filter(w => w && w !== '-');
-              if (effectWeapons.length > 0) {
-                // 첫 번째 이펙트의 무기만 상속 (최대 3개)
-                weaponSetting = [effectWeapons[0] || '-', effectWeapons[1] || '-', effectWeapons[2] || '-'];
-                shouldShowWeaponSelect = false;
-                console.log('DX3rd | Combo Builder - Inherited weaponSelect: false from effect:', effectItem.name, 'weapons:', weaponSetting);
-                break;
-              }
-            }
+      // 무기에서 시작: 공격 콤보 자동 시드(공격판정=무기 type, 기능=무기 공격기능)
+      if (seedWeapon) {
+        const wt = seedWeapon.system?.type;
+        if (wt === 'melee' || wt === 'ranged') attackRoll = wt;
+        if (skill === '-') {
+          if (seedWeapon.system?.skill && seedWeapon.system.skill !== '-') {
+            skill = seedWeapon.system.skill;
+          } else if (wt === 'ranged') {
+            skill = 'ranged';
+          } else if (wt === 'melee') {
+            skill = 'melee';
           }
         }
+        weaponSetting.push(seedWeapon.id);
+      }
 
-        // 룰 807-809(이펙트의 조합·침식치 합계): 조합한 이펙트들의 침식치를 모두 더한 값.
-        const encroachValue = window.DX3rdComboData?.calculateEncroachment?.(actor, selectedEffectIds) ?? '0';
+      // 이펙트 1개에서 시작: 그 이펙트의 스킬/능력치/공격판정을 시드로 상속(빈 값일 때만).
+      if (!seedWeapon && preselectIds.length === 1) {
+        const seed = actor.items.get(preselectIds[0]);
+        if (seed) {
+          if (skill === '-' && seed.system?.skill && seed.system.skill !== '-') skill = seed.system.skill;
+          if (base === '-' && seed.system?.base && seed.system.base !== '-') base = seed.system.base;
+          if (seed.system?.attackRoll === 'melee' || seed.system?.attackRoll === 'ranged') {
+            attackRoll = seed.system.attackRoll;
+          }
+        }
+      }
 
-        console.log('DX3rd | Combo Builder - Config:', { skill, base, roll, attackRoll, selectedEffectIds, weaponSetting, shouldShowWeaponSelect, encroachValue });
-        return { selectedEffectIds, skill, base, roll, attackRoll, weaponSetting, shouldShowWeaponSelect, encroachValue };
+      // 기능이 정해졌는데 base가 비어있으면 스킬의 base 능력치로 채움
+      if (base === '-' && skill !== '-') {
+        base = abilityKeys.includes(skill) ? skill : (actor.system?.attributes?.skills?.[skill]?.base || '-');
+      }
+
+      // 조합 이펙트의 침식치/사거리/대상 합성(가장 제한적인 값).
+      const effectIds = [...preselectIds];
+      const encroachValue = comboData?.calculateEncroachment?.(actor, effectIds) ?? '0';
+      const RT = window.DX3rdRangeTarget;
+      const rangeCombo = RT ? RT.combineRange(effectIds.map(id => actor.items.get(id)?.system?.range)) : null;
+      const targetCombo = RT ? RT.combineTarget(effectIds.map(id => actor.items.get(id)?.system?.target)) : null;
+      const rangeValue = rangeCombo?.resolved ? rangeCombo.value : '-';
+      const targetValue = targetCombo?.resolved ? targetCombo.value : '-';
+
+      // 공격판정이 있는데 무기가 고정되지 않았으면 사용 시 무기 선택 다이얼로그를 띄운다.
+      const weaponSelect = attackRoll !== '-' && weaponSetting.length === 0;
+      // 무기가 고정된 경우 공격력 선계산.
+      const attackValue = attackRoll !== '-'
+        ? (comboData?.calculateSubmittedAttack?.(actor, attackRoll, weaponSetting) ?? 0)
+        : 0;
+
+      const comboItemData = {
+        name: game.i18n.localize('DX3rd.Combo'),
+        type: 'combo',
+        system: {
+          skill,
+          base,
+          // 기능 또는 공격판정이 있으면 명중/판정을 위해 메이저로 시작.
+          roll: (skill !== '-' || attackRoll !== '-') ? 'major' : '-',
+          attackRoll,
+          effectIds,
+          weapon: weaponSetting,
+          weaponSelect,
+          getTarget: true,
+          range: rangeValue,
+          target: targetValue,
+          encroach: { value: encroachValue },
+          attack: { value: attackValue },
+          level: { value: 1 }
+        }
       };
 
-      const dialog = new DialogV2({
-        window: { title: game.i18n.localize('DX3rd.Combo') },
-        content,
-        position: { width: 700 },
-        classes: [ 'dx3rd-emanim', 'combo-dialog' ],
-        buttons: [
-          {
-            action: 'apply',
-            icon: '<i class="fas fa-dice-d20"></i>',
-            label: game.i18n.localize('DX3rd.Apply'),
-            default: true,
-            callback: async (event, button) => {
-              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              const cfg = collectComboConfig(root);
-
-              // 임시 콤보 아이템 데이터 생성
-              const tempComboItem = {
-                id: '_temp_combo_' + Date.now(),
-                name: `${game.i18n.localize('DX3rd.Combo')} ${game.i18n.localize('DX3rd.TemporaryItem')}`,
-                type: 'combo',
-                system: {
-                  skill: cfg.skill,
-                  base: cfg.base,
-                  roll: cfg.roll,
-                  attackRoll: cfg.attackRoll,
-                  effect: {
-                    data: cfg.selectedEffectIds
-                  },
-                  // 기본값들 추가
-                  weapon: cfg.weaponSetting, // 무기 ID 배열 [id, '-', '-'] 또는 ['-', '-', '-']
-                  weaponSelect: cfg.shouldShowWeaponSelect, // 무기 아이템에서 시작한 경우 false, 일반 경우 attackRoll이 '-'가 아니면 true
-                  getTarget: true,
-                  // 룰 807-809 침식치 합계. 임시 콤보에 이 필드가 없어 침식치 미부과되던 문제(감사 Finding H) 보정.
-                  encroach: {
-                    value: cfg.encroachValue
-                  },
-                  level: { value: 1 }
-                },
-                // 북 해독 콤보 등에서 사용할 메타 데이터
-                meta: {
-                  isBookDecipher: !!options.isBookDecipher,
-                  originalItem: options.originalItem || null,
-                  predefinedDifficulty: options.predefinedDifficulty || null
-                },
-                // 임시 아이템이므로 필요한 메서드들 추가
-                getFlag: () => null,
-                setFlag: () => {},
-                unsetFlag: () => {},
-                // 무기 아이템에서 시작한 경우 원본 무기 아이템 정보 저장
-                _originalWeaponItem: weaponItem || null
-              };
-
-              // ComboHandler 호출
-              if (window.DX3rdComboHandler) {
-                await window.DX3rdComboHandler.handle(actor.id, tempComboItem);
-              } else {
-                ui.notifications.error('ComboHandler를 찾을 수 없습니다.');
-              }
-            }
-          },
-          {
-            action: 'save',
-            icon: '<i class="fas fa-save"></i>',
-            label: game.i18n.localize('DX3rd.SaveAsCombo'),
-            // 즉석 조합을 반복 사용 가능한 저장 콤보 아이템으로 등록한다(임시 콤보 휘발성 해소).
-            callback: async (event, button) => {
-              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              const cfg = collectComboConfig(root);
-
-              if (cfg.selectedEffectIds.length === 0) {
-                ui.notifications.warn(game.i18n.localize('DX3rd.ComboSaveNoEffect'));
-                return;
-              }
-
-              // 저장 콤보는 effectIds(배열) 형식으로 저장한다. combo-sheet/normalizeEffectIds가 이 형식을 우선 읽는다.
-              const comboData = {
-                name: game.i18n.localize('DX3rd.Combo'),
-                type: 'combo',
-                system: {
-                  skill: cfg.skill,
-                  base: cfg.base,
-                  roll: cfg.roll,
-                  attackRoll: cfg.attackRoll,
-                  effectIds: cfg.selectedEffectIds,
-                  weapon: cfg.weaponSetting,
-                  weaponSelect: cfg.shouldShowWeaponSelect,
-                  getTarget: true,
-                  encroach: { value: cfg.encroachValue },
-                  level: { value: 1 }
-                }
-              };
-
-              try {
-                const [created] = await actor.createEmbeddedDocuments('Item', [comboData]);
-                ui.notifications.info(game.i18n.format('DX3rd.ComboSaved', { name: created?.name ?? '' }));
-                // 이름/세부 조정을 위해 방금 만든 콤보 시트를 연다.
-                created?.sheet?.render(true);
-              } catch (e) {
-                console.error('DX3rd | Combo Builder - Save failed:', e);
-                ui.notifications.error(`${game.i18n.localize('DX3rd.SaveAsCombo')}: ${e?.message || e}`);
-              }
-            }
-          }
-        ]
-      });
-
-      const rendered = dialog.render(true);
-      // 렌더 후 코스트(침식치) 실시간 미리보기 배선. 이펙트 체크 변경 시 합산 침식치를 갱신 표시한다.
-      Promise.resolve(rendered).then(() => {
-        const root = dialog.element;
-        if (!root) return;
-        const encSpan = root.querySelector('#combo-cost-preview .preview-enc');
-        if (!encSpan) return;
-        const updatePreview = () => {
-          const ids = Array.from(root.querySelectorAll('.active-effect:checked'))
-            .map(el => el.dataset.id)
-            .filter(Boolean);
-          encSpan.textContent = window.DX3rdComboData?.calculateEncroachment?.(actor, ids) ?? '0';
-        };
-        root.querySelectorAll('.active-effect').forEach(cb => cb.addEventListener('change', updatePreview));
-        updatePreview();
-      });
+      try {
+        const [created] = await actor.createEmbeddedDocuments('Item', [comboItemData]);
+        // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
+        if (targetCombo?.selfConflict) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.SelfCombineWarning'));
+        }
+        // 이름/세부 조정과 즉석 사용을 위해 방금 만든 콤보 시트를 연다.
+        created?.sheet?.render(true);
+        return created;
+      } catch (e) {
+        console.error('DX3rd | openComboBuilder - create failed:', e);
+        ui.notifications.error(`${game.i18n.localize('DX3rd.Combo')}: ${e?.message || e}`);
+        return null;
+      }
     },
     
     showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
@@ -5898,6 +5794,7 @@
       const dlg = new DialogV2({
         window: { title: dialogTitle },
         content,
+        position: { width: 400 },
         classes: ['dx3rd-emanim','dx3rd-rolling-dialog'],
         buttons: [{
           action: 'noop',

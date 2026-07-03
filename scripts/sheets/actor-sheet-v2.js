@@ -344,7 +344,9 @@
       event.preventDefault();
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(event.currentTarget);
-      if (item) item.sheet.render(true);
+      if (!item) return;
+      // 우클릭 컨텍스트 메뉴: 시트 열기 + (이펙트/무기) 콤보로 조합
+      window.DX3rdItemContextMenu?.open(event, { actor: this.document, item, sheet: this });
     }
 
     static async _onUseItem(event, target) {

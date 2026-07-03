@@ -75,7 +75,7 @@
                 <span class="level">{{item.system.level.value}}</span>
                 {{item.name}}
                 <div class="item-controls">
-                  <input type="checkbox" class="active-effect" data-id="{{item._id}}" >
+                  <input type="checkbox" class="active-effect" data-id="{{item._id}}" {{#if item._preselected}}checked{{/if}}>
                 </div>
               </span>
             </h4>

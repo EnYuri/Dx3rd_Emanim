@@ -108,6 +108,9 @@
             // 에너미 장갑치 클릭 리스너
             compat.on(root, 'click', '.armor-clickable', this._onEnemyArmorClick.bind(this));
 
+            // 아이템 우클릭 컨텍스트 메뉴 (시트 열기 + 콤보로 조합)
+            compat.on(root, 'contextmenu', '.item[data-item-id]', this._onItemContextMenu.bind(this));
+
             // 아이템 에딧/삭제 리스너
             compat.on(root, 'click', '.item-edit', this._onItemEdit.bind(this));
             compat.on(root, 'click', '.item-delete', this._onItemDelete.bind(this));
@@ -246,9 +249,19 @@
             return window.DX3rdEnemyStatDialogs.open(this.actor, "armor");
         }
 
+        _onItemContextMenu(event, target = event.currentTarget) {
+            // 입력 요소 위 우클릭(붙여넣기 등)은 가로채지 않는다
+            if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+            event.preventDefault();
+            const itemId = target?.closest('[data-item-id]')?.dataset?.itemId;
+            const item = itemId ? this.actor.items.get(itemId) : null;
+            if (!item) return;
+            window.DX3rdItemContextMenu?.open(event, { actor: this.actor, item, sheet: this });
+        }
+
         async _onItemEdit(event, target = event.currentTarget) {
             event.preventDefault();
-            
+
             // OWNER 권한 체크
             if (!this._hasOwnerPermission()) {
                 ui.notifications.warn(game.i18n.localize("DX3rd.NoPermission"));

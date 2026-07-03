@@ -48,6 +48,13 @@
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
 
       weaponManager.prepareWeaponTabData(context, this.item);
+
+      // 사정거리/대상/난이도 드롭다운 컨텍스트(캐노니컬 정규화 후 초기 선택/파라미터)
+      if (window.DX3rdRangeTarget) {
+        context.rangeField = window.DX3rdRangeTarget.fieldContext('range', system.range);
+        context.targetField = window.DX3rdRangeTarget.fieldContext('target', system.target);
+        context.difficultyField = window.DX3rdRangeTarget.difficultyFieldContext(system.difficulty);
+      }
       return context;
     }
 
@@ -66,6 +73,11 @@
       listen('change', '.macro-timing', event => this._updateMacro(event, 'timing'));
       listen('change', '.macro-disabled', event => this._updateMacro(event, 'disabled'));
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
+
+      // 사정거리/대상/난이도 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
+      window.DX3rdRangeTarget?.setupFieldListeners(this.element, this.item, {
+        update: (it, upd) => it.update(upd)
+      });
     }
 
     async _toggleWeaponSelection(event) {

@@ -1077,6 +1077,29 @@
     width: 100%;
 }
 
+/* 단일 입력 셀: select와 동일하게 셀 폭을 채워 폭이 들쭉날쭉해지는 것을 막는다 */
+.dx3rd-emanim .sheet-attributes .cell > input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 사정거리/대상/난이도 드롭다운(select+파라미터) 셀 폭 채우기 및 정렬 정리 */
+.dx3rd-emanim .sheet-attributes .cell > .rt-field {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+.dx3rd-emanim .sheet-attributes .rt-field select,
+.dx3rd-emanim .sheet-attributes .rt-field input {
+    margin-bottom: 0;
+}
+
+.dx3rd-emanim .sheet-attributes .rt-field .rt-param {
+    flex: 0 0 auto;
+}
+
 .dx3rd-emanim .sheet-attributes .attributes .attribute-key {
     flex: none;
     width: 20%;
@@ -1197,6 +1220,78 @@
     width: 32px;
 }
 
+/* AppV2 헤더 복구: V1 규칙은 `.dx3rd-emanim .item`(자손 결합)이라 두 클래스가
+   같은 루트에 붙는 AppV2에서는 매치되지 않는다. 같은 규칙을 AppV2 루트
+   (.dx3rd-emanim.application)에 다시 주입해 이름/레벨 헤더를 정상화한다. */
+.dx3rd-emanim.application .sheet-header {
+    width: 100%;
+    margin-bottom: 10px;
+    height: 64px;
+    background: #2d2d2d;
+    color: #fff;
+    align-items: center;
+}
+
+.dx3rd-emanim.application .sheet-header input {
+    flex: 1;
+    border: 0;
+    margin: 0 10px;
+    font-size: 18px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields .charname {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    display: flex;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields .charname input {
+    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    color: white;
+    border-bottom: 2px solid #5b7094;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields .level {
+    flex: 0 0 50px;
+    text-align: center;
+    font-weight: bold;
+    height: 54px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields .level label {
+    line-height: 20px;
+    flex: 0 0 auto;
+}
+
+.dx3rd-emanim.application .sheet-header .header-fields .level input {
+    background: white;
+    border: none;
+    color: black;
+    width: 32px;
+    flex: 0 0 auto;
+    margin: 0;
+    text-align: center;
+}
+
 .dx3rd-emanim .item-controls {
     text-align: center;
     -webkit-box-flex: 0;
@@ -1253,6 +1348,34 @@
     -ms-flex: 100;
     flex: 100;
     position: relative;
+}
+
+/* 이펙트 V2 해설 헤더: 타입 셀렉트/해설/경험점을 절대배치 대신 겹치지 않는 flow로 배치 */
+.dx3rd-emanim .sheet-wrapper .cell--bio .cell--title.bio-title-v2 {
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dx3rd-emanim .cell--bio .bio-title-v2 .bio-type {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 96px;
+    height: 26px;
+    margin-bottom: 0;
+    background: white;
+    color: black;
+    border: none;
+}
+
+.dx3rd-emanim .cell--bio .bio-title-v2 .bio-heading {
+    flex: 1 1 auto;
+    text-align: center;
+}
+
+.dx3rd-emanim .cell--bio .bio-title-v2 .bio-exp {
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
 }
 
 .dx3rd-emanim .editor,
@@ -1992,53 +2115,56 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 }
 
 .dx3rd-item-chat .use-item-btn {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .dx3rd-item-chat .use-item-btn:hover {
-    background: #6b6b6b;
+    background: rgba(200, 200, 200, 0.5);
 }
 
 .dx3rd-item-chat .attack-roll-btn {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .dx3rd-item-chat .attack-roll-btn:hover {
-    background: #6b6b6b;
+    background: rgba(200, 200, 200, 0.5);
 }
 
 .dx3rd-success-btn,
 .dx3rd-win-check-btn {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .dx3rd-success-btn:hover,
 .dx3rd-win-check-btn:hover {
-    background: #6b6b6b;
+    background: rgba(200, 200, 200, 0.5);
 }
 
 .dx3rd-item-chat .item-description {
@@ -2246,19 +2372,20 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 }
 
 .chat-btn.invoke-spell {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .chat-btn.invoke-spell:hover {
-    background: #6b6b6b;
+    background: rgba(200, 200, 200, 0.5);
 }
 
 .spell-overflow-message {
@@ -2269,19 +2396,20 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 }
 
 .chat-btn.spell-overflow {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .chat-btn.spell-overflow:hover {
-    background: #6b6b6b;
+    background: rgba(200, 200, 200, 0.5);
 }
 
 .dx3rd-combat-start-msg,
@@ -2324,15 +2452,16 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 
 .damage-roll-btn,
 .damage-apply-btn {
-    background: rgb(255, 255, 255);
-    color: rgb(0, 0, 0);
-    border: none;
+    background: transparent;
+    color: inherit;
+    border: 1px solid currentColor;
     padding: 10px 20px;
     font-weight: bold;
     font-size: 14px;
     cursor: pointer;
     border-radius: 2px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 /* 데미지 산출 다이얼로그 스타일 */
@@ -2350,7 +2479,8 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 }
 
 /* 판정 다이얼로그 스타일 */
-.dx3rd-rolling-dialog.window-app {
+.dx3rd-rolling-dialog.window-app,
+.dx3rd-rolling-dialog.application {
     top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
     left: 50% !important;
     transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */

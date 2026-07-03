@@ -87,6 +87,123 @@
     };
   }
 
+  // 콤보 필드가 "비어있다"(미설정/기본값)고 볼지 판정
+  function isEmptyComboField(value) {
+    return value === undefined || value === null || value === '' || value === '-';
+  }
+
+  // 이펙트를 콤보에 추가할 때, 콤보의 빈 필드만 이펙트 값으로 자동 채운다(사용자가 이미 설정한 값은 보존).
+  // 정책: 사용자가 선택한 "빈 필드만 자동 채움".
+  function computeInheritedComboFields(comboItem, effectItem, actor) {
+    const updates = {};
+    const es = effectItem?.system || {};
+    const cs = comboItem?.system || {};
+
+    // 스킬(+ 능력치 base)
+    if (isEmptyComboField(cs.skill) && !isEmptyComboField(es.skill)) {
+      updates['system.skill'] = es.skill;
+      if (!isEmptyComboField(es.base)) updates['system.base'] = es.base;
+    }
+    if (updates['system.base'] === undefined && isEmptyComboField(cs.base) && !isEmptyComboField(es.base)) {
+      updates['system.base'] = es.base;
+    }
+
+    // 타이밍 (빈 값일 때만 상속). 사거리/대상은 combineEffectsRangeTarget으로 전체 재계산하므로 여기서 제외.
+    if (isEmptyComboField(cs.timing) && !isEmptyComboField(es.timing)) updates['system.timing'] = es.timing;
+
+    // 공격판정 (melee/ranged만 상속)
+    if (isEmptyComboField(cs.attackRoll) && (es.attackRoll === 'melee' || es.attackRoll === 'ranged')) {
+      updates['system.attackRoll'] = es.attackRoll;
+    }
+
+    // 무기: 이펙트가 무기를 고정(weaponSelect: false)하고 콤보 무기 슬롯이 비어있으면 상속
+    const currentWeapons = getWeaponIds(comboItem);
+    if (currentWeapons.length === 0 && es.weaponSelect === false && Array.isArray(es.weapon)) {
+      const inheritedWeapons = es.weapon.filter(w => w && w !== '-');
+      if (inheritedWeapons.length > 0) updates['system.weapon'] = inheritedWeapons;
+    }
+
+    // 공격판정/무기가 바뀌었으면 공격력도 재계산
+    if (updates['system.attackRoll'] !== undefined || updates['system.weapon'] !== undefined) {
+      const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
+      const finalWeapons = updates['system.weapon'] ?? currentWeapons;
+      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, finalWeapons);
+    }
+
+    return updates;
+  }
+
+  // 무기를 콤보에 추가할 때, 콤보의 빈 공격 관련 필드만 무기 값으로 자동 채운다(공격 콤보 자동화).
+  // - 무기 type(melee/ranged) → attackRoll
+  // - 무기 skill(사격/RC/백병 등) → skill (+ base 능력치)
+  // - 공격판정이 생기고 roll이 비어있으면 major로(명중 판정)
+  // 정책: 이펙트 상속과 동일하게 "빈 필드만 자동 채움"(사용자 지정값 보존).
+  function computeInheritedWeaponFields(comboItem, weaponItem, actor) {
+    const updates = {};
+    const ws = weaponItem?.system || {};
+    const cs = comboItem?.system || {};
+
+    // 공격판정: 무기 type이 melee/ranged면 빈 attackRoll 채움
+    if (isEmptyComboField(cs.attackRoll) && (ws.type === 'melee' || ws.type === 'ranged')) {
+      updates['system.attackRoll'] = ws.type;
+    }
+
+    // 기능: 무기의 공격 기능(사격/RC/백병 등)이 지정돼 있으면 상속.
+    // 지정이 없으면 무기 type으로 기본 공격 기능을 유추(ranged→사격, melee→백병).
+    if (isEmptyComboField(cs.skill)) {
+      let skillKey = !isEmptyComboField(ws.skill) ? ws.skill : null;
+      if (!skillKey) {
+        if (ws.type === 'ranged') skillKey = 'ranged';
+        else if (ws.type === 'melee') skillKey = 'melee';
+      }
+      if (skillKey) {
+        updates['system.skill'] = skillKey;
+        const baseAttr = abilityKeys.includes(skillKey)
+          ? skillKey
+          : actor?.system?.attributes?.skills?.[skillKey]?.base;
+        if (baseAttr && isEmptyComboField(cs.base)) updates['system.base'] = baseAttr;
+      }
+    }
+
+    // 공격판정이 생겼는데 roll이 비어있으면 명중 판정(major) 활성화
+    if (updates['system.attackRoll'] !== undefined && isEmptyComboField(cs.roll)) {
+      updates['system.roll'] = 'major';
+    }
+
+    // 공격판정이 확정됐으면 공격력 재계산(무기 슬롯엔 이미 추가된 무기가 포함됨)
+    if (updates['system.attackRoll'] !== undefined) {
+      const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
+      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, getWeaponIds(comboItem));
+    }
+
+    return updates;
+  }
+
+  // 무기 추가 직후 호출: 콤보를 공격 콤보로 자동 구성(빈 값만). 무기 아이템에만 적용(비클 제외).
+  async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
+    if (!comboItem || !weaponId || weaponId === '-') return false;
+    const weaponItem = actor?.items.get(weaponId);
+    if (!weaponItem || weaponItem.type !== 'weapon') return false;
+    const updates = computeInheritedWeaponFields(comboItem, weaponItem, actor);
+    if (Object.keys(updates).length === 0) return false;
+    await comboItem.update(updates);
+    return true;
+  }
+
+  // 조합된 전체 이펙트에서 사거리/대상을 합성(가장 제한적인 값). 자신 규칙 위반은 selfConflict로 표시.
+  function combineEffectsRangeTarget(actor, effectIds) {
+    const RT = window.DX3rdRangeTarget;
+    if (!RT) return null;
+    const ranges = [], targets = [];
+    for (const id of normalizeIdList(effectIds)) {
+      const eff = actor?.items.get(id);
+      if (!eff) continue;
+      ranges.push(eff.system?.range);
+      targets.push(eff.system?.target);
+    }
+    return { range: RT.combineRange(ranges), target: RT.combineTarget(targets) };
+  }
+
   async function addRegisteredEffect(item, actor, effectId) {
     if (!effectId || effectId === '-') {
       ui.notifications.warn("추가할 이펙트를 선택해주세요.");
@@ -100,10 +217,24 @@
     }
 
     const newEffects = [...currentEffects, effectId];
-    await item.update({
+    // 빈 필드 자동 반영: 스킬/능력치/타이밍/공격판정/무기를 콤보 빈칸에 채움.
+    const updates = {
       'system.effectIds': newEffects,
-      'system.encroach.value': calculateEncroachment(actor, newEffects)
-    });
+      'system.encroach.value': calculateEncroachment(actor, newEffects),
+      ...computeInheritedComboFields(item, actor?.items.get(effectId), actor)
+    };
+
+    // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
+    const combined = combineEffectsRangeTarget(actor, newEffects);
+    if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
+    if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+
+    await item.update(updates);
+
+    // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
+    if (combined?.target?.selfConflict) {
+      ui.notifications.warn(game.i18n.localize('DX3rd.SelfCombineWarning'));
+    }
     return true;
   }
 
@@ -130,10 +261,15 @@
     }
 
     const newEffects = getEffectIds(item).filter(id => id !== effectId);
-    await item.update({
+    const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects)
-    });
+    };
+    // 제거 후 남은 이펙트로 사거리/대상 재계산(rankable 없으면 보존).
+    const combined = combineEffectsRangeTarget(actor, newEffects);
+    if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
+    if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+    await item.update(updates);
     return true;
   }
 
@@ -679,6 +815,13 @@
     // getTarget / scene 체크박스 초기화
     itemSheetData.prepareTargetFlags(item, data);
 
+    // 사정거리/대상/난이도 드롭다운 컨텍스트
+    if (window.DX3rdRangeTarget) {
+      data.rangeField = window.DX3rdRangeTarget.fieldContext('range', data.system.range);
+      data.targetField = window.DX3rdRangeTarget.fieldContext('target', data.system.target);
+      data.difficultyField = window.DX3rdRangeTarget.difficultyFieldContext(data.system.difficulty);
+    }
+
     // 액터 데이터를 템플릿에 전달
     data.actor = actor;
 
@@ -694,6 +837,9 @@
     calculateSubmittedAttack,
     prepareSubmittedCombatValues,
     addRegisteredEffect,
+    computeInheritedComboFields,
+    computeInheritedWeaponFields,
+    applyWeaponAutoAttack,
     openRegisteredEffectSheet,
     removeRegisteredEffect,
     updateBaseAttributeForSkill,
