@@ -20,3 +20,5 @@ Thumbs.db
 #그외
 AGENTS.md
 CLAUDE.md
+tmp/
+rule-vs-code-audit.md

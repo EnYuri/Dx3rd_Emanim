@@ -122,7 +122,7 @@ window.DX3rdProtectHandler = {
 
         const DialogV2 = foundry.applications?.api?.DialogV2;
         if (!DialogV2?.confirm) {
-            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
             return;
         }
 

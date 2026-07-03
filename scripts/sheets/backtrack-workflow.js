@@ -50,7 +50,7 @@
    */
   async function promptNumber({ title, content, inputName, min = 0, max, label }) {
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return null;
     }
     const maxAttr = max !== undefined ? ` max="${max}"` : '';
@@ -84,7 +84,7 @@
    */
   async function promptChoice({ title, content, buttons }) {
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return null;
     }
     const body = `

@@ -188,7 +188,7 @@ function showTurnActor(imgSrc = null, actorName = null) {
   document.body.appendChild(frame);
 
   // 라벨 생성
-  const leftLabel = createLabel("diamond-label-left", "diamond-label", "메인 프로세스");
+  const leftLabel = createLabel("diamond-label-left", "diamond-label", game.i18n.localize("DX3rd.MainProcess"));
   const rightLabel = createLabel("diamond-label-right", "diamond-label", actorName);
 
   // 애니메이션 타이밍 상수
@@ -251,6 +251,10 @@ async function executeMacrosByPrefix(prefix) {
   // v13/v14 호환: Combat, Combatant 글로벌이 없을 경우 폴백
   const _CombatBase = foundry.documents?.Combat ?? globalThis.Combat;
   const _CombatantBase = foundry.documents?.Combatant ?? globalThis.Combatant;
+  const toFiniteInitiative = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : -Infinity;
+  };
 
   /**
    * DX3rd Combat class
@@ -312,8 +316,12 @@ async function executeMacrosByPrefix(prefix) {
             // 행동 대기 상태 확인
             const isActionDelay = actor.system?.conditions?.action_delay?.active ?? false;
             if (isActionDelay) {
-              const delayValue = Number(actor.system?.conditions?.action_delay?.value ?? 1);
-              initValue = -delayValue;
+              // 룰: 대기자는 【행동치】 무관하게 라운드 최후에 행동하되,
+              // 대기자가 여럿이면 행동치가 느린(낮은) 순서대로 실행한다.
+              // 이니셔티브를 -(행동치)로 두면 (1) 음수라 정상 액터 뒤로 정렬되고
+              // (2) 행동치가 낮을수록 -값이 0에 가까워 더 먼저 정렬된다.
+              const actionValue = Number(actor.system?.attributes?.init?.value ?? 0);
+              initValue = -actionValue;
             } else {
               initValue = Number(actor.system?.attributes?.init?.value ?? 0);
             }
@@ -342,8 +350,8 @@ async function executeMacrosByPrefix(prefix) {
      */
     _sortCombatants(a, b) {
       // 1순위: 이니셔티브 (높은 순)
-      const ia = Number.isNumeric(a.initiative) ? a.initiative : -Infinity;
-      const ib = Number.isNumeric(b.initiative) ? b.initiative : -Infinity;
+      const ia = toFiniteInitiative(a.initiative);
+      const ib = toFiniteInitiative(b.initiative);
       if (ia !== ib) return ib - ia;
       
       // 이니셔티브가 같을 경우 동점자 처리 규칙 적용
@@ -566,7 +574,7 @@ Hooks.once('ready', () => {
                   padding: 0;
                   cursor: pointer;
                 "
-              >취소</button>
+              >${game.i18n.localize("DX3rd.Cancel")}</button>
             </div>
           `;
         } else {
@@ -641,7 +649,7 @@ Hooks.once('ready', () => {
                   padding: 0;
                   cursor: pointer;
                 "
-              >취소</button>
+              >${game.i18n.localize("DX3rd.Cancel")}</button>
             </div>
           `;
         }
@@ -816,24 +824,38 @@ Hooks.once('ready', () => {
         return wrapped();
       }
       
-      // 그 외의 경우 (일반 컴배턴트나 클린업)는 이니셔티브 프로세스 실행
-      // 이니셔티브 프로세스 실행 요청
-      if (game.user.isGM) {
-        // GM이면 직접 실행
-        await executeInitiativeProcess(this);
-      } else {
-        // 플레이어면 GM에게 소켓으로 전달
-        game.socket.emit('system.dx3rd-emanim', {
-          type: 'executeInitiativeProcess',
-          combatId: this.id
-        });
-      }
-      
-      return;
+      const result = await wrapped();
+      await syncCombatProcessToCurrentTurn(this);
+      return result;
       // 커스텀 로직 끝
     };
   }
 });
+
+async function syncCombatProcessToCurrentTurn(combat) {
+  if (!game.user.isGM || !combat) return;
+
+  const currentCombatant = combat.combatant;
+  if (!currentCombatant) return;
+
+  const isProcessCombatant = currentCombatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
+  if (isProcessCombatant || !currentCombatant.actor) return;
+
+  const currentProcess = combat.getFlag('dx3rd-emanim', 'currentProcess');
+  if (
+    currentProcess?.type === 'main' &&
+    currentProcess?.actorId === currentCombatant.actor.id &&
+    currentProcess?.combatantId === currentCombatant.id
+  ) {
+    return;
+  }
+
+  await combat.setFlag('dx3rd-emanim', 'currentProcess', {
+    type: 'main',
+    actorId: currentCombatant.actor.id,
+    combatantId: currentCombatant.id
+  });
+}
 
 // 이니셔티브 프로세스 실행
 async function executeInitiativeProcess(combat) {
@@ -1328,7 +1350,7 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
         // 메시지 제어 플래그 설정
         const mapKey = `${actor.id}:dazed`;
         window.DX3rdConditionTriggerMap.set(mapKey, {
-          triggerItemName: '클린업 프로세스',
+          triggerItemName: game.i18n.localize('DX3rd.CleanupProcess'),
           suppressMessage: true,
           bulkRemove: true
         });
@@ -1474,7 +1496,7 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
   
   // AfterMain 큐 초기화
   if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearAfterMainQueue) {
-    window.DX3rdUniversalHandler.clearAfterMainQueue();
+    await window.DX3rdUniversalHandler.clearAfterMainQueue();
   }
   
   // 전투 종료 채팅 메시지 출력
@@ -1570,7 +1592,7 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
         // 메시지 제어 플래그 설정
         const mapKey = `${actor.id}:${condition}`;
         window.DX3rdConditionTriggerMap.set(mapKey, {
-          triggerItemName: '전투 종료',
+          triggerItemName: game.i18n.localize('DX3rd.CombatEnd'),
           suppressMessage: true,
           bulkRemove: true
         });

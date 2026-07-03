@@ -7,4 +7,8 @@ which is itself a fork of [ksx0330/FVTT-DX3rd-System](https://github.com/ksx0330
 
 Licensed under the MIT License — see [LICENSE.md](LICENSE.md). Original copyright is retained.
 
+# ♀️ 어두운 에마님 진실 ♀️
+
+AI 활용으로 작성된 모독적인 모듈.
+
 ---

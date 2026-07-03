@@ -127,7 +127,7 @@
         makeButton('fa-solid fa-user-tag', game.i18n.localize('DX3rd.ActorType'),
           event => DX3rdActorSheetV2._onEditActorType.call(this, event, event.currentTarget));
       }
-      makeButton('fa-solid fa-user-circle', '토큰',
+      makeButton('fa-solid fa-user-circle', game.i18n.localize('DX3rd.Token'),
         event => this._onConfigurePrototypeToken(event));
     }
 
@@ -188,7 +188,7 @@
       event?.preventDefault();
       const PrototypeTokenConfig = foundry.applications?.sheets?.PrototypeTokenConfig;
       if (!PrototypeTokenConfig) {
-        ui.notifications.warn('PrototypeTokenConfig를 사용할 수 없습니다.');
+        ui.notifications.warn(game.i18n.localize('DX3rd.PrototypeTokenConfigUnavailable'));
         return;
       }
       try {

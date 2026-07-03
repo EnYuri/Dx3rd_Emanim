@@ -5,6 +5,8 @@
   class DX3rdEffect extends _ItemBase {
   prepareData() {
     super.prepareData();
+    if (this.type !== 'effect') return;
+
     // 레벨 기본값 보정
     if (!this.system.level) this.system.level = {};
     if (this.system.level.init == null) this.system.level.init = 0;
@@ -64,6 +66,7 @@
 
 // 전역 노출 (non-ESM 환경)
 window.DX3rdEffect = DX3rdEffect;
+CONFIG.Item.documentClass = DX3rdEffect;
 
 // 아이템 타입 라벨 등록 (AppV2 시트 제목 현지화)
 // AppV1 ItemSheet 제목은 item.name만 사용해 노출되지 않았지만,

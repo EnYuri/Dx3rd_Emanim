@@ -116,7 +116,7 @@ window.DX3rdRoisHandler = {
             const html = await renderTemplate(template, { isSuperior });
             
             if (!DialogV2) {
-                ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
                 return;
             }
 
@@ -414,7 +414,7 @@ window.DX3rdRoisHandler = {
                     const html = await renderTemplate(template, { effects: effectsData });
                     
                     if (!DialogV2) {
-                        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
                         return null;
                     }
 

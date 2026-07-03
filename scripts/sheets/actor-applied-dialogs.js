@@ -122,13 +122,13 @@
 
   async function open(actor, appliedIdOrKey) {
     if (!DialogV2?.prompt) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 
     const applied = findApplied(actor, appliedIdOrKey);
     if (!applied) {
-      ui.notifications.warn('Applied 효과를 찾을 수 없습니다.');
+      ui.notifications.warn(game.i18n.localize('DX3rd.AppliedEffectNotFound'));
       return false;
     }
 
@@ -138,7 +138,7 @@
       content: renderDetails(applied.effect),
       ok: {
         icon: '<i class="fas fa-times"></i>',
-        label: game.i18n.localize('Close')
+        label: game.i18n.localize('DX3rd.Close')
       }
     });
     return true;
@@ -146,7 +146,7 @@
 
   async function confirmRemove(applied) {
     if (!DialogV2?.confirm) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 
@@ -160,7 +160,7 @@
       },
       no: {
         icon: '<i class="fas fa-times"></i>',
-        label: game.i18n.localize('Cancel')
+        label: game.i18n.localize('DX3rd.Cancel')
       },
       defaultYes: false
     });

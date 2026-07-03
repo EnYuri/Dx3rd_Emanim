@@ -1109,18 +1109,8 @@ Hooks.on('getSceneControlButtons', (controls) => {
                         
                         // 의지 기능 판정 다이얼로그 표시 (난이도 필수, 충동 판정 플래그, 침식률 상승 콜백)
                         if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showStatRollDialog) {
-                            // showStatRollDialog를 래핑하여 콜백 전달
                             const originalShowStatRollDialog = window.DX3rdUniversalHandler.showStatRollDialog.bind(window.DX3rdUniversalHandler);
                             
-                            // 다이얼로그가 열린 후, executeStatRoll 호출 시 콜백을 전달하도록 수정
-                            // 이를 위해 showStatRollDialog 내부에서 executeStatRoll 호출 시 콜백을 전달해야 함
-                            // 일단 간단하게 showStatRollDialog에 콜백을 전달할 수 있는 방법을 찾아야 함
-                            
-                            // 임시 해결책: showStatRollDialog에 afterRollCallback을 전달할 수 있도록 수정 필요
-                            // 하지만 showStatRollDialog는 다이얼로그를 띄우는 함수이므로, 
-                            // executeStatRoll 호출 시 콜백을 전달하려면 showStatRollDialog 내부를 수정해야 함
-                            
-                            // 더 나은 방법: showStatRollDialog에 afterRollCallback 매개변수 추가
                             originalShowStatRollDialog(
                                 targetCharacter,
                                 willSkill,
@@ -1576,16 +1566,8 @@ Hooks.once('ready', function() {
             const actor = game.actors.get(actorId);
             const item = itemId ? actor?.items.get(itemId) : null;
             
-            if (actor && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._afterMainQueue) {
-                // GM이 직접 큐에 추가 (재귀 방지) - actorId와 itemId도 함께 저장
-                window.DX3rdUniversalHandler._afterMainQueue.push({ 
-                    type: extensionType, 
-                    actor: actor,
-                    actorId: actorId,  // actorId도 함께 저장
-                    data: extensionData, 
-                    item: item,
-                    itemId: itemId || null  // itemId도 함께 저장
-                });
+            if (actor && window.DX3rdUniversalHandler?.addToAfterMainQueue) {
+                window.DX3rdUniversalHandler.addToAfterMainQueue(actor, extensionData, item, extensionType);
             }
             return;
         }
@@ -3555,6 +3537,7 @@ window.DX3rdChatToggleManager = {
             const itemId = button.data('item-id');
             const damage = button.data('damage');
             const penetrate = button.data('penetrate');
+            const attackResult = Number(button.data('attack-result')) || 0;
             
             // 권한 체크
             const actor = game.actors.get(actorId);
@@ -3642,9 +3625,13 @@ window.DX3rdChatToggleManager = {
             // UniversalHandler의 데미지 적용 함수 호출
             // comboAfterDamageData를 전달하여 방어 다이얼로그 콜백에서 처리
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageApply) {
-                await window.DX3rdUniversalHandler.handleDamageApply(actor, item, damage, penetrate, targets, comboAfterDamageData);
+                await window.DX3rdUniversalHandler.handleDamageApply(actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult);
             }
-            
+
+            // 증오 자동 회복은 명중판정 시점(onAttackRollComplete)으로 이관됨.
+            // 룰상 성공 여부와 무관하게 회복되므로, 빗나가 데미지 버튼을 누르지 않는 경우도 커버해야 한다.
+            // 위 hatred 대상 강제 체크(3595)는 잘못된 대상에 데미지 적용을 막는 안전망으로 유지.
+
             // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
             await message.setFlag('dx3rd-emanim', 'damageApplyCompleted', true);
             
@@ -4901,7 +4888,8 @@ Hooks.on('preCreateItem', async (item, data, options, userId) => {
 // ========== AfterMain 큐 관리: 전투 시작 시 초기화 ========== //
 // 전투 종료 시 초기화는 combat.js의 deleteCombat 훅에서 처리
 Hooks.on('createCombat', async (combat, options, userId) => {
+    if (!game.user.isGM) return;
     if (window.DX3rdUniversalHandler) {
-        window.DX3rdUniversalHandler.clearAfterMainQueue();
+        await window.DX3rdUniversalHandler.clearAfterMainQueue();
     }
 });

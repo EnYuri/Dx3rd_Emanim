@@ -25,8 +25,104 @@ window.DX3rdComboHandler = {
         }
         return label || skillKey;
     },
-    
-    async handle(actorId, itemIdOrObject, getTarget) {
+
+    /**
+     * 콤보의 기능(skill) 설정으로부터 판정 stat/label 해석 (공용)
+     * - 능력치(body/sense/mind/social), 신드롬, 텍스트, 크툴루 신화, 일반 스킬(+커스텀 base) 모두 처리
+     * - Finding F: 무기 판정 경로(handleComboRollWithWeapon)와 일반 경로가 동일한 해석을 쓰도록 단일화
+     * @returns {{stat:object, label:string}|null} 실패 시 경고 표시 후 null
+     */
+    resolveComboStat(actor, item) {
+        const skillKey = item.system?.skill;
+        if (!skillKey || skillKey === '-') {
+            ui.notifications.warn('콤보의 기능이 설정되지 않았습니다.');
+            return null;
+        }
+
+        const attributes = ['body', 'sense', 'mind', 'social'];
+        let stat = null;
+        let label = '';
+
+        if (attributes.includes(skillKey)) {
+            // 능력치
+            stat = actor.system.attributes[skillKey];
+            label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
+        } else if (skillKey === 'syndrome') {
+            // 신드롬
+            stat = actor.system.attributes.syndrome;
+            label = stat?.name || game.i18n.localize('DX3rd.Syndrome');
+            if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
+        } else if (skillKey === 'text') {
+            // 텍스트
+            stat = actor.system.attributes.text;
+            label = stat?.name || game.i18n.localize('DX3rd.Text');
+            if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
+        } else if (skillKey === 'cthulhu') {
+            // 크툴루 신화
+            stat = actor.system.attributes.skills?.cthulhu;
+            label = stat?.name || game.i18n.localize('DX3rd.cthulhu');
+            if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
+        } else {
+            // 스킬 - system.base 설정 확인
+            const customBase = item.system?.base;
+            if (customBase && customBase !== '-' && attributes.includes(customBase)) {
+                // 커스텀 base 사용 - 스킬 보정 계산
+                const baseStat = actor.system.attributes[customBase];
+                const skillStat = actor.system.attributes.skills?.[skillKey];
+                const originalBaseStat = actor.system.attributes[skillStat?.base];
+
+                if (baseStat && skillStat && originalBaseStat) {
+                    // 스킬의 순수 보정 계산
+                    const skillDiceBonus = (skillStat.dice || 0) - (originalBaseStat.dice || 0);
+                    const skillAddBonus = (skillStat.add || 0) - (originalBaseStat.add || 0);
+
+                    // 커스텀 base + 스킬 보정으로 새로운 stat 객체 생성
+                    stat = {
+                        ...baseStat,
+                        dice: (baseStat.dice || 0) + skillDiceBonus,
+                        add: (baseStat.add || 0) + skillAddBonus,
+                        major: {
+                            dice: (baseStat.major?.dice || 0) + skillDiceBonus,
+                            add: (baseStat.major?.add || 0) + skillAddBonus,
+                            critical: baseStat.major?.critical || 10
+                        },
+                        reaction: {
+                            dice: (baseStat.reaction?.dice || 0) + skillDiceBonus,
+                            add: (baseStat.reaction?.add || 0) + skillAddBonus,
+                            critical: baseStat.reaction?.critical || 10
+                        },
+                        dodge: {
+                            dice: (baseStat.dodge?.dice || 0) + skillDiceBonus,
+                            add: (baseStat.dodge?.add || 0) + skillAddBonus,
+                            critical: baseStat.dodge?.critical || 10
+                        }
+                    };
+
+                    const skillLabel = this.getSkillDisplayName(skillKey, skillStat);
+                    label = `${game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`)}(${skillLabel})`;
+                    console.log(`DX3rd | ComboHandler - Using custom base: ${customBase} for skill: ${skillKey}`);
+                    console.log(`DX3rd | ComboHandler - Skill bonus: dice=${skillDiceBonus}, add=${skillAddBonus}`);
+                } else {
+                    // 폴백: 기본 base 사용
+                    stat = baseStat;
+                    label = game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`);
+                }
+            } else {
+                // 기본 스킬 사용
+                stat = actor.system.attributes.skills?.[skillKey];
+                if (stat) label = this.getSkillDisplayName(skillKey, stat);
+            }
+        }
+
+        if (!stat) {
+            ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
+            return null;
+        }
+
+        return { stat, label };
+    },
+
+    async handle(actorId, itemIdOrObject, getTarget, options = {}) {
         console.log("DX3rd | ComboHandler handle called", { actorId, itemIdOrObject, getTarget });
         
         const actor = game.actors.get(actorId);
@@ -53,6 +149,18 @@ window.DX3rdComboHandler = {
             return;
         }
 
+        // 0. 임시 콤보(빌더에서 생성된 객체)는 handleItemUse를 거치지 않으므로 여기서 코스트를 정산한다.
+        //    저장된 콤보(문자열 id)는 handleItemUse가 이미 processItemUsageCost를 호출했으므로 중복 정산하지 않는다.
+        //    정산 내용: 침식치 합계(룰 807-809)·HP 코스트·사용 게이트·통합 사용 메시지.
+        //    이펙트 사용횟수 증가는 processInstantExtensions가 담당하므로 코스트 정산과 이중으로 겹치지 않는다.
+        if (typeof itemIdOrObject === 'object') {
+            const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item);
+            if (!usageAllowed) {
+                console.log("DX3rd | ComboHandler - Temp combo usage blocked by cost gate");
+                return;
+            }
+        }
+
         // 1. instant 익스텐션 병합·실행 (공통 - 롤 타입 무관)
         await this.processInstantExtensions(actor, item);
 
@@ -64,7 +172,7 @@ window.DX3rdComboHandler = {
             console.log("DX3rd | ComboHandler - No-roll combo completed");
         } else {
             // Roll: 롤 다이얼로그 표시 (afterSuccess는 채팅 버튼에서 처리)
-            await this.handleComboRoll(actor, item, rollType, getTarget);
+            await this.handleComboRoll(actor, item, rollType, getTarget, options);
         }
     },
     
@@ -638,7 +746,7 @@ window.DX3rdComboHandler = {
      * 판정 콤보 처리 (system.roll !== '-')
      * 침식률/활성화는 이미 handleItemUse에서 처리됨
      */
-    async handleComboRoll(actor, item, rollType, getTarget) {
+    async handleComboRoll(actor, item, rollType, getTarget, options = {}) {
         console.log("DX3rd | ComboHandler - Combo roll processing", { rollType });
         
         const handler = window.DX3rdUniversalHandler;
@@ -661,7 +769,7 @@ window.DX3rdComboHandler = {
         
         // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
-            await this.showWeaponSelectionForAttack(actor, item, rollType);
+            await this.showWeaponSelectionForAttack(actor, item, rollType, options);
             return;
         }
         
@@ -679,7 +787,7 @@ window.DX3rdComboHandler = {
                     ? registeredWeaponBonus 
                     : null;
                 
-                await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus);
+                await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options);
                 return;
             }
             // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
@@ -690,107 +798,15 @@ window.DX3rdComboHandler = {
         const originalItem = item.meta?.originalItem || null;
         const rollItemForDialog = originalItem || item;
 
-        // 아이템의 스킬로 stat 데이터 가져오기
-        const skillKey = item.system?.skill;
-        if (!skillKey || skillKey === '-') {
-            ui.notifications.warn('콤보의 기능이 설정되지 않았습니다.');
-            return;
-        }
-        
-        // 스킬 또는 능력치 데이터 가져오기
-        const attributes = ['body', 'sense', 'mind', 'social'];
-        let stat = null;
-        let label = '';
-        
-        if (attributes.includes(skillKey)) {
-            // 능력치
-            stat = actor.system.attributes[skillKey];
-            label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
-        } else if (skillKey === 'syndrome') {
-            // 신드롬
-            stat = actor.system.attributes.syndrome;
-            label = stat?.name || game.i18n.localize('DX3rd.Syndrome');
-            if (label && label.startsWith('DX3rd.')) {
-                label = game.i18n.localize(label);
-            }
-        } else if (skillKey === 'text') {
-            // 텍스트
-            stat = actor.system.attributes.text;
-            label = stat?.name || game.i18n.localize('DX3rd.Text');
-            if (label && label.startsWith('DX3rd.')) {
-                label = game.i18n.localize(label);
-            }
-        } else if (skillKey === 'cthulhu') {
-            // 크툴루 신화
-            stat = actor.system.attributes.skills?.cthulhu;
-            label = stat?.name || game.i18n.localize('DX3rd.cthulhu');
-            if (label && label.startsWith('DX3rd.')) {
-                label = game.i18n.localize(label);
-            }
-        } else {
-            // 스킬 - system.base 설정 확인
-            const customBase = item.system?.base;
-            if (customBase && customBase !== '-' && attributes.includes(customBase)) {
-                // 커스텀 base 사용 - 스킬 보정 계산
-                const baseStat = actor.system.attributes[customBase];
-                const skillStat = actor.system.attributes.skills?.[skillKey];
-                const originalBaseStat = actor.system.attributes[skillStat?.base];
-                
-                if (baseStat && skillStat && originalBaseStat) {
-                    // 스킬의 순수 보정 계산
-                    const skillDiceBonus = (skillStat.dice || 0) - (originalBaseStat.dice || 0);
-                    const skillAddBonus = (skillStat.add || 0) - (originalBaseStat.add || 0);
-                    
-                    // 커스텀 base + 스킬 보정으로 새로운 stat 객체 생성
-                    stat = {
-                        ...baseStat,
-                        dice: (baseStat.dice || 0) + skillDiceBonus,
-                        add: (baseStat.add || 0) + skillAddBonus,
-                        major: {
-                            dice: (baseStat.major?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.major?.add || 0) + skillAddBonus,
-                            critical: baseStat.major?.critical || 10
-                        },
-                        reaction: {
-                            dice: (baseStat.reaction?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.reaction?.add || 0) + skillAddBonus,
-                            critical: baseStat.reaction?.critical || 10
-                        },
-                        dodge: {
-                            dice: (baseStat.dodge?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.dodge?.add || 0) + skillAddBonus,
-                            critical: baseStat.dodge?.critical || 10
-                        }
-                    };
-                    
-                    const skillLabel = this.getSkillDisplayName(skillKey, skillStat);
-                    label = `${game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`)}(${skillLabel})`;
-                    console.log(`DX3rd | ComboHandler - Using custom base: ${customBase} for skill: ${skillKey}`);
-                    console.log(`DX3rd | ComboHandler - Skill bonus: dice=${skillDiceBonus}, add=${skillAddBonus}`);
-                    console.log(`DX3rd | ComboHandler - Final stat:`, stat);
-                } else {
-                    // 폴백: 기본 base 사용
-                    stat = baseStat;
-                    label = game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`);
-                }
-            } else {
-                // 기본 스킬 사용
-                stat = actor.system.attributes.skills?.[skillKey];
-                if (stat) {
-                    label = this.getSkillDisplayName(skillKey, stat);
-                }
-            }
-        }
-        
-        if (!stat) {
-            ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
-            return;
-        }
-        
+        // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용)
+        const resolved = this.resolveComboStat(actor, item);
+        if (!resolved) return;
+        const { stat, label } = resolved;
+
         // afterSuccess와 afterDamage 데이터 수집
         const afterSuccessData = await this.collectAfterSuccessData(actor, item);
         const afterDamageData = await this.collectAfterDamageData(actor, item);
-        
+
         // 판정 다이얼로그 표시 (afterSuccess와 afterDamage 데이터 전달)
         // 마도서 해독 콤보인 경우, 원본 북 아이템과 미리 정의된 난이도를 사용
         handler.showStatRollDialog(
@@ -803,14 +819,17 @@ window.DX3rdComboHandler = {
             null,
             afterSuccessData,
             afterDamageData,
-            predefinedDifficulty
+            options.predefinedDifficulty || predefinedDifficulty,
+            false,
+            false,
+            options.afterRollCallback || null
         );
     },
     
     /**
      * 공격용 무기 선택 다이얼로그 표시
      */
-    async showWeaponSelectionForAttack(actor, item, rollType) {
+    async showWeaponSelectionForAttack(actor, item, rollType, options = {}) {
         const attackRollType = item.system.attackRoll;
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
@@ -829,7 +848,7 @@ window.DX3rdComboHandler = {
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
                 // 무기 보너스를 적용하여 판정 다이얼로그 표시
-                await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus);
+                await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options);
             }
         }).render(true);
     },
@@ -898,7 +917,7 @@ window.DX3rdComboHandler = {
     /**
      * 무기 보너스를 적용한 판정 처리
      */
-    async handleComboRollWithWeapon(actor, item, rollType, weaponBonus) {
+    async handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         
         // 북 해독 콤보 등에서 전달된 메타데이터 복원
@@ -906,85 +925,15 @@ window.DX3rdComboHandler = {
         const originalItem = item.meta?.originalItem || null;
         const rollItemForDialog = originalItem || item;
 
-        // 아이템의 스킬로 stat 데이터 가져오기
-        const skillKey = item.system?.skill;
-        if (!skillKey || skillKey === '-') {
-            ui.notifications.warn('콤보의 기능이 설정되지 않았습니다.');
-            return;
-        }
-        
-        // 스킬 또는 능력치 데이터 가져오기
-        const attributes = ['body', 'sense', 'mind', 'social'];
-        let stat = null;
-        let label = '';
-        
-        if (attributes.includes(skillKey)) {
-            stat = actor.system.attributes[skillKey];
-            label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
-        } else {
-            // 스킬 - system.base 설정 확인
-            const customBase = item.system?.base;
-            if (customBase && customBase !== '-' && attributes.includes(customBase)) {
-                // 커스텀 base 사용 - 스킬 보정 계산
-                const baseStat = actor.system.attributes[customBase];
-                const skillStat = actor.system.attributes.skills?.[skillKey];
-                const originalBaseStat = actor.system.attributes[skillStat?.base];
-                
-                if (baseStat && skillStat && originalBaseStat) {
-                    // 스킬의 순수 보정 계산
-                    const skillDiceBonus = (skillStat.dice || 0) - (originalBaseStat.dice || 0);
-                    const skillAddBonus = (skillStat.add || 0) - (originalBaseStat.add || 0);
-                    
-                    // 커스텀 base + 스킬 보정으로 새로운 stat 객체 생성
-                    stat = {
-                        ...baseStat,
-                        dice: (baseStat.dice || 0) + skillDiceBonus,
-                        add: (baseStat.add || 0) + skillAddBonus,
-                        major: {
-                            dice: (baseStat.major?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.major?.add || 0) + skillAddBonus,
-                            critical: baseStat.major?.critical || 10
-                        },
-                        reaction: {
-                            dice: (baseStat.reaction?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.reaction?.add || 0) + skillAddBonus,
-                            critical: baseStat.reaction?.critical || 10
-                        },
-                        dodge: {
-                            dice: (baseStat.dodge?.dice || 0) + skillDiceBonus,
-                            add: (baseStat.dodge?.add || 0) + skillAddBonus,
-                            critical: baseStat.dodge?.critical || 10
-                        }
-                    };
-                    
-                    const skillLabel = this.getSkillDisplayName(skillKey, skillStat);
-                    label = `${game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`)}(${skillLabel})`;
-                    console.log(`DX3rd | ComboHandler - Using custom base: ${customBase} for skill: ${skillKey}`);
-                    console.log(`DX3rd | ComboHandler - Skill bonus: dice=${skillDiceBonus}, add=${skillAddBonus}`);
-                    console.log(`DX3rd | ComboHandler - Final stat:`, stat);
-                } else {
-                    // 폴백: 기본 base 사용
-                    stat = baseStat;
-                    label = game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`);
-                }
-            } else {
-                // 기본 스킬 사용
-                stat = actor.system.attributes.skills?.[skillKey];
-                if (stat) {
-                    label = this.getSkillDisplayName(skillKey, stat);
-                }
-            }
-        }
-        
-        if (!stat) {
-            ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
-            return;
-        }
-        
+        // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용 — syndrome/text/cthulhu 분기 포함)
+        const resolved = this.resolveComboStat(actor, item);
+        if (!resolved) return;
+        const { stat, label } = resolved;
+
         // afterSuccess와 afterDamage 데이터 수집
         const afterSuccessData = await this.collectAfterSuccessData(actor, item);
         const afterDamageData = await this.collectAfterDamageData(actor, item);
-        
+
         console.log('DX3rd | ComboHandler - Weapon bonus to apply:', weaponBonus);
         handler.showStatRollDialog(
             actor,
@@ -996,7 +945,10 @@ window.DX3rdComboHandler = {
             weaponBonus,
             afterSuccessData,
             afterDamageData,
-            predefinedDifficulty
+            options.predefinedDifficulty || predefinedDifficulty,
+            false,
+            false,
+            options.afterRollCallback || null
         );
     },
     
@@ -1187,7 +1139,7 @@ window.DX3rdComboHandler = {
                     
                     if (evasionDisabled === false && evasionValue !== undefined && evasionValue !== null) {
                         const evasionNum = Number(evasionValue) || 0;
-                        const isHit = rollResult >= evasionNum;
+                        const isHit = rollResult > evasionNum;
                         const resultText = isHit 
                             ? `${game.i18n.localize('DX3rd.Hit')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`
                             : `${game.i18n.localize('DX3rd.Failure')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`;

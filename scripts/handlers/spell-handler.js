@@ -28,7 +28,7 @@ async function executeMacrosByPrefix(prefix) {
 
 async function promptRoisSelection({ title, content }) {
     if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return null;
     }
 
@@ -103,7 +103,7 @@ window.DX3rdSpellHandler = {
         // 둘 다 있는 경우: 다이얼로그로 선택
         if (hasInvoke && hasEvocation) {
             if (!DialogV2?.wait) {
-                ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+                ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
                 return;
             }
             const title = game.i18n.localize('DX3rd.CastingRoll');
@@ -142,7 +142,7 @@ window.DX3rdSpellHandler = {
     ,
     async showCastingRollDialog(actor, item, difficulty, getTarget) {
         if (!DialogV2?.wait) {
-            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
             return;
         }
 

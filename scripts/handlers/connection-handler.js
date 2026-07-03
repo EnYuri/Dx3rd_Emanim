@@ -60,7 +60,7 @@ window.DX3rdConnectionHandler = {
         // 콤보 확인 다이얼로그
         const title = game.i18n.localize('DX3rd.Combo');
         if (!DialogV2?.confirm) {
-            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
             return;
         }
 

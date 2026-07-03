@@ -63,7 +63,7 @@
 
     const DialogV2 = getDialogV2();
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 
@@ -200,7 +200,7 @@
   async function openStock(actor) {
     const DialogV2 = getDialogV2();
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 
@@ -281,7 +281,7 @@
   async function openActorType(actor) {
     const DialogV2 = getDialogV2();
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 

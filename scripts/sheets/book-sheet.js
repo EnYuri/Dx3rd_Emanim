@@ -206,7 +206,7 @@ class DX3rdBookSheet extends window.DX3rdItemSheet {
     event.preventDefault();
 
     if (!DialogV2?.input) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 

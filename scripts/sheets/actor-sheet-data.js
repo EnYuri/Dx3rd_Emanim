@@ -28,6 +28,14 @@
         return actor.testUserPermission(user, "OWNER");
     }
 
+    function localize(key) {
+        return game.i18n.localize(key);
+    }
+
+    function format(key, data = {}) {
+        return game.i18n.format(key, data);
+    }
+
     function shouldUseSimpleSheet(actor, user = game.user) {
         if (user.isGM) return false;
 
@@ -143,7 +151,7 @@
             return {
                 ok: false,
                 level: "warn",
-                message: "CRC 스테이지 비활성화 시 스펠, 사이오닉, 마도서 아이템을 생성할 수 없습니다."
+                message: localize("DX3rd.StageCRCItemsCreateDisabled")
             };
         }
 
@@ -151,7 +159,7 @@
             return {
                 ok: false,
                 level: "info",
-                message: "Each character can only have one Works item."
+                message: localize("DX3rd.WorksLimitOne")
             };
         }
 
@@ -159,7 +167,7 @@
             return {
                 ok: false,
                 level: "info",
-                message: "Each character can only have up to three Syndrome items."
+                message: localize("DX3rd.SyndromeLimitThree")
             };
         }
 
@@ -170,7 +178,7 @@
         const key = `DX3rd.${type.charAt(0).toUpperCase()}${type.slice(1)}`;
         const typeLabel = game.i18n.localize(key);
         const itemData = {
-            name: `New ${typeLabel !== key ? typeLabel : type}`,
+            name: format("DX3rd.NewItemName", {type: typeLabel !== key ? typeLabel : type}),
             type,
             system: {}
         };
@@ -276,7 +284,7 @@
     function openComboBuilder(actor, targetType, targetId) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.openComboBuilder) {
-            ui.notifications.error("ComboBuilder를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "ComboBuilder"}));
             return Promise.resolve();
         }
         return handler.openComboBuilder(actor, targetType, targetId);
@@ -285,7 +293,7 @@
     function showStatRoll(actor, targetType, targetId) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.showStatRollConfirmDialog) {
-            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
             return;
         }
         handler.showStatRollConfirmDialog(
@@ -332,15 +340,15 @@
         if (!item) return false;
 
         if (['spell', 'psionic', 'book'].includes(item.type) && !game.settings.get('dx3rd-emanim', 'stageCRC')) {
-            ui.notifications.warn('CRC 스테이지 비활성화 시 스펠, 사이오닉, 마도서 아이템을 추가할 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.StageCRCItemsAddDisabled'));
             return false;
         }
         if (item.type === 'works' && actor.items.filter(i => i.type === 'works').length >= 1) {
-            ui.notifications.info('Each character can only have one Works item.');
+            ui.notifications.info(localize('DX3rd.WorksLimitOne'));
             return false;
         }
         if (item.type === 'syndrome' && actor.items.filter(i => i.type === 'syndrome').length >= 3) {
-            ui.notifications.info('Each character can only have up to three Syndrome items.');
+            ui.notifications.info(localize('DX3rd.SyndromeLimitThree'));
             return false;
         }
 
@@ -367,7 +375,7 @@
     // 다이얼로그는 ApplicationV2 기반이라 buttons/default 설정은 받지 않는다(클래스가 자체 렌더).
     function openCreateSkillDialog(actor, abilityId) {
         if (!window.DX3rdSkillCreateDialog) {
-            ui.notifications.error("DX3rdSkillCreateDialog를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "DX3rdSkillCreateDialog"}));
             return;
         }
         const options = getCreateSkillDialogOptions(actor, abilityId);
@@ -377,7 +385,7 @@
 
     function openEditSkillDialog(actor, skillId) {
         if (!window.DX3rdSkillEditDialog) {
-            ui.notifications.error("DX3rdSkillEditDialog를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "DX3rdSkillEditDialog"}));
             return;
         }
         const options = getEditSkillDialogOptions(actor, skillId);
@@ -390,7 +398,7 @@
     // handleItemUse 경유 시 비용 게이트 추가 부과 + instant 매크로 이중 실행 문제가 있어 직접 호출로 통일.
     function useTitus(actor, item) {
         if (!window.DX3rdRoisHandler?.handleTitus) {
-            ui.notifications.error("로이스 핸들러를 찾을 수 없습니다.");
+            ui.notifications.error(localize("DX3rd.RoisHandlerMissing"));
             return Promise.resolve();
         }
         return window.DX3rdRoisHandler.handleTitus(actor.id, item.id);
@@ -407,7 +415,7 @@
             return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
         }
         if (window.DX3rdItemExhausted?.isItemExhausted(item)) {
-            return { ok: false, level: "warn", message: `${item.name}의 사용 횟수가 모두 소진되었습니다.` };
+            return { ok: false, level: "warn", message: format("DX3rd.ItemExhausted", {name: item.name}) };
         }
         return { ok: true };
     }
@@ -417,7 +425,7 @@
     function useItem(actor, item, roisAction = undefined, getTarget = undefined) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.handleItemUse) {
-            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
             return Promise.resolve(false);
         }
         if (!actor || !item) return Promise.resolve(false);
@@ -427,7 +435,7 @@
     function attackRoll(actor, item) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.handleAttackRoll) {
-            ui.notifications.error("UniversalHandler를 찾을 수 없습니다.");
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
             return Promise.resolve();
         }
         if (!actor || !item) return Promise.resolve();

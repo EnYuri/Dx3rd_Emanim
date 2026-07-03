@@ -47,7 +47,7 @@ window.DX3rdEffectHandler = {
         return { stat, label: stat ? this.getSkillDisplayName(skillKey, stat) : '' };
     },
 
-    async handle(actorId, itemId, getTarget) {
+    async handle(actorId, itemId, getTarget, options = {}) {
         const actor = game.actors.get(actorId);
         if (!actor) { 
             ui.notifications.warn("Actor not found"); 
@@ -69,7 +69,7 @@ window.DX3rdEffectHandler = {
             await this.handleBasicEffect(actor, item);
         } else {
             // 판정 처리: major/reaction/dodge
-            await this.handleEffectRoll(actor, item, rollType, getTarget);
+            await this.handleEffectRoll(actor, item, rollType, getTarget, options);
         }
     },
     
@@ -85,7 +85,7 @@ window.DX3rdEffectHandler = {
      * 판정 이펙트 처리 (system.roll !== '-')
      * 침식률/활성화는 이미 handleItemUse에서 처리됨
      */
-    async handleEffectRoll(actor, item, rollType, getTarget) {
+    async handleEffectRoll(actor, item, rollType, getTarget, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler) {
             console.error("DX3rd | UniversalHandler not found");
@@ -94,7 +94,7 @@ window.DX3rdEffectHandler = {
         
         // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
-            await this.showWeaponSelectionForAttack(actor, item, rollType);
+            await this.showWeaponSelectionForAttack(actor, item, rollType, options);
             return;
         }
         
@@ -111,7 +111,7 @@ window.DX3rdEffectHandler = {
                     ? registeredWeaponBonus 
                     : null;
                 
-                await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus);
+                await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options);
                 return;
             }
             // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
@@ -133,13 +133,27 @@ window.DX3rdEffectHandler = {
         }
 
         // 판정 다이얼로그 표시 (특정 타입만)
-        handler.showStatRollDialog(actor, stat, label, rollType, item);
+        handler.showStatRollDialog(
+            actor,
+            stat,
+            label,
+            rollType,
+            item,
+            null,
+            null,
+            null,
+            null,
+            options.predefinedDifficulty || null,
+            false,
+            false,
+            options.afterRollCallback || null
+        );
     },
     
     /**
      * 공격용 무기 선택 다이얼로그 표시
      */
-    async showWeaponSelectionForAttack(actor, item, rollType) {
+    async showWeaponSelectionForAttack(actor, item, rollType, options = {}) {
         const attackRollType = item.system.attackRoll;
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
@@ -158,7 +172,7 @@ window.DX3rdEffectHandler = {
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
                 // 무기 보너스를 적용하여 판정 다이얼로그 표시
-                await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus);
+                await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options);
             }
         }).render(true);
     },
@@ -220,7 +234,7 @@ window.DX3rdEffectHandler = {
     /**
      * 무기 보너스를 적용한 판정 처리
      */
-    async handleEffectRollWithWeapon(actor, item, rollType, weaponBonus) {
+    async handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options = {}) {
         const handler = window.DX3rdUniversalHandler;
 
         // 아이템의 스킬로 stat 데이터 가져오기
@@ -239,7 +253,21 @@ window.DX3rdEffectHandler = {
         }
 
         // 무기 보너스를 적용하여 판정 다이얼로그 표시
-        handler.showStatRollDialog(actor, stat, label, rollType, item, null, weaponBonus);
+        handler.showStatRollDialog(
+            actor,
+            stat,
+            label,
+            rollType,
+            item,
+            null,
+            weaponBonus,
+            null,
+            null,
+            options.predefinedDifficulty || null,
+            false,
+            false,
+            options.afterRollCallback || null
+        );
     }
 };
 })();

@@ -68,7 +68,7 @@
   async function openLiveDialog(actor, { title, template, context, wire }) {
     const DialogV2 = getDialogV2();
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
     const content = await renderTemplate(`${TEMPLATE_BASE}/${template}`, context);

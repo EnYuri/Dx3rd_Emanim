@@ -253,7 +253,14 @@
                 const actor = item.actor;
                 if (item.type === 'effect' && lvl.upgrade && actor) {
                     const init = Number(lvl.init) || 0;
-                    const encLevel = Number(actor.system?.attributes?.encroachment?.level) || 0;
+                    // Finding E: 아이템 사용 중에는 '코스트 반영 전' 고정 침식 레벨을 우선한다.
+                    // (handleItemUse가 actor._dx3rdUsageEncLevel에 스냅샷을 걸어둔다.
+                    //  이미 발동한 이펙트가 자신의 침식 코스트로 레벨이 오르는 것을 방지.)
+                    //  플래그가 없으면(사용 밖) 실시간 침식 레벨을 그대로 읽는다.
+                    const frozen = actor._dx3rdUsageEncLevel;
+                    const encLevel = (frozen !== undefined && frozen !== null)
+                        ? Number(frozen) || 0
+                        : Number(actor.system?.attributes?.encroachment?.level) || 0;
                     return init + encLevel;
                 }
                 // 액터 컨텍스트가 없는 임시 아이템이거나 upgrade가 아니면 저장된 value(없으면 init) 사용

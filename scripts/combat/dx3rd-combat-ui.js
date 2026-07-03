@@ -19,6 +19,7 @@
 
     // UniversalHandler 참조 (전역 객체에서 가져오기)
     const getUniversalHandler = () => globalThis.DX3rdUniversalHandler || window.DX3rdUniversalHandler;
+    const localize = (key) => game.i18n.localize(key);
 
     // 버튼 컨테이너
     let buttonContainer = null;
@@ -529,7 +530,7 @@
     function handleAbilityRoll(statKey) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -561,7 +562,7 @@
     function showCombatActionDialog(actionType, actionLabel) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -576,7 +577,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-timing-action-header" style="cursor: move;">
                 <h3>${actionLabel}</h3>
-                <button class="dx3rd-timing-action-close-btn" title="닫기">×</button>
+                <button class="dx3rd-timing-action-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-timing-action-content">
                 <div class="dx3rd-timing-action-buttons">
@@ -989,7 +990,7 @@
         // 토큰 동기화 (모든 액션 처리 전에 먼저 확인)
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1036,7 +1037,7 @@
     function showEffectSelectionDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1062,7 +1063,7 @@
         effectItems = sortAndFilterItemsByLimit(effectItems, actor);
         
         if (effectItems.length === 0) {
-            ui.notifications.warn('사용할 수 있는 이펙트가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoAvailableEffect'));
             return;
         }
         
@@ -1075,7 +1076,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${effectLabel} ${game.i18n.localize('DX3rd.Use')}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -1116,7 +1117,7 @@
         const item = actor?.items.get(itemId);
         
         if (!item) {
-            ui.notifications.warn('아이템을 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ItemNotFound'));
             return;
         }
         
@@ -1148,7 +1149,7 @@
     function showComboSelectionDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1172,7 +1173,7 @@
         comboItems = sortAndFilterItemsByLimit(comboItems, actor);
         
         if (comboItems.length === 0) {
-            ui.notifications.warn('사용할 수 있는 콤보가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoAvailableCombo'));
             return;
         }
         
@@ -1185,7 +1186,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${comboLabel} ${game.i18n.localize('DX3rd.Use')}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -1226,7 +1227,7 @@
         const item = actor?.items.get(itemId);
         
         if (!item) {
-            ui.notifications.warn('아이템을 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ItemNotFound'));
             return;
         }
         
@@ -1258,7 +1259,7 @@
     function showItemSelectionDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1289,7 +1290,7 @@
         });
         
         if (sortedItems.length === 0) {
-            ui.notifications.warn('사용할 수 있는 아이템이 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoAvailableItem'));
             return;
         }
         
@@ -1302,7 +1303,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${itemLabel} ${game.i18n.localize('DX3rd.Use')}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -1340,7 +1341,7 @@
     function showPsionicSelectionDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1364,7 +1365,7 @@
         psionicItems = sortAndFilterItemsByLimit(psionicItems, actor);
         
         if (psionicItems.length === 0) {
-            ui.notifications.warn('사용할 수 있는 사이오닉이 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoAvailablePsionic'));
             return;
         }
         
@@ -1377,7 +1378,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${psionicLabel} ${game.i18n.localize('DX3rd.Use')}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -1417,7 +1418,7 @@
     function showSpellSelectionDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1443,7 +1444,7 @@
         spellItems = spellItems.filter(item => !window.DX3rdItemExhausted?.isItemExhausted(item));
         
         if (spellItems.length === 0) {
-            ui.notifications.warn('사용할 수 있는 스펠이 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoAvailableSpell'));
             return;
         }
         
@@ -1456,7 +1457,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${spellLabel} ${game.i18n.localize('DX3rd.Use')}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -1601,7 +1602,7 @@
         const item = actor?.items.get(itemId);
         
         if (!item) {
-            ui.notifications.warn('아이템을 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ItemNotFound'));
             return;
         }
         
@@ -1635,7 +1636,7 @@
         const item = actor?.items.get(itemId);
         
         if (!item) {
-            ui.notifications.warn('아이템을 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ItemNotFound'));
             return;
         }
         
@@ -1668,7 +1669,7 @@
         const item = actor?.items.get(itemId);
         
         if (!item) {
-            ui.notifications.warn('아이템을 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ItemNotFound'));
             return;
         }
         
@@ -1703,7 +1704,7 @@
     function handleEtcAction(actionType) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1744,7 +1745,7 @@
     function handleTurnEnd() {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -1753,13 +1754,13 @@
         const combatant = game.combat.combatants.find(c => c.actor && c.actor.id === actor.id);
         
         if (!combatant) {
-            ui.notifications.warn('현재 액터가 전투에 참여하지 않았습니다.');
+            ui.notifications.warn(localize('DX3rd.ActorNotInCombat'));
             return;
         }
         
         // 현재 턴이 이 액터의 턴인지 확인
         if (game.combat.current.combatantId !== combatant.id) {
-            ui.notifications.warn('현재 턴이 아닙니다.');
+            ui.notifications.warn(localize('DX3rd.NotCurrentTurn'));
             return;
         }
         
@@ -1772,18 +1773,18 @@
      */
     function handleGMInitiative() {
         if (!game.user.isGM) {
-            ui.notifications.warn('GM만 사용할 수 있습니다.');
+            ui.notifications.warn(localize('DX3rd.GMOnly'));
             return;
         }
         
         if (!game.combat) {
-            ui.notifications.warn('진행 중인 전투가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActiveCombat'));
             return;
         }
         
         const process = getCombatProcess();
         if (!process || process.type !== 'setup') {
-            ui.notifications.warn('Setup 프로세스에서만 실행할 수 있습니다.');
+            ui.notifications.warn(localize('DX3rd.SetupProcessOnly'));
             return;
         }
         
@@ -1796,18 +1797,18 @@
      */
     function handleGMNextRound() {
         if (!game.user.isGM) {
-            ui.notifications.warn('GM만 사용할 수 있습니다.');
+            ui.notifications.warn(localize('DX3rd.GMOnly'));
             return;
         }
         
         if (!game.combat) {
-            ui.notifications.warn('진행 중인 전투가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActiveCombat'));
             return;
         }
         
         const process = getCombatProcess();
         if (!process || process.type !== 'cleanup') {
-            ui.notifications.warn('Cleanup 프로세스에서만 실행할 수 있습니다.');
+            ui.notifications.warn(localize('DX3rd.CleanupProcessOnly'));
             return;
         }
         
@@ -1821,7 +1822,7 @@
     function handleCombatAction(action) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -2047,7 +2048,7 @@
     function openReactionRollPicker(rollMode) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
 
@@ -2061,7 +2062,7 @@
         window.innerHTML = `
             <div class="dx3rd-stat-skill-header" style="cursor: move;">
                 <h3>${modeLabel}</h3>
-                <button class="dx3rd-stat-skill-close-btn" title="닫기">×</button>
+                <button class="dx3rd-stat-skill-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-stat-skill-content">
                 <div class="dx3rd-stat-skill-buttons">
@@ -2101,7 +2102,7 @@
     function showStatSkillWindow(statKey, rollMode = null) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
 
@@ -2110,7 +2111,7 @@
         const ability = actor.system.attributes[statKey];
         
         if (!ability) {
-            ui.notifications.error('능력치 데이터를 찾을 수 없습니다.');
+            ui.notifications.error(localize('DX3rd.AbilityDataNotFound'));
             return;
         }
         
@@ -2123,7 +2124,7 @@
         window.innerHTML = `
             <div class="dx3rd-stat-skill-header" style="cursor: move;">
                 <h3>${statLabel}</h3>
-                <button class="dx3rd-stat-skill-close-btn" title="닫기">×</button>
+                <button class="dx3rd-stat-skill-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-stat-skill-content">
                 <div class="dx3rd-stat-skill-buttons">
@@ -2353,7 +2354,7 @@
     function handleBattleMove(actionType) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -2392,7 +2393,7 @@
     function handleFullMove(actionType) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -2431,7 +2432,7 @@
     function showConditionClearDialog(actionType, timing) {
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
         
@@ -2441,7 +2442,7 @@
         const clearableConditions = checkClearableConditions(actor, timing);
         
         if (clearableConditions.length === 0) {
-            ui.notifications.warn('해제할 수 있는 상태이상이 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoClearableCondition'));
             return;
         }
         
@@ -2454,7 +2455,7 @@
         dialogWindow.innerHTML = `
             <div class="dx3rd-item-selection-header" style="cursor: move;">
                 <h3>${actionLabel}: ${conditionClearLabel}</h3>
-                <button class="dx3rd-item-selection-close-btn" title="닫기">×</button>
+                <button class="dx3rd-item-selection-close-btn" title="${localize('DX3rd.Close')}">×</button>
             </div>
             <div class="dx3rd-item-selection-content">
                 <div class="dx3rd-item-selection-buttons">
@@ -2520,7 +2521,7 @@
      */
     async function handleConditionClear(actor, conditionId, actionType) {
         if (!actor) {
-            ui.notifications.warn('액터를 찾을 수 없습니다.');
+            ui.notifications.warn(localize('DX3rd.ActorNotFound'));
             return;
         }
         
@@ -2561,7 +2562,7 @@
             
         } catch (error) {
             console.error('DX3rd | Failed to clear condition:', error);
-            ui.notifications.error('상태이상 해제에 실패했습니다.');
+            ui.notifications.error(localize('DX3rd.ConditionClearFailed'));
         }
     }
 
@@ -2695,7 +2696,7 @@
         
         const token = syncCurrentToken();
         if (!token || !token.actor) {
-            ui.notifications.warn('토큰에 연결된 액터가 없습니다.');
+            ui.notifications.warn(localize('DX3rd.NoActorForToken'));
             return;
         }
 
@@ -3201,4 +3202,3 @@
         }
     });
 })();
-

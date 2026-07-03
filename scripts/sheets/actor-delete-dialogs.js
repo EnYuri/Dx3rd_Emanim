@@ -13,7 +13,7 @@
 
   async function confirmDelete({title, content}) {
     if (!DialogV2?.confirm) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 
@@ -26,7 +26,7 @@
       },
       no: {
         icon: '<i class="fas fa-times"></i>',
-        label: localize('Cancel')
+        label: localize('DX3rd.Cancel')
       },
       defaultYes: false
     });
@@ -97,7 +97,7 @@
 
   async function confirmResetRois(item) {
     if (!DialogV2?.confirm) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 

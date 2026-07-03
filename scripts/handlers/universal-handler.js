@@ -3,7 +3,7 @@
   window.DX3rdUniversalConfirmDialogV2 = async function({ title, content, defaultYes = true, yesLabel, noLabel } = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2?.confirm) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 
@@ -25,7 +25,7 @@
   window.DX3rdUniversalAlertDialogV2 = async function({ title, content, label } = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2?.wait) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 
@@ -1449,7 +1449,7 @@
     async _promptBadStatusChoice(pool, count) {
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return [];
       }
 
@@ -1990,6 +1990,111 @@
       }
     },
 
+    _cleanDefenseReactionName(name = '') {
+      return String(name)
+        .replace(/\|\|.+$/, '')
+        .replace(/\[DX3rd\.\w+\]/g, '')
+        .trim();
+    },
+
+    async _getEffectsCompendiumIndex() {
+      if (this._effectsCompendiumIndex) return this._effectsCompendiumIndex;
+
+      const pack = game.packs?.get?.('dx3rd-emanim.effects')
+        || Array.from(game.packs || []).find(p =>
+          p.metadata?.system === 'dx3rd-emanim' && p.metadata?.name === 'effects'
+        );
+
+      const index = new Map();
+      if (!pack?.getDocuments) {
+        this._effectsCompendiumIndex = index;
+        return index;
+      }
+
+      try {
+        const docs = await pack.getDocuments();
+        for (const doc of docs) {
+          const key = this._cleanDefenseReactionName(doc.name);
+          if (key && !index.has(key)) index.set(key, doc);
+        }
+      } catch (e) {
+        console.warn('DX3rd | Failed to load effects compendium for defense reactions', e);
+      }
+
+      this._effectsCompendiumIndex = index;
+      return index;
+    },
+
+    _isDefenseReactionCandidate(item, compendiumItem = null) {
+      if (!item || !['effect', 'combo', 'psionic'].includes(item.type)) return false;
+
+      const system = item.system || {};
+      const compSystem = compendiumItem?.system || {};
+      const timing = system.timing || compSystem.timing || '-';
+      const roll = system.roll || compSystem.roll || '-';
+      const difficulty = system.difficulty || compSystem.difficulty || '';
+      const description = `${system.description || ''} ${compSystem.description || ''}`;
+      const attrs = {
+        ...(compSystem.effect?.attributes || {}),
+        ...(system.effect?.attributes || {}),
+        ...(compSystem.attributes || {}),
+        ...(system.attributes || {})
+      };
+      const attrText = Object.values(attrs).map(attr => {
+        if (!attr) return '';
+        if (typeof attr === 'string') return attr;
+        return `${attr.key || ''} ${attr.label || ''} ${attr.value || ''}`;
+      }).join(' ');
+      const haystack = `${timing} ${roll} ${difficulty} ${description} ${attrText}`.toLowerCase();
+
+      const directTiming = ['reaction', 'dodge', 'major-reaction'].includes(timing);
+      const autoDefense = timing === 'auto' && /(닷지|회피|리액션|가드|방어|피해|데미지|dodge|reaction|guard|armor|reduce)/i.test(haystack);
+      const defensiveAttr = /(dodge|reaction|guard|armor|reduce)/i.test(attrText);
+
+      return directTiming || autoDefense || defensiveAttr;
+    },
+
+    async getDefenseReactionItems(actor) {
+      if (!actor?.items) return [];
+
+      const compendiumIndex = await this._getEffectsCompendiumIndex();
+      const items = [];
+      for (const item of actor.items) {
+        const compendiumItem = compendiumIndex.get(this._cleanDefenseReactionName(item.name));
+        if (!this._isDefenseReactionCandidate(item, compendiumItem)) continue;
+        if (window.DX3rdItemExhausted?.isItemExhausted(item)) continue;
+
+        items.push({
+          id: item.id,
+          type: item.type,
+          name: this._cleanDefenseReactionName(item.name),
+          timing: item.system?.timing || compendiumItem?.system?.timing || '-'
+        });
+      }
+
+      return items.sort((a, b) => {
+        const order = {dodge: 0, reaction: 1, 'major-reaction': 2, auto: 3};
+        const ao = order[a.timing] ?? 9;
+        const bo = order[b.timing] ?? 9;
+        return ao === bo ? a.name.localeCompare(b.name) : ao - bo;
+      });
+    },
+
+    _getDefaultDodgeRollData(actor) {
+      const evade = actor.system?.attributes?.skills?.evade;
+      if (evade) {
+        const name = evade.name?.startsWith?.('DX3rd.')
+          ? game.i18n.localize(evade.name)
+          : (evade.name || game.i18n.localize('DX3rd.evade'));
+        return { stat: evade, label: name };
+      }
+
+      return {
+        stat: actor.system?.attributes?.body,
+        label: game.i18n.localize('DX3rd.Body')
+      };
+    },
+
     /**
      * Handle damage roll for weapons
      * @param {Actor} actor - The actor using the weapon
@@ -2195,7 +2300,7 @@
 
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -2251,7 +2356,8 @@
                               data-actor-id="${actor.id}"
                               data-item-id="${item.id}"
                               data-damage="${damageRoll.total}"
-                              data-penetrate="${finalPenetrate}">
+                              data-penetrate="${finalPenetrate}"
+                              data-attack-result="${attackRollResult}">
                         ${game.i18n.localize('DX3rd.DamageApply')}
                       </button>
                     </div>
@@ -2301,7 +2407,7 @@
      * 데미지 적용 처리
      * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택적)
      */
-    handleDamageApply: async function(actor, item, damage, penetrate, targets, comboAfterDamageData = null) {
+    handleDamageApply: async function(actor, item, damage, penetrate, targets, comboAfterDamageData = null, attackResult = null) {
       if (!actor || !targets || targets.length === 0) {
         return;
       }
@@ -2495,6 +2601,7 @@
           targetActorId: targetActor.id,
           damage: damage,
           penetrate: penetrate,
+          attackResult: attackResult,
           attackerName: actor.name,
           attackerId: actor.id,
           itemId: item?.id || null
@@ -2538,7 +2645,7 @@
      * 방어 다이얼로그 표시
      */
     showDefenseDialog: async function(payload) {
-      const { targetActorId, damage, penetrate, attackerName, attackerId, itemId } = payload;
+      const { targetActorId, damage, penetrate, attackResult, attackerName, attackerId, itemId } = payload;
       
       const targetActor = game.actors.get(targetActorId);
       if (!targetActor) {
@@ -2597,6 +2704,10 @@
       // 실제 데미지 계산 (초기값) - 일반 상황 기준
       const effectiveArmor = Math.max(0, armor - penetrate);
       const realDamage = Math.max(0, damage - guard - effectiveArmor - reduce);
+      const attackResultValue = Number(attackResult) || 0;
+      const reactionItems = attackResultValue > 0
+        ? await this.getDefenseReactionItems(targetActor)
+        : [];
       
       const templateData = {
         src: targetActor.img,
@@ -2610,14 +2721,16 @@
         weaponList: weaponList,
         armor: armor,
         penetrate: penetrate,
-        reduce: reduce
+        reduce: reduce,
+        attackResult: attackResultValue,
+        reactionItems: reactionItems
       };
       
       const dialogContent = await foundry.applications.handlebars.renderTemplate('systems/dx3rd-emanim/templates/dialog/defense-dialog.html', templateData);
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -3174,6 +3287,28 @@
       }
 
       const getNumberValue = (selector) => parseInt(root.querySelector(selector)?.value) || 0;
+      const getReactionSuccess = () => root.querySelector('#reaction-success')?.checked || false;
+      const updateReactionStatus = (success) => {
+        const status = root.querySelector('#reaction-status');
+        if (status) {
+          status.textContent = success
+            ? game.i18n.localize('DX3rd.DefenseDodged')
+            : game.i18n.localize('DX3rd.DefenseHit');
+        }
+      };
+      const setReactionResult = (result) => {
+        const value = Number(result) || 0;
+        const input = root.querySelector('#reaction-result');
+        if (input) input.value = value > 0 ? String(value) : '';
+
+        const success = attackResultValue > 0 && value >= attackResultValue;
+        const checkbox = root.querySelector('#reaction-success');
+        if (checkbox) checkbox.checked = success;
+
+        updateReactionStatus(success);
+
+        updateDamage();
+      };
       const updateWeaponGuard = () => {
         let weaponGuard = 0;
         root.querySelectorAll('.weapon-checkbox:checked').forEach(checkbox => {
@@ -3204,7 +3339,9 @@
 
         let calculatedDamage;
 
-        if (coveringValue > 0) {
+        if (getReactionSuccess()) {
+          calculatedDamage = 0;
+        } else if (coveringValue > 0) {
           // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
           const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
           const multiplier = coveringValue + 1; // 1이면 2배, 2면 3배
@@ -3246,6 +3383,11 @@
         if (reduceInput) reduceInput.value = reduce;
         const coveringInput = root.querySelector('#covering');
         if (coveringInput) coveringInput.value = '0';
+        const reactionInput = root.querySelector('#reaction-result');
+        if (reactionInput) reactionInput.value = '';
+        const reactionCheckbox = root.querySelector('#reaction-success');
+        if (reactionCheckbox) reactionCheckbox.checked = false;
+        updateReactionStatus(false);
         updateDamage();
       });
 
@@ -3254,6 +3396,74 @@
         root.querySelector(selector)?.addEventListener('input', updateDamage);
       });
       root.querySelector('#guard-check')?.addEventListener('change', updateDamage);
+      root.querySelector('#reaction-success')?.addEventListener('change', event => {
+        updateReactionStatus(event.target.checked);
+        updateDamage();
+      });
+      root.querySelector('#reaction-result')?.addEventListener('input', event => {
+        setReactionResult(event.target.value);
+      });
+
+      root.querySelector('#basic-dodge-roll')?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const { stat, label } = this._getDefaultDodgeRollData(targetActor);
+        if (!stat) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.AbilityDataNotFound'));
+          return;
+        }
+
+        await this.showStatRollDialog(
+          targetActor,
+          stat,
+          label,
+          'dodge',
+          null,
+          null,
+          null,
+          null,
+          null,
+          attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
+          false,
+          false,
+          ({ total }) => setReactionResult(total)
+        );
+      });
+
+      root.querySelectorAll('.reaction-item-btn').forEach(button => {
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          const itemId = button.dataset.itemId;
+          const itemType = button.dataset.itemType;
+          const item = targetActor.items.get(itemId);
+          if (!item) {
+            ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
+            return;
+          }
+
+          const success = await this.handleItemUse(
+            targetActor.id,
+            itemId,
+            itemType,
+            null,
+            item.system?.getTarget,
+            {
+              predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
+              afterRollCallback: ({ total }) => setReactionResult(total)
+            }
+          );
+
+          if (success && (item.system?.roll || '-') === '-') {
+            await targetActor.prepareData();
+            const guardInput = root.querySelector('#guard');
+            if (guardInput) guardInput.value = targetActor.system.attributes.guard?.value || 0;
+            const armorInput = root.querySelector('#armor');
+            if (armorInput) armorInput.value = targetActor.system.attributes.armor?.value || 0;
+            const reduceInput = root.querySelector('#reduce');
+            if (reduceInput) reduceInput.value = targetActor.system.attributes.reduce?.value || 0;
+            updateDamage();
+          }
+        });
+      });
     },
 
     /**
@@ -3560,7 +3770,7 @@
       const title = game.i18n.localize('DX3rd.Combo');
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.confirm) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return false;
       }
 
@@ -3588,7 +3798,43 @@
       
       return true;
     },
-    
+
+    /**
+     * 명중판정(공격 롤) 완료 후 공통 후처리.
+     * 무기/비클 경로(executeAttackRoll)와 콤보/이펙트 경로(executeStatRoll 공격 분기) 양쪽에서
+     * 롤 직후 호출되는 단일 지점. 명중판정 시점에 개입해야 하는 로직을 여기 모은다.
+     *
+     * 1) 확장 훅: `Hooks.callAll('dx3rd.attackRollComplete', {...})` — 이펙트/모듈이 명중판정
+     *    완료에 개입할 수 있는 확장점(별도 이펙트 타이밍은 데이터상 존재하지 않으므로 훅으로 제공).
+     * 2) 증오(hatred) 자동 회복(룰 p12): 증오 대상에게 공격을 1회 실행하면 성공 여부와 무관하게
+     *    증오가 회복된다. 빗나감/펌블 시에도 데미지 버튼을 누르지 않으므로 반드시 명중판정 시점에서 해제.
+     *
+     * @param {Actor} actor - 공격한 액터
+     * @param {Item} item - 공격 아이템
+     * @param {Token[]} targets - 명중판정 대상 토큰 배열
+     * @param {number} rollResult - 펌블 보정이 반영된 최종 달성치
+     * @param {boolean} isFumble - 펌블 여부
+     */
+    async onAttackRollComplete(actor, item, targets, rollResult, isFumble) {
+      try {
+        // 확장점: 명중판정 완료 시점에 개입할 훅 (룰/이펙트 확장 대비)
+        Hooks.callAll('dx3rd.attackRollComplete', { actor, item, targets, rollResult, isFumble });
+
+        // 증오 자동 회복: 대상 중 hatred.target이 포함되어 있으면 해제
+        const hatredActive = actor.system?.conditions?.hatred?.active || false;
+        const hatredTarget = actor.system?.conditions?.hatred?.target || '';
+        if (hatredActive && hatredTarget && Array.isArray(targets) && targets.length > 0) {
+          const hasHatredTarget = targets.some(t => (t?.actor?.name || t?.name) === hatredTarget);
+          if (hasHatredTarget) {
+            await actor.toggleStatusEffect('hatred', { active: false });
+            console.log(`DX3rd | Hatred auto-cleared after attack roll against target: ${hatredTarget}`);
+          }
+        }
+      } catch (e) {
+        console.warn('DX3rd | onAttackRollComplete failed', e);
+      }
+    },
+
     /**
      * 공격 롤 실행 (무기/비클/이펙트/콤보/사이오닉 등)
      * @param {Actor} actor - 공격하는 액터
@@ -3652,6 +3898,9 @@
         
       
         // 공포 패널티는 이미 다이얼로그에서 반영되었으므로 여기서는 적용하지 않음
+        // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
+        // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
+        const autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
 
         // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
@@ -3669,16 +3918,26 @@
         }
         const roll = await (new Roll(`${finalDice}dx${critical} + ${add2}`)).roll();
         const rollHtml = await roll.render();
-        
+
+        // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
+        // dx 다이스텀이 fumble 플래그를 세우면 기능레벨/수정치(add2)까지 무시하고 0으로 확정한다.
+        // 룰(rule-section:39-41): 판정치 0 이하도 동일하게 달성치 0으로 자동실패.
+        const isFumble = roll.terms.some(t => t?.fumble === true);
+        const rollResult = (autoFailByPool || isFumble) ? 0 : roll.total;
+
         // 공격 굴림 메시지 출력 (루비 텍스트 제거)
         const cleanItemName = item.name.split('||')[0].trim();
         let flavorText = `${cleanItemName} - ${skillName} (${game.i18n.localize('DX3rd.AttackRoll')})`;
-        
+        if (autoFailByPool) {
+          flavorText += `\n${game.i18n.localize('DX3rd.PoolZero')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
+        } else if (isFumble) {
+          flavorText += `\n${game.i18n.localize('DX3rd.Fumble')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
+        }
+
         // 대상 정보 추가
         if (targets.length > 0) {
-          const rollResult = roll.total;
           const targetDisplayNames = [];
-          
+
           for (const target of targets) {
             const targetActor = target.actor;
             const targetName = targetActor?.name || target.name;
@@ -3691,7 +3950,7 @@
               
               if (evasionDisabled === false && evasionValue !== undefined && evasionValue !== null) {
                 const evasionNum = Number(evasionValue) || 0;
-                const isHit = rollResult >= evasionNum;
+                const isHit = rollResult > evasionNum;
                 const resultText = isHit 
                   ? `${game.i18n.localize('DX3rd.Hit')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`
                   : `${game.i18n.localize('DX3rd.Failure')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`;
@@ -3710,10 +3969,10 @@
         }
         
         // 데미지 롤 버튼 생성
-        let damageRollButtonContent = `<button class="damage-roll-btn" 
-                    data-actor-id="${actor.id}" 
+        let damageRollButtonContent = `<button class="damage-roll-btn"
+                    data-actor-id="${actor.id}"
                     data-item-id="${item.id}"
-                    data-roll-result="${roll.total}"
+                    data-roll-result="${rollResult}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
                     data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
@@ -3756,12 +4015,15 @@
           await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
           await window.DX3rdDisableHooks.executeDisableHook('major', actor);
         }
-        
+
+        // 명중판정 완료 공통 후처리 (증오 자동 회복 + 확장 훅)
+        await this.onAttackRollComplete(actor, item, targets, rollResult, isFumble);
+
         // 이전 토큰 복원
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
-        
+
         return true;
       } catch (e) {
         console.error('DX3rd | Weapon attack roll failed', e);
@@ -3974,7 +4236,7 @@
         if (range === null || range === undefined) {
           const DialogV2 = foundry.applications?.api?.DialogV2;
           if (!DialogV2?.wait) {
-            ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+            ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
             return false;
           }
 
@@ -4959,9 +5221,57 @@
 
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
+
+      // 다이얼로그에서 선택된 값들을 콤보 구성으로 정규화한다. Apply(즉석 사용)와 Save(콤보 저장)가 공유한다.
+      const collectComboConfig = (root) => {
+        // 선택된 이펙트 ID 수집 (선택하지 않아도 진행 가능)
+        const selectedEffectIds = Array.from(root?.querySelectorAll('.active-effect:checked') || [])
+          .map(el => el.dataset.id)
+          .filter(Boolean);
+
+        // 다이얼로그 값 수집
+        const skill = root?.querySelector('#skill')?.value || '-';
+        const base = root?.querySelector('#base')?.value || '-';
+        const roll = root?.querySelector('#roll')?.value || 'major';
+        const attackRoll = root?.querySelector('#attackRoll')?.value || '-';
+
+        // 무기 아이템이 전달된 경우 (무기 공격에서 콤보 사용 시)
+        let weaponSetting = ['-', '-', '-'];
+        let shouldShowWeaponSelect = attackRoll !== '-';
+        if (weaponItem && attackRoll !== '-') {
+          // 무기가 선택되어 있으면 해당 무기를 첫 번째 슬롯에 등록
+          weaponSetting = [weaponItem.id, '-', '-'];
+          // 무기 아이템에서 시작한 경우에는 무기 선택 다이얼로그를 띄우지 않음
+          shouldShowWeaponSelect = false;
+        }
+
+        // 선택된 이펙트들 중에서 weaponSelect: false이고 무기가 등록된 이펙트가 있는지 확인
+        if (attackRoll !== '-' && !weaponItem && selectedEffectIds.length > 0) {
+          for (const effectId of selectedEffectIds) {
+            const effectItem = actor.items.get(effectId);
+            if (effectItem && !effectItem.system?.weaponSelect && effectItem.system?.weapon && effectItem.system.weapon.length > 0) {
+              // 이펙트의 무기 설정 상속
+              const effectWeapons = effectItem.system.weapon.filter(w => w && w !== '-');
+              if (effectWeapons.length > 0) {
+                // 첫 번째 이펙트의 무기만 상속 (최대 3개)
+                weaponSetting = [effectWeapons[0] || '-', effectWeapons[1] || '-', effectWeapons[2] || '-'];
+                shouldShowWeaponSelect = false;
+                console.log('DX3rd | Combo Builder - Inherited weaponSelect: false from effect:', effectItem.name, 'weapons:', weaponSetting);
+                break;
+              }
+            }
+          }
+        }
+
+        // 룰 807-809(이펙트의 조합·침식치 합계): 조합한 이펙트들의 침식치를 모두 더한 값.
+        const encroachValue = window.DX3rdComboData?.calculateEncroachment?.(actor, selectedEffectIds) ?? '0';
+
+        console.log('DX3rd | Combo Builder - Config:', { skill, base, roll, attackRoll, selectedEffectIds, weaponSetting, shouldShowWeaponSelect, encroachValue });
+        return { selectedEffectIds, skill, base, roll, attackRoll, weaponSetting, shouldShowWeaponSelect, encroachValue };
+      };
 
       const dialog = new DialogV2({
         window: { title: game.i18n.localize('DX3rd.Combo') },
@@ -4976,79 +5286,29 @@
             default: true,
             callback: async (event, button) => {
               const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              // 선택된 이펙트 ID 수집 (선택하지 않아도 진행 가능)
-              const selectedEffectIds = Array.from(root?.querySelectorAll('.active-effect:checked') || [])
-                .map(el => el.dataset.id)
-                .filter(Boolean);
-              
-              // 다이얼로그 값 수집
-              const skill = root?.querySelector('#skill')?.value || '-';
-              const base = root?.querySelector('#base')?.value || '-';
-              const roll = root?.querySelector('#roll')?.value || 'major';
-              const attackRoll = root?.querySelector('#attackRoll')?.value || '-';
-              
-              console.log('DX3rd | Combo Builder - Dialog values:', { skill, base, roll, attackRoll, selectedEffectIds });
-              
-              // 무기 아이템이 전달된 경우 (무기 공격에서 콤보 사용 시)
-              let weaponSetting = ['-', '-', '-'];
-              let shouldShowWeaponSelect = attackRoll !== '-';
-              if (weaponItem && attackRoll !== '-') {
-                // 무기가 선택되어 있으면 해당 무기를 첫 번째 슬롯에 등록
-                weaponSetting = [weaponItem.id, '-', '-'];
-                // 무기 아이템에서 시작한 경우에는 무기 선택 다이얼로그를 띄우지 않음
-                shouldShowWeaponSelect = false;
-              }
-              
-              // 선택된 이펙트들 중에서 weaponSelect: false이고 무기가 등록된 이펙트가 있는지 확인
-              if (attackRoll !== '-' && !weaponItem && selectedEffectIds.length > 0) {
-                console.log('DX3rd | Combo Builder - Checking effects for weapon settings...');
-                for (const effectId of selectedEffectIds) {
-                  const effectItem = actor.items.get(effectId);
-                  if (effectItem) {
-                    console.log('DX3rd | Combo Builder - Effect:', effectItem.name, {
-                      weaponSelect: effectItem.system?.weaponSelect,
-                      weapon: effectItem.system?.weapon,
-                      attackRoll: effectItem.system?.attackRoll
-                    });
-                    
-                    if (!effectItem.system?.weaponSelect && effectItem.system?.weapon && effectItem.system.weapon.length > 0) {
-                      // 이펙트의 무기 설정 상속
-                      const effectWeapons = effectItem.system.weapon.filter(w => w && w !== '-');
-                      if (effectWeapons.length > 0) {
-                        // 첫 번째 이펙트의 무기만 상속 (최대 3개)
-                        weaponSetting = [
-                          effectWeapons[0] || '-',
-                          effectWeapons[1] || '-',
-                          effectWeapons[2] || '-'
-                        ];
-                        shouldShowWeaponSelect = false;
-                        console.log('DX3rd | Combo Builder - Inherited weaponSelect: false from effect:', effectItem.name, 'weapons:', weaponSetting);
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-              
-              console.log('DX3rd | Combo Builder - Final settings:', { weaponSetting, shouldShowWeaponSelect });
-              
+              const cfg = collectComboConfig(root);
+
               // 임시 콤보 아이템 데이터 생성
               const tempComboItem = {
                 id: '_temp_combo_' + Date.now(),
                 name: `${game.i18n.localize('DX3rd.Combo')} ${game.i18n.localize('DX3rd.TemporaryItem')}`,
                 type: 'combo',
                 system: {
-                  skill: skill,
-                  base: base,
-                  roll: roll,
-                  attackRoll: attackRoll,
+                  skill: cfg.skill,
+                  base: cfg.base,
+                  roll: cfg.roll,
+                  attackRoll: cfg.attackRoll,
                   effect: {
-                    data: selectedEffectIds
+                    data: cfg.selectedEffectIds
                   },
                   // 기본값들 추가
-                  weapon: weaponSetting, // 무기 ID 배열 [id, '-', '-'] 또는 ['-', '-', '-']
-                  weaponSelect: shouldShowWeaponSelect, // 무기 아이템에서 시작한 경우 false, 일반 경우 attackRoll이 '-'가 아니면 true
+                  weapon: cfg.weaponSetting, // 무기 ID 배열 [id, '-', '-'] 또는 ['-', '-', '-']
+                  weaponSelect: cfg.shouldShowWeaponSelect, // 무기 아이템에서 시작한 경우 false, 일반 경우 attackRoll이 '-'가 아니면 true
                   getTarget: true,
+                  // 룰 807-809 침식치 합계. 임시 콤보에 이 필드가 없어 침식치 미부과되던 문제(감사 Finding H) 보정.
+                  encroach: {
+                    value: cfg.encroachValue
+                  },
                   level: { value: 1 }
                 },
                 // 북 해독 콤보 등에서 사용할 메타 데이터
@@ -5064,7 +5324,7 @@
                 // 무기 아이템에서 시작한 경우 원본 무기 아이템 정보 저장
                 _originalWeaponItem: weaponItem || null
               };
-              
+
               // ComboHandler 호출
               if (window.DX3rdComboHandler) {
                 await window.DX3rdComboHandler.handle(actor.id, tempComboItem);
@@ -5072,10 +5332,69 @@
                 ui.notifications.error('ComboHandler를 찾을 수 없습니다.');
               }
             }
+          },
+          {
+            action: 'save',
+            icon: '<i class="fas fa-save"></i>',
+            label: game.i18n.localize('DX3rd.SaveAsCombo'),
+            // 즉석 조합을 반복 사용 가능한 저장 콤보 아이템으로 등록한다(임시 콤보 휘발성 해소).
+            callback: async (event, button) => {
+              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
+              const cfg = collectComboConfig(root);
+
+              if (cfg.selectedEffectIds.length === 0) {
+                ui.notifications.warn(game.i18n.localize('DX3rd.ComboSaveNoEffect'));
+                return;
+              }
+
+              // 저장 콤보는 effectIds(배열) 형식으로 저장한다. combo-sheet/normalizeEffectIds가 이 형식을 우선 읽는다.
+              const comboData = {
+                name: game.i18n.localize('DX3rd.Combo'),
+                type: 'combo',
+                system: {
+                  skill: cfg.skill,
+                  base: cfg.base,
+                  roll: cfg.roll,
+                  attackRoll: cfg.attackRoll,
+                  effectIds: cfg.selectedEffectIds,
+                  weapon: cfg.weaponSetting,
+                  weaponSelect: cfg.shouldShowWeaponSelect,
+                  getTarget: true,
+                  encroach: { value: cfg.encroachValue },
+                  level: { value: 1 }
+                }
+              };
+
+              try {
+                const [created] = await actor.createEmbeddedDocuments('Item', [comboData]);
+                ui.notifications.info(game.i18n.format('DX3rd.ComboSaved', { name: created?.name ?? '' }));
+                // 이름/세부 조정을 위해 방금 만든 콤보 시트를 연다.
+                created?.sheet?.render(true);
+              } catch (e) {
+                console.error('DX3rd | Combo Builder - Save failed:', e);
+                ui.notifications.error(`${game.i18n.localize('DX3rd.SaveAsCombo')}: ${e?.message || e}`);
+              }
+            }
           }
         ]
       });
-      dialog.render(true);
+
+      const rendered = dialog.render(true);
+      // 렌더 후 코스트(침식치) 실시간 미리보기 배선. 이펙트 체크 변경 시 합산 침식치를 갱신 표시한다.
+      Promise.resolve(rendered).then(() => {
+        const root = dialog.element;
+        if (!root) return;
+        const encSpan = root.querySelector('#combo-cost-preview .preview-enc');
+        if (!encSpan) return;
+        const updatePreview = () => {
+          const ids = Array.from(root.querySelectorAll('.active-effect:checked'))
+            .map(el => el.dataset.id)
+            .filter(Boolean);
+          encSpan.textContent = window.DX3rdComboData?.calculateEncroachment?.(actor, ids) ?? '0';
+        };
+        root.querySelectorAll('.active-effect').forEach(cb => cb.addEventListener('change', updatePreview));
+        updatePreview();
+      });
     },
     
     showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
@@ -5111,7 +5430,7 @@
 
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.confirm) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -5156,21 +5475,23 @@
       // stat은 얕은 복사 시 major/reaction/dodge가 원본과 공유되어 패널티 누적 발생 → deepClone 사용
       let effectiveStat = foundry.utils.deepClone(stat);
       
-      // 공포 판정인 경우 주사위 값을 encroachment.dice만큼 빼기 (최소값 1개 보장)
+      // 공포 판정인 경우 주사위 값을 encroachment.dice만큼 빼기
+      // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 자동실패. 여기서 하한을 두지 않고
+      // 원값(음수 가능)을 그대로 전파해 롤 실행부에서 0 이하 자동실패를 판정한다.
       if (isPanicTest) {
         const encroachmentDice = Number(actor.system?.attributes?.encroachment?.dice) || 0;
         if (effectiveStat.dice !== undefined) {
-          effectiveStat.dice = Math.max(1, (effectiveStat.dice || 0) - encroachmentDice);
+          effectiveStat.dice = (effectiveStat.dice || 0) - encroachmentDice;
         }
         // major, reaction, dodge 각각에도 적용
         if (effectiveStat.major && effectiveStat.major.dice !== undefined) {
-          effectiveStat.major.dice = Math.max(1, (effectiveStat.major.dice || 0) - encroachmentDice);
+          effectiveStat.major.dice = (effectiveStat.major.dice || 0) - encroachmentDice;
         }
         if (effectiveStat.reaction && effectiveStat.reaction.dice !== undefined) {
-          effectiveStat.reaction.dice = Math.max(1, (effectiveStat.reaction.dice || 0) - encroachmentDice);
+          effectiveStat.reaction.dice = (effectiveStat.reaction.dice || 0) - encroachmentDice;
         }
         if (effectiveStat.dodge && effectiveStat.dodge.dice !== undefined) {
-          effectiveStat.dodge.dice = Math.max(1, (effectiveStat.dodge.dice || 0) - encroachmentDice);
+          effectiveStat.dodge.dice = (effectiveStat.dodge.dice || 0) - encroachmentDice;
         }
       }
       
@@ -5215,19 +5536,20 @@
               }
             }
             
-            // 일치하는 토큰이 없으면 dice 패널티 -4 적용 (최소값 1 보장)
+            // 일치하는 토큰이 없으면 dice 패널티 -4 적용
+            // 룰(rule-section:39-41): 하한을 두지 않고 원값(음수 가능)을 전파 → 롤 실행부에서 0 이하 자동실패 판정
             if (!hasMatchingRoisToken) {
               if (effectiveStat.dice !== undefined) {
-                effectiveStat.dice = Math.max(1, (effectiveStat.dice || 0) - 4);
+                effectiveStat.dice = (effectiveStat.dice || 0) - 4;
               }
               if (effectiveStat.major && effectiveStat.major.dice !== undefined) {
-                effectiveStat.major.dice = Math.max(1, (effectiveStat.major.dice || 0) - 4);
+                effectiveStat.major.dice = (effectiveStat.major.dice || 0) - 4;
               }
               if (effectiveStat.reaction && effectiveStat.reaction.dice !== undefined) {
-                effectiveStat.reaction.dice = Math.max(1, (effectiveStat.reaction.dice || 0) - 4);
+                effectiveStat.reaction.dice = (effectiveStat.reaction.dice || 0) - 4;
               }
               if (effectiveStat.dodge && effectiveStat.dodge.dice !== undefined) {
-                effectiveStat.dodge.dice = Math.max(1, (effectiveStat.dodge.dice || 0) - 4);
+                effectiveStat.dodge.dice = (effectiveStat.dodge.dice || 0) - 4;
               }
             }
           }
@@ -5569,7 +5891,7 @@
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -5612,8 +5934,8 @@
         const addModifier = parseInt(addInput?.value) || 0;
 
         // 기본값 + 입력값 + 공포 패널티 표시 (의존 패널티는 이미 effectiveStat.dice에 적용됨)
-        // 최소 다이스 1개 보장
-        const displayDice = Math.max(1, baseDice + diceModifier + fearPenalty);
+        // 룰(rule-section:39-41): 실제 판정치를 그대로 표시(0 이하면 자동실패 예고). 하한 클램프 없음.
+        const displayDice = baseDice + diceModifier + fearPenalty;
         if (diceDisplay) diceDisplay.value = displayDice;
         if (critDisplay) critDisplay.value = baseCrit + critModifier;
         if (addDisplay) addDisplay.value = baseAdd + addModifier + distastePenalty;
@@ -5672,7 +5994,8 @@
             const addModifier = parseInt(addInput?.value) || 0;
             
             // 최종 계산 (baseDice에 이미 공포 패널티가 포함됨)
-            const finalDice = Math.max(1, baseDice + diceModifier);
+            // 룰(rule-section:39-41): 하한 없이 원 판정치를 전달 → 롤 실행부가 0 이하면 자동실패 처리
+            const finalDice = baseDice + diceModifier;
             const finalCrit = Math.max(2, baseCrit + critModifier);
             const finalAdd = baseAdd + addModifier;
             
@@ -5845,7 +6168,9 @@
         }
         
         // 주사위 굴림 (침식률 증가는 이미 EffectHandler에서 처리됨)
-        // 최소 다이스 1개 보장
+        // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
+        // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
+        const autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
         // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
         let add2 = add;
@@ -5862,12 +6187,22 @@
         }
         const roll = await (new Roll(`${finalDice}dx${critical} + ${add2}`)).roll();
         const rollHtml = await roll.render();
-        
+
+        // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
+        // dx 다이스텀이 fumble 플래그를 세우면 기능레벨/수정치(add2)까지 무시하고 0으로 확정한다.
+        // 룰(rule-section:39-41): 판정치 0 이하도 동일하게 달성치 0으로 자동실패.
+        const isFumble = roll.terms.some(t => t?.fumble === true);
+        const rollResult = (autoFailByPool || isFumble) ? 0 : roll.total;
+        if (autoFailByPool) {
+          flavorText += `<br>${game.i18n.localize('DX3rd.PoolZero')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
+        } else if (isFumble) {
+          flavorText += `<br>${game.i18n.localize('DX3rd.Fumble')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
+        }
+
         // 공격 판정인 경우 대상이 에너미이면 이베이전 확인 (롤 결과를 알 수 있으므로 여기서 처리)
         if (isAttackRoll) {
           const targets = Array.from(game.user.targets);
           if (targets.length > 0) {
-            const rollResult = roll.total;
             const targetDisplayNames = [];
             let hasEvasionTarget = false;
             
@@ -5884,7 +6219,7 @@
                 if (evasionDisabled === false && evasionValue !== undefined && evasionValue !== null) {
                   hasEvasionTarget = true;
                   const evasionNum = Number(evasionValue) || 0;
-                  const isHit = rollResult >= evasionNum;
+                  const isHit = rollResult > evasionNum;
                   const resultText = isHit 
                     ? `${game.i18n.localize('DX3rd.Hit')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`
                     : `${game.i18n.localize('DX3rd.Failure')}: ${game.i18n.localize('DX3rd.Evasion')} ${evasionNum}`;
@@ -5911,10 +6246,10 @@
           const weaponIdsStr = weaponBonus?.weaponIds ? weaponBonus.weaponIds.join(',') : '';
           resultContent = `
             <div class="item-actions" style="margin-top: 8px;">
-              <button class="damage-roll-btn" 
+              <button class="damage-roll-btn"
                       data-actor-id="${actor.id}"
                       data-item-id="${item ? item.id : ''}"
-                      data-roll-result="${roll.total}"
+                      data-roll-result="${rollResult}"
                       data-preserved-actor-attack="${preservedValues.actorAttack}"
                       data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
                       data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
@@ -5925,8 +6260,8 @@
             </div>
           `;
         } else if (difficultyData.type === 'number') {
-          // 숫자 난이도: 성공/실패 판정 + 버튼
-          const isSuccess = roll.total >= difficultyData.value;
+          // 숫자 난이도: 성공/실패 판정 + 버튼 (펌블이면 rollResult=0이라 자동 실패)
+          const isSuccess = rollResult >= difficultyData.value;
           
           if (isSuccess) {
             const itemName = item ? item.name.split('||')[0].replace(/\[DX3rd\.\w+\]/g, '').trim() : '';
@@ -5955,7 +6290,7 @@
                           data-actor-id="${actor.id}"
                           data-item-id="${item ? item.id : ''}"
                           data-previous-token-id="${previousToken ? previousToken.id : ''}"
-                          data-roll-result="${roll.total}"
+                          data-roll-result="${rollResult}"
                           data-label="${label}"
                           data-roll-type="${rollType}"
                           data-weapon-attack="0"
@@ -5974,11 +6309,11 @@
           const buttonText = item ? `${itemName} ${game.i18n.localize('DX3rd.Invoking')}` : game.i18n.localize('DX3rd.WinCheck');
           resultContent = `
             <div class="item-actions" style="margin-top: 8px;">
-              <button class="dx3rd-win-check-btn" 
+              <button class="dx3rd-win-check-btn"
                       data-actor-id="${actor.id}"
                       data-item-id="${item ? item.id : ''}"
                       data-previous-token-id="${previousToken ? previousToken.id : ''}"
-                      data-roll-result="${roll.total}"
+                      data-roll-result="${rollResult}"
                       data-label="${label}"
                       data-roll-type="${rollType}"
                       data-weapon-attack="0">
@@ -6039,7 +6374,9 @@
         
         // 충동 판정 실패 시 폭주 상태이상 적용 (메시지 출력 후)
         if (isUrgeTest && difficultyData.type === 'number') {
-          const isSuccess = roll.total >= difficultyData.value;
+          // 룰: 펌블=자동실패. 펌블이면 기능레벨/수정이 잔존한 roll.total과 무관하게 실패 처리.
+          // 룰(rule-section:39-41): 판정치 0 이하도 자동실패 → 충동판정 실패로 [폭주] 부여.
+          const isSuccess = !autoFailByPool && !isFumble && roll.total >= difficultyData.value;
           if (!isSuccess) {
             // 폭주 상태이상 적용을 위한 데이터 설정 (specialTarget을 null로 설정하여 다이얼로그 표시)
             if (!window.DX3rdConditionTriggerMap) {
@@ -6189,7 +6526,9 @@
         
         // 공포 판정 실패 시 공포 효과 또는 광기 효과 지정/굴림 다이얼로그 표시 (메시지 출력 후)
         if (isPanicTest && difficultyData.type === 'number') {
-          const isSuccess = roll.total >= difficultyData.value;
+          // 룰: 펌블=자동실패. 펌블이면 기능레벨/수정이 잔존한 roll.total과 무관하게 실패 처리.
+          // 룰(rule-section:39-41): 판정치 0 이하도 자동실패 → 공포판정 실패효과/광기 적용.
+          const isSuccess = !autoFailByPool && !isFumble && roll.total >= difficultyData.value;
           if (!isSuccess) {
             // 침식률 확인
             const encroachmentValue = Number(actor.system?.attributes?.encroachment?.value) || 0;
@@ -6583,7 +6922,18 @@
         
         // 충동 판정 완료 후 콜백 실행
         if (afterRollCallback && typeof afterRollCallback === 'function') {
-          await afterRollCallback();
+          await afterRollCallback({
+            actor,
+            item,
+            roll,
+            // 펌블이면 기능레벨/수정치가 잔존한 roll.total 대신 0으로 확정한 값을 넘긴다.
+            // (방어/리액션 닷지 성공 판정이 펌블을 자동실패로 처리하도록 함)
+            total: rollResult,
+            fumble: isFumble,
+            rollType,
+            difficultyData,
+            label
+          });
         }
         
         // 롤 타입에 따른 비활성화 훅 실행 (무기 보너스와 무관)
@@ -6599,6 +6949,11 @@
             await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
             await window.DX3rdDisableHooks.executeDisableHook('reaction', actor);
           }
+        }
+
+        // 명중판정 완료 공통 후처리 (콤보/이펙트 공격 분기): 증오 자동 회복 + 확장 훅
+        if (isAttackRoll) {
+          await this.onAttackRollComplete(actor, item, Array.from(game.user.targets), rollResult, isFumble);
         }
       } catch (e) {
         console.log('DX3rd | Roll failed', e);
@@ -7070,7 +7425,7 @@
      * @param {string} roisAction - 로이스 액션 (선택사항)
      * @param {boolean} getTarget - getTarget 설정 (선택사항)
      */
-    async handleItemUse(actorId, itemId, itemType, roisAction, getTarget) {
+    async handleItemUse(actorId, itemId, itemType, roisAction, getTarget, options = {}) {
       if (!actorId || !itemId) {
         return false;
       }
@@ -7173,6 +7528,13 @@
       }
       
       // 1. 침식률/HP 비용 처리 및 아이템 사용 메시지 출력
+      // Finding E(룰 3271-3273/3660-3664): 이펙트 자신의 침식 코스트가 임계치(100/160)를
+      // 넘겨도, 이번 사용의 [level]은 '코스트 반영 전' 침식 레벨로 고정한다.
+      // (이미 발동한 이펙트는 자신의 침식 상승분으로 레벨이 오르지 않는다.)
+      // getItemLevel(helpers.js)이 이 임시 플래그를 우선 읽는다. 재진입 대비 이전 값 저장.
+      const _prevFrozenEncLevel = actor._dx3rdUsageEncLevel;
+      actor._dx3rdUsageEncLevel = Number(actor.system?.attributes?.encroachment?.level) || 0;
+      try {
       const usageAllowed = await this.processItemUsageCost(actor, item);
       if (!usageAllowed) {
         console.log('DX3rd | handleItemUse - Usage blocked by cost');
@@ -7248,10 +7610,10 @@
             } else if (roisAction === 'sublimation') {
               await handler.handleSublimation(actorId, itemId);
             } else {
-              await handler.handle(actorId, itemId, getTarget);
+              await handler.handle(actorId, itemId, getTarget, options);
             }
           } else {
-            await handler.handle(actorId, itemId, getTarget);
+            await handler.handle(actorId, itemId, getTarget, options);
           }
         } catch (e) {
           console.error(`DX3rd | handleItemUse - ${itemType} handler threw:`, e);
@@ -7264,6 +7626,11 @@
 
       // 성공적으로 완료
       return true;
+      } finally {
+        // 사용 종료: 사용-중 레벨 고정 해제(재진입 시 이전 값 복원)
+        if (_prevFrozenEncLevel === undefined) delete actor._dx3rdUsageEncLevel;
+        else actor._dx3rdUsageEncLevel = _prevFrozenEncLevel;
+      }
     }
   };
 
@@ -7503,15 +7870,15 @@ window.DX3rdUniversalHandler.processAfterMainQueue = async function() {
   }
   
   // 큐 초기화
-  this._afterMainQueue = [];
+  await game.settings.set('dx3rd-emanim', 'afterMainQueue', []);
   console.log('DX3rd | AfterMain queue cleared');
 };
 
 /**
  * AfterMain 큐 초기화 (전투 종료 시 등)
  */
-window.DX3rdUniversalHandler.clearAfterMainQueue = function() {
-  this._afterMainQueue = [];
+window.DX3rdUniversalHandler.clearAfterMainQueue = async function() {
+  await game.settings.set('dx3rd-emanim', 'afterMainQueue', []);
   console.log('DX3rd | AfterMain queue manually cleared');
 };
 
@@ -7931,7 +8298,7 @@ window.DX3rdUniversalHandler.promptConditionalDamageFormula = async function() {
 
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2) {
-      ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       resolve(null);
       return;
     }
@@ -8120,7 +8487,7 @@ window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
   const enc = game.i18n.localize('DX3rd.Encroachment') || '침식률';
   const DialogV2 = foundry.applications?.api?.DialogV2;
   if (!DialogV2?.wait) {
-    ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+    ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
     return null;
   }
 
@@ -8196,7 +8563,7 @@ window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
 window.DX3rdUniversalHandler.promptResourceAmount = async function(item, resource, max, initial = max) {
   const DialogV2 = foundry.applications?.api?.DialogV2;
   if (!DialogV2?.wait) {
-    ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+    ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
     return null;
   }
 
@@ -8793,7 +9160,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -8869,7 +9236,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 
@@ -8917,7 +9284,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         { value: "distaste", label: game.i18n.localize("DX3rd.UrgeDistaste") },
         { value: "battlelust", label: game.i18n.localize("DX3rd.UrgeBattlelust") },
         { value: "delusion", label: game.i18n.localize("DX3rd.UrgeDelusion") },
-        { value: "elfmutilation", label: game.i18n.localize("DX3rd.UrgeSelfmutilation") },
+        { value: "selfmutilation", label: game.i18n.localize("DX3rd.UrgeSelfmutilation") },
         { value: "fear", label: game.i18n.localize("DX3rd.UrgeFear") },
         { value: "hatred", label: game.i18n.localize("DX3rd.UrgeHatred") }
       ];
@@ -8942,7 +9309,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
-        ui.notifications.error('DialogV2를 사용할 수 없습니다.');
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
 

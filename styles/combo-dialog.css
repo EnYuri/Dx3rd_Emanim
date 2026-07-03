@@ -94,3 +94,18 @@
   display: none;
 }
 
+
+/* 콤보 빌더 코스트(침식치) 실시간 미리보기 */
+.dx3rd-emanim .combo-dialog .combo-cost-preview {
+  margin-top: 8px;
+  padding: 6px 10px;
+  text-align: right;
+  font-weight: bold;
+  background: rgba(120, 40, 40, 0.08);
+  border: 1px solid #c99;
+  border-radius: 4px;
+}
+
+.dx3rd-emanim .combo-dialog .combo-cost-preview .preview-enc {
+  color: #a33;
+}

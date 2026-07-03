@@ -91,6 +91,7 @@
             let currentResults = [...this.results];
             let totalValue = 0;  // 최종 달성치를 위한 누적값
             let isFirstChain = true;
+            this.fumble = false; // 펌블(최초 굴림 전부 1) 여부 — 핸들러가 자동실패/달성치 0 처리에 사용
 
             while (currentDice > 0) {
                 let thisChain = currentResults.map(r => r.result);
@@ -114,6 +115,7 @@
                 let chainValue;
                 if (isFirstChain && thisChain.length > 0 && thisChain.every(v => v === 1)) {
                     chainValue = 0;
+                    this.fumble = true;
                 } else {
                     chainValue = hasCritical ? 10 : Math.max(...thisChain);
                 }
