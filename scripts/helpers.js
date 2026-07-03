@@ -996,6 +996,12 @@
                         'system.weapon': newWeapons
                     });
 
+                    // 콤보 시트 등에서 무기 삭제 직후 후처리(판정 기능/공격판정 재계산) 훅
+                    if (typeof sheet._onWeaponRemoved === 'function') {
+                        try { await sheet._onWeaponRemoved(weaponId); }
+                        catch (e) { console.error('DX3rd | WeaponTabManager - _onWeaponRemoved failed', e); }
+                    }
+
                     ui.notifications.info("무기가 삭제되었습니다.");
                     
                     // 시트 다시 렌더링

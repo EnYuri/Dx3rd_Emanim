@@ -20,11 +20,12 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
     // 모든 system 필드가 undefined인 경우 현재 아이템의 값을 사용
     // 주의: attackRoll, weaponTmp, weapon, weaponSelect는 WeaponTabManager에서 처리하므로 제외
     itemSheetData.hydrateSystemFields(item, data, [
-      'skill', 'difficulty', 'limit', 'timing', 'range', 'target', 'type',
+      'skill', 'comboSkill', 'comboBase', 'difficulty', 'limit', 'timing', 'range', 'target', 'type',
       'roll', 'macro', 'active', 'used', 'encroach',
       'effect', 'attributes', 'exp', 'description'
     ], {
-      stringFields: ['skill', 'difficulty', 'limit', 'timing', 'range', 'target', 'type', 'roll', 'macro', 'description']
+      stringFields: ['skill', 'comboSkill', 'comboBase', 'difficulty', 'limit', 'timing', 'range', 'target', 'type', 'roll', 'macro', 'description'],
+      defaults: { comboSkill: '-', comboBase: '-' }
     });
 
     // 무기 탭 데이터 준비 (WeaponTabManager 사용)

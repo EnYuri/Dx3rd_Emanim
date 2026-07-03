@@ -92,99 +92,154 @@
     return value === undefined || value === null || value === '' || value === '-';
   }
 
-  // 이펙트를 콤보에 추가할 때, 콤보의 빈 필드만 이펙트 값으로 자동 채운다(사용자가 이미 설정한 값은 보존).
-  // 정책: 사용자가 선택한 "빈 필드만 자동 채움".
-  function computeInheritedComboFields(comboItem, effectItem, actor) {
+  // 판정 "기능"이 아닌 센티넬 skill 값(콤보 판정 기능 소스에서 제외).
+  //   syndrome: 컨센트레이트/리플렉스 등 — 이펙트를 사용한 판정에만 조합되는 순수 수정치(별도 attribute로 해소).
+  //   text/cthulhu: 현재 데이터 없음(무시).
+  const NON_JUDGMENT_SKILLS = new Set(['syndrome']);
+  function isNonJudgmentSkill(value) {
+    return NON_JUDGMENT_SKILLS.has(value);
+  }
+
+  // 콤보의 판정 기능(skill/base)·공격판정(attackRoll)·공격력을 "조합 우선순위"로 재계산.
+  //
+  // 우선순위(항상 재계산): 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추(ranged→사격, melee→백병).
+  //   근거: 룰 「이펙트가 우선」(rulebook-1-2 3251) — 장비품(무기)의 효과가 이펙트와 모순되면 이펙트가 우선.
+  //   기능 변경(무기 명중판정을 〈RC〉/사격으로)은 이펙트 플레이버 텍스트에 있어 기계 판별 불가하므로,
+  //   유일한 기계 신호인 이펙트 `system.skill`을 우선 신호로 사용한다.
+  //
+  // 사용자 수동값은 영구 잠금하지 않는다 — 새 이펙트/무기를 추가·삭제하면 이 우선순위로 다시 덮어씀.
+  //   (사용자는 "최종 수정" 시점에 우선권을 가진다: 그 수정은 다음 추가/삭제 전까지 유지된다.)
+  // 후보(이펙트/무기 기능 신호)가 하나도 없으면 기존 값을 보존한다(순수 수동 콤보 보호).
+  //
+  // effectIds/weaponIds를 넘기면 그 예정 목록으로 계산(추가/삭제가 저장되기 전 호출 대비).
+  function deriveComboAttackFields(comboItem, actor, { effectIds, weaponIds } = {}) {
+    const updates = {};
+    const cs = comboItem?.system || {};
+    const effIds = normalizeIdList(effectIds ?? getEffectIds(comboItem));
+    const wpnIds = normalizeIdList(weaponIds ?? getWeaponIds(comboItem));
+
+    const effects = effIds.map(id => actor?.items.get(id)).filter(Boolean);
+    const weapons = wpnIds.map(id => actor?.items.get(id)).filter(w => w && w.type === 'weapon');
+
+    // --- 판정 기능(skill/base) ---
+    // 근거: 룰 「명중판정」(rulebook-1-2 p.145) — 명중판정은 "무기 및 이펙트에 지정된 기능"으로 하며,
+    //   「이펙트가 우선」(p.147)으로 이펙트 지정 기능이 무기 기능을 이긴다.
+    //   이펙트의 "지정된 기능"은 보통 기능 항목(system.skill)이지만, 본문(플레이버)에서
+    //   "명중판정을 〈RC〉/사격/정신 등으로 변경"한다고 재정의하는 특수 이펙트는 기계 판별 불가하므로,
+    //   전용 필드 system.comboSkill(조합시 기능 변경)을 두어 우선 신호로 쓰고 기능 항목을 폴백한다.
+    let skill = null;
+    // B: 이펙트 지정 기능 — 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백.
+    //   단 skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 "이펙트를 사용한 판정에만
+    //   조합되는 순수 수정치" 센티넬이므로 콤보의 판정 기능 소스에서 제외한다(별도 attribute로 해소됨).
+    const effCombo = effects.find(e => !isEmptyComboField(e.system?.comboSkill));
+    if (effCombo) {
+      skill = effCombo.system.comboSkill;
+    } else {
+      const effSkill = effects.find(e => !isEmptyComboField(e.system?.skill) && !isNonJudgmentSkill(e.system.skill));
+      if (effSkill) skill = effSkill.system.skill;
+    }
+    // C: 무기 명시 기능
+    if (!skill) {
+      const wpnSkill = weapons.find(w => !isEmptyComboField(w.system?.skill));
+      if (wpnSkill) skill = wpnSkill.system.skill;
+    }
+    // D: 무기 type 유추
+    if (!skill) {
+      const wpnType = weapons.find(w => w.system?.type === 'melee' || w.system?.type === 'ranged');
+      if (wpnType) skill = wpnType.system.type;
+    }
+    if (skill) {
+      if (skill !== cs.skill) updates['system.skill'] = skill;
+      const baseAttr = abilityKeys.includes(skill)
+        ? skill
+        : actor?.system?.attributes?.skills?.[skill]?.base;
+      if (baseAttr && baseAttr !== cs.base) updates['system.base'] = baseAttr;
+    }
+
+    // --- 능력치(base) 치환: 조합시 능력치 변경(comboBase) — 기능은 유지하고 판정치(능력치)만 교체 ---
+    //   근거: 룰 p.136 판정 = 능력치(다이스 수) + 기능(달성치 레벨). "조합한 판정을 〈정신〉으로"류는
+    //   기능(백병 등)의 레벨은 유지한 채 판정 능력치만 바꾸는 것이므로 skill이 아니라 base만 덮는다.
+    //   (예: 컨트롤 쏘트 = 백병 기능 유지 + 정신 능력치.) skill 변경 여부와 무관하게 우선 적용.
+    const effComboBase = effects.find(e => abilityKeys.includes(e.system?.comboBase));
+    if (effComboBase) {
+      const cb = effComboBase.system.comboBase;
+      if (cb !== (updates['system.base'] ?? cs.base)) updates['system.base'] = cb;
+    }
+
+    // --- 공격판정(attackRoll): 이펙트 attackRoll(melee/ranged) > 무기 type ---
+    let attackRoll = null;
+    const effAR = effects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
+    if (effAR) attackRoll = effAR.system.attackRoll;
+    if (!attackRoll) {
+      const wpnAR = weapons.find(w => w.system?.type === 'melee' || w.system?.type === 'ranged');
+      if (wpnAR) attackRoll = wpnAR.system.type;
+    }
+    if (attackRoll && attackRoll !== cs.attackRoll) {
+      updates['system.attackRoll'] = attackRoll;
+      // 공격판정이 새로 생겼는데 roll이 비어있으면 명중 판정(major) 활성화
+      if (isEmptyComboField(cs.roll)) updates['system.roll'] = 'major';
+    }
+
+    // --- 공격력 재계산 ---
+    const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
+    if (finalAttackRoll && finalAttackRoll !== '-') {
+      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, wpnIds);
+    }
+
+    return updates;
+  }
+
+  // 이펙트를 콤보에 추가할 때: 타이밍/고정무기(빈 값만)를 상속하고, 판정 기능/공격판정은 조합 우선순위로 재계산.
+  // prospectiveEffectIds: 아직 저장 전인 예정 이펙트 목록(방금 추가한 이펙트 포함).
+  function computeInheritedComboFields(comboItem, effectItem, actor, prospectiveEffectIds = null) {
     const updates = {};
     const es = effectItem?.system || {};
     const cs = comboItem?.system || {};
 
-    // 스킬(+ 능력치 base)
-    if (isEmptyComboField(cs.skill) && !isEmptyComboField(es.skill)) {
-      updates['system.skill'] = es.skill;
-      if (!isEmptyComboField(es.base)) updates['system.base'] = es.base;
-    }
-    if (updates['system.base'] === undefined && isEmptyComboField(cs.base) && !isEmptyComboField(es.base)) {
-      updates['system.base'] = es.base;
-    }
-
-    // 타이밍 (빈 값일 때만 상속). 사거리/대상은 combineEffectsRangeTarget으로 전체 재계산하므로 여기서 제외.
+    // 타이밍 (빈 값일 때만 상속). 사거리/대상은 combineEffectsRangeTarget으로 전체 재계산.
     if (isEmptyComboField(cs.timing) && !isEmptyComboField(es.timing)) updates['system.timing'] = es.timing;
-
-    // 공격판정 (melee/ranged만 상속)
-    if (isEmptyComboField(cs.attackRoll) && (es.attackRoll === 'melee' || es.attackRoll === 'ranged')) {
-      updates['system.attackRoll'] = es.attackRoll;
-    }
 
     // 무기: 이펙트가 무기를 고정(weaponSelect: false)하고 콤보 무기 슬롯이 비어있으면 상속
     const currentWeapons = getWeaponIds(comboItem);
+    let effectiveWeapons = currentWeapons;
     if (currentWeapons.length === 0 && es.weaponSelect === false && Array.isArray(es.weapon)) {
       const inheritedWeapons = es.weapon.filter(w => w && w !== '-');
-      if (inheritedWeapons.length > 0) updates['system.weapon'] = inheritedWeapons;
+      if (inheritedWeapons.length > 0) {
+        updates['system.weapon'] = inheritedWeapons;
+        effectiveWeapons = inheritedWeapons;
+      }
     }
 
-    // 공격판정/무기가 바뀌었으면 공격력도 재계산
-    if (updates['system.attackRoll'] !== undefined || updates['system.weapon'] !== undefined) {
-      const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
-      const finalWeapons = updates['system.weapon'] ?? currentWeapons;
-      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, finalWeapons);
-    }
+    // 판정 기능/공격판정/공격력: 조합 우선순위로 재계산(방금 추가한 이펙트/고정무기 포함).
+    Object.assign(updates, deriveComboAttackFields(comboItem, actor, {
+      effectIds: prospectiveEffectIds ?? getEffectIds(comboItem),
+      weaponIds: effectiveWeapons
+    }));
 
     return updates;
   }
 
-  // 무기를 콤보에 추가할 때, 콤보의 빈 공격 관련 필드만 무기 값으로 자동 채운다(공격 콤보 자동화).
-  // - 무기 type(melee/ranged) → attackRoll
-  // - 무기 skill(사격/RC/백병 등) → skill (+ base 능력치)
-  // - 공격판정이 생기고 roll이 비어있으면 major로(명중 판정)
-  // 정책: 이펙트 상속과 동일하게 "빈 필드만 자동 채움"(사용자 지정값 보존).
+  // 무기를 콤보에 추가할 때: 조합 우선순위로 판정 기능/공격판정/공격력을 재계산(공격 콤보 자동화).
+  // (무기는 이미 슬롯에 추가된 상태로 호출됨.)
   function computeInheritedWeaponFields(comboItem, weaponItem, actor) {
-    const updates = {};
-    const ws = weaponItem?.system || {};
-    const cs = comboItem?.system || {};
-
-    // 공격판정: 무기 type이 melee/ranged면 빈 attackRoll 채움
-    if (isEmptyComboField(cs.attackRoll) && (ws.type === 'melee' || ws.type === 'ranged')) {
-      updates['system.attackRoll'] = ws.type;
-    }
-
-    // 기능: 무기의 공격 기능(사격/RC/백병 등)이 지정돼 있으면 상속.
-    // 지정이 없으면 무기 type으로 기본 공격 기능을 유추(ranged→사격, melee→백병).
-    if (isEmptyComboField(cs.skill)) {
-      let skillKey = !isEmptyComboField(ws.skill) ? ws.skill : null;
-      if (!skillKey) {
-        if (ws.type === 'ranged') skillKey = 'ranged';
-        else if (ws.type === 'melee') skillKey = 'melee';
-      }
-      if (skillKey) {
-        updates['system.skill'] = skillKey;
-        const baseAttr = abilityKeys.includes(skillKey)
-          ? skillKey
-          : actor?.system?.attributes?.skills?.[skillKey]?.base;
-        if (baseAttr && isEmptyComboField(cs.base)) updates['system.base'] = baseAttr;
-      }
-    }
-
-    // 공격판정이 생겼는데 roll이 비어있으면 명중 판정(major) 활성화
-    if (updates['system.attackRoll'] !== undefined && isEmptyComboField(cs.roll)) {
-      updates['system.roll'] = 'major';
-    }
-
-    // 공격판정이 확정됐으면 공격력 재계산(무기 슬롯엔 이미 추가된 무기가 포함됨)
-    if (updates['system.attackRoll'] !== undefined) {
-      const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
-      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, getWeaponIds(comboItem));
-    }
-
-    return updates;
+    return deriveComboAttackFields(comboItem, actor);
   }
 
-  // 무기 추가 직후 호출: 콤보를 공격 콤보로 자동 구성(빈 값만). 무기 아이템에만 적용(비클 제외).
+  // 무기 추가 직후 호출: 콤보를 공격 콤보로 재구성. 무기 아이템에만 적용(비클 제외).
   async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
     if (!comboItem || !weaponId || weaponId === '-') return false;
     const weaponItem = actor?.items.get(weaponId);
     if (!weaponItem || weaponItem.type !== 'weapon') return false;
     const updates = computeInheritedWeaponFields(comboItem, weaponItem, actor);
+    if (Object.keys(updates).length === 0) return false;
+    await comboItem.update(updates);
+    return true;
+  }
+
+  // 무기 삭제 직후 호출: 남은 이펙트/무기로 판정 기능/공격판정을 재계산(우선순위 재적용).
+  async function applyWeaponRemoved(comboItem, actor) {
+    if (!comboItem) return false;
+    const updates = deriveComboAttackFields(comboItem, actor);
     if (Object.keys(updates).length === 0) return false;
     await comboItem.update(updates);
     return true;
@@ -217,11 +272,11 @@
     }
 
     const newEffects = [...currentEffects, effectId];
-    // 빈 필드 자동 반영: 스킬/능력치/타이밍/공격판정/무기를 콤보 빈칸에 채움.
+    // 타이밍/고정무기(빈 값만) 상속 + 판정 기능/공격판정은 조합 우선순위로 재계산(방금 추가 이펙트 포함).
     const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects),
-      ...computeInheritedComboFields(item, actor?.items.get(effectId), actor)
+      ...computeInheritedComboFields(item, actor?.items.get(effectId), actor, newEffects)
     };
 
     // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
@@ -263,7 +318,9 @@
     const newEffects = getEffectIds(item).filter(id => id !== effectId);
     const updates = {
       'system.effectIds': newEffects,
-      'system.encroach.value': calculateEncroachment(actor, newEffects)
+      'system.encroach.value': calculateEncroachment(actor, newEffects),
+      // 제거 후 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용; 예: RC 변경 이펙트 제거 시 무기 기능으로 복귀).
+      ...deriveComboAttackFields(item, actor, { effectIds: newEffects })
     };
     // 제거 후 남은 이펙트로 사거리/대상 재계산(rankable 없으면 보존).
     const combined = combineEffectsRangeTarget(actor, newEffects);
@@ -839,7 +896,9 @@
     addRegisteredEffect,
     computeInheritedComboFields,
     computeInheritedWeaponFields,
+    deriveComboAttackFields,
     applyWeaponAutoAttack,
+    applyWeaponRemoved,
     openRegisteredEffectSheet,
     removeRegisteredEffect,
     updateBaseAttributeForSkill,

@@ -196,6 +196,13 @@ class DX3rdComboSheet extends window.DX3rdItemSheet {
   }
 
   /**
+   * 무기 삭제 직후: 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용).
+   */
+  async _onWeaponRemoved(weaponId) {
+    await comboData.applyWeaponRemoved(this.item, this.actor);
+  }
+
+  /**
    * 기능 선택 시 능력치 자동 설정
    */
   async _updateBaseAttribute(skillValue) {

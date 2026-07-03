@@ -5201,44 +5201,48 @@
       const seedWeapon = (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle'))
         ? weaponItem : null;
 
-      // ---- 시드 값 계산(빈 값만 채우는 정책) ----
+      // ---- 시드 값 계산(조합 우선순위: 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추) ----
+      // 콤보 생성 후 시트에서의 추가/삭제는 DX3rdComboData.deriveComboAttackFields가 같은 우선순위로 재계산한다.
       let skill = (targetType === 'skill' && targetId && targetId !== '-') ? targetId : '-';
       let base = '-';
       let attackRoll = '-';
       const weaponSetting = [];
+      if (seedWeapon) weaponSetting.push(seedWeapon.id);
 
-      // 무기에서 시작: 공격 콤보 자동 시드(공격판정=무기 type, 기능=무기 공격기능)
-      if (seedWeapon) {
-        const wt = seedWeapon.system?.type;
-        if (wt === 'melee' || wt === 'ranged') attackRoll = wt;
-        if (skill === '-') {
-          if (seedWeapon.system?.skill && seedWeapon.system.skill !== '-') {
-            skill = seedWeapon.system.skill;
-          } else if (wt === 'ranged') {
-            skill = 'ranged';
-          } else if (wt === 'melee') {
-            skill = 'melee';
-          }
-        }
-        weaponSetting.push(seedWeapon.id);
-      }
+      const seedEffects = preselectIds.map(id => actor.items.get(id)).filter(Boolean);
+      const seedWeaponType = seedWeapon?.system?.type;
 
-      // 이펙트 1개에서 시작: 그 이펙트의 스킬/능력치/공격판정을 시드로 상속(빈 값일 때만).
-      if (!seedWeapon && preselectIds.length === 1) {
-        const seed = actor.items.get(preselectIds[0]);
-        if (seed) {
-          if (skill === '-' && seed.system?.skill && seed.system.skill !== '-') skill = seed.system.skill;
-          if (base === '-' && seed.system?.base && seed.system.base !== '-') base = seed.system.base;
-          if (seed.system?.attackRoll === 'melee' || seed.system?.attackRoll === 'ranged') {
-            attackRoll = seed.system.attackRoll;
-          }
-        }
+      // 공격판정: 이펙트 attackRoll(melee/ranged) > 무기 type
+      const effAR = seedEffects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
+      if (effAR) attackRoll = effAR.system.attackRoll;
+      else if (seedWeaponType === 'melee' || seedWeaponType === 'ranged') attackRoll = seedWeaponType;
+
+      // 기능: 이펙트 지정 기능 > 무기 명시 > 무기 type 유추. (스킬에서 시작한 값은 조합 신호가 있으면 그쪽이 이김)
+      //   이펙트 지정 기능 = 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백. (룰 근거는 combo-data.js 참조)
+      const effComboSkill = seedEffects.find(e => e.system?.comboSkill && e.system.comboSkill !== '-');
+      // skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 순수 수정치 센티넬이므로 기능 소스에서 제외.
+      const effOwnSkill = seedEffects.find(e => e.system?.skill && e.system.skill !== '-' && e.system.skill !== 'syndrome');
+      if (effComboSkill) {
+        skill = effComboSkill.system.comboSkill;  // base는 아래에서 스킬 기준으로 유추
+      } else if (effOwnSkill) {
+        skill = effOwnSkill.system.skill;
+        if (effOwnSkill.system?.base && effOwnSkill.system.base !== '-') base = effOwnSkill.system.base;
+      } else if (seedWeapon?.system?.skill && seedWeapon.system.skill !== '-') {
+        skill = seedWeapon.system.skill;
+      } else if (seedWeaponType === 'ranged') {
+        skill = 'ranged';
+      } else if (seedWeaponType === 'melee') {
+        skill = 'melee';
       }
 
       // 기능이 정해졌는데 base가 비어있으면 스킬의 base 능력치로 채움
       if (base === '-' && skill !== '-') {
         base = abilityKeys.includes(skill) ? skill : (actor.system?.attributes?.skills?.[skill]?.base || '-');
       }
+
+      // 조합시 능력치 변경(comboBase): 기능 유지하고 판정 능력치만 교체(룰 근거는 combo-data.js 참조)
+      const effComboBase = seedEffects.find(e => abilityKeys.includes(e.system?.comboBase));
+      if (effComboBase) base = effComboBase.system.comboBase;
 
       // 조합 이펙트의 침식치/사거리/대상 합성(가장 제한적인 값).
       const effectIds = [...preselectIds];

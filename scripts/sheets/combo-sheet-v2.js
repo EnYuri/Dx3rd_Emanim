@@ -71,9 +71,14 @@
       this.render(false);
     }
 
-    // 무기 추가 직후: 빈 값이면 무기 기준으로 공격 콤보 자동 구성(기능/공격판정/공격력).
+    // 무기 추가 직후: 조합 우선순위로 공격 콤보 재구성(기능/공격판정/공격력).
     async _onWeaponAdded(weaponId) {
       await comboData.applyWeaponAutoAttack(this.item, this.item.actor, weaponId);
+    }
+
+    // 무기 삭제 직후: 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용).
+    async _onWeaponRemoved(weaponId) {
+      await comboData.applyWeaponRemoved(this.item, this.item.actor);
     }
 
     async _toggleWeaponSelection(event) {

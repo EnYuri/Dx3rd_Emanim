@@ -482,6 +482,8 @@
       ],
       "type": "normal",
       "skill": "-",
+      "comboSkill": "-",
+      "comboBase": "-",
       "difficulty": "",
       "limit": "-",
       "timing": "-",
