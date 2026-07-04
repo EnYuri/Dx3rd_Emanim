@@ -314,7 +314,40 @@
     }
 
     function createEmbeddedMacro() {
-        return {timing: 'instant', command: '', disabled: false};
+        // kind: 'code'(인라인 코드) | 'macro'(월드 매크로 이름참조). 기본은 코드.
+        return {timing: 'instant', kind: 'code', command: '', macroName: '', disabled: false};
+    }
+
+    // 월드 매크로 이름 목록(임베드 행의 '월드 매크로' 드롭다운 채움용, 이름순)
+    function getWorldMacroOptions() {
+        return (game.macros?.contents || [])
+            .map(m => ({name: m.name}))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    // 레거시 단일 매크로 필드(system.macro = "[이름][이름]…" 월드 매크로 이름참조)를
+    // 임베드 매크로 행(kind:'macro')으로 1회 이관하고 필드를 비운다. 대괄호 참조가 없으면 손대지 않음.
+    async function migrateLegacyMacroField(item) {
+        const raw = item?.system?.macro;
+        if (!raw || typeof raw !== 'string') return null;
+        const names = (raw.match(/\[([^\]]+)\]/g) || []).map(s => s.slice(1, -1).trim()).filter(Boolean);
+        if (names.length === 0) return null;
+        const macros = getEmbeddedMacros(item);
+        let changed = false;
+        for (const name of names) {
+            if (macros.some(m => m.kind === 'macro' && m.macroName === name)) continue; // 중복 이관 방지
+            const wm = game.macros?.getName(name);
+            const timing = wm?.getFlag?.('dx3rd-emanim', 'runTiming') || 'instant';
+            macros.push({timing, kind: 'macro', command: '', macroName: name, disabled: false});
+            changed = true;
+        }
+        if (!changed) {
+            // 참조가 모두 이미 이관됨 → 남은 필드만 비운다.
+            await item.update({'system.macro': ''});
+            return macros;
+        }
+        await item.update({'system.macros': macros, 'system.macro': ''});
+        return macros;
     }
 
     async function addEmbeddedMacro(item) {
@@ -345,6 +378,8 @@
     }
 
     const macroSupportedTypes = ['effect', 'combo', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'book', 'once', 'etc'];
+    // 임베드 매크로(system.macros[]) UI를 제공하는 타입. 이들은 월드 매크로 드롭·이름참조도 임베드 행으로 통합한다.
+    const embedMacroTypes = ['effect'];
 
     async function handleMacroDrop(item, event, {fallback = null, fallbackOnInvalidData = false} = {}) {
         let data;
@@ -366,6 +401,21 @@
         const macro = await fromUuid(data.uuid);
         if (!macro) return undefined;
 
+        // 임베드 매크로 UI를 쓰는 타입(이펙트)은 드롭을 임베드 행(kind:'macro')으로 추가한다.
+        if (embedMacroTypes.includes(item.type)) {
+            const macros = getEmbeddedMacros(item);
+            if (macros.some(m => m.kind === 'macro' && m.macroName === macro.name)) {
+                ui.notifications.info(localize('DX3rd.MacroAlreadyAdded') || '이미 추가된 매크로입니다.');
+                return undefined;
+            }
+            const timing = macro.getFlag?.('dx3rd-emanim', 'runTiming') || 'instant';
+            macros.push({timing, kind: 'macro', command: '', macroName: macro.name, disabled: false});
+            await item.update({'system.macros': macros});
+            ui.notifications.info(game.i18n.format('DX3rd.MacroAdded', {name: macro.name}) || `매크로 "${macro.name}"이(가) 추가되었습니다.`);
+            return true;
+        }
+
+        // 그 외 타입: 레거시 단일 필드에 이름참조 추가(기존 동작 보존).
         const macroText = `[${macro.name}]`;
         const currentMacro = item.system.macro || '';
         if (currentMacro.includes(macroText)) {
@@ -688,6 +738,8 @@
         addEmbeddedMacro,
         removeEmbeddedMacro,
         updateEmbeddedMacro,
+        getWorldMacroOptions,
+        migrateLegacyMacroField,
         activateBaseItemListeners,
         updateAfterDefault,
         hasTargetTab,

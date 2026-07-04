@@ -62,14 +62,10 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
       data.system.exp.upgrade = this.item.system.exp?.upgrade || false;
     }
 
-    // macro 필드 초기화
-    if (data.system.macro === undefined) {
-      data.system.macro = this.item.system?.macro || "";
-    }
-
-    // 임베드 매크로(system.macros[]) + 타이밍 옵션
+    // 임베드 매크로(system.macros[]) + 타이밍 옵션 + 월드 매크로 목록(이름참조 드롭다운용)
     itemSheetData.prepareEmbeddedMacroData(this.item, data);
     data.macroTimings = ["instant", "afterSuccess", "afterDamage", "afterMain", "onInvoke"];
+    data.worldMacros = itemSheetData.getWorldMacroOptions();
 
     // 사정거리/대상/난이도 드롭다운 컨텍스트(캐노니컬 정규화 후 초기 선택/파라미터 산출)
     if (window.DX3rdRangeTarget) {
@@ -128,6 +124,18 @@ class DX3rdEffectSheet extends window.DX3rdItemSheet {
       const i = Number(event.target.dataset.index);
       await itemSheetData.updateEmbeddedMacro(this.item, i, 'command', event.target.value);
     });
+    // 종류(인라인 코드 / 월드 매크로) 전환 → 저장 후 리렌더로 입력 UI 교체
+    compat.on(root, 'change', '.macro-kind', async (event) => {
+      const i = Number(event.target.dataset.index);
+      await itemSheetData.updateEmbeddedMacro(this.item, i, 'kind', event.target.value);
+    });
+    compat.on(root, 'change', '.macro-name', async (event) => {
+      const i = Number(event.target.dataset.index);
+      await itemSheetData.updateEmbeddedMacro(this.item, i, 'macroName', event.target.value);
+    });
+
+    // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
+    itemSheetData.migrateLegacyMacroField(this.item);
 
     // active.runTiming 변경 시 즉시 저장
     compat.on(root, 'change', 'select[name="system.active.runTiming"]', async (event) => {

@@ -15,8 +15,8 @@
         static DEFAULT_OPTIONS = {
             classes: ['dx3rd-emanim', 'sheet', 'item'],
             position: {
-                width: 520,
-                height: 480
+                width: 540,
+                height: 620
             },
             window: {
                 resizable: true

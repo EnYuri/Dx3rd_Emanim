@@ -1352,9 +1352,15 @@
       try {
         const macroField = item.system?.macro;
         const macroMatches = (macroField && typeof macroField === 'string') ? (macroField.match(/\[([^\]]+)\]/g) || []) : [];
-        // 임베드 매크로: system.macros = [{ timing, command, disabled? }, ...] (컴펜디움 자체완결, 이름참조 불필요)
+        // 임베드 매크로: system.macros = [{ timing, kind, command, macroName, disabled? }, ...]
+        //  - kind:'code'(기본): command 를 인라인 실행(컴펜디움 자체완결, 이름참조 불필요)
+        //  - kind:'macro': macroName 으로 월드 매크로를 이름참조 실행(구 system.macro 필드 통합분)
         const embedded = Array.isArray(item.system?.macros) ? item.system.macros : [];
-        const embeddedHits = embedded.filter(m => m && m.command && !m.disabled && (m.timing || 'instant') === timing);
+        const embeddedHits = embedded.filter(m => {
+          if (!m || m.disabled) return false;
+          if ((m.timing || 'instant') !== timing) return false;
+          return (m.kind === 'macro') ? !!m.macroName : !!m.command;
+        });
         if (macroMatches.length === 0 && embeddedHits.length === 0) return;
 
         // 아이템의 소유자 액터를 토큰으로 선택
@@ -1399,9 +1405,16 @@
         // 컨텍스트: actor(소유자), item(이 아이템), token(소유자 토큰), scope(타이밍 등)
         for (const em of embeddedHits) {
           try {
-            const AsyncFunction = foundry.utils?.AsyncFunction || Object.getPrototypeOf(async function () {}).constructor;
-            const fn = new AsyncFunction('actor', 'item', 'token', 'scope', em.command);
-            await fn.call(item, ownerActor, item, ownerToken, { timing });
+            if (em.kind === 'macro') {
+              // 이름참조: 월드 매크로 실행. 타이밍은 이 임베드 행이 관장한다(월드 매크로의 runTiming 플래그는 무시).
+              const wm = game.macros?.getName(em.macroName);
+              if (wm) await wm.execute({ actor: ownerActor, token: ownerToken });
+              else console.warn(`DX3rd | UniversalHandler embedded world-macro not found: ${em.macroName}`);
+            } else {
+              const AsyncFunction = foundry.utils?.AsyncFunction || Object.getPrototypeOf(async function () {}).constructor;
+              const fn = new AsyncFunction('actor', 'item', 'token', 'scope', em.command);
+              await fn.call(item, ownerActor, item, ownerToken, { timing });
+            }
           } catch (e) {
             console.error(`DX3rd | UniversalHandler embedded macro failed (${item.name} @${timing})`, e);
           }

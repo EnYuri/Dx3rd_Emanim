@@ -87,6 +87,16 @@
     color: #fff !important;
 }
 
+/* ---------- 아이템 V2 기본/최소 창 크기 ----------
+   기본 크기(item-sheet-v2.js DEFAULT_OPTIONS.position 520x580)와 동일한 최소 크기를
+   보장한다. AppV2 setPosition 은 요소의 computed min-width/min-height 로 리사이즈를
+   클램프하므로(액터 시트 min-width:850px 와 동일 방식), 우하단 드래그로 이보다 더
+   작게 줄일 수 없다. */
+.application.sheet.dx3rd-emanim.item {
+    min-width: 540px;
+    min-height: 620px;
+}
+
 /* ---------- 윈도우 콘텐츠 레이아웃 ---------- */
 .application.sheet.dx3rd-emanim.item > .window-content {
     display: flex;
@@ -130,6 +140,199 @@
 .application.sheet.dx3rd-emanim.item table input:not([type="checkbox"]):not([type="radio"]),
 .application.sheet.dx3rd-emanim.item table select {
     padding: 1px 3px;
+}
+
+/* ---------- #1 해설 탭 sheet-attributes 필드 높이 통일 ----------
+   AppV2 프레임워크가 필드 종류마다 다른 높이를 준다(실측: 일반 input 21px,
+   input[type=number](경험점) 32px, select 32px, 매입/상비화 .flex 40px/내부 32px).
+   그래서 경험점·매입/상비화만 과대해 보이고 드롭다운과 값 입력의 수직 높이가 어긋난다.
+   모든 필드를 26px 단일 높이로 통일하고 세로 중앙 정렬한다. */
+.application.sheet.dx3rd-emanim.item .sheet-attributes .cell input:not([type="checkbox"]):not([type="radio"]),
+.application.sheet.dx3rd-emanim.item .sheet-attributes .cell select {
+    height: 26px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+/* 매입/상비화·레벨·침식치 셀: 난이도/값 입력 + 슬래시 + 값 입력을 감싼 .flex 래퍼도 동일
+   높이로 맞추고 내부 입력이 래퍼를 꽉 채우게 한다(내부 입력에 위 #1 규칙의 margin-bottom 이
+   중복 적용돼 래퍼가 부풀거나 입력이 위로 4px 떠 이웃 단일 필드와 줄이 안 맞는 것을 막는다).
+   내부 input 규칙은 #1 높이 통일 규칙(.cell input:not([checkbox]):not([radio]), 명세도 0,4,1)에
+   밀리지 않도록 같은 :not 한정을 붙여 명세도를 0,5,1 로 올린다(안 그러면 margin-bottom:0 이 무시됨). */
+.application.sheet.dx3rd-emanim.item .sheet-attributes .cell > .flex {
+    /* 단일 입력 셀(.cell > input { width:100% })과 달리 .flex 는 폭 규칙이 없어
+       내부 두 입력이 기본 폭(text input ≈225px)대로 벌어져 grid-4 셀(≈121px)을
+       142px 넘쳐 오른쪽으로 삐져나온다(매입/상비화 값칸이 경험점 밖으로 튀는 현상).
+       셀 폭을 꽉 채우고 내부 입력을 flex 로 균등 분배해 셀 안에 가둔다. */
+    width: 100%;
+    height: 26px;
+    box-sizing: border-box;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes .cell > .flex input:not([type="checkbox"]):not([type="radio"]) {
+    /* flex:1 1 0 + min-width:0 로 두 입력이 기본 폭을 무시하고 남는 폭을 균등 분배
+       (min-width:0 없으면 input 기본 최소폭 때문에 여전히 넘친다). */
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    margin-bottom: 0;
+}
+
+/* ---------- 해설 탭 셀 라벨 한글 줄바꿈 ----------
+   브라우저 기본 word-break:normal 은 한글(CJK)을 글자 사이 어디서나 끊어, "조합시 능력치 변경"
+   같은 라벨이 "…변 경" 처럼 어절 중간에서 쪼개진다. keep-all 로 공백에서만 끊어 어절을 보존한다
+   ("조합시 능력치" / "변경"). 라벨(.cell--title)은 높이 34px(2줄분)라 어절 단위 2줄은 수용된다. */
+.application.sheet.dx3rd-emanim.item .cell--title {
+    word-break: keep-all;
+}
+
+/* ---------- #2 효과/대상 탭 attributes 행 정렬 ----------
+   .attributes 목록의 헤더(이름 / 능력치·기능 / 값)는 flexrow 로 3등분되지만(각 flex:1,
+   실측 153px), 행(.attribute)의 select/label/value 는 각자 내용·기본폭을 가져(실측:
+   select 112px, value 225px) 헤더 라벨과 어긋나고, 세 필드 + 삭제 아이콘의 합이 행 폭을
+   넘겨 삭제 아이콘이 다음 줄로 밀린다. 행의 세 필드를 헤더처럼 균등 3등분하고 한 줄
+   (nowrap)을 보장해 헤더 라벨과 정렬을 맞춘다. */
+.application.sheet.dx3rd-emanim.item .attributes .attribute {
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+.application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-key,
+.application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-label,
+.application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-value {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+}
+
+.application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-control {
+    flex: 0 0 20px;
+}
+
+/* ---------- #3 아이템 시트 최하단 공백 패딩 ----------
+   스크롤 컨테이너(window-content)는 display:flex 컬럼이라, 여기에 준 padding-bottom 은
+   Chrome 의 "flex + overflow 스크롤 끝에서 컨테이너 하단 패딩 미렌더" 버그로 스크롤 끝에
+   나타나지 않는다(실측: 스크롤 최하단에서 콘텐츠가 창 하단에 0.5px 로 붙음). 또한 flex 스페이서
+   ::after 도 sheet-body(flex item)가 오버플로 콘텐츠를 감싸지 않아(콘텐츠가 body 박스를 넘침)
+   엉뚱한 위치에 놓여 실패한다. 그래서 실제로 넘치는 콘텐츠 래퍼(.sheet-wrapper, 모든 V2 아이템
+   템플릿의 탭 본문 래퍼)에 직접 하단 패딩을 준다 → scrollHeight 에 포함돼 스크롤 끝에 노출된다. */
+.application.sheet.dx3rd-emanim.item .sheet-wrapper {
+    padding-bottom: 16px;
+}
+
+/* 표를 가용폭 전체(width:100%)로 편다. 이 표의 오른쪽 끝은 아래 매크로(embed) 헤더·능력치
+   헤더(둘 다 풀폭)와 같아야 블록이 하단 헤더와 어긋나 보이지 않는다(이전 max-content 는
+   표를 자연폭으로 줄여 하단 풀폭 헤더보다 26px 좁아지는 문제를 낳았다).
+   최우측 정렬(실행 타이밍/매크로/비활성화 드롭다운의 오른쪽 끝 일치)은 표를 좁히는 대신
+   여섯째 열 드롭다운을 width:100% 로 열에 꽉 채워(아래 규칙) 달성한다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table,
+.application.sheet.dx3rd-emanim.item .tab[data-tab="target"] > .sheet-wrapper > table {
+    width: 100%;
+}
+
+/* ---------- 백로그 #1 탭↔표↔블록 상하 여백 정리 ----------
+   AppV2 프레임워크가 <table> 에 기본 margin:16px 0 을 줘서, 탭 아래 설정 표의 위/아래
+   여백이 과도해진다(실측: nav→표 = wrapper margin-top 10px + 표 margin-top 16px = 26px,
+   표→embed = 표 margin-bottom 16px = 16px). 상단은 wrapper 의 .margin-top-10 이 이미
+   10px 을 담당하므로 표 자체 margin-top 은 0 으로 없애 nav→표 를 10px 로 맞추고,
+   하단은 8px 로 줄여 표↔embed(능력치) 블록 사이를 적당히 띄운다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table,
+.application.sheet.dx3rd-emanim.item .tab[data-tab="target"] > .sheet-wrapper > table {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+/* ---------- 백로그 #2 설정 표 입력 필드 텍스트 가운데 정렬 통일 ----------
+   설정 표의 값 대부분은 부모 셀의 text-align 상속으로 이미 가운데지만, 매크로/소비상한/배수
+   입력만 상속 사슬이 끊겨 좌측(start)으로 남아 정렬이 어긋난다. 표 안 텍스트/숫자 입력을
+   명시적으로 가운데 정렬해 통일한다(체크박스/라디오는 정렬 대상 아님 → 제외). */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table input:not([type="checkbox"]):not([type="radio"]),
+.application.sheet.dx3rd-emanim.item .tab[data-tab="target"] > .sheet-wrapper > table input:not([type="checkbox"]):not([type="radio"]) {
+    text-align: center;
+}
+
+/* ---------- 무기 탭 무기 선택 표↔무기 카드 사이 과다 여백 정리 ----------
+   무기 탭은 [무기 선택?] 표 아래에 무기 카드(.items-list .item)가 붙는데, 그 사이가 과도하게 벌어진다
+   (실측: 표 margin-bottom 16px[프레임워크 기본] + 카드 첫 제목바 h4.item-name 의 UA 기본 margin-top 32px
+   = 표 하단→제목바 54px 의 빈 공간). 표 하단 여백을 다른 탭과 동일하게 8px 로 줄이고, 첫 카드 제목바의
+   상단 UA 마진만 제거해 빈 공간을 없앤다. 둘째 카드부터는 기존 카드 간 간격(margin-top)을 보존한다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="weapon"] > .sheet-wrapper > table {
+    margin-bottom: 8px;
+}
+.application.sheet.dx3rd-emanim.item .tab[data-tab="weapon"] .items-list .item:first-child .item-name {
+    margin-top: 0;
+}
+
+/* ---------- #4 이펙트 효과/대상 탭 설정 테이블 가독성 ----------
+   효과/대상 탭 상단 설정 표(th=라벨, td=필드)는 공용 규칙 padding:3.5px 0 으로 좌우 패딩이 0 이라
+   라벨이 양옆 필드에 그대로 맞닿아 가독성이 떨어진다. 라벨(th)에 좌우 6px 을 줘 이웃 필드와 띄운다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table th,
+.application.sheet.dx3rd-emanim.item .tab[data-tab="target"] > .sheet-wrapper > table th {
+    padding-left: 6px;
+    padding-right: 6px;
+    white-space: nowrap;
+}
+
+/* 표는 table-layout:auto 라 같은 열의 셀들이 폭을 공유한다. 이 표는 colspan 으로 8열이지만
+   실질 그리드는 [라벨][필드][라벨][필드][라벨][필드] 6열이고, 열마다 성격이 다른 셀이 섞여
+   (예: 넷째 열 = 활성화/레벨수정 체크박스 + 소비상한/공격(하단) 드롭다운) 한쪽에 맞추면 다른
+   쪽이 찌그러진다. 체크박스 셀만 1% 로 접으면 같은 열의 소비상한/공격 필드가 27px 로 찌그러졌다.
+   → 열을 구성하는 실제 필드에 명시 폭을 줘서 열 폭을 결정하고, 체크박스는 그 열 안에서 가운데
+   정렬한다. 창 크기가 520px 로 고정되므로 이 폭 배분이 일관되게 유지된다. */
+
+/* 체크박스 셀: 열 폭은 같은 열의 드롭다운/입력이 결정하고, 체크박스는 가운데 정렬만 한다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table td:has(> input[type="checkbox"]) {
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* 둘째 열 드롭다운(판정 타입/공격 상단/보정 대상): 내용폭(~74)보다 조금 좁혀 표 전체 폭을
+   컨테이너(약 494px) 안에 들인다. 최장 옵션 "달성치" 는 62px 에서 보인다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.roll"],
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.attackRoll"],
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.resourceCost.attrKey"] {
+    width: 62px !important;
+}
+
+/* 실행 타이밍(colspan=5 셀)·매크로(colspan=5 셀): 두 필드가 놓인 셀의 오른쪽 끝은
+   표 오른쪽 끝(=여섯째 열 비활성화 드롭다운의 오른쪽 끝)과 같으므로, 셀 폭 100% 로
+   채워 우측 끝을 다른 최우측 필드와 정렬한다(좌측 끝도 둘째 열 필드와 맞음). */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.active.runTiming"],
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table input[name="system.macro"] {
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
+/* 소비 상한(resourceCost.cap): 넷째 열은 과대(70px)했다 → 52px 로 줄여 표 전체 폭을
+   줄이고 오른쪽 여백을 확보한다(숫자 입력이라 52px 로 충분). */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table input[name="system.resourceCost.cap"] {
+    width: 52px;
+    box-sizing: border-box;
+}
+
+/* 공격(하단, resourceCost.label): 같은 넷째 열 드롭다운, 최장 옵션이 "백병"(~28px)뿐이라
+   70px 은 과대 → 52px 로 줄여 col4 폭을 낮춘다(표 폭 축소 → 오른쪽 패딩 확보). */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.resourceCost.label"] {
+    width: 52px !important;
+}
+
+/* 비활성화/횟수 리셋 드롭다운(여섯째 열): 표가 풀폭이므로 열 전체를 채워(width:100%) 오른쪽
+   끝을 표 오른쪽 끝(=하단 매크로 헤더 오른쪽 끝)에 정렬한다. 열 폭이 112px 보다 넓어져
+   "메인 프로세스 이후" 같은 최장 옵션의 잘림도 완화된다. box-sizing 으로 열 밖 넘침 방지. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.active.disable"],
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.used.disable"],
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.resourceCost.disable"] {
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
+/* 배수(resourceCost.mult): 여섯째 열(비활성화 드롭다운이 폭 결정, 이제 풀폭이라 138px 안팎)을
+   공유하므로 열을 함께 채워(width:100%) 오른쪽 끝을 다른 최우측 필드(1221)와 정렬한다. */
+.application.sheet.dx3rd-emanim.item .tab[data-tab="attributes"] > .sheet-wrapper > table input[name="system.resourceCost.mult"] {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* 체크박스/토글 박스: AppV2 는 .flexrow > * 에 flex:1 을 줘서 체크박스를 ~40px 까지
@@ -321,6 +524,11 @@
     display: flex;
     flex: 1 1 auto;
     min-width: 0;
+    /* Foundry 코어 .flexrow 는 flex-wrap:wrap 이라, 헤더에 경험점/침식률 같은
+       level 필드가 있으면 charname 과 합산 폭이 넘쳐 필드가 둘째 줄로 줄바꿈되고
+       헤더가 부풀어 본문을 침범한다(레코드 시트 증상). nowrap 으로 고정해 charname 이
+       대신 축소(min-width:0)되도록 한다. book 처럼 level 필드가 없는 헤더엔 영향 없음. */
+    flex-wrap: nowrap;
 }
 
 .application.sheet.dx3rd-emanim.item .sheet-header h1.charname {

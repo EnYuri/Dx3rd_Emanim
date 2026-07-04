@@ -46,6 +46,7 @@
       system.exp.upgrade ??= false;
       system.macros = itemSheetData.getEmbeddedMacros(this.item);
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
+      context.worldMacros = itemSheetData.getWorldMacroOptions();
 
       weaponManager.prepareWeaponTabData(context, this.item);
 
@@ -73,6 +74,11 @@
       listen('change', '.macro-timing', event => this._updateMacro(event, 'timing'));
       listen('change', '.macro-disabled', event => this._updateMacro(event, 'disabled'));
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
+      listen('change', '.macro-kind', event => this._updateMacro(event, 'kind'));
+      listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
+
+      // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
+      itemSheetData.migrateLegacyMacroField(this.item);
 
       // 사정거리/대상/난이도 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
       window.DX3rdRangeTarget?.setupFieldListeners(this.element, this.item, {

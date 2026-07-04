@@ -289,11 +289,6 @@
           </tr>
 
           <tr>
-            <th><label for="system.macro">{{localize "DX3rd.Macro"}}</label></th>
-            <td colspan="5"><input type="text" name="system.macro" data-dtype="String" value="{{system.macro}}"></td>
-          </tr>
-
-          <tr>
             <th><span>{{localize "DX3rd.ResourceCostEnabled"}}</span></th>
             <td><input type="checkbox" name="system.resourceCost.enabled" {{#if system.resourceCost.enabled}} checked {{/if}}></td>
             <th><span>{{localize "DX3rd.ResourceCostCap"}}</span></th>
@@ -353,10 +348,23 @@
                 <option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>
                 {{/each}}
               </select>
+              <select class="macro-kind" data-index="{{i}}">
+                <option value="code" {{#unless (eq m.kind "macro")}}selected{{/unless}}>{{localize "DX3rd.MacroKindCode"}}</option>
+                <option value="macro" {{#if (eq m.kind "macro")}}selected{{/if}}>{{localize "DX3rd.MacroKindWorld"}}</option>
+              </select>
               <label style="white-space:nowrap;"><input type="checkbox" class="macro-disabled" data-index="{{i}}" {{#if m.disabled}}checked{{/if}}> off</label>
               <a class="macro-control" data-action="macroDelete" data-index="{{i}}"><i class="fas fa-trash"></i></a>
             </div>
+            {{#if (eq m.kind "macro")}}
+            <select class="macro-name" data-index="{{i}}">
+              <option value="">- {{localize "DX3rd.MacroSelect"}} -</option>
+              {{#each ../worldMacros as |wm|}}
+              <option value="{{wm.name}}" {{#if (eq wm.name m.macroName)}}selected{{/if}}>{{wm.name}}</option>
+              {{/each}}
+            </select>
+            {{else}}
             <textarea class="macro-command" data-index="{{i}}" rows="2" placeholder="actor, item, token, scope 사용 가능">{{m.command}}</textarea>
+            {{/if}}
           </div>
           {{/each}}
         </div>
@@ -391,7 +399,7 @@
     {{!-- Weapon Tab --}}
     {{#unless (eq actor.type "enemy")}}
     <div class="tab {{tabs.weapon.cssClass}}" data-group="primary" data-tab="weapon">
-      <div class="sheet-wrapper">
+      <div class="sheet-wrapper margin-top-10">
 
         {{#unless system.weaponSelect}}
         <div class="add-skills">
