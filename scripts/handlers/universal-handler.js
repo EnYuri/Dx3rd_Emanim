@@ -3792,8 +3792,23 @@
           previousToken.control({ releaseOthers: true });
         }
       } else {
+        // 무기/비클 자신의 수정치(system.add=명중 수정)를 명중판정 달성치에 반영.
+        //   룰(rulebook-1-2 p121): 무기의 명중 수정은 종별에 맞는 공격 달성치에 가산.
+        //   공격력(system.attack)은 데미지 단계(executeAttackRoll)에서 별도 평가되므로 여기서는
+        //   플레이버 표시용일 뿐 이중계산되지 않음(executeAttackRoll은 weaponBonus를 받지 않음).
+        let weaponBonus = null;
+        const selfAdd = window.DX3rdFormulaEvaluator.evaluate(item.system.add, item, actor) || 0;
+        const selfAttack = window.DX3rdFormulaEvaluator.evaluate(item.system.attack, item, actor) || 0;
+        if (selfAdd !== 0 || selfAttack !== 0) {
+          weaponBonus = {
+            attack: selfAttack,
+            add: selfAdd,
+            weaponName: (item.name || '').replace(/\|\|.+$/, '').trim(),
+            weaponIds: [item.id]
+          };
+        }
         // 판정 다이얼로그 표시 (메이저만, 무기 아이템 전달)
-        this.showStatRollDialog(actor, skillData, skillName, 'major', item, previousToken);
+        this.showStatRollDialog(actor, skillData, skillName, 'major', item, previousToken, weaponBonus);
       }
       
       return true;
@@ -7402,9 +7417,11 @@
             let count = 0;
             
             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-              if (attrName === 'spell_disabled' || 
-                  (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled') ||
-                  attrValue === true) {
+              // spell_disabled는 attrName 또는 객체 key로만 판별한다.
+              //   (과거의 `attrValue === true`절은 move_half 등 임의 boolean-true 속성까지 오인해
+              //    마술을 잘못 차단했으므로 제거)
+              if (attrName === 'spell_disabled' ||
+                  (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled')) {
                 hasSpellDisabled = true;
                 // count 값 찾기
                 const countValue = appliedEffect.attributes?.spell_disabled_count;

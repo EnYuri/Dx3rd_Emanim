@@ -840,9 +840,11 @@ window.DX3rdSpellHandler = {
         }
 
         // {damage} 치환 (7번 결과)
+        // 주: 실제 데미지는 executeSpellCatastrophe7이 5d10을 굴려 대상별로 별도 메시지에 적용한다.
+        //   여기서 1d6을 굴려 표시하면 적용값(5d10)과 무관한 유령 숫자가 되므로, 실제 적용식 "5d10"을
+        //   그대로 표기해 표시==적용식을 맞춘다(구체 총계는 뒤따르는 데미지 메시지가 담당).
         if (result === 7 && resultText.includes('{damage}')) {
-            const damageRoll = await new Roll("1d6").roll();
-            resultText = resultText.replace('{damage}', damageRoll.total);
+            resultText = resultText.replace('{damage}', '5d10');
         }
 
         // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함

@@ -1287,9 +1287,10 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
             let currentCount = 0;
             
             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-              if (attrName === 'spell_disabled' || 
-                  (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled') ||
-                  attrValue === true) {
+              // spell_disabled는 attrName 또는 객체 key로만 판별한다.
+              //   (`attrValue === true`절은 임의 boolean-true 속성까지 오인하므로 제거 — universal-handler와 동일)
+              if (attrName === 'spell_disabled' ||
+                  (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled')) {
                 hasSpellDisabled = true;
                 // count 값 찾기
                 const countValue = appliedEffect.attributes?.spell_disabled_count;

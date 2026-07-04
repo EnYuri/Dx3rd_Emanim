@@ -310,14 +310,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             window.DX3rdConditionTriggerMap.set(key, { suppressMessage: true });
             await eff.delete();
           }
-        }
-        
-        await actor.update(updates);
-        
-        // 자해(selfmutilation) 타입이면 여기서 종료 (상태이상 제거로 인해 폭주 이펙트도 사라짐)
-        if (selectedType.value === 'selfmutilation') {
+
+          // 폭주 이펙트 삭제 → deleteActiveEffect 훅이 berserk.active:false로 정리한다.
+          // 여기서 updates(active:true)를 쓰면 훅의 active:false와 레이스가 나
+          // orphan 플래그(아이콘 없이 active:true)가 남을 수 있으므로 재설정 없이 종료.
           return;
         }
+
+        await actor.update(updates);
         
         // 채팅 메시지 출력
         let messageContent = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}`;
@@ -456,14 +456,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                   window.DX3rdConditionTriggerMap.set(key, { suppressMessage: true });
                   await eff.delete();
                 }
-              }
-              
-              await actor.update(updates);
-              
-              // 자해(selfmutilation) 타입이면 여기서 종료 (상태이상 제거로 인해 폭주 이펙트도 사라짐)
-              if (berserkType === 'selfmutilation') {
+
+                // 폭주 이펙트 삭제 → deleteActiveEffect 훅이 berserk.active:false로 정리한다.
+                // 여기서 updates(active:true)를 쓰면 훅의 active:false와 레이스가 나
+                // orphan 플래그(아이콘 없이 active:true)가 남을 수 있으므로 재설정 없이 종료.
                 return;
               }
+
+              await actor.update(updates);
               
               // 채팅 메시지 출력 (트리거 아이템 이름 반영)
               let messageContent = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}`;

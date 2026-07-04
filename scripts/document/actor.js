@@ -947,9 +947,8 @@
                         if (appliedEffect && appliedEffect.attributes) {
                             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
                                 // move_half는 boolean 값이거나 객체일 수 있음
-                                if (attrName === 'move_half' || 
-                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half') ||
-                                    attrValue === true) {
+                                if (attrName === 'move_half' ||
+                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half')) {
                                     hasMoveHalf = true;
                                     break;
                                 }
@@ -1101,9 +1100,8 @@
                         if (appliedEffect && appliedEffect.attributes) {
                             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
                                 // move_half는 boolean 값이거나 객체일 수 있음
-                                if (attrName === 'move_half' || 
-                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half') ||
-                                    attrValue === true) {
+                                if (attrName === 'move_half' ||
+                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half')) {
                                     hasMoveHalfSimplified = true;
                                     break;
                                 }
