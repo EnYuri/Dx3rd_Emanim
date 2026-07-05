@@ -4893,3 +4893,47 @@ Hooks.on('createCombat', async (combat, options, userId) => {
         await window.DX3rdUniversalHandler.clearAfterMainQueue();
     }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 열린 시트의 파생 표시값 실시간 갱신
+//
+// 액터/이펙트의 데이터 계층은 이미 실시간이다(prepareData가 침식 레벨을 먼저 갱신하고
+// 활성 아이템 보너스를 매번 evaluate). 하지만 Foundry는 "자기 문서가 업데이트될 때만"
+// 시트를 다시 그리므로, 콤보/이펙트 시트를 열어둔 채 침식률이 오르거나(→ 레벨 상승)
+// 다른 곳에서 등록 이펙트를 수정하면 시트에 표시된 다이스/수정치/레벨이 옛 값으로 남는다.
+// 아래 훅이 의존 관계에 있는 "열려 있는" 시트만 골라 다시 그려 표시값을 실시간화한다.
+// (render(false)는 문서를 갱신하지 않으므로 재귀 렌더 루프가 없다.)
+
+// 사용자가 지금 편집 중(포커스가 시트 안에 있음)인 시트는 재렌더하지 않는다.
+// 재렌더가 DOM을 교체해 입력 포커스/타이핑을 날리는 것을 막는다.
+function _dx3rdRerenderSheet(app) {
+    if (!app?.rendered) return;
+    const active = document.activeElement;
+    if (active && app.element?.contains(active)) return;
+    app.render(false);
+}
+
+// 침식률 등 액터 능력치가 바뀌면, 그 값을 표시/계산에 쓰는 열린 아이템 시트를 갱신.
+Hooks.on('updateActor', (actor, changed, options, userId) => {
+    if (!foundry.utils.hasProperty(changed, 'system.attributes')) return;
+    for (const item of actor.items) {
+        if (!['combo', 'effect', 'psionic'].includes(item.type)) continue;
+        _dx3rdRerenderSheet(item._sheet);      // 아직 열린 적 없으면 생성하지 않는다
+    }
+});
+
+// 이펙트가 바뀌면, 그 이펙트를 등록한 열린 콤보 시트를 갱신(등록 이펙트 파생값 반영).
+// 이펙트 자신의 시트는 Foundry가 updateItem 시 자동으로 다시 그린다.
+Hooks.on('updateItem', (item, changed, options, userId) => {
+    const actor = item.actor;
+    if (!actor || item.type !== 'effect') return;
+    const getEffectIds = window.DX3rdComboData?.getEffectIds;
+    for (const combo of actor.items) {
+        if (combo.type !== 'combo') continue;
+        const app = combo._sheet;
+        if (!app?.rendered) continue;
+        const ids = getEffectIds ? getEffectIds(combo)
+            : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
+        if (ids.includes(item.id)) _dx3rdRerenderSheet(app);
+    }
+});

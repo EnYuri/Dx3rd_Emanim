@@ -90,7 +90,9 @@
         submitData.system.used.state = 0;
         submitData.system.used.max = 0;
       }
-      if (submitData.system.active?.disable === 'notCheck') {
+      // disable 를 notCheck 로 "바꾸는 순간"에만 active.state 를 끈다(V1 _onActiveDisableChange 와 동일).
+      // 매 서브밋마다 끄면 notCheck 아이템은 시트에서 활성화를 켤 수 없다.
+      if (changed?.name === 'system.active.disable' && submitData.system.active?.disable === 'notCheck') {
         submitData.system.active.state = false;
       }
       return submitData;

@@ -49,8 +49,42 @@
           <tr><th>{{localize "DX3rd.Active"}}</th><td><input type="checkbox" name="system.active.state" {{checked system.active.state}}/></td><th>{{localize "DX3rd.RunTiming"}}</th><td><select name="system.active.runTiming" {{#if fixedActiveTiming}}disabled{{/if}}>{{#select system.active.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></td><th>{{localize "DX3rd.DisableTiming"}}</th><td><select name="system.active.disable">{{#select system.active.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr>
           <tr><th>{{localize "DX3rd.UsedCount"}}</th><td colspan="2"><input type="number" class="checkbox-input" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}/> / <input type="number" class="checkbox-input" name="system.used.max" value="{{system.used.max}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}/></td><th>{{localize "DX3rd.ResetTiming"}}</th><td colspan="2"><select name="system.used.disable">{{#select system.used.disable}}<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr>
           {{#if isWeapon}}<tr><th>{{localize "DX3rd.AttackCount"}}</th><td colspan="2"><input type="number" class="checkbox-input" name="system.attack-used.state" value="{{system.attack-used.state}}" {{#ifEquals system.attack-used.disable "notCheck"}}disabled{{/ifEquals}}/> / <input type="number" class="checkbox-input" name="system.attack-used.max" value="{{system.attack-used.max}}" {{#ifEquals system.attack-used.disable "notCheck"}}disabled{{/ifEquals}}/></td><th>{{localize "DX3rd.AttackResetTiming"}}</th><td colspan="2"><select name="system.attack-used.disable">{{#select system.attack-used.disable}}<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr>{{/if}}
-          <tr><th>{{localize "DX3rd.Macro"}}</th><td colspan="5"><input name="system.macro" value="{{system.macro}}"/></td></tr>
         </table>
+
+        <div class="dx3rd-embed-macros">
+          <header class="attributes-header flexrow">
+            <span>{{localize "DX3rd.Macro"}} (embed)</span>
+            <a class="macro-control" data-action="macroAdd"><i class="fas fa-plus"></i></a>
+          </header>
+          {{#each system.macros as |m i|}}
+          <div class="embed-macro-row flexcol" data-index="{{i}}" style="margin-bottom:4px;">
+            <div class="flexrow" style="align-items:center; gap:4px;">
+              <select class="macro-timing" data-index="{{i}}">
+                {{#each ../macroTimings as |tm|}}
+                <option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>
+                {{/each}}
+              </select>
+              <select class="macro-kind" data-index="{{i}}">
+                <option value="code" {{#unless (eq m.kind "macro")}}selected{{/unless}}>{{localize "DX3rd.MacroKindCode"}}</option>
+                <option value="macro" {{#if (eq m.kind "macro")}}selected{{/if}}>{{localize "DX3rd.MacroKindWorld"}}</option>
+              </select>
+              <label style="white-space:nowrap;"><input type="checkbox" class="macro-disabled" data-index="{{i}}" {{#if m.disabled}}checked{{/if}}> off</label>
+              <a class="macro-control" data-action="macroDelete" data-index="{{i}}"><i class="fas fa-trash"></i></a>
+            </div>
+            {{#if (eq m.kind "macro")}}
+            <select class="macro-name" data-index="{{i}}">
+              <option value="">- {{localize "DX3rd.MacroSelect"}} -</option>
+              {{#each ../worldMacros as |wm|}}
+              <option value="{{wm.name}}" {{#if (eq wm.name m.macroName)}}selected{{/if}}>{{wm.name}}</option>
+              {{/each}}
+            </select>
+            {{else}}
+            <textarea class="macro-command" data-index="{{i}}" rows="2" placeholder="actor, item, token, scope 사용 가능">{{m.command}}</textarea>
+            {{/if}}
+          </div>
+          {{/each}}
+        </div>
+
         <div class="attributes"><header class="attributes-header flexrow"><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><a class="attribute-control" data-action="createAttribute" data-pos="main"><i class="fas fa-plus"></i></a></header>
           <ol class="attributes-list" data-pos="main">{{#each system.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}"><select class="attribute-key" name="system.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled/><input class="attribute-value" name="system.attributes.{{key}}.value" value="{{attr.value}}"/><a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a></li>{{/each}}</ol>
         </div>

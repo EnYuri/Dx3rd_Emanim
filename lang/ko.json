@@ -456,6 +456,9 @@
   "DX3rd.EncroachmentCore": "침식률(코어)",
   "DX3rd.EncroachmentEA": "침식률(EA)",
   "DX3rd.EncroachmentOrigin": "침식률(기원종)",
+  "DX3rd.EncroachmentNone": "침식률(없음)",
+
+  "DX3rd.NoEncroachNote": "침식률 미상승",
 
   "DX3rd.BackTrack": "백트랙",
   "DX3rd.BackTrackBtn": "백트랙",

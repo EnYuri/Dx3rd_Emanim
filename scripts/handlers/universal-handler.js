@@ -468,8 +468,13 @@
         
         // 2. 침식률 처리 (모든 아이템)
         const encAddRaw = String(item.system?.encroach?.value ?? '0').trim();
-        
-        if (encAddRaw !== '0' && encAddRaw !== '') {
+        // "침식률(없음)" 타입: 이 액터는 침식률이 오르지 않는다(_preUpdate 가드와 동일).
+        // 주 경로에서는 굴림·가산·메시지를 건너뛰고 미상승만 표기한다.
+        const noEncroach = actor.system?.attributes?.encroachment?.type === 'none';
+
+        if (noEncroach && encAddRaw !== '0' && encAddRaw !== '') {
+          costMessages.push(`${game.i18n.localize('DX3rd.Encroachment')} +0 (${game.i18n.localize('DX3rd.NoEncroachNote')})`);
+        } else if (encAddRaw !== '0' && encAddRaw !== '') {
           const dicePattern = /(\d+)\s*d(\d*)/i;
           const isDiceFormula = dicePattern.test(encAddRaw) || /[dD]/.test(encAddRaw);
           

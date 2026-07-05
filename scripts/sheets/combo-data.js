@@ -600,13 +600,34 @@
     return bonus;
   }
 
+  // 액터에서 "이미 prepareData가 지속 적용 중"인 이펙트 id 집합.
+  //  (a) 독립적으로 active.state=true 인 이펙트
+  //  (b) active.state=true 인 콤보에 등록된 이펙트 (actor._expandActiveItems 로 펼쳐 적용됨)
+  // 이 이펙트들은 능력치/스킬/굴림 total에 이미 반영되어 있으므로, 콤보/이펙트 굴림·공격
+  // 보너스 계산에서 중복 가산하면 안 된다.
+  function getPersistentEffectIds(actor) {
+    const ids = new Set();
+    if (!actor) return ids;
+    for (const it of actor.items) {
+      if (it.type === 'effect' && it.system?.active?.state === true) {
+        ids.add(it.id);
+      } else if (it.type === 'combo' && it.system?.active?.state === true) {
+        for (const eid of getEffectIds(it)) {
+          if (actor.items.get(eid)?.type === 'effect') ids.add(eid);
+        }
+      }
+    }
+    return ids;
+  }
+
   function forEachInactiveRegisteredEffect(actor, effectIds, callback) {
+    const persistent = getPersistentEffectIds(actor);
     for (const effectId of normalizeIdList(effectIds)) {
       const effectItem = actor?.items.get(effectId);
       if (!effectItem || effectItem.type !== 'effect') continue;
 
-      // 활성화된 이펙트는 이미 액터의 prepareData에서 계산되었으므로 제외 (2중 계산 방지)
-      if (effectItem.system?.active?.state === true) continue;
+      // 이미 prepareData가 지속 적용 중인 이펙트(독립 활성 or 활성 콤보 소속)는 제외 (2중 계산 방지)
+      if (persistent.has(effectId)) continue;
 
       callback(effectItem);
     }
@@ -890,6 +911,7 @@
     normalizeIdList,
     getEffectIds,
     getWeaponIds,
+    getPersistentEffectIds,
     calculateEncroachment,
     calculateSubmittedAttack,
     prepareSubmittedCombatValues,

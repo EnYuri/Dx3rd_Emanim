@@ -32,6 +32,19 @@
             <input class="stat armor-clickable" type="text" value="{{system.attributes.armor.value}}" readonly style="cursor: pointer;" title="클릭하여 수정"/>
           </div>
         </div>
+        <div class="stat-box no-flex enemy-encroach-box">
+          <label class="title">{{localize "DX3rd.Encroachment"}}</label>
+          <div class="stat-list flexrow">
+            <select class="select-box enemy-encroach-type" name="system.attributes.encroachment.type">
+              {{#select system.attributes.encroachment.type}}
+              <option value="-">{{localize "DX3rd.EncroachmentCore"}}</option>
+              <option value="ea">{{localize "DX3rd.EncroachmentEA"}}</option>
+              <option value="origin">{{localize "DX3rd.EncroachmentOrigin"}}</option>
+              <option value="none">{{localize "DX3rd.EncroachmentNone"}}</option>
+              {{/select}}
+            </select>
+          </div>
+        </div>
       </div>
 
       {{!-- Row 2: HP / 이동 / 행동치 --}}

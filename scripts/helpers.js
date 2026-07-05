@@ -183,6 +183,17 @@
             // 곱셈/나눗셈 기호 정규화 (직접 호출 경로에서도 다단식 지원)
             let result = String(formulaStr).replace(/×/g, '*').replace(/÷/g, '/');
 
+            // 0) [count:이름] / [개수:이름] — 액터가 소지한 '동일 이름' 아이템 개수로 치환.
+            //    연산자 평탄화(2단계)보다 먼저 처리: 이름에 '-' 등이 섞여도 먼저 정수(개수)로 바뀐 뒤
+            //    사칙연산에 참여한다. 예: [count:정신강화수술]*2 → 소지 3개면 6.
+            if (actor) {
+                result = result.replace(/\[(?:count|개수)\s*:\s*([^\[\]]+?)\s*\]/gi, (m, name) => {
+                    const target = String(name).trim();
+                    const n = (actor.items?.filter(it => (it.name || '').trim() === target).length) || 0;
+                    return n;
+                });
+            }
+
             // 1) 대괄호로 감싼 단일 토큰 치환 ([Lv], [body], [melee] …) — 기존 동작 보존
             // [Lv], [level], [레벨] 치환 (아이템 레벨)
             if (item) {
@@ -192,7 +203,7 @@
                 result = result.replace(/\[레벨\]/g, itemLevel);
             }
 
-            // 액터 능력치/스킬 참조 치환
+            // 액터 능력치/스킬 참조 치환 (대괄호 형태)
             if (actor) {
                 result = this.replaceActorReferences(result, actor);
             }
@@ -203,6 +214,13 @@
             result = result.replace(/\[([^\[\]]*[-+*/()][^\[\]]*)\]/g, (m, inner) => {
                 return '(' + this.replaceBareTokens(inner, item, actor) + ')';
             });
+
+            // 3) 대괄호 없이 남은 bare 토큰(Lv/능력치/스킬) 치환.
+            //    → [Lv]*10 뿐 아니라 lv*10, +(lv*n), body+2 처럼 대괄호를 생략해도 동작하게 한다.
+            //    이 시점의 문자열은 위 단계에서 모든 대괄호가 숫자/괄호식으로 치환된 뒤이므로
+            //    남은 것은 숫자·연산자·(미치환) bare 토큰뿐이다. replaceBareTokens는 단어 경계로만
+            //    치환하므로 이미 치환된 숫자는 건드리지 않는다(회귀 안전).
+            result = this.replaceBareTokens(result, item, actor);
 
             return result;
         },

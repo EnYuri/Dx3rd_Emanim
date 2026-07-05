@@ -135,6 +135,12 @@
                 };
             }
 
+            // enemy 타입: "침식률(없음)" 선택 및 침식률 상승 규칙을 위해 encroachment 최소 구조 보장.
+            // (character 처럼 dice/level/exp 계산은 하지 않고 type/value 만 유지한다.)
+            if (isEnemy) {
+                defaultAttributes.encroachment = { value: 0, max: 100, min: 0, type: '-' };
+            }
+
             // 기본값으로 누락된 속성 채우기
             for (const [key, value] of Object.entries(defaultAttributes)) {
                 // applied는 기본값으로 초기화하지 않음 (저장된 데이터 보존)
@@ -251,10 +257,11 @@
             }
 
             // 활성 아이템 및 Applied 효과 목록 미리 준비
-            const activeItems = this.items.filter(item =>
+            // (활성 콤보의 등록 이펙트를 펼쳐 넣어, 독립 활성 이펙트와 동일 경로로 지속 적용)
+            const activeItems = this._expandActiveItems(this.items.filter(item =>
                 item.system?.active?.state === true &&
                 ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
-            );
+            ));
             const appliedEffects = attrs.applied || {};
 
             // === 1차 패스: 능력치 total 계산 (stat_bonus만) ===
@@ -1893,6 +1900,30 @@
             this._prepareCastingStats();
         }
 
+        /**
+         * 활성 아이템 목록에 "활성 콤보가 등록한 자식 이펙트"를 펼쳐 넣는다.
+         * 콤보를 활성화하면 그 콤보에 묶인 이펙트들을 (독립적으로 활성화한 것과 동일하게)
+         * 액터의 능력치/스킬/굴림 파생치에 지속 버프로 적용하기 위함.
+         * 이미 목록에 있는(독립 활성) 이펙트는 중복 제외한다.
+         * 콤보 굴림 계산 쪽에서는 DX3rdComboData.getPersistentEffectIds 로 이 이펙트들을
+         * 제외해 이중 계산을 막는다.
+         */
+        _expandActiveItems(activeItems) {
+            const byId = new Map(activeItems.map(i => [i.id, i]));
+            const getEffectIds = window.DX3rdComboData?.getEffectIds;
+            for (const combo of activeItems) {
+                if (combo.type !== 'combo') continue;
+                const ids = getEffectIds ? getEffectIds(combo)
+                    : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
+                for (const eid of ids) {
+                    if (!eid || eid === '-' || byId.has(eid)) continue;
+                    const eff = this.items.get(eid);
+                    if (eff && eff.type === 'effect') byId.set(eid, eff);
+                }
+            }
+            return [...byId.values()];
+        }
+
         _prepareActorEnc() {
             let enc = this.system.attributes.encroachment;
             let encType = enc.type || "-";  // type이 없으면 "-" 사용
@@ -1940,7 +1971,7 @@
          */
         _prepareCastingStats() {
             const attrs = this.system.attributes;
-            const activeItems = (this.items || []).filter(i => i.system?.active?.state);
+            const activeItems = this._expandActiveItems((this.items || []).filter(i => i.system?.active?.state));
             const appliedEffects = this.system.attributes?.applied || {};
 
             // base dice from ability/skill totals
@@ -1991,11 +2022,11 @@
             const attrs = system.attributes;
             const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
 
-            // 활성 아이템 (combo, effect만)
-            const activeItems = this.items.filter(item => 
-                item.system?.active?.state === true && 
+            // 활성 아이템 (combo, effect만) — 활성 콤보의 등록 이펙트도 펼쳐 넣는다
+            const activeItems = this._expandActiveItems(this.items.filter(item =>
+                item.system?.active?.state === true &&
                 ['combo', 'effect'].includes(item.type)
-            );
+            ));
             const appliedEffects = attrs.applied || {};
 
             // === 크리티컬 하한치 계산 (능력치 critical 계산보다 먼저 실행) ===
@@ -2646,6 +2677,36 @@
 
             // 기타 필수 구조 보정
             system.conditions = system.conditions || {};
+        }
+
+        /**
+         * "침식률(없음)" 가드.
+         * 침식률 타입(system.attributes.encroachment.type)이 'none'인 액터는 침식률이 오르지 않는다.
+         * 이펙트 사용·의지/공포 판정·리저렉트 부작용·주문 등 모든 침식률 상승 경로가
+         * 최종적으로 actor.update({'system.attributes.encroachment.value': ...}) 를 거치므로
+         * 여기서 한 번에 차단한다. 감소(백트랙·수동 조정)와 동일값은 허용한다.
+         * 규칙상 'none'은 계산 목적상 코어(-)와 동일하게 취급하되 상승만 막는다.
+         */
+        async _preUpdate(changed, options, user) {
+            try {
+                // 이 업데이트로 바뀌는 타입이 있으면 그것을, 없으면 현재 타입을 기준으로 판정한다.
+                const nextType = changed?.system?.attributes?.encroachment?.type
+                    ?? this.system?.attributes?.encroachment?.type;
+                if (nextType === 'none') {
+                    const encChange = changed?.system?.attributes?.encroachment;
+                    if (encChange && encChange.value !== undefined && encChange.value !== null) {
+                        const before = Number(this.system?.attributes?.encroachment?.value ?? 0);
+                        const after = Number(encChange.value);
+                        // 상승만 차단: 변경셋에서 value 키를 제거해 기존값을 유지한다.
+                        if (Number.isFinite(after) && after > before) {
+                            delete encChange.value;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('DX3rd | 침식률(없음) 가드 실패:', e);
+            }
+            return super._preUpdate(changed, options, user);
         }
     }
 

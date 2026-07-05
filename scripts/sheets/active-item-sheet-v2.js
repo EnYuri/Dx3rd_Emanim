@@ -3,12 +3,15 @@
   const ItemSheetV2 = window.DX3rdItemSheetV2;
   const compat = window.DX3rdApplicationCompat;
   const manager = window.DX3rdAttributeManager;
-  if (!ItemSheetV2 || !compat || !manager) return;
+  const itemSheetData = window.DX3rdItemSheetData;
+  if (!ItemSheetV2 || !compat || !manager || !itemSheetData) return;
 
   class DX3rdActiveItemSheetV2 extends ItemSheetV2 {
     static DEFAULT_OPTIONS = {actions: {
       createAttribute: DX3rdActiveItemSheetV2._onCreateAttribute,
-      deleteAttribute: DX3rdActiveItemSheetV2._onDeleteAttribute
+      deleteAttribute: DX3rdActiveItemSheetV2._onDeleteAttribute,
+      macroAdd: DX3rdActiveItemSheetV2._onMacroAdd,
+      macroDelete: DX3rdActiveItemSheetV2._onMacroDelete
     }};
 
     async _prepareContext(options) {
@@ -30,6 +33,11 @@
       system.attributes ??= {};
       system.getTarget ??= false;
       system.scene ??= false;
+
+      // 임베드 매크로(system.macros[]) + 타이밍 옵션 + 월드 매크로 목록(이름참조 드롭다운용)
+      system.macros = itemSheetData.getEmbeddedMacros(this.item);
+      context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
+      context.worldMacros = itemSheetData.getWorldMacroOptions();
       return context;
     }
 
@@ -79,6 +87,39 @@
       await super._onRender(context, options);
       await manager.initializeAttributeLabels(this.element, this.item);
       this._injectItemExtendButton();
+
+      // 임베드 매크로 행 리스너
+      this._macroCleanups?.forEach(cleanup => cleanup());
+      this._macroCleanups = [];
+      const listen = (...args) => this._macroCleanups.push(compat.on(this.element, ...args));
+      listen('change', '.macro-timing', event => this._updateMacro(event, 'timing'));
+      listen('change', '.macro-disabled', event => this._updateMacro(event, 'disabled'));
+      listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
+      listen('change', '.macro-kind', event => this._updateMacro(event, 'kind'));
+      listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
+
+      // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
+      itemSheetData.migrateLegacyMacroField(this.item);
+    }
+
+    async _updateMacro(event, property) {
+      const index = Number(event.target.dataset.index);
+      const value = property === 'disabled' ? event.target.checked : event.target.value;
+      await itemSheetData.updateEmbeddedMacro(this.item, index, property, value);
+    }
+
+    static async _onMacroAdd(event) {
+      event.preventDefault();
+      await itemSheetData.addEmbeddedMacro(this.item);
+      this.render(false);
+    }
+
+    static async _onMacroDelete(event, target) {
+      event.preventDefault();
+      const index = Number(target.dataset.index);
+      const updated = await itemSheetData.removeEmbeddedMacro(this.item, index);
+      if (!updated) return;
+      this.render(false);
     }
 
     _prepareSubmitData(event, form, formData, updateData) {
@@ -103,7 +144,12 @@
         data.system.used.state = 0;
         data.system.used.max = 0;
       }
-      if (data.system.active?.disable === 'notCheck') data.system.active.state = false;
+      // disable 를 notCheck 로 "바꾸는 순간"에만 active.state 를 끈다(V1 _onActiveDisableChange 와 동일).
+      // 매 서브밋마다 끄면 notCheck(자동해제 없는 상시) 아이템은 시트에서 활성화 자체를 켤 수 없고,
+      // 다른 값만 바꿔도 토글이 즉시 꺼진다. 변경 대상이 active.disable 일 때로 한정한다.
+      if (changed?.name === 'system.active.disable' && data.system.active?.disable === 'notCheck') {
+        data.system.active.state = false;
+      }
       return data;
     }
 

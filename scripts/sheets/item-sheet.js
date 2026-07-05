@@ -379,7 +379,8 @@
 
     const macroSupportedTypes = ['effect', 'combo', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'book', 'once', 'etc'];
     // 임베드 매크로(system.macros[]) UI를 제공하는 타입. 이들은 월드 매크로 드롭·이름참조도 임베드 행으로 통합한다.
-    const embedMacroTypes = ['effect'];
+    // effect + 공유 active-item 템플릿(active-item-sheet-v2.html)을 쓰는 5개 타입.
+    const embedMacroTypes = ['effect', 'weapon', 'etc', 'vehicle', 'protect', 'once'];
 
     async function handleMacroDrop(item, event, {fallback = null, fallbackOnInvalidData = false} = {}) {
         let data;
