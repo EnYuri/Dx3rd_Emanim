@@ -206,7 +206,7 @@
     border-color: #666;
 }
 
-/* 아이템 선택 윈도우 */
+/* 아이템 선택 윈도우 (dx3rd-action-ui.js / dx3rd-combat-ui.js 공용 단일 정의) */
 .dx3rd-item-selection-window {
     position: fixed;
     top: 50%;

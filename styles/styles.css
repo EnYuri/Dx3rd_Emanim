@@ -1677,13 +1677,7 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
       background: rgba(240,240,240,0.8);
       color: #666;
   }
-  
-  .dx3rd-emanim-skill-table select.skill-input-box {
-      width: 90%;
-      height: 24px;
-      padding: 0 4px;
-  }
-  
+
   .dice-roll {
     margin-top: 2px;
     margin-bottom: 2px;
@@ -2756,68 +2750,6 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     font-size: 0.9em;
 }
 
-/* 백트랙 메시지 스타일 */
-.dx3rd-backtrack-result {
-    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
-    border: 2px solid #4a4a4a;
-    border-radius: 8px;
-    padding: 15px;
-    margin: 10px 0;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.dx3rd-backtrack-result .backtrack-header {
-    text-align: center;
-    margin-bottom: 15px;
-    border-bottom: 1px solid #4a4a4a;
-    padding-bottom: 10px;
-}
-
-.dx3rd-backtrack-result .backtrack-header h3 {
-    color: #ffffff;
-    margin: 0;
-    font-size: 18px;
-    font-weight: bold;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.dx3rd-backtrack-result .backtrack-details {
-    color: #cccccc;
-    font-size: 14px;
-    line-height: 1.6;
-}
-
-.dx3rd-backtrack-result .backtrack-details p {
-    margin: 8px 0;
-    padding: 5px 0;
-}
-
-.dx3rd-backtrack-result .backtrack-details strong {
-    color: #ffffff;
-    font-weight: bold;
-}
-
-.dx3rd-backtrack-result .backtrack-result {
-    text-align: center;
-    margin-top: 15px;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 16px;
-    font-weight: bold;
-}
-
-.dx3rd-backtrack-result .backtrack-result.success {
-    background: linear-gradient(135deg, #2d5a2d 0%, #1a3a1a 100%);
-    color: #90ee90;
-    border: 2px solid #4a7c4a;
-}
-
-.dx3rd-backtrack-result .backtrack-result.failure {
-    background: linear-gradient(135deg, #5a2d2d 0%, #3a1a1a 100%);
-    color: #ff6b6b;
-    border: 2px solid #7c4a4a;
-}
-
 /* 유틸리티 클래스 - 메시지 상태 스타일 */
 .dx3rd-item-chat .dx3rd-error,
 .dx3rd-item-chat .dx3rd-error strong {
@@ -2827,12 +2759,6 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 .dx3rd-item-chat .dx3rd-success,
 .dx3rd-item-chat .dx3rd-success strong {
     color: #4CAF50;
-    font-weight: bold;
-}
-
-.dx3rd-item-chat .dx3rd-failure,
-.dx3rd-item-chat .dx3rd-failure strong {
-    color: #f44336;
     font-weight: bold;
 }
 
