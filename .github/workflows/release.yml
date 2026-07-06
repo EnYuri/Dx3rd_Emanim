@@ -3,8 +3,8 @@ name: Release
 # FVTT 릴리즈(매니페스트 + zip)는 system.json 의 version 이 바뀐 채로 main 에
 # push 될 때 자동 생성된다. 같은 버전이 이미 릴리즈돼 있으면 건너뛰므로, 버전을
 # 올리지 않은 push 는 릴리즈를 만들지 않는다.
-# 태그(tag_name = system.json version)는 softprops action 이 없으면 자동 생성하므로
-# 수동 태깅이 필요 없다. 즉 "버전 +올림 → main push" 만으로 태그+릴리즈가 완성된다.
+# 태그는 워크플로가 가장 최근 커밋의 system.json version 을 읽어 자동으로 생성/push
+# 하므로 수동 태깅이 필요 없다. 즉 "버전 +올림 → main push" 만으로 태그+릴리즈가 완성된다.
 # 수동 실행(Actions 탭 Run workflow)도 지원한다.
 on:
   workflow_dispatch:
@@ -39,6 +39,22 @@ jobs:
             echo "DX3rd | release ${{ steps.ver.outputs.version }} already exists, skipping."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push tag from system.json version
+        if: steps.check.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # 최근 커밋(체크아웃 tip)의 system.json version 으로 태그 생성.
+          if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q .; then
+            echo "DX3rd | tag $VERSION already exists on remote, skipping tag push."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$VERSION" -m "Release $VERSION"
+            git push origin "refs/tags/$VERSION"
+            echo "DX3rd | created and pushed tag $VERSION"
           fi
 
       - name: Pin manifest/download URLs to this version
