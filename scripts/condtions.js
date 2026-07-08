@@ -16,6 +16,43 @@ function getActorOnlySpeaker(actor) {
 }
 
 /**
+ * 상태이상 입력 다이얼로그(확인/취소) 공용 헬퍼.
+ * 레거시 AppV1 `Dialog`를 AppV2 `DialogV2`로 대체하되 동작(확인 시 폼 읽기, 취소 시 이펙트 제거,
+ * X 닫기 시 콜백 미실행)은 원본과 동일하게 유지한다.
+ * @param {object} opts
+ * @param {string} opts.title            창 제목
+ * @param {string} opts.content          다이얼로그 HTML
+ * @param {(root: HTMLElement) => Promise<void>|void} opts.onConfirm  확인 콜백. 인자는 다이얼로그 루트 엘리먼트.
+ * @param {() => Promise<void>|void} opts.onCancel                    취소(확인 아님) 콜백.
+ */
+function _showConditionDialog({ title, content, onConfirm, onCancel }) {
+  const DialogV2 = foundry.applications?.api?.DialogV2;
+  if (!DialogV2) {
+    ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+    return;
+  }
+  new DialogV2({
+    window: { title },
+    content,
+    buttons: [
+      {
+        action: 'confirm',
+        icon: 'fas fa-check',
+        label: game.i18n.localize("DX3rd.Confirm"),
+        default: true,
+        callback: async (event, button, dialog) => { if (onConfirm) await onConfirm(dialog.element); }
+      },
+      {
+        action: 'cancel',
+        icon: 'fas fa-times',
+        label: game.i18n.localize("DX3rd.Cancel"),
+        callback: async () => { if (onCancel) await onCancel(); }
+      }
+    ]
+  }).render(true);
+}
+
+/**
  * 토큰에 Death Mark 오버레이 추가
  */
 async function addDeathMarkToToken(token) {
@@ -166,42 +203,31 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         </style>
       `;
       
-      new Dialog({
+      _showConditionDialog({
         title: game.i18n.localize("DX3rd.Hatred"),
         content: template,
-        buttons: {
-          confirm: {
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            callback: async (html) => {
-              const targetName = html.find("#condition-target").val();
-              await actor.update({
-                "system.conditions.hatred.active": true,
-                "system.conditions.hatred.target": targetName
-              });
-              
-              // 채팅 메시지 출력
-              const messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
-              
-              ChatMessage.create({
-                content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-                speaker: getActorOnlySpeaker(actor)
-              });
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            callback: async () => {
-              _cancellingCondition = true;
-              const effect = actor.effects.find(e => e.statuses.has("hatred"));
-              if (effect) await effect.delete();
-              _cancellingCondition = false;
-            }
-          }
+        onConfirm: async (root) => {
+          const targetName = root.querySelector("#condition-target").value;
+          await actor.update({
+            "system.conditions.hatred.active": true,
+            "system.conditions.hatred.target": targetName
+          });
+
+          // 채팅 메시지 출력
+          const messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
+
+          ChatMessage.create({
+            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+            speaker: getActorOnlySpeaker(actor)
+          });
         },
-        default: "confirm"
-      }).render(true);
+        onCancel: async () => {
+          _cancellingCondition = true;
+          const effect = actor.effects.find(e => e.statuses.has("hatred"));
+          if (effect) await effect.delete();
+          _cancellingCondition = false;
+        }
+      });
     } else {
       // 해제 (취소가 아닐 때만)
       if (!_cancellingCondition) {
@@ -382,15 +408,11 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         </style>
       `;
       
-      new Dialog({
+      _showConditionDialog({
         title: game.i18n.localize("DX3rd.Berserk"),
         content: template,
-        buttons: {
-          confirm: {
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            callback: async (html) => {
-              const berserkType = html.find("#condition-type").val();
+        onConfirm: async (root) => {
+              const berserkType = root.querySelector("#condition-type").value;
               const selectedType = berserkTypes.find(t => t.value === berserkType);
               
               const updates = {
@@ -486,21 +508,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
               if (berserkType === 'hatred') {
                 await actor.toggleStatusEffect("hatred", { active: true });
               }
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            callback: async () => {
-              _cancellingCondition = true;
-              const effect = actor.effects.find(e => e.statuses.has("berserk"));
-              if (effect) await effect.delete();
-              _cancellingCondition = false;
-            }
-          }
         },
-        default: "confirm"
-      }).render(true);
+        onCancel: async () => {
+          _cancellingCondition = true;
+          const effect = actor.effects.find(e => e.statuses.has("berserk"));
+          if (effect) await effect.delete();
+          _cancellingCondition = false;
+        }
+      });
     } else {
       // 해제 (취소가 아닐 때만)
       if (!_cancellingCondition) {
@@ -609,46 +624,35 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         </style>
       `;
       
-      new Dialog({
+      _showConditionDialog({
         title: game.i18n.localize("DX3rd.Fear"),
         content: template,
-        buttons: {
-          confirm: {
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            callback: async (html) => {
-              const targetName = html.find("#condition-target").val();
-              await actor.update({
-                "system.conditions.fear.active": true,
-                "system.conditions.fear.target": targetName
-              });
-              
-              // 채팅 메시지 출력
-      let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
-      if (triggerItemName) {
-        const clean = String(triggerItemName).split('||')[0];
-        messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
-      }
-              
-              ChatMessage.create({
-                content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-                speaker: getActorOnlySpeaker(actor)
-              });
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            callback: async () => {
-              _cancellingCondition = true;
-              const effect = actor.effects.find(e => e.statuses.has("fear"));
-              if (effect) await effect.delete();
-              _cancellingCondition = false;
-            }
+        onConfirm: async (root) => {
+          const targetName = root.querySelector("#condition-target").value;
+          await actor.update({
+            "system.conditions.fear.active": true,
+            "system.conditions.fear.target": targetName
+          });
+
+          // 채팅 메시지 출력
+          let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
+          if (triggerItemName) {
+            const clean = String(triggerItemName).split('||')[0];
+            messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
           }
+
+          ChatMessage.create({
+            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+            speaker: getActorOnlySpeaker(actor)
+          });
         },
-        default: "confirm"
-      }).render(true);
+        onCancel: async () => {
+          _cancellingCondition = true;
+          const effect = actor.effects.find(e => e.statuses.has("fear"));
+          if (effect) await effect.delete();
+          _cancellingCondition = false;
+        }
+      });
     } else {
       // 해제 (취소가 아닐 때만)
       if (!_cancellingCondition) {
@@ -1064,47 +1068,36 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         </style>
       `;
       
-      new Dialog({
+      _showConditionDialog({
         title: game.i18n.localize("DX3rd.Poisoned"),
         content: template,
-        buttons: {
-          confirm: {
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            callback: async (html) => {
-              const rank = parseInt(html.find("#condition-rank").val()) || 1;
-              await actor.update({
-                "system.conditions.poisoned.active": true,
-                "system.conditions.poisoned.value": rank
-              });
-              
-              // 채팅 메시지 출력 (트리거 아이템 이름 반영)
-              let messageContent = `${game.i18n.localize("DX3rd.Poisoned")}(Rank.${rank}) ${game.i18n.localize("DX3rd.Apply")}`;
-              if (triggerName) {
-                const clean = String(triggerName).split('||')[0];
-                messageContent = `${game.i18n.localize("DX3rd.Poisoned")}(Rank.${rank}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
-              }
-              
-              ChatMessage.create({
-                content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-                speaker: getActorOnlySpeaker(actor)
-              });
-            }
-          },
-          cancel: {
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            callback: async () => {
-              // 상태이상 이펙트 제거
-              _cancellingCondition = true;
-              const effect = actor.effects.find(e => e.statuses.has("poisoned"));
-              if (effect) await effect.delete();
-              _cancellingCondition = false;
-            }
+        onConfirm: async (root) => {
+          const rank = parseInt(root.querySelector("#condition-rank").value) || 1;
+          await actor.update({
+            "system.conditions.poisoned.active": true,
+            "system.conditions.poisoned.value": rank
+          });
+
+          // 채팅 메시지 출력 (트리거 아이템 이름 반영)
+          let messageContent = `${game.i18n.localize("DX3rd.Poisoned")}(Rank.${rank}) ${game.i18n.localize("DX3rd.Apply")}`;
+          if (triggerName) {
+            const clean = String(triggerName).split('||')[0];
+            messageContent = `${game.i18n.localize("DX3rd.Poisoned")}(Rank.${rank}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
           }
+
+          ChatMessage.create({
+            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+            speaker: getActorOnlySpeaker(actor)
+          });
         },
-        default: "confirm"
-      }).render(true);
+        onCancel: async () => {
+          // 상태이상 이펙트 제거
+          _cancellingCondition = true;
+          const effect = actor.effects.find(e => e.statuses.has("poisoned"));
+          if (effect) await effect.delete();
+          _cancellingCondition = false;
+        }
+      });
     } else {
       // 해제 (취소가 아닐 때만)
       if (!_cancellingCondition) {

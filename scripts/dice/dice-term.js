@@ -76,13 +76,13 @@
         }
 
         /** @override */
-        async evaluate({ minimize = false, maximize = false, async = true } = {}) {
+        async evaluate({ minimize = false, maximize = false } = {}) {
             if (this.number > 999) {
                 throw new Error("주사위 개수는 999개를 넘을 수 없습니다.");
             }
 
             // 기본 Die 평가 수행
-            await super.evaluate({ minimize, maximize, async });
+            await super.evaluate({ minimize, maximize });
 
             // 체인 롤 처리
             this.chainRolls = [];
@@ -130,7 +130,7 @@
                         number: currentDice,
                         options: this.options
                     });
-                    await nextRoll.evaluate({ minimize, maximize, async });
+                    await nextRoll.evaluate({ minimize, maximize });
                     currentResults = nextRoll.results;
                     this.results.push(...currentResults);
                 }
@@ -489,13 +489,13 @@
         }
 
         /** @override */
-        async evaluate({ minimize = false, maximize = false, async = true } = {}) {
+        async evaluate({ minimize = false, maximize = false } = {}) {
             if (this.number > 999) {
                 throw new Error("주사위 개수는 999개를 넘을 수 없습니다.");
             }
 
             // 기본 Die 평가 수행
-            await super.evaluate({ minimize, maximize, async });
+            await super.evaluate({ minimize, maximize });
 
             // 폭주 주사위 제거 설정 저장
             this.removeOverflowCount = this.removeOverflow;
@@ -538,7 +538,7 @@
                         number: currentDice,
                         options: this.options
                     });
-                    await nextRoll.evaluate({ minimize, maximize, async });
+                    await nextRoll.evaluate({ minimize, maximize });
                     currentResults = nextRoll.results;
                     this.results.push(...currentResults);
                 }
@@ -629,14 +629,11 @@
                 }
             } else {
                 // 폴백: 확인 시 첫 번째 10 제거
-                const ok = await new Promise((resolve)=>{
-                    Dialog.confirm({
-                        title: game.i18n.localize("DX3rd.RemoveOverflow"),
-                        content: `<p>폭주 주사위(10) ${overflowIndices.length}개 중 1개를 제거하시겠습니까?</p>`,
-                        yes: ()=>resolve(true),
-                        no: ()=>resolve(false),
-                        defaultYes: false
-                    });
+                const ok = await foundry.applications.api.DialogV2.confirm({
+                    window: { title: game.i18n.localize("DX3rd.RemoveOverflow") },
+                    content: `<p>폭주 주사위(10) ${overflowIndices.length}개 중 1개를 제거하시겠습니까?</p>`,
+                    no: { default: true },
+                    rejectClose: false
                 });
                 if (!ok) return totalValue;
             }
@@ -659,13 +656,12 @@
                 if (typeof window.SpellDiceRemoveDialog === 'undefined') {
                     // 클래스가 없으면 간단한 확인 다이얼로그 사용
                     const confirmMessage = game.i18n.format("DX3rd.RemoveOverflowConfirm", { count: maxRemove });
-                    Dialog.confirm({
-                        title: game.i18n.localize("DX3rd.RemoveOverflow"),
+                    foundry.applications.api.DialogV2.confirm({
+                        window: { title: game.i18n.localize("DX3rd.RemoveOverflow") },
                         content: `<p>${confirmMessage}</p><p>주사위: ${allDice.join(', ')}</p>`,
-                        yes: () => resolve(Array.from({length: maxRemove}, (_, i) => i)),
-                        no: () => resolve(null),
-                        defaultYes: false
-                    });
+                        no: { default: true },
+                        rejectClose: false
+                    }).then(ok => resolve(ok ? Array.from({length: maxRemove}, (_, i) => i) : null));
                     return;
                 }
 

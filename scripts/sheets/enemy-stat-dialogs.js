@@ -71,7 +71,7 @@
       ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
-    const content = await renderTemplate(`${TEMPLATE_BASE}/${template}`, context);
+    const content = await foundry.applications.handlebars.renderTemplate(`${TEMPLATE_BASE}/${template}`, context);
     const dlg = new DialogV2({
       window: { title },
       content,

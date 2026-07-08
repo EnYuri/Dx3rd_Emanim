@@ -1045,7 +1045,6 @@
         async createEnrichedBiography(item, description = "") {
             const TextEditorClass = foundry.applications.ux.TextEditor.implementation;
             return await TextEditorClass.enrichHTML(description, {
-                async: true,
                 secrets: item.isOwner,
                 rollData: item.getRollData()
             });

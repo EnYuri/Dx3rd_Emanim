@@ -52,7 +52,7 @@ window.DX3rdBookHandler = {
         }
 
         // 다이얼로그 렌더링
-        const content = await renderTemplate('systems/dx3rd-emanim/templates/dialog/spell-selection-dialog.html', {
+        const content = await foundry.applications.handlebars.renderTemplate('systems/dx3rd-emanim/templates/dialog/spell-selection-dialog.html', {
             spells: spells
         });
 

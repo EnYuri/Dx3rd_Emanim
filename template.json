@@ -5,446 +5,139 @@
       "enemy"
     ],
     "character": {
-      "name": "",
-      "type": "character",
-      "img": "icons/svg/mystery-man.svg",
-      "system": {
-        "actorType": "NPC",
-        "codeName": "",
-        "emotions": {},
-        "attributes": {
-          "hp": {
-            "value": 0,
-            "min": 0,
-            "max": 0
-          },
-          "encroachment": {
-            "value": 0,
-            "max": 100,
-            "min": 0,
-            "init": {
-              "input": 0
-            },
-            "type": "-"
-          },
-          "attack": {
-            "value": 0
-          },
-          "damage_roll": {
-            "value": 0
-          },
-          "add": {},
-          "dice": {
-            "view": "major"
-          },
-          "critical": {
-            "min": 10
-          },
-          "guard": {
-            "value": 0,
-            "min": 0
-          },
-          "armor": {
-            "value": 0,
-            "min": 0
-          },
-          "major": {},
-          "reaction": {},
-          "dodge": {},
-          "penetrate": {
-            "value": 0,
-            "min": 0
-          },
-          "reduce": {
-            "value": 0,
-            "min": 0
-          },
-          "init": {},
-          "move": {},
-          "stock": {
-            "value": 0,
-            "min": 0
-          },
-          "saving": {},
-          "exp": {
-            "init": 130,
-            "append": 0,
-            "total": 0,
-            "discount": 0
-          },
-          "cast": {
-            "dice": 0,
-            "add": 0,
-            "eibon": 0
-          },
-          "body": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "sense": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "mind": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "social": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "skills": {
-            "melee": {
-              "name": "DX3rd.melee",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "body",
-              "delete": false
-            },
-            "evade": {
-              "name": "DX3rd.evade",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "body",
-              "delete": false
-            },
-            "ranged": {
-              "name": "DX3rd.ranged",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "sense",
-              "delete": false
-            },
-            "perception": {
-              "name": "DX3rd.perception",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "sense",
-              "delete": false
-            },
-            "rc": {
-              "name": "DX3rd.rc",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "mind",
-              "delete": false
-            },
-            "will": {
-              "name": "DX3rd.will",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "mind",
-              "delete": false
-            },
-            "negotiation": {
-              "name": "DX3rd.negotiation",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "social",
-              "delete": false
-            },
-            "procure": {
-              "name": "DX3rd.procure",
-              "point": 0,
-              "bonus": 0,
-              "extra": 0,
-              "total": 0,
-              "dice": 0,
-              "add": 0,
-              "base": "social",
-              "delete": false
-            }
-          },
-          "applied": {},
-          "syndrome": [],
-          "sublimation": {
-            "dice": 0,
-            "critical": 0,
-            "cast": {
-              "dice": 0,
-              "add": 0
-            }
-          }
-        },
-        "details": {
-          "cover": "",
-          "ancestry": "",
-          "experience": "",
-          "meet": "",
-          "awaken": "",
-          "impulse": "",
-          "desire": ""
-        },
-        "conditions": {
-          "poisoned": {
-            "active": false,
-            "value": 0
-          },
-          "hatred": {
-            "active": false,
-            "target": ""
-          },
-          "fear": {
-            "active": false,
-            "target": ""
-          },
-          "berserk": {
-            "active": false,
-            "type": "-"
-          },
-          "rigor": {
-            "active": false
-          },
-          "pressure": {
-            "active": false
-          },
-          "dazed": {
-            "active": false
-          },
-          "defeated": {
-            "active": false
-          },
-          "action_end": {
-            "active": false
-          },
-          "action_delay": {
-            "active": false,
-            "value": 0
-          },
-          "stealth": {
-            "active": false
-          },
-          "fly": {
-            "active": false
-          },
-          "boarding": {
-            "active": false
-          },
-          "lostHP": {
-            "active": false,
-            "value": 0
-          },
-          "healing": {
-            "active": false,
-            "value": 0
-          },
-          "extra-turn": {
-            "active": false,
-            "value": 0,
-            "max": 0
-          }
-        }
+      "actorType": "NPC",
+      "codeName": "",
+      "emotions": {},
+      "attributes": {},
+      "details": {
+        "cover": "",
+        "ancestry": "",
+        "experience": "",
+        "meet": "",
+        "awaken": "",
+        "impulse": "",
+        "desire": ""
       },
-      "items": [],
-      "effects": []
+      "conditions": {
+        "poisoned": {
+          "active": false,
+          "value": 0
+        },
+        "hatred": {
+          "active": false,
+          "target": ""
+        },
+        "fear": {
+          "active": false,
+          "target": ""
+        },
+        "berserk": {
+          "active": false,
+          "type": "-"
+        },
+        "rigor": {
+          "active": false
+        },
+        "pressure": {
+          "active": false
+        },
+        "dazed": {
+          "active": false
+        },
+        "defeated": {
+          "active": false
+        },
+        "action_end": {
+          "active": false
+        },
+        "action_delay": {
+          "active": false,
+          "value": 0
+        },
+        "stealth": {
+          "active": false
+        },
+        "fly": {
+          "active": false
+        },
+        "boarding": {
+          "active": false
+        },
+        "lostHP": {
+          "active": false,
+          "value": 0
+        },
+        "healing": {
+          "active": false,
+          "value": 0
+        },
+        "extra-turn": {
+          "active": false,
+          "value": 0,
+          "max": 0
+        }
+      }
     },
     "enemy": {
-      "name": "",
-      "type": "enemy",
-      "img": "icons/svg/mystery-man.svg",
-      "system": {
-        "actorType": "Troop",
-        "attributes": {
-          "hp": {
-            "value": 0,
-            "min": 0,
-            "max": 0,
-            "base": 0
-          },
-          "encroachment": {
-            "value": 0,
-            "max": 100,
-            "min": 0,
-            "type": "-"
-          },
-          "evasion": {
-            "value": 0,
-            "base": 0,
-            "disabled": false
-          },
-          "attack": {
-            "value": 0
-          },
-          "damage_roll": {
-            "value": 0
-          },
-          "add": {},
-          "dice": {
-            "view": "major"
-          },
-          "critical": {
-            "min": 10
-          },
-          "guard": {
-            "value": 0,
-            "min": 0
-          },
-          "armor": {
-            "value": 0,
-            "min": 0,
-            "base": 0
-          },
-          "major": {},
-          "reaction": {},
-          "dodge": {},
-          "penetrate": {
-            "value": 0,
-            "min": 0
-          },
-          "reduce": {
-            "value": 0,
-            "min": 0
-          },
-          "init": {
-            "value": 0,
-            "base": 0
-          },
-          "move": {
-            "battle": 0,
-            "full": 0,
-            "base": 0
-          },
-          "cast": {
-            "dice": 0,
-            "add": 0,
-            "eibon": 0
-          },
-          "body": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "sense": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "mind": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "social": {
-            "point": 0,
-            "bonus": 0,
-            "extra": 0,
-            "total": 0,
-            "dice": 0,
-            "add": 0
-          },
-          "applied": {}
+      "actorType": "Troop",
+      "attributes": {},
+      "conditions": {
+        "poisoned": {
+          "active": false,
+          "value": 0
         },
-        "conditions": {
-          "poisoned": {
-            "active": false,
-            "value": 0
-          },
-          "hatred": {
-            "active": false,
-            "target": ""
-          },
-          "fear": {
-            "active": false,
-            "target": ""
-          },
-          "berserk": {
-            "active": false,
-            "type": "-"
-          },
-          "rigor": {
-            "active": false
-          },
-          "pressure": {
-            "active": false
-          },
-          "dazed": {
-            "active": false
-          },
-          "defeated": {
-            "active": false
-          },
-          "action_end": {
-            "active": false
-          },
-          "action_delay": {
-            "active": false,
-            "value": 0
-          },
-          "stealth": {
-            "active": false
-          },
-          "fly": {
-            "active": false
-          },
-          "boarding": {
-            "active": false
-          },
-          "lostHP": {
-            "active": false,
-            "value": 0
-          },
-          "healing": {
-            "active": false,
-            "value": 0
-          },
-          "extra-turn": {
-            "active": false,
-            "value": 0,
-            "max": 0
-          }
+        "hatred": {
+          "active": false,
+          "target": ""
+        },
+        "fear": {
+          "active": false,
+          "target": ""
+        },
+        "berserk": {
+          "active": false,
+          "type": "-"
+        },
+        "rigor": {
+          "active": false
+        },
+        "pressure": {
+          "active": false
+        },
+        "dazed": {
+          "active": false
+        },
+        "defeated": {
+          "active": false
+        },
+        "action_end": {
+          "active": false
+        },
+        "action_delay": {
+          "active": false,
+          "value": 0
+        },
+        "stealth": {
+          "active": false
+        },
+        "fly": {
+          "active": false
+        },
+        "boarding": {
+          "active": false
+        },
+        "lostHP": {
+          "active": false,
+          "value": 0
+        },
+        "healing": {
+          "active": false,
+          "value": 0
+        },
+        "extra-turn": {
+          "active": false,
+          "value": 0,
+          "max": 0
         }
       }
     }
@@ -469,7 +162,6 @@
     ],
     "templates": {
       "base": {
-        "name": "",
         "description": "",
         "skillTmp": "melee",
         "skills": {}

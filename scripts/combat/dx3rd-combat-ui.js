@@ -608,29 +608,31 @@
      * 타이밍 액션 윈도우 이벤트 설정
      */
     function setupTimingActionWindowEvents(dialogWindow, actionType) {
-        const $window = $(dialogWindow);
-        
+        const root = dialogWindow?.[0] || dialogWindow;
+        if (!root) return;
+
         // 닫기 버튼
-        $window.find('.dx3rd-timing-action-close-btn').on('click', () => {
-            playUISound('click');
-            closeTimingActionWindow(dialogWindow);
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
-        
+        for (const closeBtn of root.querySelectorAll('.dx3rd-timing-action-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                playUISound('click');
+                closeTimingActionWindow(dialogWindow);
+            });
+            closeBtn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
+
         // 액션 버튼 클릭
-        $window.find('.dx3rd-timing-action-btn').on('click', (event) => {
-            const $btn = $(event.currentTarget);
-            const action = $btn.data('action');
-            const type = $btn.data('type');
-            const timing = $btn.data('timing');
-            
-            playUISound('click');
-            closeTimingActionWindow(dialogWindow);
-            handleActionButtonClick(actionType, action, timing);
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
+        for (const btn of root.querySelectorAll('.dx3rd-timing-action-btn')) {
+            btn.addEventListener('click', (event) => {
+                const el = event.currentTarget;
+                const action = el.dataset.action;
+                const timing = el.dataset.timing;
+
+                playUISound('click');
+                closeTimingActionWindow(dialogWindow);
+                handleActionButtonClick(actionType, action, timing);
+            });
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
     }
     
     /**
@@ -1502,45 +1504,47 @@
      * 아이템 선택 윈도우 이벤트 설정
      */
     function setupItemSelectionWindowEvents(dialogWindow, actor, itemType, actionType = null) {
-        const $window = $(dialogWindow);
-        
+        const root = dialogWindow?.[0] || dialogWindow;
+        if (!root) return;
+
         // 닫기 버튼
-        $window.find('.dx3rd-item-selection-close-btn').on('click', () => {
-            playUISound('click');
-            closeItemSelectionWindow(dialogWindow);
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
-        
+        for (const closeBtn of root.querySelectorAll('.dx3rd-item-selection-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                playUISound('click');
+                closeItemSelectionWindow(dialogWindow);
+            });
+            closeBtn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
+
         // 아이템 버튼 클릭
-        $window.find('.dx3rd-item-selection-btn').on('click', async (event) => {
-            const $btn = $(event.currentTarget);
-            const itemId = $btn.data('item-id');
-            
-            playUISound('click');
-            closeItemSelectionWindow(dialogWindow);
-            
-            if (itemType === 'effect') {
-                await handleEffectItemClick(actor, itemId);
-            } else if (itemType === 'combo') {
-                await handleComboItemClick(actor, itemId);
-            } else if (itemType === 'item') {
-                await handleItemItemClick(actor, itemId, actionType);
-            } else if (itemType === 'psionic') {
-                await handlePsionicItemClick(actor, itemId);
-            } else if (itemType === 'spell') {
-                await handleSpellItemClick(actor, itemId);
-            }
-            
-            // 아이템 사용 후 사이드 컨트롤을 기본 상태로 되돌림
-            const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-            if (sideControlEnabled) {
-                currentSideControlActionType = null;
-                updateSideControlButtons();
-            }
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
+        for (const btn of root.querySelectorAll('.dx3rd-item-selection-btn')) {
+            btn.addEventListener('click', async (event) => {
+                const itemId = event.currentTarget.dataset.itemId;
+
+                playUISound('click');
+                closeItemSelectionWindow(dialogWindow);
+
+                if (itemType === 'effect') {
+                    await handleEffectItemClick(actor, itemId);
+                } else if (itemType === 'combo') {
+                    await handleComboItemClick(actor, itemId);
+                } else if (itemType === 'item') {
+                    await handleItemItemClick(actor, itemId, actionType);
+                } else if (itemType === 'psionic') {
+                    await handlePsionicItemClick(actor, itemId);
+                } else if (itemType === 'spell') {
+                    await handleSpellItemClick(actor, itemId);
+                }
+
+                // 아이템 사용 후 사이드 컨트롤을 기본 상태로 되돌림
+                const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
+                if (sideControlEnabled) {
+                    currentSideControlActionType = null;
+                    updateSideControlButtons();
+                }
+            });
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
     }
     
     /**
@@ -2076,19 +2080,24 @@
 
         document.body.appendChild(window);
 
-        const $window = $(window);
-        $window.find('.dx3rd-stat-skill-close-btn').on('click', () => {
-            playUISound('click');
-            closeStatSkillWindow(window);
-        }).on('mouseenter', () => playUISound('hover'));
+        for (const closeBtn of window.querySelectorAll('.dx3rd-stat-skill-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                playUISound('click');
+                closeStatSkillWindow(window);
+            });
+            closeBtn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
 
-        $window.find('.dx3rd-stat-btn').on('click', (event) => {
-            const statKey = $(event.currentTarget).data('stat');
-            playUISound('click');
-            closeStatSkillWindow(window);
-            // 선택한 능력치의 스킬 피커로 이동 (롤 모드 고정)
-            showStatSkillWindow(statKey, rollMode);
-        }).on('mouseenter', () => playUISound('hover'));
+        for (const btn of window.querySelectorAll('.dx3rd-stat-btn')) {
+            btn.addEventListener('click', (event) => {
+                const statKey = event.currentTarget.dataset.stat;
+                playUISound('click');
+                closeStatSkillWindow(window);
+                // 선택한 능력치의 스킬 피커로 이동 (롤 모드 고정)
+                showStatSkillWindow(statKey, rollMode);
+            });
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
 
         // 드래그 설정 (stat-skill 윈도우와 동일)
         setupStatSkillWindowDragging(window);
@@ -2183,46 +2192,49 @@
      * DOM 윈도우 이벤트 설정
      */
     function setupStatSkillWindowEvents(window, actor, statKey, ability, statLabel, skills, rollMode = null) {
-        const $window = $(window);
-
         // 닫기 버튼
-        $window.find('.dx3rd-stat-skill-close-btn').on('click', () => {
-            closeStatSkillWindow(window);
-        });
+        for (const closeBtn of window.querySelectorAll('.dx3rd-stat-skill-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                closeStatSkillWindow(window);
+            });
+        }
 
         // 능력치 버튼 클릭
-        $window.find('.dx3rd-stat-btn').on('click', async () => {
-            closeStatSkillWindow(window);
+        for (const btn of window.querySelectorAll('.dx3rd-stat-btn')) {
+            btn.addEventListener('click', async () => {
+                closeStatSkillWindow(window);
 
-            // UniversalHandler를 통한 판정 실행
-            const handler = getUniversalHandler();
-            if (handler && handler.showStatRollConfirmDialog) {
-                const sheet = actor.sheet;
-                const comboCallback = (sheet && typeof sheet._openComboBuilder === 'function')
-                    ? sheet._openComboBuilder.bind(sheet)
-                    : null;
+                // UniversalHandler를 통한 판정 실행
+                const handler = getUniversalHandler();
+                if (handler && handler.showStatRollConfirmDialog) {
+                    const sheet = actor.sheet;
+                    const comboCallback = (sheet && typeof sheet._openComboBuilder === 'function')
+                        ? sheet._openComboBuilder.bind(sheet)
+                        : null;
 
-                handler.showStatRollConfirmDialog(
-                    actor,
-                    'ability',
-                    statKey,
-                    comboCallback,
-                    rollMode
-                );
-            } else {
-                console.error('DX3rd | UniversalHandler not found!');
-            }
-        });
-        
+                    handler.showStatRollConfirmDialog(
+                        actor,
+                        'ability',
+                        statKey,
+                        comboCallback,
+                        rollMode
+                    );
+                } else {
+                    console.error('DX3rd | UniversalHandler not found!');
+                }
+            });
+        }
+
         // 기능 버튼 클릭
-        $window.find('.dx3rd-skill-btn').on('click', async (event) => {
-            const skillKey = $(event.currentTarget).data('skill');
+        for (const btn of window.querySelectorAll('.dx3rd-skill-btn')) {
+            btn.addEventListener('click', async (event) => {
+            const skillKey = event.currentTarget.dataset.skill;
             const skill = actor.system?.attributes?.skills?.[skillKey];
             if (!skill) {
                 console.warn('DX3rd | Skill not found:', skillKey);
                 return;
             }
-            
+
             closeStatSkillWindow(window);
             
             // UniversalHandler를 통한 판정 실행
@@ -2243,7 +2255,8 @@
             } else {
                 console.error('DX3rd | UniversalHandler not found!');
             }
-        });
+            });
+        }
     }
 
     /**
@@ -2499,21 +2512,25 @@
      * 상태이상 해제 윈도우 이벤트 설정
      */
     function setupConditionClearWindowEvents(dialogWindow, actor, actionType) {
-        const $window = $(dialogWindow);
-        
+        const root = dialogWindow?.[0] || dialogWindow;
+        if (!root) return;
+
         // 닫기 버튼
-        $window.find('.dx3rd-item-selection-close-btn').on('click', () => {
-            closeItemSelectionWindow(dialogWindow);
-        });
-        
+        for (const closeBtn of root.querySelectorAll('.dx3rd-item-selection-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                closeItemSelectionWindow(dialogWindow);
+            });
+        }
+
         // 상태이상 버튼 클릭
-        $window.find('.dx3rd-item-selection-btn').on('click', async (event) => {
-            const $btn = $(event.currentTarget);
-            const conditionId = $btn.data('condition-id');
-            
-            closeItemSelectionWindow(dialogWindow);
-            await handleConditionClear(actor, conditionId, actionType);
-        });
+        for (const btn of root.querySelectorAll('.dx3rd-item-selection-btn')) {
+            btn.addEventListener('click', async (event) => {
+                const conditionId = event.currentTarget.dataset.conditionId;
+
+                closeItemSelectionWindow(dialogWindow);
+                await handleConditionClear(actor, conditionId, actionType);
+            });
+        }
     }
     
     /**

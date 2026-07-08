@@ -113,7 +113,7 @@ window.DX3rdRoisHandler = {
             
             // Sublimation 다이얼로그 템플릿 로드
             const template = 'systems/dx3rd-emanim/templates/dialog/sublimation-dialog.html';
-            const html = await renderTemplate(template, { isSuperior });
+            const html = await foundry.applications.handlebars.renderTemplate(template, { isSuperior });
             
             if (!DialogV2) {
                 ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
@@ -411,7 +411,7 @@ window.DX3rdRoisHandler = {
                         return effectData;
                     });
                     
-                    const html = await renderTemplate(template, { effects: effectsData });
+                    const html = await foundry.applications.handlebars.renderTemplate(template, { effects: effectsData });
                     
                     if (!DialogV2) {
                         ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));

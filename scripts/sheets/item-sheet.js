@@ -53,7 +53,6 @@
         if (!TextEditorClass) return description || '';
 
         return TextEditorClass.enrichHTML(description || '', {
-            async: true,
             secrets: item.isOwner,
             rollData: item.getRollData()
         });

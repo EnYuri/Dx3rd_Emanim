@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.3.0",
+  "version": "1.3.1",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -91,6 +91,7 @@
     "scripts/sheets/appv2-promotion.js",
     "scripts/document/actor.js",
     "scripts/document/item.js",
+    "scripts/migrations.js",
     "scripts/main.js"
   ],
   "styles": [

@@ -128,7 +128,7 @@
 
     const total = (attrs.point ?? 0) + (attrs.extra ?? 0) + (attrs.bonus ?? 0) + syndromeBonus + worksBonus + itemBonus + appliedBonus;
 
-    const content = await renderTemplate(`${TEMPLATE_BASE}/ability-dialog.html`, {
+    const content = await foundry.applications.handlebars.renderTemplate(`${TEMPLATE_BASE}/ability-dialog.html`, {
       title,
       abilityLabel,
       point: attrs.point,
@@ -289,7 +289,7 @@
     if (actor.type === 'enemy') defaultType = "Troop";
     const currentType = actor.system.actorType || defaultType;
 
-    const content = await renderTemplate(`${TEMPLATE_BASE}/actor-type-dialog.html`, { currentType });
+    const content = await foundry.applications.handlebars.renderTemplate(`${TEMPLATE_BASE}/actor-type-dialog.html`, { currentType });
 
     return DialogV2.wait({
       window: { title: game.i18n.localize("DX3rd.ActorType") },

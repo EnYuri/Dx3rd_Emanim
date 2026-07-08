@@ -434,42 +434,43 @@
      * 액션 UI 이벤트 설정
      */
     function setupActionUIEvents(container) {
-        const $container = $(container);
-        
+        const root = container?.[0] || container;
+        if (!root) return;
+
         // 액션 버튼들
-        $container.find('.dx3rd-action-ui-btn').on('click', (event) => {
-            const $btn = $(event.currentTarget);
-            const action = $btn.data('action');
-            
-            // 클릭 사운드 재생
-            playUISound('click');
-            
-            handleActionClick(action);
-        }).on('mouseenter', () => {
+        root.querySelectorAll('.dx3rd-action-ui-btn').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                const action = event.currentTarget.dataset.action;
+
+                // 클릭 사운드 재생
+                playUISound('click');
+
+                handleActionClick(action);
+            });
             // 호버 사운드 재생
-            playUISound('hover');
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
         });
-        
     }
 
     /**
      * 서브 액션 UI 이벤트 설정
      */
     function setupSubActionUIEvents(container) {
-        const $container = $(container);
-        
+        const root = container?.[0] || container;
+        if (!root) return;
+
         // 서브 스킬 버튼들
-        $container.find('.dx3rd-sub-action-ui-skill-btn').on('click', (event) => {
-            const $btn = $(event.currentTarget);
-            const skill = $btn.data('skill');
-            
-            // 클릭 사운드 재생
-            playUISound('click');
-            
-            handleSkillClick(skill);
-        }).on('mouseenter', () => {
+        root.querySelectorAll('.dx3rd-sub-action-ui-skill-btn').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                const skill = event.currentTarget.dataset.skill;
+
+                // 클릭 사운드 재생
+                playUISound('click');
+
+                handleSkillClick(skill);
+            });
             // 호버 사운드 재생
-            playUISound('hover');
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
         });
     }
 
@@ -1031,40 +1032,42 @@
      * 아이템 선택 윈도우 이벤트 설정
      */
     function setupItemSelectionWindowEvents(dialogWindow, actor, itemType, actionType = null) {
-        const $window = $(dialogWindow);
-        
+        const root = dialogWindow?.[0] || dialogWindow;
+        if (!root) return;
+
         // 닫기 버튼
-        $window.find('.dx3rd-item-selection-close-btn').on('click', () => {
-            playUISound('click');
-            closeItemSelectionWindow(dialogWindow);
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
-        
+        for (const closeBtn of root.querySelectorAll('.dx3rd-item-selection-close-btn')) {
+            closeBtn.addEventListener('click', () => {
+                playUISound('click');
+                closeItemSelectionWindow(dialogWindow);
+            });
+            closeBtn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
+
         // 아이템 버튼 클릭
-        $window.find('.dx3rd-item-selection-btn').on('click', async (event) => {
-            const $btn = $(event.currentTarget);
-            const itemId = $btn.data('item-id');
-            
-            playUISound('click');
-            closeItemSelectionWindow(dialogWindow);
-            
-            if (itemType === 'combo') {
-                await handleComboItemClick(actor, itemId);
-            } else if (itemType === 'effect') {
-                await handleEffectItemClick(actor, itemId);
-            } else if (itemType === 'psionic') {
-                await handlePsionicItemClick(actor, itemId);
-            } else if (itemType === 'spell') {
-                await handleSpellItemClick(actor, itemId);
-            } else if (itemType === 'item') {
-                await handleItemItemClick(actor, itemId, dialogWindow.dataset.itemType);
-            } else if (itemType === 'rois') {
-                await handleRoisItemClick(actor, itemId);
-            }
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
+        for (const btn of root.querySelectorAll('.dx3rd-item-selection-btn')) {
+            btn.addEventListener('click', async (event) => {
+                const itemId = event.currentTarget.dataset.itemId;
+
+                playUISound('click');
+                closeItemSelectionWindow(dialogWindow);
+
+                if (itemType === 'combo') {
+                    await handleComboItemClick(actor, itemId);
+                } else if (itemType === 'effect') {
+                    await handleEffectItemClick(actor, itemId);
+                } else if (itemType === 'psionic') {
+                    await handlePsionicItemClick(actor, itemId);
+                } else if (itemType === 'spell') {
+                    await handleSpellItemClick(actor, itemId);
+                } else if (itemType === 'item') {
+                    await handleItemItemClick(actor, itemId, dialogWindow.dataset.itemType);
+                } else if (itemType === 'rois') {
+                    await handleRoisItemClick(actor, itemId);
+                }
+            });
+            btn.addEventListener('mouseenter', () => playUISound('hover'));
+        }
     }
     
     /**
@@ -1357,33 +1360,6 @@
         
         html += '</div>';
         return html;
-    }
-
-    /**
-     * 콤보 다이얼로그 이벤트 설정
-     */
-    function setupComboDialogEvents(dialog, comboItems, actor) {
-        dialog.element.find('.dx3rd-combo-selection-btn').on('click', async (event) => {
-            const itemId = $(event.currentTarget).data('item-id');
-            const item = comboItems.find(i => i.id === itemId);
-            
-            playUISound('click');
-            
-            if (item) {
-                dialog.close();
-                
-                // UniversalHandler를 통한 콤보 실행
-                const handler = getUniversalHandler();
-                if (handler && handler.showComboDialog) {
-                    await handler.showComboDialog(actor, item);
-                } else {
-                    console.error('DX3rd | UniversalHandler not found!');
-                    ui.notifications.error(game.i18n.localize('DX3rd.ComboSystemNotFound'));
-                }
-            }
-        }).on('mouseenter', () => {
-            playUISound('hover');
-        });
     }
 
     /**

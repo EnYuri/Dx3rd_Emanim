@@ -126,13 +126,16 @@ Hooks.once('ready', () => {
     
     // 렌더링 후 필드 추가
     Hooks.on('renderMacroConfig', (app, html, data) => {
-        const $html = $(html);
-        
+        // v13+ MacroConfig는 네이티브 엘리먼트를, 레거시는 jQuery를 넘긴다.
+        const root = window.DX3rdApplicationCompat?.unwrapRoot?.(html)
+            || (html instanceof HTMLElement ? html : html?.[0]);
+        if (!root) return;
+
         // 이미 추가되었는지 확인
-        if ($html.find('[name="runTiming"]').length > 0) {
+        if (root.querySelector('[name="runTiming"]')) {
             return;
         }
-        
+
         // 매크로 객체 가져오기 (V13 호환)
         const macro = app.object || app.document;
         if (!macro) {
@@ -157,13 +160,13 @@ Hooks.once('ready', () => {
         `;
         
         // 유형 필드 뒤에 추가
-        const typeField = $html.find('.form-group').first();
-        if (typeField.length > 0) {
-            typeField.after(runTimingField);
-            
+        const typeField = root.querySelector('.form-group');
+        if (typeField) {
+            typeField.insertAdjacentHTML('afterend', runTimingField);
+
             // change 이벤트로 즉시 저장
-            $html.find('#dx3rd-run-timing').on('change', async function() {
-                const newTiming = $(this).val();
+            root.querySelector('#dx3rd-run-timing')?.addEventListener('change', async (ev) => {
+                const newTiming = ev.currentTarget.value;
                 try {
                     await macro.setFlag('dx3rd-emanim', 'runTiming', newTiming);
                     

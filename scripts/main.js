@@ -5,6 +5,98 @@
 // 폰트 설정 등록 완료 플래그 (중복 실행 방지)
 let _fontSettingsRegistered = false;
 
+// ── jQuery 제거 지원 헬퍼 ────────────────────────────────────────────────
+// jQuery `$(document).off('type.ns').on('type.ns', ...)` 멱등 재등록을 네이티브로 대체.
+// key(구 네임스페이스)별로 이전 리스너를 removeEventListener 후 재등록한다.
+window.DX3rdGlobalListeners = window.DX3rdGlobalListeners || {};
+function dx3rdRegisterGlobalListener(key, type, handler, options) {
+    const reg = window.DX3rdGlobalListeners;
+    const prev = reg[key];
+    if (prev) document.removeEventListener(prev.type, prev.handler, prev.options);
+    reg[key] = { type, handler, options };
+    document.addEventListener(type, handler, options);
+}
+
+// jQuery `.data(key)` 자동 변환 호환 리더. 네이티브 dataset은 문자열만 주므로,
+// jQuery가 하던 boolean/null/number/JSON 변환을 재현한다. (data-key → dataset.key 카멜 변환)
+function dx3rdReadData(el, key) {
+    if (!el) return undefined;
+    const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const raw = el.dataset ? el.dataset[camel] : undefined;
+    if (raw === undefined) return undefined;
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    if (raw === 'null') return null;
+    if (raw === '') return raw;
+    if (/^-?\d+(?:\.\d+)?$/.test(raw) && String(Number(raw)) === raw) return Number(raw);
+    const first = raw[0], last = raw[raw.length - 1];
+    if ((first === '{' && last === '}') || (first === '[' && last === ']')) {
+        try { return JSON.parse(raw); } catch (e) { /* 원문 유지 */ }
+    }
+    return raw;
+}
+
+// 채팅 버튼 "완료" 텍스트 토글(네이티브). jQuery .data('original-text') 캐시는
+// data-original-text 속성(dataset.originalText)으로 대체한다.
+function dx3rdApplyCompleteText(button, isCompleted, completeText) {
+    if (!button) return;
+    if (isCompleted) {
+        const currentText = button.textContent.trim();
+        if (!currentText.includes(completeText)) {
+            if (!button.dataset.originalText) button.dataset.originalText = currentText;
+            const originalText = button.dataset.originalText || currentText;
+            button.textContent = `${originalText} ${completeText}`;
+        }
+    } else {
+        const originalText = button.dataset.originalText;
+        if (originalText) {
+            button.textContent = originalText;
+        } else {
+            const currentText = button.textContent.trim();
+            button.textContent = currentText.replace(` ${completeText}`, '').trim();
+        }
+    }
+}
+
+// jQuery slideDown/slideUp(250, 'swing') 대체용 네이티브 높이 애니메이션.
+// 요소에 `collapsed` 클래스 토글과 함께 사용. 진행 중 중복 실행을 막는다.
+function dx3rdSlideToggle(el, expand, duration = 250) {
+    if (!el) return;
+    if (el.dataset.dx3rdAnimating === '1') return;
+    el.dataset.dx3rdAnimating = '1';
+
+    const cleanup = () => {
+        el.style.transition = '';
+        el.style.height = '';
+        el.style.overflow = '';
+        delete el.dataset.dx3rdAnimating;
+    };
+
+    if (expand) {
+        el.classList.remove('collapsed');
+        el.style.overflow = 'hidden';
+        el.style.height = '0px';
+        el.style.display = '';
+        const target = el.scrollHeight;
+        requestAnimationFrame(() => {
+            el.style.transition = `height ${duration}ms ease`;
+            el.style.height = target + 'px';
+        });
+        window.setTimeout(cleanup, duration + 20);
+    } else {
+        el.style.overflow = 'hidden';
+        el.style.height = el.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+            el.style.transition = `height ${duration}ms ease`;
+            el.style.height = '0px';
+        });
+        window.setTimeout(() => {
+            el.classList.add('collapsed');
+            cleanup();
+        }, duration + 20);
+    }
+}
+
 // 월드 폰트 목록을 가져와서 채팅 폰트 설정을 등록하는 함수
 function registerChatFontSettings() {
     // 폰트가 로드될 때까지 기다린 후 폰트 목록 업데이트
@@ -624,7 +716,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                 title: "DX3rd.SceneOpen",
                 icon: "fa-solid fa-clapperboard",
                 button: true,
-                onClick: () => {
+                onChange: () => {
                     const currentNumber = game.settings.get("dx3rd-emanim", "sceneOpenNumber") ?? 0;
                     const nextNumber = currentNumber + 1;
                     const activePlayers = game.users.filter(u => u.active && !u.isGM);
@@ -639,7 +731,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                         : `<p class="dx3rd-scene-open-no-users">${game.i18n.localize("DX3rd.NoConnectedPlayers")}</p>`;
                     const content = `
                         <div class="dx3rd-scene-open-dialog">
-                            <form class="flexcol">
+                            <div class="flexcol">
                                 <div class="form-group">
                                     <label>#${nextNumber}</label>
                                     <input type="text" id="dx3rd-scene-title" name="sceneTitle" placeholder="${game.i18n.localize("DX3rd.SceneTitleInput")}" autofocus/>
@@ -647,18 +739,21 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                 <div class="dx3rd-scene-open-user-list">
                                     ${userListHTML}
                                 </div>
-                            </form>
+                            </div>
                         </div>
                     `;
-                    new Dialog({
-                        title: game.i18n.localize("DX3rd.SceneOpen"),
+                    new foundry.applications.api.DialogV2({
+                        window: { title: game.i18n.localize("DX3rd.SceneOpen") },
                         content,
-                        buttons: {
-                            confirm: {
-                                icon: '<i class="fas fa-check"></i>',
+                        buttons: [
+                            {
+                                action: "confirm",
+                                icon: "fas fa-check",
                                 label: game.i18n.localize("DX3rd.Confirm"),
-                                callback: async (html) => {
-                                    const title = html.find("#dx3rd-scene-title").val()?.trim() ?? "";
+                                default: true,
+                                callback: async (event, button, dialog) => {
+                                    const html = dialog.element;
+                                    const title = html.querySelector("#dx3rd-scene-title")?.value?.trim() ?? "";
                                     game.settings.set("dx3rd-emanim", "sceneOpenNumber", nextNumber);
 
                                     const allActors = game.actors.filter(a => a.type === "character" || a.type === "enemy");
@@ -740,28 +835,31 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                     });
 
                                     const checkedUserIds = [];
-                                    html.find(".dx3rd-scene-open-user-row input[data-user-id]:checked").each(function() {
-                                        checkedUserIds.push($(this).attr("data-user-id"));
+                                    html.querySelectorAll(".dx3rd-scene-open-user-row input[data-user-id]:checked").forEach(el => {
+                                        checkedUserIds.push(el.getAttribute("data-user-id"));
                                     });
                                     for (const userId of checkedUserIds) {
                                         game.socket.emit("system.dx3rd-emanim", { type: "showSceneEnterDialog", userId });
                                     }
                                 }
                             },
-                            cancel: {
-                                icon: '<i class="fas fa-times"></i>',
+                            {
+                                action: "cancel",
+                                icon: "fas fa-times",
                                 label: game.i18n.localize("DX3rd.Cancel")
                             },
-                            sessionEnd: {
-                                icon: '<i class="fas fa-stop"></i>',
+                            {
+                                action: "sessionEnd",
+                                icon: "fas fa-stop",
                                 label: game.i18n.localize("DX3rd.SessionEnd"),
                                 callback: () => {
-                                    new Dialog({
-                                        title: game.i18n.localize("DX3rd.SessionEnd"),
+                                    new foundry.applications.api.DialogV2({
+                                        window: { title: game.i18n.localize("DX3rd.SessionEnd") },
                                         content: `<p>${game.i18n.localize("DX3rd.SessionEndQuestion")}</p>`,
-                                        buttons: {
-                                            confirm: {
-                                                icon: '<i class="fas fa-check"></i>',
+                                        buttons: [
+                                            {
+                                                action: "confirm",
+                                                icon: "fas fa-check",
                                                 label: game.i18n.localize("DX3rd.Confirm"),
                                                 callback: async () => {
                                                     const allActors = game.actors.filter(a => a.type === "character" || a.type === "enemy");
@@ -846,17 +944,17 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                     });
                                                 }
                                             },
-                                            cancel: {
-                                                icon: '<i class="fas fa-times"></i>',
-                                                label: game.i18n.localize("DX3rd.Cancel")
+                                            {
+                                                action: "cancel",
+                                                icon: "fas fa-times",
+                                                label: game.i18n.localize("DX3rd.Cancel"),
+                                                default: true
                                             }
-                                        },
-                                        default: "cancel"
+                                        ]
                                     }).render(true);
                                 }
                             }
-                        },
-                        default: "confirm"
+                        ]
                     }).render(true);
                 }
             });
@@ -871,7 +969,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
             title: buttonTitle,
             icon: "fa-solid fa-dice",
             button: true,
-            onClick: () => {
+            onChange: () => {
                 // 등장/충동/공포 판정 선택 다이얼로그 표시 (DOM 방식)
                 const choice = new Promise((resolve) => {
                     const onSelect = (selection) => {
@@ -1359,7 +1457,7 @@ Hooks.once('ready', function() {
     });
     
     // ESC 키로 범위 하이라이트 클리어 (다이얼로그 닫기보다 우선)
-    $(document).off('keydown.dx3rd-range-highlight').on('keydown.dx3rd-range-highlight', (event) => {
+    dx3rdRegisterGlobalListener('dx3rd-range-highlight', 'keydown', (event) => {
         if (event.key === 'Escape' || event.keyCode === 27) {
             // 범위 하이라이트가 활성화되어 있는지 확인
             if (window.DX3rdUniversalHandler && 
@@ -1702,15 +1800,17 @@ Hooks.once('ready', function() {
                 </style>
             `;
 
-            new Dialog({
-                title: title,
+            new foundry.applications.api.DialogV2({
+                window: { title: title },
                 content: template,
-                buttons: {
-                    confirm: {
-                        icon: '<i class="fas fa-check"></i>',
+                buttons: [
+                    {
+                        action: 'confirm',
+                        icon: 'fas fa-check',
                         label: game.i18n.localize('DX3rd.Confirm'),
-                        callback: async (html) => {
-                            const selectedId = html.find('#rois-select').val();
+                        default: true,
+                        callback: async (event, button, dialog) => {
+                            const selectedId = dialog.element.querySelector('#rois-select')?.value;
                             if (!selectedId) {
                                 ui.notifications.warn('로이스를 선택해주세요.');
                                 return;
@@ -1739,14 +1839,12 @@ Hooks.once('ready', function() {
                             }
                         }
                     },
-                    cancel: {
-                        icon: '<i class="fas fa-times"></i>',
-                        label: game.i18n.localize('DX3rd.Cancel'),
-                        callback: () => {}
+                    {
+                        action: 'cancel',
+                        icon: 'fas fa-times',
+                        label: game.i18n.localize('DX3rd.Cancel')
                     }
-                },
-                default: 'confirm',
-                close: () => {}
+                ]
             }).render(true);
             
             return;
@@ -2264,17 +2362,17 @@ Hooks.once('ready', function() {
             }
             
             // 알림 다이얼로그 표시
-            new Dialog({
-                title: game.i18n.localize('DX3rd.NoDamage'),
+            new foundry.applications.api.DialogV2({
+                window: { title: game.i18n.localize('DX3rd.NoDamage') },
                 content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`,
-                buttons: {
-                    confirm: {
-                        icon: '<i class="fas fa-check"></i>',
+                buttons: [
+                    {
+                        action: 'confirm',
+                        icon: 'fas fa-check',
                         label: game.i18n.localize('DX3rd.Confirm'),
-                        callback: () => {}
+                        default: true
                     }
-                },
-                default: 'confirm'
+                ]
             }).render(true);
         } else if (data.type === 'applyEffectToTarget') {
             // 타겟 소유자: GM으로부터 효과 적용 명령 받음
@@ -2321,236 +2419,46 @@ Hooks.on('updateChatMessage', (message, changes, options, userId) => {
         const flagChanges = changes?.flags?.['dx3rd-emanim'];
         if (!flagChanges) return;
         
-        const $messageElement = $(`[data-message-id="${message.id}"]`);
-        if (!$messageElement.length) return;
-        
+        const messageElements = Array.from(document.querySelectorAll(`[data-message-id="${message.id}"]`));
+        if (messageElements.length === 0) return;
+        const findButtons = (sel) => messageElements.flatMap(me => Array.from(me.querySelectorAll(sel)));
+
         // 편집 플래그 처리
         if (flagChanges.editingBy !== undefined) {
-            if (message.flags?.['dx3rd-emanim']?.editingBy) {
-                $messageElement.addClass('dx3rd-editing-message');
-            } else {
-                $messageElement.removeClass('dx3rd-editing-message');
-            }
+            const editing = !!message.flags?.['dx3rd-emanim']?.editingBy;
+            for (const me of messageElements) me.classList.toggle('dx3rd-editing-message', editing);
         }
-        
+
         // 완료 플래그 처리 (버튼 텍스트 업데이트)
         const completeText = game.i18n.localize('DX3rd.Complete');
         
-        // successCompleted 플래그 처리
-        if (flagChanges.successCompleted !== undefined) {
-            const button = $messageElement.find('.dx3rd-success-btn');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.successCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, ''));
-                    }
-                }
+        // 완료 상태 토글 대상 버튼들 (동일 로직을 dx3rdApplyCompleteText로 통일)
+        const completeFlagButtons = [
+            { flag: 'successCompleted', sel: '.dx3rd-success-btn' },
+            { flag: 'damageRollCompleted', sel: '.damage-roll-btn' },
+            { flag: 'damageApplyCompleted', sel: '.damage-apply-btn' },
+            { flag: 'attackRollCompleted', sel: '.attack-roll-btn' },
+            { flag: 'invokeCompleted', sel: '.invoke-spell' },
+            { flag: 'winCheckCompleted', sel: '.dx3rd-win-check-btn' }
+        ];
+        for (const { flag, sel } of completeFlagButtons) {
+            if (flagChanges[flag] === undefined) continue;
+            const isCompleted = message.flags?.['dx3rd-emanim']?.[flag] === true;
+            for (const button of findButtons(sel)) {
+                dx3rdApplyCompleteText(button, isCompleted, completeText);
             }
         }
-        
-        // damageRollCompleted 플래그 처리
-        if (flagChanges.damageRollCompleted !== undefined) {
-            const button = $messageElement.find('.damage-roll-btn');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.damageRollCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, ''));
-                    }
-                }
-            }
-        }
-        
-        // damageApplyCompleted 플래그 처리
-        if (flagChanges.damageApplyCompleted !== undefined) {
-            const button = $messageElement.find('.damage-apply-btn');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.damageApplyCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, ''));
-                    }
-                }
-            }
-        }
-        
-        // attackRollCompleted 플래그 처리
-        if (flagChanges.attackRollCompleted !== undefined) {
-            const button = $messageElement.find('.attack-roll-btn');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.attackRollCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, ''));
-                    }
-                }
-            }
-        }
-        
-        // invokeCompleted 플래그 처리
-        if (flagChanges.invokeCompleted !== undefined) {
-            const button = $messageElement.find('.invoke-spell');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.invokeCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, '').trim());
-                    }
-                }
-            }
-        }
-        
-        // winCheckCompleted 플래그 처리
-        if (flagChanges.winCheckCompleted !== undefined) {
-            const button = $messageElement.find('.dx3rd-win-check-btn');
-            if (button.length > 0) {
-                const isCompleted = message.flags?.['dx3rd-emanim']?.winCheckCompleted === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!button.data('original-text')) {
-                            button.data('original-text', currentText);
-                        }
-                        const originalText = button.data('original-text') || currentText;
-                        button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = button.data('original-text');
-                    if (originalText) {
-                        button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = button.text().trim();
-                        button.text(currentText.replace(` ${completeText}`, '').trim());
-                    }
-                }
-            }
-        }
-        
+
         // itemUseCompleted 플래그 처리 (아이템별로 관리)
         if (flagChanges.itemUseCompleted !== undefined) {
             // 플래그가 undefined로 설정된 경우(삭제된 경우)도 처리
             const itemUseCompleted = message.flags?.['dx3rd-emanim']?.itemUseCompleted || {};
-            const allUseButtons = $messageElement.find('.use-item-btn');
-            
-            allUseButtons.each((index, btn) => {
-                const $button = $(btn);
-                const itemId = $button.data('item-id');
-                if (!itemId) return;
-                
-                const isCompleted = itemUseCompleted[itemId] === true;
-                if (isCompleted) {
-                    // 완료 상태로 변경
-                    const currentText = $button.text().trim();
-                    if (!currentText.includes(completeText)) {
-                        // 원본 텍스트 저장 (없으면 현재 텍스트 사용)
-                        if (!$button.data('original-text')) {
-                            $button.data('original-text', currentText);
-                        }
-                        const originalText = $button.data('original-text') || currentText;
-                        $button.text(`${originalText} ${completeText}`);
-                    }
-                } else {
-                    // 롤백: 원본 텍스트로 복원
-                    const originalText = $button.data('original-text');
-                    if (originalText) {
-                        $button.text(originalText);
-                    } else {
-                        // 원본 텍스트가 없으면 현재 텍스트에서 완료 텍스트 제거
-                        const currentText = $button.text().trim();
-                        $button.text(currentText.replace(` ${completeText}`, '').trim());
-                    }
-                }
-            });
+
+            for (const button of findButtons('.use-item-btn')) {
+                const itemId = button.dataset.itemId;
+                if (!itemId) continue;
+                dx3rdApplyCompleteText(button, itemUseCompleted[itemId] === true, completeText);
+            }
         }
     } catch (e) { 
         console.error('DX3rd | updateChatMessage hook error:', e);
@@ -2727,58 +2635,41 @@ window.DX3rdChatToggleManager = {
         this.initialized = true;
         
         // 전역 이벤트 위임 등록
-        $(document).off('click.dx3rd-global-toggle').on('click.dx3rd-global-toggle', '.item-name-toggle, .combo-toggle-btn, .book-toggle-btn', (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-global-toggle', 'click', (event) => {
+            const target = event.target.closest('.item-name-toggle, .combo-toggle-btn, .book-toggle-btn');
+            if (!target) return;
             event.preventDefault();
             event.stopPropagation();
-            
+
             // Foundry VTT 채팅 메시지 구조 확인
-            const messageElement = $(event.currentTarget).closest('.message');
-            
-            // 클릭된 요소에 따라 다른 선택자 사용
-            let collapsibleElements;
-            if ($(event.currentTarget).hasClass('combo-toggle-btn')) {
+            const messageElement = target.closest('.message');
+
+            // 클릭된 요소에 따라 다른 처리
+            if (target.classList.contains('combo-toggle-btn')) {
                 // 콤보 토글 버튼의 경우, 다이얼로그 표시
-                const section = $(event.currentTarget).data('combo-section');
+                const section = target.dataset.comboSection;
                 if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.showComboItemsDialog) {
                     window.DX3rdChatHandlers.showComboItemsDialog(messageElement, section);
                 }
                 return;
-            } else if ($(event.currentTarget).hasClass('book-toggle-btn')) {
+            } else if (target.classList.contains('book-toggle-btn')) {
                 // 마도서 토글 버튼의 경우, 다이얼로그 표시
-                const section = $(event.currentTarget).data('book-section');
+                const section = target.dataset.bookSection;
                 if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.showBookItemsDialog) {
                     window.DX3rdChatHandlers.showBookItemsDialog(messageElement, section);
                 }
                 return;
-            } else {
-                // 아이템 이름 토글의 경우, 모든 collapsible-content 토글
-                collapsibleElements = messageElement.find('.collapsible-content');
-                if (collapsibleElements.length === 0) {
-                    // message-content 내부에서 찾기
-                    const messageContent = messageElement.find('.message-content');
-                    collapsibleElements = messageContent.find('.collapsible-content');
-                }
-                if (collapsibleElements.length === 0) {
-                    // 직접 message 내부에서 찾기
-                    collapsibleElements = messageElement.find('.collapsible-content');
-                }
             }
-            
-            if (collapsibleElements.length === 0) {
-                return;
-            }
-            
-            // 애니메이션 중복 방지
-            if (collapsibleElements.is(':animated')) {
-                return;
-            }
-            
-            if (collapsibleElements.hasClass('collapsed')) {
-                collapsibleElements.removeClass('collapsed').slideDown(250, 'swing');
-            } else {
-                collapsibleElements.slideUp(250, 'swing', () => {
-                    collapsibleElements.addClass('collapsed');
-                });
+
+            // 아이템 이름 토글의 경우, 모든 collapsible-content 토글
+            const collapsibleElements = messageElement
+                ? Array.from(messageElement.querySelectorAll('.collapsible-content'))
+                : [];
+            if (collapsibleElements.length === 0) return;
+
+            for (const el of collapsibleElements) {
+                // 애니메이션 중복 방지는 dx3rdSlideToggle 내부에서 처리
+                dx3rdSlideToggle(el, el.classList.contains('collapsed'));
             }
         });
         
@@ -2788,14 +2679,14 @@ window.DX3rdChatToggleManager = {
         }
         
         // 술식 발동 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-invoke-spell').on('click.dx3rd-invoke-spell', '.invoke-spell', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-invoke-spell', 'click', async (event) => {
+            const button = event.target.closest('.invoke-spell');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
-            
+
             // getTarget 정보 읽기 (data 속성에서)
-            const getTargetAttr = button.data('get-target');
+            const getTargetAttr = button.dataset.getTarget;
             const getTarget = getTargetAttr === true || getTargetAttr === 'true';
             
             // getTarget이 체크되어 있으면 타겟 확인
@@ -2809,31 +2700,30 @@ window.DX3rdChatToggleManager = {
             
             // 메시지 찾기
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'invokeCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                const originalText = button.text().trim();
-                button.data('original-text', originalText);
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent.trim();
             }
-            
+
             // 이미 완료된 버튼을 클릭한 경우 롤백
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'invokeCompleted');
                 return;
             }
-            
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const itemDataStr = button.attr('data-item-data');
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const itemDataStr = button.getAttribute('data-item-data');
             
             if (!actorId) {
                 ui.notifications.error('액터 정보를 찾을 수 없습니다.');
@@ -3037,7 +2927,7 @@ window.DX3rdChatToggleManager = {
             await message.setFlag('dx3rd-emanim', 'invokeCompleted', true);
             
             // 버튼 완료 상태로 표시
-            button.text(`${itemData.name} ${game.i18n.localize('DX3rd.Invoking')} ${game.i18n.localize('DX3rd.Complete')}`);
+            button.textContent = `${itemData.name} ${game.i18n.localize('DX3rd.Invoking')} ${game.i18n.localize('DX3rd.Complete')}`;
             
             // 채팅 메시지 출력 (굴림이 있는 경우는 굴림 실행 시 이미 메시지가 생성되므로 여기서는 생성하지 않음)
             const rollType = item.system?.roll ?? '-';
@@ -3055,15 +2945,16 @@ window.DX3rdChatToggleManager = {
         });
         
         // 마술 폭주 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-spell-overflow').on('click.dx3rd-spell-overflow', '.spell-overflow', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-spell-overflow', 'click', async (event) => {
+            const button = event.target.closest('.spell-overflow');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const disasterType = button.data('disaster-type');
-            const overflowCount = button.data('overflow-count');
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const disasterType = button.dataset.disasterType;
+            const overflowCount = Number(button.dataset.overflowCount);
             
             if (!actorId) {
                 ui.notifications.error('액터 정보를 찾을 수 없습니다.');
@@ -3094,46 +2985,47 @@ window.DX3rdChatToggleManager = {
         });
         
         // 데미지 롤 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-damage-roll').on('click.dx3rd-damage-roll', '.damage-roll-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-damage-roll', 'click', async (event) => {
+            const button = event.target.closest('.damage-roll-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
+
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'damageRollCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                button.data('original-text', button.text());
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
             }
-            
+
             // 이미 완료된 버튼을 클릭한 경우 롤백
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'damageRollCompleted');
                 return;
             }
-            
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const rollResult = button.data('roll-result');
-            
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const rollResult = dx3rdReadData(button, 'roll-result');
+
             // 콤보 afterSuccess 데이터 확인
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
-            
+
             // 개별 보존된 값들 읽기
-            const preservedActorAttack = button.data('preserved-actor-attack');
-            const preservedActorDamageRoll = button.data('preserved-actor-damage-roll');
-            const preservedActorPenetrate = button.data('preserved-actor-penetrate');
-            const preservedWeaponAttack = button.data('preserved-weapon-attack');
-            const weaponIdsJson = button.data('weapon-ids');
+            const preservedActorAttack = dx3rdReadData(button, 'preserved-actor-attack');
+            const preservedActorDamageRoll = dx3rdReadData(button, 'preserved-actor-damage-roll');
+            const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
+            const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
+            const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
             
             if (!actorId || !itemId) return;
             
@@ -3390,40 +3282,39 @@ window.DX3rdChatToggleManager = {
         });
         
         // 성공 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-success').on('click.dx3rd-success', '.dx3rd-success-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-success', 'click', async (event) => {
+            const button = event.target.closest('.dx3rd-success-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
-            
+
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'successCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                const originalText = button.text().trim();
-                button.data('original-text', originalText);
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent.trim();
             }
-            
+
             // 이미 완료된 버튼을 클릭한 경우 롤백
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'successCompleted');
                 return;
             }
-            
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const previousTokenId = button.data('previous-token-id');
-            const weaponAttack = parseInt(button.data('weapon-attack')) || 0;
-            
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const previousTokenId = button.dataset.previousTokenId;
+            const weaponAttack = parseInt(button.dataset.weaponAttack) || 0;
+
             // UniversalHandler로 처리 (무기 공격력 전달)
             try {
                 if (window.DX3rdUniversalHandler) {
@@ -3433,51 +3324,47 @@ window.DX3rdChatToggleManager = {
                 console.error('DX3rd | handleSuccessButton error:', e);
                 // 에러가 발생해도 완료 처리는 진행
             }
-            
+
             // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
             await message.setFlag('dx3rd-emanim', 'successCompleted', true);
-            
+
             // 버튼 텍스트 즉시 업데이트 (다른 클라이언트는 updateChatMessage 훅에서 처리)
-            const completeText = game.i18n.localize('DX3rd.Complete');
-            const currentText = button.text().trim();
-            if (!currentText.includes(completeText)) {
-                const originalText = button.data('original-text') || currentText;
-                button.text(`${originalText} ${completeText}`);
-            }
+            dx3rdApplyCompleteText(button, true, game.i18n.localize('DX3rd.Complete'));
         });
         
         // 승리 체크 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-win-check').on('click.dx3rd-win-check', '.dx3rd-win-check-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-win-check', 'click', async (event) => {
+            const button = event.target.closest('.dx3rd-win-check-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
+
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'winCheckCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                button.data('original-text', button.text());
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
             }
-            
+
             // 이미 완료된 버튼을 클릭한 경우 롤백
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'winCheckCompleted');
-                button.text(button.data('original-text'));
+                button.textContent = button.dataset.originalText;
                 return;
             }
-            
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const previousTokenId = button.data('previous-token-id');
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const previousTokenId = button.dataset.previousTokenId;
             
             // 콤보 afterSuccess 데이터 확인
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
@@ -3495,49 +3382,45 @@ window.DX3rdChatToggleManager = {
             
             // 플래그 설정 및 버튼 텍스트 변경
             await message.setFlag('dx3rd-emanim', 'winCheckCompleted', true);
-            
+
             // 버튼 텍스트 즉시 업데이트 (다른 클라이언트는 updateChatMessage 훅에서 처리)
-            const completeText = game.i18n.localize('DX3rd.Complete');
-            const currentText = button.text().trim();
-            if (!currentText.includes(completeText)) {
-                const originalText = button.data('original-text') || currentText;
-                button.text(`${originalText} ${completeText}`);
-            }
+            dx3rdApplyCompleteText(button, true, game.i18n.localize('DX3rd.Complete'));
         });
         
         // 데미지 적용 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-damage-apply').on('click.dx3rd-damage-apply', '.damage-apply-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-damage-apply', 'click', async (event) => {
+            const button = event.target.closest('.damage-apply-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
+
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'damageApplyCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                button.data('original-text', button.text());
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
             }
-            
+
             // 이미 완료된 버튼을 클릭한 경우 롤백
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'damageApplyCompleted');
                 return;
             }
-            
-            const actorId = button.data('actor-id');
-            const itemId = button.data('item-id');
-            const damage = button.data('damage');
-            const penetrate = button.data('penetrate');
-            const attackResult = Number(button.data('attack-result')) || 0;
+
+            const actorId = button.dataset.actorId;
+            const itemId = button.dataset.itemId;
+            const damage = dx3rdReadData(button, 'damage');
+            const penetrate = dx3rdReadData(button, 'penetrate');
+            const attackResult = Number(button.dataset.attackResult) || 0;
             
             // 권한 체크
             const actor = game.actors.get(actorId);
@@ -3642,32 +3525,33 @@ window.DX3rdChatToggleManager = {
         });
         
         // 공격 롤 버튼 클릭 리스너 등록 (무기/비클 전용)
-        $(document).off('click.dx3rd-attack-roll').on('click.dx3rd-attack-roll', '.attack-roll-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-attack-roll', 'click', async (event) => {
+            const button = event.target.closest('.attack-roll-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
-            const itemId = button.data('item-id');
-            
+
+            const itemId = button.dataset.itemId;
+
             if (!itemId) return;
-            
+
             // 메시지에서 액터 정보 찾기
             const messageElement = button.closest('.message');
-            const messageId = messageElement[0]?.dataset?.messageId;
-            
+            const messageId = messageElement?.dataset?.messageId;
+
             if (!messageId) return;
-            
+
             const message = game.messages.get(messageId);
             if (!message) {
                 ui.notifications.error('메시지를 찾을 수 없습니다.');
                 return;
             }
-            
+
             const isCompleted = message.getFlag('dx3rd-emanim', 'attackRollCompleted') === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                button.data('original-text', button.text());
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
             }
             
             // 이미 완료된 버튼을 클릭한 경우 롤백
@@ -3704,35 +3588,35 @@ window.DX3rdChatToggleManager = {
         });
         
         // 이펙트 사용 버튼 클릭 리스너 등록
-        $(document).off('click.dx3rd-use-btn').on('click.dx3rd-use-btn', '.use-item-btn', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-use-btn', 'click', async (event) => {
+            const button = event.target.closest('.use-item-btn');
+            if (!button) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const button = $(event.currentTarget);
-            const itemId = button.data('item-id');
-            const roisAction = button.data('rois-action'); // 'titus' or 'sublimation'
-            
+
+            const itemId = button.dataset.itemId;
+            const roisAction = button.dataset.roisAction; // 'titus' or 'sublimation'
+
             if (!itemId) {
                 return;
             }
-            
+
             // 메시지에서 액터 정보 찾기
             const messageElement = button.closest('.message');
-            const messageId = messageElement.data('message-id');
+            const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
-            
+
             if (!message) {
                 return;
             }
-            
+
             // 완료 상태 확인 및 롤백 처리
             const itemUseCompleted = message.getFlag('dx3rd-emanim', 'itemUseCompleted') || {};
             const isCompleted = itemUseCompleted[itemId] === true;
-            
+
             // 원본 텍스트 저장 (처음 한 번만)
-            if (!button.data('original-text')) {
-                const originalText = button.text().trim();
-                button.data('original-text', originalText);
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent.trim();
             }
             
             // 이미 완료된 버튼을 클릭한 경우 롤백
@@ -3749,8 +3633,8 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            const speakerElement = messageElement.find('.message-header .message-sender');
-            const actorName = speakerElement.text().trim();
+            const speakerElement = messageElement?.querySelector('.message-header .message-sender');
+            const actorName = speakerElement?.textContent.trim() || '';
             
             // 액터 ID 찾기 (speaker 데이터에서)
             let actorId = null;
@@ -3799,13 +3683,14 @@ window.DX3rdChatToggleManager = {
         });
         
         // message-sender 클릭 시 로이스 추가 리스너 등록
-        $(document).off('click.dx3rd-add-lois').on('click.dx3rd-add-lois', '.message-header[data-actor-id] .message-sender', async (event) => {
+        dx3rdRegisterGlobalListener('dx3rd-add-lois', 'click', async (event) => {
+            const senderElement = event.target.closest('.message-header[data-actor-id] .message-sender');
+            if (!senderElement) return;
             event.preventDefault();
             event.stopPropagation();
-            
-            const senderElement = $(event.currentTarget);
+
             const headerElement = senderElement.closest('.message-header');
-            const targetActorId = headerElement.attr('data-actor-id');
+            const targetActorId = headerElement?.getAttribute('data-actor-id');
             
             if (!targetActorId) {
                 return;
@@ -3889,20 +3774,23 @@ window.DX3rdChatToggleManager = {
             `;
             
             const result = await new Promise((resolve) => {
-                const dialog = new Dialog({
-                    title: `${game.i18n.format('DX3rd.AddLoisConfirmTitle')}: ${targetActor.name}`,
+                const dialog = new foundry.applications.api.DialogV2({
+                    window: { title: `${game.i18n.format('DX3rd.AddLoisConfirmTitle')}: ${targetActor.name}` },
                     content: dialogContent,
-                    buttons: {
-                        confirm: {
-                            icon: '<i class="fas fa-check"></i>',
+                    buttons: [
+                        {
+                            action: 'confirm',
+                            icon: 'fas fa-check',
                             label: game.i18n.localize('DX3rd.Confirm'),
-                            callback: (html) => {
-                                const type = html.find('#lois-type-select').val();
-                                const positiveState = html.find('#lois-positive-state').is(':checked');
-                                const positiveFeeling = html.find('#lois-positive-feeling').val().trim();
-                                const negativeState = html.find('#lois-negative-state').is(':checked');
-                                const negativeFeeling = html.find('#lois-negative-feeling').val().trim();
-                                
+                            default: true,
+                            callback: (event, button, dialog) => {
+                                const root = dialog.element;
+                                const type = root.querySelector('#lois-type-select')?.value;
+                                const positiveState = !!root.querySelector('#lois-positive-state')?.checked;
+                                const positiveFeeling = (root.querySelector('#lois-positive-feeling')?.value || '').trim();
+                                const negativeState = !!root.querySelector('#lois-negative-state')?.checked;
+                                const negativeFeeling = (root.querySelector('#lois-negative-feeling')?.value || '').trim();
+
                                 resolve({
                                     type: hasSType ? '-' : type,
                                     positive: {
@@ -3916,32 +3804,29 @@ window.DX3rdChatToggleManager = {
                                 });
                             }
                         },
-                        cancel: {
-                            icon: '<i class="fas fa-times"></i>',
+                        {
+                            action: 'cancel',
+                            icon: 'fas fa-times',
                             label: game.i18n.localize('DX3rd.Cancel'),
                             callback: () => resolve(null)
                         }
-                    },
-                    default: 'confirm',
-                    render: (html) => {
+                    ],
+                    render: (event, dialog) => {
                         // 상호 배타적 체크박스 처리
-                        const positiveCheckbox = html.find('#lois-positive-state');
-                        const negativeCheckbox = html.find('#lois-negative-state');
-                        
-                        positiveCheckbox.on('change', function() {
-                            if ($(this).is(':checked')) {
-                                negativeCheckbox.prop('checked', false);
-                            }
+                        const root = dialog.element;
+                        const positiveCheckbox = root.querySelector('#lois-positive-state');
+                        const negativeCheckbox = root.querySelector('#lois-negative-state');
+
+                        positiveCheckbox?.addEventListener('change', () => {
+                            if (positiveCheckbox.checked && negativeCheckbox) negativeCheckbox.checked = false;
                         });
-                        
-                        negativeCheckbox.on('change', function() {
-                            if ($(this).is(':checked')) {
-                                positiveCheckbox.prop('checked', false);
-                            }
+
+                        negativeCheckbox?.addEventListener('change', () => {
+                            if (negativeCheckbox.checked && positiveCheckbox) positiveCheckbox.checked = false;
                         });
                     }
                 });
-                
+
                 dialog.render(true);
             });
             
@@ -4353,27 +4238,24 @@ window.DX3rdChatHandlers = {
     
     initializeExistingMessages() {
         // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
-        const existingMessages = $('#chat-log .message');
-        
-        existingMessages.each((index, messageElement) => {
-            const $message = $(messageElement);
-            const collapsibleElements = $message.find('.collapsible-content');
-            
-            if (collapsibleElements.length > 0) {
-                // 인라인 스타일 제거하고 CSS 클래스로 초기화
-                collapsibleElements.each((i, element) => {
-                    const $el = $(element);
-                    $el.removeAttr('style').addClass('collapsed');
-                });
+        // v14는 .chat-log, 레거시는 #chat-log 를 사용하므로 둘 다 지원
+        const existingMessages = document.querySelectorAll('#chat-log .message, .chat-log .message');
+
+        for (const messageElement of existingMessages) {
+            const collapsibleElements = messageElement.querySelectorAll('.collapsible-content');
+            // 인라인 스타일 제거하고 CSS 클래스로 초기화
+            for (const el of collapsibleElements) {
+                el.removeAttribute('style');
+                el.classList.add('collapsed');
             }
-        });
+        }
     },
     
     showComboItemsDialog(messageElement, section) {
         // 메시지에서 액터 정보 추출
         let actorId = null;
         try {
-            const messageData = messageElement[0];
+            const messageData = messageElement?.[0] || messageElement;
             if (messageData && messageData.dataset) {
                 const messageId = messageData.dataset.messageId;
                 if (messageId) {
@@ -4544,16 +4426,17 @@ window.DX3rdChatHandlers = {
         content += `</div>`;
         
         // 다이얼로그 생성
-        new Dialog({
-            title: `${comboName} - ${sectionName}`,
+        new foundry.applications.api.DialogV2({
+            window: { title: `${comboName} - ${sectionName}` },
             content: content,
-            buttons: {
-                close: {
-                    icon: '<i class="fas fa-times"></i>',
-                    label: game.i18n.localize('DX3rd.Close')
+            buttons: [
+                {
+                    action: 'close',
+                    icon: 'fas fa-times',
+                    label: game.i18n.localize('DX3rd.Close'),
+                    default: true
                 }
-            },
-            default: 'close'
+            ]
         }).render(true);
     },
     
@@ -4561,7 +4444,7 @@ window.DX3rdChatHandlers = {
         // 메시지에서 액터 정보 추출
         let actorId = null;
         try {
-            const messageData = messageElement[0];
+            const messageData = messageElement?.[0] || messageElement;
             if (messageData && messageData.dataset) {
                 const messageId = messageData.dataset.messageId;
                 if (messageId) {
@@ -4691,16 +4574,17 @@ window.DX3rdChatHandlers = {
         content += `</div>`;
         
         // 다이얼로그 생성
-        new Dialog({
-            title: `${bookName} - ${sectionName}`,
+        new foundry.applications.api.DialogV2({
+            window: { title: `${bookName} - ${sectionName}` },
             content: content,
-            buttons: {
-                close: {
-                    icon: '<i class="fas fa-times"></i>',
-                    label: game.i18n.localize('DX3rd.Close')
+            buttons: [
+                {
+                    action: 'close',
+                    icon: 'fas fa-times',
+                    label: game.i18n.localize('DX3rd.Close'),
+                    default: true
                 }
-            },
-            default: 'close'
+            ]
         }).render(true);
     },
     
