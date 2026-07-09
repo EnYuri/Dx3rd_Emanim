@@ -229,19 +229,37 @@
                 this.recordList = [];
             } else {
                 // character 타입은 모든 아이템 타입 허용
-                this.workList = items.filter(i => i.type === "works");
-                this.syndromeList = items.filter(i => i.type === "syndrome");
-                this.comboList = items.filter(i => i.type === "combo");
-                this.effectList = items.filter(i => i.type === "effect");
-                this.psionicsList = items.filter(i => i.type === "psionic");
-                this.spellList = items.filter(i => i.type === "spell");
-                this.weaponList = items.filter(i => i.type === "weapon");
-                this.protectList = items.filter(i => i.type === "protect");
-                this.connectionList = items.filter(i => i.type === "connection");
-                this.itemList = items.filter(i => ["book", "etc", "once"].includes(i.type));
-                this.vehicleList = items.filter(i => i.type === "vehicle");
-                this.loisList = items.filter(i => i.type === "lois");
-                this.recordList = items.filter(i => i.type === "record");
+                // 성능: 13회의 items.filter 반복 대신 단일 순회로 타입별 버킷에 분류 (순서/의미 동일)
+                this.workList = [];
+                this.syndromeList = [];
+                this.comboList = [];
+                this.effectList = [];
+                this.psionicsList = [];
+                this.spellList = [];
+                this.weaponList = [];
+                this.protectList = [];
+                this.connectionList = [];
+                this.itemList = [];
+                this.vehicleList = [];
+                this.loisList = [];
+                this.recordList = [];
+                for (const it of items) {
+                    switch (it.type) {
+                        case "works": this.workList.push(it); break;
+                        case "syndrome": this.syndromeList.push(it); break;
+                        case "combo": this.comboList.push(it); break;
+                        case "effect": this.effectList.push(it); break;
+                        case "psionic": this.psionicsList.push(it); break;
+                        case "spell": this.spellList.push(it); break;
+                        case "weapon": this.weaponList.push(it); break;
+                        case "protect": this.protectList.push(it); break;
+                        case "connection": this.connectionList.push(it); break;
+                        case "book": case "etc": case "once": this.itemList.push(it); break;
+                        case "vehicle": this.vehicleList.push(it); break;
+                        case "lois": this.loisList.push(it); break;
+                        case "record": this.recordList.push(it); break;
+                    }
+                }
             }
         }
 
@@ -263,6 +281,15 @@
                 ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
             ));
             const appliedEffects = attrs.applied || {};
+            // 성능: Applied 효과를 1회만 색인 (기존엔 파생치마다 전체 재순회)
+            const appliedByKey = this._indexAppliedEffects(appliedEffects);
+
+            // 성능: 여러 파생치 계산에서 반복 호출되던 동일 아이템 필터를 1회만 수행해 재사용
+            // (기존에는 능력치/스킬/경험치/장비 계산마다 this.items.filter를 매번 다시 돌렸음)
+            const worksItems = this.items.filter(item => item.type === 'works');
+            const syndromeItems = this.items.filter(item => item.type === 'syndrome');
+            const equippedProtects = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
+            const equippedVehicles = this.items.filter(i => i.type === 'vehicle' && i.system?.equipment === true);
 
             // === 1차 패스: 능력치 total 계산 (stat_bonus만) ===
             for (const key of ["body", "sense", "mind", "social"]) {
@@ -273,7 +300,6 @@
                 const syndromeList = attrs.syndrome || [];
                 
                 // 액터가 가진 신드롬 아이템 개수에 따른 배율 결정
-                const syndromeItems = this.items.filter(item => item.type === 'syndrome');
                 const totalSyndromeCount = syndromeItems.length;
                 
                 let multiplier = 1;
@@ -295,7 +321,6 @@
 
                 // 워크스 보너스 계산
                 let worksBonus = 0;
-                const worksItems = this.items.filter(item => item.type === 'works');
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.attributes?.[key]?.value) {
                         worksBonus += window.DX3rdFormulaEvaluator.evaluate(worksItem.system.attributes[key].value, worksItem, this);
@@ -320,18 +345,9 @@
                 // Applied 효과의 stat_bonus 계산
                 let appliedBonus = 0;
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            // 저장 키는 key 또는 key:label 형태일 수 있으므로 실제 비교는 객체의 key/label 사용
-                            const aKey = (typeof attrValue === 'object' && attrValue) ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel = (typeof attrValue === 'object' && attrValue) ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal = (typeof attrValue === 'object' && attrValue && 'value' in attrValue) ? attrValue.value : 
-                                        (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'stat_bonus' && aLabel === key) {
-                                appliedBonus += Number(aVal) || 0;
-                            }
-                        }
+                for (const { label: aLabel, val: aVal } of (appliedByKey['stat_bonus'] || [])) {
+                    if (aLabel === key) {
+                        appliedBonus += Number(aVal) || 0;
                     }
                 }
 
@@ -350,7 +366,6 @@
             for (const [key, skill] of Object.entries(skills)) {
                 // Works 보너스 계산
                 let worksBonus = 0;
-                const worksItems = this.items.filter(item => item.type === 'works');
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.skills?.[key]?.apply && worksItem.system.skills[key].add) {
                         worksBonus += window.DX3rdFormulaEvaluator.evaluate(worksItem.system.skills[key].add, worksItem, this);
@@ -375,17 +390,9 @@
                 // Applied 효과의 stat_bonus 계산 (스킬용)
                 let appliedBonus = 0;
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                        (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'stat_bonus' && aLabel === key) {
-                                appliedBonus += Number(aVal) || 0;
-                            }
-                        }
+                for (const { label: aLabel, val: aVal } of (appliedByKey['stat_bonus'] || [])) {
+                    if (aLabel === key) {
+                        appliedBonus += Number(aVal) || 0;
                     }
                 }
 
@@ -422,19 +429,8 @@
             }
             
             // 적용된 효과의 hp 보너스 추가
-            if (appliedEffects) {
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                        (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'hp') {
-                                hpBonus += Number(aVal) || 0;
-                            }
-                        }
-                    }
-                }
+            for (const { val: aVal } of (appliedByKey['hp'] || [])) {
+                hpBonus += Number(aVal) || 0;
             }
             
             attrs.hp.max = (attrs.body?.total || 0) * 2 + (attrs.mind?.total || 0) + 20 + hpBonus;
@@ -472,29 +468,13 @@
             }
 
             // 적용된 효과의 attack 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aLabel = (typeof attrValue === 'object') ? attrValue.label : null;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value :
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-
-                        if (aKey === 'attack') {
-                            // label에 따라 분류
-                            if (aLabel === 'melee') {
-                                attackBonusMelee += Number(aVal) || 0;
-                            } else if (aLabel === 'ranged') {
-                                attackBonusRanged += Number(aVal) || 0;
-                            } else if (aLabel === 'fist') {
-                                attackBonusFist += Number(aVal) || 0;
-                            } else {
-                                // label이 없거나 '-'인 경우 모든 공격에 적용
-                                attackBonus += Number(aVal) || 0;
-                            }
-                        }
-                    }
-                }
+            for (const { label: aLabel, val: aVal } of (appliedByKey['attack'] || [])) {
+                const v = Number(aVal) || 0;
+                // label에 따라 분류 (없거나 '-'이면 모든 공격에 적용)
+                if (aLabel === 'melee') attackBonusMelee += v;
+                else if (aLabel === 'ranged') attackBonusRanged += v;
+                else if (aLabel === 'fist') attackBonusFist += v;
+                else attackBonus += v;
             }
 
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
@@ -531,27 +511,12 @@
             }
             
             // 적용된 효과의 damage_roll 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aLabel = (typeof attrValue === 'object') ? attrValue.label : null;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        
-                        if (aKey === 'damage_roll') {
-                            // label에 따라 분류
-                            if (aLabel === 'melee') {
-                                damageRollBonusMelee += Number(aVal) || 0;
-                            } else if (aLabel === 'ranged') {
-                                damageRollBonusRanged += Number(aVal) || 0;
-                            } else {
-                                // label이 없거나 '-'인 경우 모든 공격에 적용
-                                damageRollBonus += Number(aVal) || 0;
-                            }
-                        }
-                    }
-                }
+            for (const { label: aLabel, val: aVal } of (appliedByKey['damage_roll'] || [])) {
+                const v = Number(aVal) || 0;
+                // label에 따라 분류 (없거나 '-'이면 모든 공격에 적용)
+                if (aLabel === 'melee') damageRollBonusMelee += v;
+                else if (aLabel === 'ranged') damageRollBonusRanged += v;
+                else damageRollBonus += v;
             }
             
             if (!attrs.damage_roll) attrs.damage_roll = { value: 0, melee: 0, ranged: 0 };
@@ -562,8 +527,7 @@
             // === Armor 계산 ===
             let armorBonus = 0;
             
-            // 장착된 프로텍트의 armor 값 추가
-            const equippedProtects = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
+            // 장착된 프로텍트의 armor 값 추가 (equippedProtects는 상단에서 1회 계산)
             for (const protect of equippedProtects) {
                 if (protect.system?.armor) {
                     const armorValue = window.DX3rdFormulaEvaluator.evaluate(protect.system.armor, protect, this);
@@ -571,8 +535,7 @@
                 }
             }
             
-            // 장착된 비클의 armor 값 추가
-            const equippedVehicles = this.items.filter(i => i.type === 'vehicle' && i.system?.equipment === true);
+            // 장착된 비클의 armor 값 추가 (equippedVehicles는 상단에서 1회 계산)
             for (const vehicle of equippedVehicles) {
                 if (vehicle.system?.armor) {
                     const armorValue = window.DX3rdFormulaEvaluator.evaluate(vehicle.system.armor, vehicle, this);
@@ -593,16 +556,7 @@
             }
             
             // 적용된 효과의 armor 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'armor') armorBonus += Number(aVal) || 0;
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['armor'] || [])) armorBonus += Number(aVal) || 0;
             
             attrs.armor.value = armorBonus;
             // 최소값 보정: armor는 최소 0
@@ -629,16 +583,8 @@
             }
 
             // 적용된 효과의 guard 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey2 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal2 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey2 === 'guard') guardBonus += Number(aVal2) || 0;
-                        if (aKey2 === 'guard_roll') guardRoll += Number(aVal2) || 0;
-                    }
-                }
-            }
+            for (const { val: aVal2 } of (appliedByKey['guard'] || [])) guardBonus += Number(aVal2) || 0;
+            for (const { val: aVal2 } of (appliedByKey['guard_roll'] || [])) guardRoll += Number(aVal2) || 0;
 
             attrs.guard.value = guardBonus;
             // 최소값 보정: guard는 최소 0
@@ -657,15 +603,7 @@
                     }
                 }
             }
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKeyDx = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aValDx = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKeyDx === 'dxroll') dxRoll += Number(aValDx) || 0;
-                    }
-                }
-            }
+            for (const { val: aValDx } of (appliedByKey['dxroll'] || [])) dxRoll += Number(aValDx) || 0;
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
             attrs.dxroll.value = Math.max(0, dxRoll);   // 판정 핸들러(executeStatRoll/executeAttackRoll)가 읽어 Nd10 굴림
 
@@ -685,15 +623,7 @@
             }
             
             // 적용된 효과의 penetrate 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey3 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal3 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey3 === 'penetrate') penetrateBonus += Number(aVal3) || 0;
-                    }
-                }
-            }
+            for (const { val: aVal3 } of (appliedByKey['penetrate'] || [])) penetrateBonus += Number(aVal3) || 0;
             
             attrs.penetrate.value = penetrateBonus;
             // 최소값 보정: penetrate는 최소 0
@@ -720,16 +650,8 @@
             }
 
             // 적용된 효과의 reduce 보너스
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey4 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal4 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey4 === 'reduce') reduceBonus += Number(aVal4) || 0;
-                        if (aKey4 === 'reduce_roll') reduceRoll += Number(aVal4) || 0;
-                    }
-                }
-            }
+            for (const { val: aVal4 } of (appliedByKey['reduce'] || [])) reduceBonus += Number(aVal4) || 0;
+            for (const { val: aVal4 } of (appliedByKey['reduce_roll'] || [])) reduceRoll += Number(aVal4) || 0;
 
             attrs.reduce.value = reduceBonus;
             // 최소값 보정: reduce는 최소 0
@@ -741,7 +663,7 @@
             let initBonus = 0;
             
             // 장착된 프로텍트의 init 값 추가
-            const equippedProtectsForInit = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
+            const equippedProtectsForInit = equippedProtects;
             for (const protect of equippedProtectsForInit) {
                 if (protect.system?.init) {
                     const initValue = window.DX3rdFormulaEvaluator.evaluate(protect.system.init, protect, this);
@@ -750,7 +672,7 @@
             }
             
             // 장착된 비클의 init 값 추가
-            const equippedVehiclesForInit = this.items.filter(i => i.type === 'vehicle' && i.system?.equipment === true);
+            const equippedVehiclesForInit = equippedVehicles;
             for (const vehicle of equippedVehiclesForInit) {
                 if (vehicle.system?.init) {
                     const initValue = window.DX3rdFormulaEvaluator.evaluate(vehicle.system.init, vehicle, this);
@@ -775,17 +697,7 @@
             }
             
             // 적용된 효과의 init 보너스 추가
-            if (appliedEffects) {
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey5 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const aVal5 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey5 === 'init') initBonus += Number(aVal5) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal5 } of (appliedByKey['init'] || [])) initBonus += Number(aVal5) || 0;
             
             attrs.init.value = (attrs.sense?.total || 0) * 2 + (attrs.mind?.total || 0) + initBonus;
             
@@ -868,17 +780,7 @@
                 }
                 
                 // 적용된 효과의 battleMove 보너스 추가
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                                const aKey6 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                                const aVal6 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                                if (aKey6 === 'battleMove') moveBattleBonus += Number(aVal6) || 0;
-                            }
-                        }
-                    }
-                }
+                for (const { val: aVal6 } of (appliedByKey['battleMove'] || [])) moveBattleBonus += Number(aVal6) || 0;
                 
                 attrs.move.battle = baseBattleMove + moveBattleBonus;
                 
@@ -924,17 +826,7 @@
                 }
                 
                 // 적용된 효과의 fullMove 보너스 추가
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                                const aKey7 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                                const aVal7 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                                if (aKey7 === 'fullMove') moveFullBonus += Number(aVal7) || 0;
-                            }
-                        }
-                    }
-                }
+                for (const { val: aVal7 } of (appliedByKey['fullMove'] || [])) moveFullBonus += Number(aVal7) || 0;
                 
                 // fullMove 보너스를 move.full에 추가 (비클이 있으면 비클 기준, 없으면 move.battle*2 기준)
                 attrs.move.full += moveFullBonus;
@@ -948,22 +840,8 @@
                 if (attrs.move.full < 0) attrs.move.full = 0;
                 
                 // SpellCalamity 1번 효과: 이동력 절반
-                let hasMoveHalf = false;
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                                // move_half는 boolean 값이거나 객체일 수 있음
-                                if (attrName === 'move_half' ||
-                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half')) {
-                                    hasMoveHalf = true;
-                                    break;
-                                }
-                            }
-                            if (hasMoveHalf) break;
-                        }
-                    }
-                }
+                // move_half는 primitive 이름 또는 객체 key 형태 모두 색인의 'move_half' 버킷에 들어간다
+                const hasMoveHalf = (appliedByKey['move_half'] || []).length > 0;
                 
                 if (hasMoveHalf) {
                     if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
@@ -1021,17 +899,7 @@
                 }
                 
                 // 적용된 효과의 battleMove 보너스 추가
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey8 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const aVal8 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey8 === 'battleMove') moveBattleBonus += Number(aVal8) || 0;
-                            }
-                        }
-                    }
-                }
+                for (const { val: aVal8 } of (appliedByKey['battleMove'] || [])) moveBattleBonus += Number(aVal8) || 0;
                 
                 attrs.move.battle = baseBattleMove + moveBattleBonus;
                 
@@ -1077,17 +945,7 @@
                 }
                 
                 // 적용된 효과의 fullMove 보너스 추가
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                                const aKey9 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                                const aVal9 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                                if (aKey9 === 'fullMove') moveFullBonus += Number(aVal9) || 0;
-                            }
-                        }
-                    }
-                }
+                for (const { val: aVal9 } of (appliedByKey['fullMove'] || [])) moveFullBonus += Number(aVal9) || 0;
                 
                 // fullMove 보너스를 move.full에 추가 (비클이 있으면 비클 기준, 없으면 move.battle*2 기준)
                 attrs.move.full += moveFullBonus;
@@ -1101,22 +959,7 @@
                 if (attrs.move.full < 0) attrs.move.full = 0;
                 
                 // SpellCalamity 1번 효과: 이동력 절반 (간이 거리 계산식)
-                let hasMoveHalfSimplified = false;
-                if (appliedEffects) {
-                    for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                        if (appliedEffect && appliedEffect.attributes) {
-                            for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                                // move_half는 boolean 값이거나 객체일 수 있음
-                                if (attrName === 'move_half' ||
-                                    (typeof attrValue === 'object' && attrValue?.key === 'move_half')) {
-                                    hasMoveHalfSimplified = true;
-                                    break;
-                                }
-                            }
-                            if (hasMoveHalfSimplified) break;
-                        }
-                    }
-                }
+                const hasMoveHalfSimplified = (appliedByKey['move_half'] || []).length > 0;
                 
                 if (hasMoveHalfSimplified) {
                     if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
@@ -1155,17 +998,7 @@
             }
             
             // 적용된 효과의 saving_max 보너스 추가
-            if (appliedEffects) {
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey10 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const aVal10 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey10 === 'saving_max') savingBonus += Number(aVal10) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal10 } of (appliedByKey['saving_max'] || [])) savingBonus += Number(aVal10) || 0;
             
             // 이론상 상비점 최대치 (아이템 상비화 비용 차감 전)
             attrs.saving.max = socialTotal * 2 + procureTotal * 2 + savingBonus;
@@ -1211,17 +1044,7 @@
             }
             
             // 적용된 효과의 stock_point 보너스 추가
-            if (appliedEffects) {
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey11 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const aVal11 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey11 === 'stock_point') stockBonus += Number(aVal11) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal11 } of (appliedByKey['stock_point'] || [])) stockBonus += Number(aVal11) || 0;
             
             attrs.stock.max = attrs.saving.remain + stockBonus;
             // 최소값 보정: stock.max는 최소 0
@@ -1276,7 +1099,6 @@
                 // 신드롬 보너스 계산
                 let syndromeBonus = 0;
                 const syndromeList = attrs.syndrome || [];
-                const syndromeItems = this.items.filter(item => item.type === 'syndrome');
                 const totalSyndromeCount = syndromeItems.length;
                 let multiplier = 1;
                 if (totalSyndromeCount === 1) {
@@ -1294,7 +1116,6 @@
                 
                 // 워크스 보너스 계산
                 let worksBonus = 0;
-                const worksItems = this.items.filter(item => item.type === 'works');
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.attributes?.[key]?.value) {
                         worksBonus += window.DX3rdFormulaEvaluator.evaluate(worksItem.system.attributes[key].value, worksItem, this);
@@ -1517,17 +1338,9 @@
             }
             
             // Applied 효과의 critical_min 확인
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey12 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal12 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey12 === 'critical_min') {
-                            const value = Number(aVal12) || 0;
-                            if (value < criticalMin) criticalMin = value;
-                        }
-                    }
-                }
+            for (const { val: aVal12 } of (appliedByKey['critical_min'] || [])) {
+                const value = Number(aVal12) || 0;
+                if (value < criticalMin) criticalMin = value;
             }
             
             // 크리티컬 하한치 설정 (최소값 2로 제한)
@@ -1555,16 +1368,9 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey13 = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel13 = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal13 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey13 === 'dice') abilityDiceBonus += Number(aVal13) || 0;
-                            if (aKey13 === 'stat_dice' && aLabel13 === key) abilityStatDiceBonus += Number(aVal13) || 0;
-                        }
-                    }
+                for (const { val: aVal13 } of (appliedByKey['dice'] || [])) abilityDiceBonus += Number(aVal13) || 0;
+                for (const { label: aLabel13, val: aVal13 } of (appliedByKey['stat_dice'] || [])) {
+                    if (aLabel13 === key) abilityStatDiceBonus += Number(aVal13) || 0;
                 }
                 
                 stat.dice = stat.total + (attrs.encroachment?.dice || 0) + abilityDiceBonus + abilityStatDiceBonus;
@@ -1588,16 +1394,9 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey14 = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel14 = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal14 = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey14 === 'add') abilityAddBonus += Number(aVal14) || 0;
-                            if (aKey14 === 'stat_add' && aLabel14 === key) abilityStatAddBonus += Number(aVal14) || 0;
-                        }
-                    }
+                for (const { val: aVal14 } of (appliedByKey['add'] || [])) abilityAddBonus += Number(aVal14) || 0;
+                for (const { label: aLabel14, val: aVal14 } of (appliedByKey['stat_add'] || [])) {
+                    if (aLabel14 === key) abilityStatAddBonus += Number(aVal14) || 0;
                 }
                 
                 stat.add = abilityAddBonus + abilityStatAddBonus;
@@ -1645,7 +1444,7 @@
                 let dodgeAddBonus = 0;
                 
                 // 장착된 프로텍트의 dodge 값 추가 (dodge_add에 적용)
-                const equippedProtectsForDodge = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
+                const equippedProtectsForDodge = equippedProtects;
                 for (const protect of equippedProtectsForDodge) {
                     if (protect.system?.dodge) {
                         const dodgeValue = window.DX3rdFormulaEvaluator.evaluate(protect.system.dodge, protect, this);
@@ -1673,23 +1472,15 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey15 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const evalValue = (typeof attrValue === 'object' && 'value' in attrValue) ? (Number(attrValue.value) || 0) : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey15 === 'major_dice') majorDiceBonus += evalValue;
-                            if (aKey15 === 'major_critical') majorCriticalMod += evalValue;
-                            if (aKey15 === 'major_add') majorAddBonus += evalValue;
-                            if (aKey15 === 'reaction_dice') reactionDiceBonus += evalValue;
-                            if (aKey15 === 'reaction_critical') reactionCriticalMod += evalValue;
-                            if (aKey15 === 'reaction_add') reactionAddBonus += evalValue;
-                            if (aKey15 === 'dodge_dice') dodgeDiceBonus += evalValue;
-                            if (aKey15 === 'dodge_critical') dodgeCriticalMod += evalValue;
-                            if (aKey15 === 'dodge_add') dodgeAddBonus += evalValue;
-                        }
-                    }
-                }
+                for (const { val } of (appliedByKey['major_dice'] || [])) majorDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_critical'] || [])) majorCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_add'] || [])) majorAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_dice'] || [])) reactionDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_critical'] || [])) reactionCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_add'] || [])) reactionAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_dice'] || [])) dodgeDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_critical'] || [])) dodgeCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_add'] || [])) dodgeAddBonus += Number(val) || 0;
                 
                 // 판정 타입별 최종 값 저장
                 stat.major = {
@@ -1735,20 +1526,12 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKeySD = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabelSD = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aValSD = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                          (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            // 직접 스킬 매칭 또는 그룹 매칭
-                            const matchesDirect = aKeySD === 'stat_dice' && aLabelSD === key;
-                            const matchesGroup = aKeySD === 'stat_dice' && window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, aLabelSD);
-                            if (matchesDirect || matchesGroup) {
-                                skillStatDiceBonus += Number(aValSD) || 0;
-                            }
-                        }
+                for (const { label: aLabelSD, val: aValSD } of (appliedByKey['stat_dice'] || [])) {
+                    // 직접 스킬 매칭 또는 그룹 매칭
+                    const matchesDirect = aLabelSD === key;
+                    const matchesGroup = window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, aLabelSD);
+                    if (matchesDirect || matchesGroup) {
+                        skillStatDiceBonus += Number(aValSD) || 0;
                     }
                 }
                 
@@ -1782,22 +1565,14 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKeySA = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabelSA = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aValSA = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                          (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKeySA === 'add') skillAddBonus += Number(aValSA) || 0;
-                            if (aKeySA === 'stat_add' && aLabelSA === skill.base) skillAbilityAddBonus += Number(aValSA) || 0;
-                            // 직접 스킬 매칭 또는 그룹 매칭
-                            const matchesDirect = aKeySA === 'stat_add' && aLabelSA === key;
-                            const matchesGroup = aKeySA === 'stat_add' && window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, aLabelSA);
-                            if (matchesDirect || matchesGroup) {
-                                skillStatAddBonus += Number(aValSA) || 0;
-                            }
-                        }
+                for (const { val: aValSA } of (appliedByKey['add'] || [])) skillAddBonus += Number(aValSA) || 0;
+                for (const { label: aLabelSA, val: aValSA } of (appliedByKey['stat_add'] || [])) {
+                    if (aLabelSA === skill.base) skillAbilityAddBonus += Number(aValSA) || 0;
+                    // 직접 스킬 매칭 또는 그룹 매칭
+                    const matchesDirect = aLabelSA === key;
+                    const matchesGroup = window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, aLabelSA);
+                    if (matchesDirect || matchesGroup) {
+                        skillStatAddBonus += Number(aValSA) || 0;
                     }
                 }
                 
@@ -1820,7 +1595,7 @@
                 let dodgeAddBonus = 0;
                 
                 // 장착된 프로텍트의 dodge 값 추가 (dodge_add에 적용)
-                const equippedProtectsForSkill = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
+                const equippedProtectsForSkill = equippedProtects;
                 for (const protect of equippedProtectsForSkill) {
                     if (protect.system?.dodge) {
                         const dodgeValue = window.DX3rdFormulaEvaluator.evaluate(protect.system.dodge, protect, this);
@@ -1848,23 +1623,15 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey17 = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                            const evalValue2 = (typeof attrValue === 'object' && 'value' in attrValue) ? (Number(attrValue.value) || 0) : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey17 === 'major_dice') majorDiceBonus += evalValue2;
-                            if (aKey17 === 'major_critical') majorCriticalMod += evalValue2;
-                            if (aKey17 === 'major_add') majorAddBonus += evalValue2;
-                            if (aKey17 === 'reaction_dice') reactionDiceBonus += evalValue2;
-                            if (aKey17 === 'reaction_critical') reactionCriticalMod += evalValue2;
-                            if (aKey17 === 'reaction_add') reactionAddBonus += evalValue2;
-                            if (aKey17 === 'dodge_dice') dodgeDiceBonus += evalValue2;
-                            if (aKey17 === 'dodge_critical') dodgeCriticalMod += evalValue2;
-                            if (aKey17 === 'dodge_add') dodgeAddBonus += evalValue2;
-                        }
-                    }
-                }
+                for (const { val } of (appliedByKey['major_dice'] || [])) majorDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_critical'] || [])) majorCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_add'] || [])) majorAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_dice'] || [])) reactionDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_critical'] || [])) reactionCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_add'] || [])) reactionAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_dice'] || [])) dodgeDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_critical'] || [])) dodgeCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_add'] || [])) dodgeAddBonus += Number(val) || 0;
                 
                 // 판정 타입별 최종 값 저장
                 skill.major = {
@@ -1922,6 +1689,36 @@
                 }
             }
             return [...byId.values()];
+        }
+
+        /**
+         * 성능: Applied 효과(attrs.applied)를 1회만 순회해 key별 색인을 만든다.
+         * 기존에는 각 파생치 계산마다 Object.entries(appliedEffects) 전체를 다시 훑었다(수십 회).
+         *
+         * 반환: { [key]: [{ label, val }] }
+         *  - key/label/val 정규화는 소비부(균일 루프)의 기존 파생과 정확히 동일하게 맞춘다.
+         *    · val = (객체형이고 'value' 보유) ? attrValue.value
+         *          : (boolean) ? 0
+         *          : evaluate(attrValue)   // primitive(숫자) → 그대로
+         *  - primitive 형태({ dice: -2 })는 label=null (실데이터상 label 필요 key는 primitive로 저장되지 않음).
+         *  - 주의: attrName 기반으로 매칭하는 critical, boolean/Number 처리가 다른
+         *    major/reaction/dodge, 조기 탐지하는 move_half 루프는 이 색인을 쓰지 않는다.
+         */
+        _indexAppliedEffects(appliedEffects) {
+            const byKey = {};
+            for (const eff of Object.values(appliedEffects || {})) {
+                if (!eff || !eff.attributes) continue;
+                for (const [attrName, attrValue] of Object.entries(eff.attributes)) {
+                    const isObj = (typeof attrValue === 'object' && attrValue !== null);
+                    const key = isObj ? attrValue.key : attrName;
+                    const label = isObj ? attrValue.label : null;
+                    const val = (isObj && 'value' in attrValue) ? attrValue.value
+                              : (typeof attrValue === 'boolean') ? 0
+                              : window.DX3rdFormulaEvaluator.evaluate(attrValue);
+                    (byKey[key] = byKey[key] || []).push({ label, val });
+                }
+            }
+            return byKey;
         }
 
         _prepareActorEnc() {
@@ -2028,6 +1825,8 @@
                 ['combo', 'effect'].includes(item.type)
             ));
             const appliedEffects = attrs.applied || {};
+            // 성능: Applied 효과를 1회만 색인 (character 경로와 동일)
+            const appliedByKey = this._indexAppliedEffects(appliedEffects);
 
             // === 크리티컬 하한치 계산 (능력치 critical 계산보다 먼저 실행) ===
             let criticalMin = attrs.critical?.min || defaultCritical;
@@ -2041,17 +1840,9 @@
                     }
                 }
             }
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'critical_min') {
-                            const value = Number(aVal) || 0;
-                            if (value < criticalMin) criticalMin = value;
-                        }
-                    }
-                }
+            for (const { val: aVal } of (appliedByKey['critical_min'] || [])) {
+                const value = Number(aVal) || 0;
+                if (value < criticalMin) criticalMin = value;
             }
             if (!attrs.critical) attrs.critical = {};
             attrs.critical.min = Math.max(2, criticalMin);
@@ -2074,17 +1865,9 @@
 
                 // Applied 효과의 stat_bonus 계산
                 let appliedBonus = 0;
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object' && attrValue) ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel = (typeof attrValue === 'object' && attrValue) ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal = (typeof attrValue === 'object' && attrValue && 'value' in attrValue) ? attrValue.value : 
-                                        (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'stat_bonus' && aLabel === key) {
-                                appliedBonus += Number(aVal) || 0;
-                            }
-                        }
+                for (const { label: aLabel, val: aVal } of (appliedByKey['stat_bonus'] || [])) {
+                    if (aLabel === key) {
+                        appliedBonus += Number(aVal) || 0;
                     }
                 }
 
@@ -2109,16 +1892,9 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'dice') diceBonus += Number(aVal) || 0;
-                            if (aKey === 'stat_dice' && aLabel === key) statDiceBonus += Number(aVal) || 0;
-                        }
-                    }
+                for (const { val: aVal } of (appliedByKey['dice'] || [])) diceBonus += Number(aVal) || 0;
+                for (const { label: aLabel, val: aVal } of (appliedByKey['stat_dice'] || [])) {
+                    if (aLabel === key) statDiceBonus += Number(aVal) || 0;
                 }
                 
                 stat.dice = stat.total + diceBonus + statDiceBonus;
@@ -2141,16 +1917,9 @@
                     }
                 }
                 
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aLabel = (typeof attrValue === 'object') ? attrValue.label : (attrName.split(':')[1] || attrName);
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'add') addBonus += Number(aVal) || 0;
-                            if (aKey === 'stat_add' && aLabel === key) statAddBonus += Number(aVal) || 0;
-                        }
-                    }
+                for (const { val: aVal } of (appliedByKey['add'] || [])) addBonus += Number(aVal) || 0;
+                for (const { label: aLabel, val: aVal } of (appliedByKey['stat_add'] || [])) {
+                    if (aLabel === key) statAddBonus += Number(aVal) || 0;
                 }
                 
                 stat.add = addBonus + statAddBonus;
@@ -2166,16 +1935,8 @@
                         }
                     }
                 }
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'critical') {
-                                abilityCriticalMod += Number(aVal) || 0;
-                            }
-                        }
-                    }
+                for (const { val: aVal } of (appliedByKey['critical'] || [])) {
+                    abilityCriticalMod += Number(aVal) || 0;
                 }
                 const calculatedCritical = defaultCritical + abilityCriticalMod;
                 stat.critical = Math.max(attrs.critical?.min || defaultCritical, calculatedCritical);
@@ -2223,41 +1984,15 @@
                         }
                     }
                 }
-                for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                    if (appliedEffect && appliedEffect.attributes) {
-                        for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                            const aKey = (typeof attrValue === 'object') ? attrValue.key : (attrName.split(':')[0] || attrName);
-                            const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                            if (aKey === 'major_dice') {
-                                majorDiceBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'major_add') {
-                                majorAddBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'major_critical') {
-                                majorCriticalMod += Number(aVal) || 0;
-                            }
-                            if (aKey === 'reaction_dice') {
-                                reactionDiceBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'reaction_add') {
-                                reactionAddBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'reaction_critical') {
-                                reactionCriticalMod += Number(aVal) || 0;
-                            }
-                            if (aKey === 'dodge_dice') {
-                                dodgeDiceBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'dodge_add') {
-                                dodgeAddBonus += Number(aVal) || 0;
-                            }
-                            if (aKey === 'dodge_critical') {
-                                dodgeCriticalMod += Number(aVal) || 0;
-                            }
-                        }
-                    }
-                }
+                for (const { val } of (appliedByKey['major_dice'] || [])) majorDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_add'] || [])) majorAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['major_critical'] || [])) majorCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_dice'] || [])) reactionDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_add'] || [])) reactionAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['reaction_critical'] || [])) reactionCriticalMod += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_dice'] || [])) dodgeDiceBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_add'] || [])) dodgeAddBonus += Number(val) || 0;
+                for (const { val } of (appliedByKey['dodge_critical'] || [])) dodgeCriticalMod += Number(val) || 0;
                 stat.major = {
                     dice: stat.dice + majorDiceBonus,
                     add: stat.add + majorAddBonus,
@@ -2292,18 +2027,8 @@
             }
             
             // Applied 효과의 hp 보너스 계산
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'hp' || aKey === 'hp_max') {
-                            hpBonus += Number(aVal) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['hp'] || [])) hpBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['hp_max'] || [])) hpBonus += Number(aVal) || 0;
             
             // hp.base가 없으면 기존 max 값을 base로 설정 (마이그레이션)
             if (attrs.hp.base === undefined || attrs.hp.base === null) {
@@ -2333,18 +2058,8 @@
             }
             
             // Applied 효과의 init 보너스 계산
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'init' || aKey === 'initiative') {
-                            initBonus += Number(aVal) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['init'] || [])) initBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['initiative'] || [])) initBonus += Number(aVal) || 0;
             
             // init.base가 없으면 기존 계산값을 base로 설정 (마이그레이션)
             if (attrs.init.base === undefined || attrs.init.base === null) {
@@ -2391,21 +2106,11 @@
             }
             
             // Applied 효과의 move 보너스 계산
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'move' || aKey === 'move_battle' || aKey === 'battleMove') {
-                            moveBattleBonus += Number(aVal) || 0;
-                        }
-                        if (aKey === 'move_full' || aKey === 'fullMove') {
-                            moveFullBonus += Number(aVal) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['move'] || [])) moveBattleBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['move_battle'] || [])) moveBattleBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['battleMove'] || [])) moveBattleBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['move_full'] || [])) moveFullBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['fullMove'] || [])) moveFullBonus += Number(aVal) || 0;
             
             // move.base가 없으면 기존 계산값을 base로 설정 (마이그레이션)
             if (attrs.move.base === undefined || attrs.move.base === null) {
@@ -2478,40 +2183,20 @@
                 }
             }
             
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aLabel = (typeof attrValue === 'object') ? attrValue.label : null;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        
-                        if (aKey === 'attack') {
-                            // label에 따라 분류
-                            if (aLabel === 'melee') {
-                                attackBonusMelee += Number(aVal) || 0;
-                            } else if (aLabel === 'ranged') {
-                                attackBonusRanged += Number(aVal) || 0;
-                            } else if (aLabel === 'fist') {
-                                attackBonusFist += Number(aVal) || 0;
-                            } else {
-                                // label이 없거나 '-'인 경우 모든 공격에 적용
-                                attackBonus += Number(aVal) || 0;
-                            }
-                        }
-                        if (aKey === 'damage_roll') {
-                            // label에 따라 분류
-                            if (aLabel === 'melee') {
-                                damageRollBonusMelee += Number(aVal) || 0;
-                            } else if (aLabel === 'ranged') {
-                                damageRollBonusRanged += Number(aVal) || 0;
-                            } else {
-                                // label이 없거나 '-'인 경우 모든 공격에 적용
-                                damageRollBonus += Number(aVal) || 0;
-                            }
-                        }
-                    }
-                }
+            for (const { label: aLabel, val: aVal } of (appliedByKey['attack'] || [])) {
+                const v = Number(aVal) || 0;
+                // label에 따라 분류 (없거나 '-'이면 모든 공격에 적용)
+                if (aLabel === 'melee') attackBonusMelee += v;
+                else if (aLabel === 'ranged') attackBonusRanged += v;
+                else if (aLabel === 'fist') attackBonusFist += v;
+                else attackBonus += v;
+            }
+            for (const { label: aLabel, val: aVal } of (appliedByKey['damage_roll'] || [])) {
+                const v = Number(aVal) || 0;
+                // label에 따라 분류 (없거나 '-'이면 모든 공격에 적용)
+                if (aLabel === 'melee') damageRollBonusMelee += v;
+                else if (aLabel === 'ranged') damageRollBonusRanged += v;
+                else damageRollBonus += v;
             }
             
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
@@ -2562,22 +2247,13 @@
                 }
             }
 
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value :
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'armor') armorBonus += Number(aVal) || 0;
-                        if (aKey === 'guard') guardBonus += Number(aVal) || 0;
-                        if (aKey === 'guard_roll') guardRoll += Number(aVal) || 0;
-                        if (aKey === 'dxroll') dxRoll += Number(aVal) || 0;
-                        if (aKey === 'penetrate') penetrateBonus += Number(aVal) || 0;
-                        if (aKey === 'reduce') reduceBonus += Number(aVal) || 0;
-                        if (aKey === 'reduce_roll') reduceRoll += Number(aVal) || 0;
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['armor'] || [])) armorBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['guard'] || [])) guardBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['guard_roll'] || [])) guardRoll += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['dxroll'] || [])) dxRoll += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['penetrate'] || [])) penetrateBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['reduce'] || [])) reduceBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['reduce_roll'] || [])) reduceRoll += Number(aVal) || 0;
 
             // armor.base가 없으면 기존 value를 base로 설정 (마이그레이션)
             if (attrs.armor.base === undefined || attrs.armor.base === null) {
@@ -2610,18 +2286,8 @@
             }
             
             // Applied 효과의 닷지 달성치 보정치 계산
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'dodge_add' || aKey === 'dodge_achievement') {
-                            dodgeAchievementBonus += Number(aVal) || 0;
-                        }
-                    }
-                }
-            }
+            for (const { val: aVal } of (appliedByKey['dodge_add'] || [])) dodgeAchievementBonus += Number(aVal) || 0;
+            for (const { val: aVal } of (appliedByKey['dodge_achievement'] || [])) dodgeAchievementBonus += Number(aVal) || 0;
             
             // 닷지 다이스 보정치 계산 (dodge_dice * 2)
             let dodgeDiceBonus = 0;
@@ -2641,17 +2307,8 @@
             }
             
             // Applied 효과의 닷지 다이스 보정치 계산
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.attributes) {
-                    for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-                        const aKey = (typeof attrValue === 'object') ? attrValue.key : attrName;
-                        const aVal = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value : 
-                                    (typeof attrValue === 'boolean') ? 0 : window.DX3rdFormulaEvaluator.evaluate(attrValue);
-                        if (aKey === 'dodge_dice') {
-                            dodgeDiceBonus += (Number(aVal) || 0) * 2;
-                        }
-                    }
-                }
+            for (const { val: aVal } of (appliedByKey['dodge_dice'] || [])) {
+                dodgeDiceBonus += (Number(aVal) || 0) * 2;
             }
             
             // evasion이 없으면 초기화

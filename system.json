@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.3.3",
+  "version": "1.3.4",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -33,6 +33,7 @@
     "scripts/handlers/universal-handler.js",
     "scripts/combat/dx3rd-combat-ui.js",
     "scripts/dx3rd-action-ui.js",
+    "scripts/dx3rd-condition-hud.js",
     "scripts/handlers/book-handler.js",
     "scripts/handlers/combo-handler.js",
     "scripts/handlers/connection-handler.js",
@@ -105,6 +106,7 @@
     "styles/combo-dialog.css",
     "styles/dx3rd-combat-ui.css",
     "styles/dx3rd-action-ui.css",
+    "styles/dx3rd-condition-hud.css",
     "styles/appv2-sheets.css"
   ],
   "languages": [

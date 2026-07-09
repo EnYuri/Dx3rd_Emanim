@@ -138,6 +138,13 @@
                 return 0;
             }
 
+            // 순수 숫자 문자열 fast-path: 참조([토큰])가 없으므로 replaceReferences를 건너뛰고 조기 반환.
+            // 아래 line의 simpleNumber 분기와 동일한 값을 반환하므로 동작 보존(대부분의 호출이 여기서 종료됨).
+            const fastNum = Number(formulaStr);
+            if (!isNaN(fastNum)) {
+                return fastNum;
+            }
+
             // 곱셈/나눗셈 기호 정규화 (다단 연산식 지원: [20-(LV×5)], [침식÷10] 등)
             formulaStr = formulaStr.replace(/×/g, '*').replace(/÷/g, '/');
 

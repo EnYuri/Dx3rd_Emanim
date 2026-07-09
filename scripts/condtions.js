@@ -1298,7 +1298,78 @@ Hooks.once('ready', async function() {
       }
     }
   });
-  
+
+  /**
+   * system.conditions.<id>.active 값과 토큰 오버레이(상태이상 ActiveEffect)를 동기화한다.
+   * 시트 체크박스 / 아이템 사용 등으로 conditions 데이터만 바뀌는 경로에서도
+   * 토큰 위에 상태이상 아이콘(오버레이)이 나타나도록 하기 위한 브리지.
+   *
+   * - conditions.<id>.active === true 인데 대응 ActiveEffect가 없으면 생성
+   * - conditions.<id>.active === false 인데 대응 ActiveEffect가 있으면 삭제
+   *
+   * 생성/삭제 시 DX3rdConditionTriggerMap 의 suppressMessage 플래그를 세워
+   * createActiveEffect/deleteActiveEffect 훅의 다이얼로그·중복 채팅을 억제한다(순수 시각 동기화).
+   * effect 존재 여부로 idempotent 하게 동작하므로 팔레트 토글 경로와 충돌하지 않는다.
+   *
+   * defeated(dead)는 death mark/HP 로직과 얽혀 있어 여기서 다루지 않고 기존 처리에 맡긴다.
+   */
+  const CONDITION_TO_STATUS = {
+    poisoned: "poisoned",
+    hatred: "hatred",
+    fear: "fear",
+    berserk: "berserk",
+    rigor: "rigor",
+    pressure: "pressure",
+    dazed: "dazed",
+    boarding: "boarding",
+    stealth: "stealth",
+    fly: "fly"
+  };
+
+  Hooks.on('updateActor', async (actor, updateData, options, userId) => {
+    // 변경을 일으킨 클라이언트에서만 오버레이를 동기화(다중 접속 시 중복 생성 방지)
+    if (game.user.id !== userId) return;
+
+    let flat;
+    try {
+      flat = foundry.utils.flattenObject(updateData);
+    } catch (e) {
+      return;
+    }
+
+    for (const [cond, status] of Object.entries(CONDITION_TO_STATUS)) {
+      const key = `system.conditions.${cond}.active`;
+      if (!(key in flat)) continue;
+
+      const nowActive = !!flat[key];
+      const hasEffect = actor.effects.some(e => e.statuses.has(status));
+
+      if (nowActive && !hasEffect) {
+        // 오버레이 생성(다이얼로그·메시지 억제)
+        window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
+        window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
+        try {
+          await actor.toggleStatusEffect(status, { active: true });
+        } catch (e) {
+          console.warn(`DX3rd | Failed to sync overlay ON for ${cond}:`, e);
+          window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+        }
+      } else if (!nowActive && hasEffect) {
+        // 오버레이 삭제(메시지 억제)
+        window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
+        window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
+        try {
+          const eff = actor.effects.find(e => e.statuses.has(status));
+          if (eff) await eff.delete();
+          else window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+        } catch (e) {
+          console.warn(`DX3rd | Failed to sync overlay OFF for ${cond}:`, e);
+          window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+        }
+      }
+    }
+  });
+
   // HP 이전 값을 저장하기 위한 Map
   const _previousHpValues = new Map();
   // preUpdateActor가 누락되는 경우를 대비한 마지막 HP 캐시
@@ -1425,6 +1496,49 @@ Hooks.on('canvasReady', async () => {
     if (hasDeadEffect && !token.dx3rdDeathMark) {
       await addDeathMarkToToken(token);
       deadTokenCount++;
+    }
+  }
+});
+
+// 캔버스 준비 시, 이미 active 상태인 conditions에 대응하는 오버레이(ActiveEffect)가
+// 없으면 생성하여 아이콘을 복원한다. (월드/씬 재로드 후에도 상태이상 아이콘 유지)
+// 중복 생성을 막기 위해 GM만 수행한다.
+Hooks.on('canvasReady', async () => {
+  if (!canvas.scene || !game.user.isGM) return;
+
+  const CONDITION_TO_STATUS = {
+    poisoned: "poisoned",
+    hatred: "hatred",
+    fear: "fear",
+    berserk: "berserk",
+    rigor: "rigor",
+    pressure: "pressure",
+    dazed: "dazed",
+    boarding: "boarding",
+    stealth: "stealth",
+    fly: "fly"
+  };
+
+  const seenActors = new Set();
+  for (const tokenDoc of canvas.scene.tokens) {
+    const actor = tokenDoc.actor;
+    if (!actor || seenActors.has(actor.id)) continue;
+    seenActors.add(actor.id);
+
+    const conditions = actor.system?.conditions || {};
+    for (const [cond, status] of Object.entries(CONDITION_TO_STATUS)) {
+      if (!conditions[cond]?.active) continue;
+      const hasEffect = actor.effects.some(e => e.statuses.has(status));
+      if (hasEffect) continue;
+
+      window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
+      window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
+      try {
+        await actor.toggleStatusEffect(status, { active: true });
+      } catch (e) {
+        console.warn(`DX3rd | Failed to restore overlay for ${cond}:`, e);
+        window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+      }
     }
   }
 });
