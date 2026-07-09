@@ -201,7 +201,7 @@
 
     async _processEroisUsage(actor, originalEncroachment, memoryUsed, memoryReduction, afterMemoryEncroachment, eroisUsed) {
       const roll = new Roll(`${eroisUsed}d10`);
-      await roll.roll();
+      await roll.evaluate();
       const totalReduction = roll.total;
 
       const afterExhaustEncroachment = Math.max(0, afterMemoryEncroachment - totalReduction);
@@ -250,7 +250,7 @@
     async _processRoisUsage(actor, originalEncroachment, memoryUsed, memoryReduction, afterMemoryEncroachment, eroisUsed, eroisReduction, afterExhaustEncroachment, roisCount, multiplier) {
       const diceCount = roisCount * multiplier;
       const roll = new Roll(`${diceCount}d10`);
-      await roll.roll();
+      await roll.evaluate();
       const totalReduction = roll.total;
 
       const finalEncroachment = Math.max(0, afterExhaustEncroachment - totalReduction);
@@ -302,7 +302,7 @@
 
     async _processEXPExtra(actor, afterRoisEncroachment, roisCount, usedMultiplier) {
       const roll = new Roll(`${roisCount}d10`);
-      await roll.roll();
+      await roll.evaluate();
       const totalReduction = roll.total;
 
       const finalEncroachment = Math.max(0, afterRoisEncroachment - totalReduction);

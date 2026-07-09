@@ -159,7 +159,7 @@
     // --- 능력치(base) 치환: 조합시 능력치 변경(comboBase) — 기능은 유지하고 판정치(능력치)만 교체 ---
     //   근거: 룰 p.136 판정 = 능력치(다이스 수) + 기능(달성치 레벨). "조합한 판정을 〈정신〉으로"류는
     //   기능(백병 등)의 레벨은 유지한 채 판정 능력치만 바꾸는 것이므로 skill이 아니라 base만 덮는다.
-    //   (예: 컨트롤 쏘트 = 백병 기능 유지 + 정신 능력치.) skill 변경 여부와 무관하게 우선 적용.
+    //   (예: 컨트롤 소드 = 백병 기능 유지 + 정신 능력치.) skill 변경 여부와 무관하게 우선 적용.
     const effComboBase = effects.find(e => abilityKeys.includes(e.system?.comboBase));
     if (effComboBase) {
       const cb = effComboBase.system.comboBase;

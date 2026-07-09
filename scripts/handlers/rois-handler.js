@@ -216,7 +216,7 @@ window.DX3rdRoisHandler = {
                 case '2': // 판정의 달성치에 +1D10 추가
                     // 1d10 주사위 굴리기
                     const roll = new Roll('1d10');
-                    await roll.roll();
+                    await roll.evaluate();
                     const rollResult = roll.total;
                     
                     // 롤 렌더링 결과 반환
