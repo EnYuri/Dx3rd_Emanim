@@ -1338,7 +1338,9 @@
     async ensureActivated(item, actor) {
       try {
         const activeDisable = item?.system?.active?.disable ?? '-';
-        if (activeDisable !== 'notCheck') {
+        // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
+        const skipToggle = item?.type === 'once' && activeDisable === '-';
+        if (activeDisable !== 'notCheck' && !skipToggle) {
           await item.update({ 'system.active.state': true });
           if (actor?.sheet?.rendered) actor.sheet.render(true);
         }
@@ -7308,7 +7310,11 @@
       if (!actor || !item) return false;
 
       const activeDisable = item.system?.active?.disable ?? '-';
-      if (item.system?.active?.runTiming === 'instant' && !item.system?.active?.state && activeDisable !== 'notCheck') {
+      // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다 — used 카운터만 소비하고
+      // active.state 는 켜지 않는다(지속 타이밍이 없어 영원히 안 꺼지고, 스텟 기여도 0).
+      // once 지속형(disable=timed)은 그대로 켜서 disable 타이밍에 정상 해소한다.
+      const skipToggle = item.type === 'once' && activeDisable === '-';
+      if (item.system?.active?.runTiming === 'instant' && !item.system?.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         await item.update({'system.active.state': true});
         console.log('DX3rd | UniversalHandler.activateItem - Item activated:', item.name);
       }
@@ -7452,8 +7458,10 @@
       }
       
       // 2. instant 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
+      // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
       const activeDisable = item.system?.active?.disable ?? '-';
-      if (item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck') {
+      const skipToggle = item.type === 'once' && activeDisable === '-';
+      if (item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         await item.update({ 'system.active.state': true });
         console.log('DX3rd | handleItemUse - Item activated (instant timing)');
       }

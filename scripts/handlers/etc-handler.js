@@ -21,26 +21,12 @@ window.DX3rdEtcHandler = {
     
     /**
      * 즉시 처리 Etc 아이템
-     * 활성화, 적용, 매크로, 익스텐드 실행
+     * 활성화/적용/매크로/익스텐드는 UniversalHandler.handleItemUse 가 인라인으로 이미 실행한다
+     * (effect/weapon 핸들러와 동일 패턴). 여기서 다시 부르면 이중실행(효과 2회 적용)이 되므로
+     * 중복 호출을 두지 않는다. etc 특유의 타입 로직이 필요해지면 이 자리에 추가한다.
      */
     async handleInstantEtc(actor, item) {
-        const handler = window.DX3rdUniversalHandler;
-        if (!handler) {
-            console.error("DX3rd | UniversalHandler not found");
-            return;
-        }
-        
-        // 1. 활성화 처리
-        await handler.activateItem(actor, item);
-        
-        // 2. 적용 처리
-        await handler.applyToTargets(actor, item, 'instant');
-        
-        // 3. 매크로 실행
-        await handler.executeMacros(item, 'instant');
-        
-        // 4. 익스텐드 실행
-        await handler.processItemExtensions(actor, item, 'instant');
+        // no-op: handleItemUse 인라인 처리에 위임 (이중실행 방지)
     }
 };
 })();
