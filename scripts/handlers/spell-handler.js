@@ -544,24 +544,26 @@ window.DX3rdSpellHandler = {
             const effectName = `${game.i18n.localize('DX3rd.SpellDisaster')}(${resultNumber})`;
             
             // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
-            const appliedEffects = actor.system?.attributes?.applied || {};
+            const appliedEffects = window.DX3rdAppliedEffects?.collect
+                ? window.DX3rdAppliedEffects.collect(actor)
+                : (actor.system?.attributes?.applied || {});
             let alreadyExists = false;
-            
+
             for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
                 if (appliedEffect && appliedEffect.name === effectName) {
                     alreadyExists = true;
                     break;
                 }
             }
-            
+
             if (alreadyExists) {
                 ui.notifications.info(`${effectName} 효과가 이미 적용되어 있습니다.`);
                 return;
             }
-            
+
             // 고유 키 생성
             const effectKey = `spell_disaster_${resultNumber}_${Date.now()}`;
-            
+
             // applied 효과 데이터 생성
             const effectData = {
                 name: effectName,
@@ -570,12 +572,10 @@ window.DX3rdSpellHandler = {
                 img: 'icons/svg/aura.svg',
                 attributes: attributes
             };
-            
-            // system.attributes.applied에 추가
-            await actor.update({
-                [`system.attributes.applied.${effectKey}`]: effectData
-            });
-            
+
+            // 네이티브 ActiveEffect 로 저장
+            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
+
             ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
             
         } catch (error) {
@@ -922,7 +922,9 @@ window.DX3rdSpellHandler = {
             const effectName = `${game.i18n.localize('DX3rd.SpellCalamity')}(${resultNumber})`;
             
             // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
-            const appliedEffects = actor.system?.attributes?.applied || {};
+            const appliedEffects = window.DX3rdAppliedEffects?.collect
+                ? window.DX3rdAppliedEffects.collect(actor)
+                : (actor.system?.attributes?.applied || {});
             let alreadyExists = false;
             
             for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
@@ -939,7 +941,7 @@ window.DX3rdSpellHandler = {
             
             // 고유 키 생성
             const effectKey = `spell_calamity_${resultNumber}_${Date.now()}`;
-            
+
             // applied 효과 데이터 생성
             const effectData = {
                 name: effectName,
@@ -948,12 +950,10 @@ window.DX3rdSpellHandler = {
                 img: 'icons/svg/aura.svg',
                 attributes: attributes
             };
-            
-            // system.attributes.applied에 추가
-            await actor.update({
-                [`system.attributes.applied.${effectKey}`]: effectData
-            });
-            
+
+            // 네이티브 ActiveEffect 로 저장
+            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
+
             ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
             
         } catch (error) {
@@ -1034,7 +1034,9 @@ window.DX3rdSpellHandler = {
             const effectName = `${game.i18n.localize('DX3rd.SpellCatastrophe')}(${resultNumber})`;
             
             // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
-            const appliedEffects = actor.system?.attributes?.applied || {};
+            const appliedEffects = window.DX3rdAppliedEffects?.collect
+                ? window.DX3rdAppliedEffects.collect(actor)
+                : (actor.system?.attributes?.applied || {});
             let alreadyExists = false;
             
             for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
@@ -1051,7 +1053,7 @@ window.DX3rdSpellHandler = {
             
             // 고유 키 생성
             const effectKey = `spell_catastrophe_${resultNumber}_${Date.now()}`;
-            
+
             // applied 효과 데이터 생성
             const effectData = {
                 name: effectName,
@@ -1060,12 +1062,10 @@ window.DX3rdSpellHandler = {
                 img: 'icons/svg/aura.svg',
                 attributes: attributes
             };
-            
-            // system.attributes.applied에 추가
-            await actor.update({
-                [`system.attributes.applied.${effectKey}`]: effectData
-            });
-            
+
+            // 네이티브 ActiveEffect 로 저장
+            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
+
             ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
             
         } catch (error) {

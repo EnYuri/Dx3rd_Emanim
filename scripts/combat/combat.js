@@ -676,7 +676,8 @@ Hooks.once('ready', () => {
           const updates = {
             'system.conditions.action_end.active': true
           };
-          
+          let _extraTurnApplied = null;
+
           // extra-turn 처리
           const extraTurnActive = actor.system?.conditions?.['extra-turn']?.active ?? false;
           const extraTurnValue = actor.system?.conditions?.['extra-turn']?.value ?? 0;
@@ -690,27 +691,29 @@ Hooks.once('ready', () => {
             let initPenalty = -Math.floor(initValue / 2);
             
             const appliedKey = `EXTRA_TURN_${actor.id}`;
-            
-            // 이미 EXTRA TURN 패널티가 있는지 확인
-            const existingApplied = actor.system?.attributes?.applied?.[appliedKey];
+
+            // 이미 EXTRA TURN 패널티가 있는지 확인 (네이티브 AE flag 조회)
+            const existingApplied = window.DX3rdAppliedEffects?.getEffect(actor, appliedKey)?.getFlag('dx3rd-emanim', 'applied');
             if (existingApplied && existingApplied.attributes?.init !== undefined) {
               // 이미 EXTRA TURN 패널티가 있으면 -9999로 설정
               initPenalty = -9999;
             }
-            
-            updates[`system.attributes.applied.${appliedKey}`] = {
-              name: game.i18n.localize('DX3rd.ExtraTurn'),
-              attributes: {
-                init: initPenalty
-              },
-              disable: 'round'
-            };
-            
+
             // EXTRA TURN 패널티가 부착되면 행동 종료 해제
             updates['system.conditions.action_end.active'] = false;
+            _extraTurnApplied = { key: appliedKey, initPenalty };
           }
-          
+
           await actor.update(updates);
+          if (_extraTurnApplied) {
+            await window.DX3rdAppliedEffects.set(actor, _extraTurnApplied.key, {
+              name: game.i18n.localize('DX3rd.ExtraTurn'),
+              attributes: {
+                init: _extraTurnApplied.initPenalty
+              },
+              disable: 'round'
+            });
+          }
         }
         
         // 채팅 메시지 출력
@@ -1276,10 +1279,10 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
         const actor = combatant.actor;
         if (!actor) continue;
         
-        const appliedEffects = actor.system?.attributes?.applied || {};
-        const updates = {};
-        let hasUpdates = false;
-        
+        const appliedEffects = window.DX3rdAppliedEffects?.collect
+          ? window.DX3rdAppliedEffects.collect(actor)
+          : (actor.system?.attributes?.applied || {});
+
         for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
           if (appliedEffect && appliedEffect.attributes) {
             // spell_disabled 효과가 있는지 확인
@@ -1303,22 +1306,20 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
             
             if (hasSpellDisabled && currentCount > 0) {
               const newCount = currentCount - 1;
-              
+
               if (newCount <= 0) {
                 // count가 0 이하가 되면 applied 제거
-                updates[`system.attributes.applied.-=${appliedKey}`] = null;
-                hasUpdates = true;
+                await window.DX3rdAppliedEffects.remove(actor, appliedKey);
               } else {
-                // count만 감소
-                updates[`system.attributes.applied.${appliedKey}.attributes.spell_disabled_count`] = newCount;
-                hasUpdates = true;
+                // count만 감소: payload 복제 후 재저장
+                const payload = foundry.utils.deepClone(appliedEffect);
+                const cv = payload.attributes.spell_disabled_count;
+                if (cv && typeof cv === 'object') cv.value = newCount;
+                else payload.attributes.spell_disabled_count = newCount;
+                await window.DX3rdAppliedEffects.set(actor, appliedKey, payload);
               }
             }
           }
-        }
-        
-        if (hasUpdates) {
-          await actor.update(updates);
         }
       }
     }

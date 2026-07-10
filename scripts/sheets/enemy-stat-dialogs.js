@@ -42,7 +42,9 @@
   /** Applied 효과 속성에서 지정한 key들의 보너스를 합산한다. */
   function sumAppliedBonus(actor, keys, multiplier = 1) {
     let sum = 0;
-    const applied = actor.system.attributes.applied || {};
+    const applied = window.DX3rdAppliedEffects?.collect
+      ? window.DX3rdAppliedEffects.collect(actor)
+      : (actor.system.attributes.applied || {});
     for (const effect of Object.values(applied)) {
       if (!effect || !effect.attributes) continue;
       for (const [attrName, attrValue] of Object.entries(effect.attributes)) {

@@ -1015,6 +1015,7 @@
                   </h4>
                   <h4 class="item-addon">
                     <button type="button" class="show-applied" data-action="showApplied" style="width:auto"><i class="fas fa-eye"></i></button>
+                    {{#if ../canEdit}}<button type="button" class="edit-applied" data-action="editApplied" style="width:auto"><i class="fas fa-edit"></i></button>{{/if}}
                     {{#if ../canEdit}}<button type="button" class="remove-applied" data-action="removeApplied" style="width:auto"><i class="fas fa-trash"></i></button>{{/if}}
                   </h4>
                 </li>

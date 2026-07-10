@@ -1,19 +1,8 @@
-2026/07/10-03:03:09.516 5488 Recovering log #654
-2026/07/10-03:03:09.520 5488 Delete type=2 #638
-2026/07/10-03:03:09.521 5488 Delete type=2 #643
-2026/07/10-03:03:09.521 5488 Delete type=2 #648
-2026/07/10-03:03:09.522 5488 Delete type=2 #653
-2026/07/10-03:03:09.522 5488 Delete type=0 #654
-2026/07/10-03:03:09.522 5488 Delete type=3 #652
-2026/07/10-03:36:05.423 1be0 Level-0 table #659: started
-2026/07/10-03:36:05.423 1be0 Level-0 table #659: 0 bytes OK
-2026/07/10-03:36:05.425 1be0 Delete type=0 #657
-2026/07/10-03:36:05.429 1be0 Manual compaction at level-0 from '!folders!0FfKAdFpzGsA9tuh' @ 72057594037927935 : 1 .. '!items!zxLcTChUjSJaNzlV' @ 0 : 0; will stop at (end)
-2026/07/10-03:36:05.429 1be0 Manual compaction at level-1 from '!folders!0FfKAdFpzGsA9tuh' @ 72057594037927935 : 1 .. '!items!zxLcTChUjSJaNzlV' @ 0 : 0; will stop at '!items!zzeb3VglsH3Cc0Tt' @ 64112 : 0
-2026/07/10-03:36:05.429 1be0 Compacting 1@1 + 1@2 files
-2026/07/10-03:36:05.445 1be0 Generated table #660@1: 1636 keys, 911750 bytes
-2026/07/10-03:36:05.445 1be0 Compacted 1@1 + 1@2 files => 911750 bytes
-2026/07/10-03:36:05.446 1be0 compacted to: files[ 0 0 1 0 0 0 0 ]
-2026/07/10-03:36:05.446 1be0 Delete type=2 #586
-2026/07/10-03:36:05.446 1be0 Delete type=2 #655
-2026/07/10-03:36:05.451 1be0 Manual compaction at level-1 from '!items!zzeb3VglsH3Cc0Tt' @ 64112 : 0 .. '!items!zxLcTChUjSJaNzlV' @ 0 : 0; will stop at (end)
+2026/07/10-16:37:54.512 3f60 Recovering log #674
+2026/07/10-16:37:54.515 3f60 Delete type=0 #674
+2026/07/10-16:37:54.516 3f60 Delete type=3 #673
+2026/07/10-17:28:49.233 425c Level-0 table #678: started
+2026/07/10-17:28:49.234 425c Level-0 table #678: 0 bytes OK
+2026/07/10-17:28:49.235 425c Delete type=0 #676
+2026/07/10-17:28:49.238 425c Manual compaction at level-0 from '!folders!0FfKAdFpzGsA9tuh' @ 72057594037927935 : 1 .. '!items!zxLcTChUjSJaNzlV' @ 0 : 0; will stop at (end)
+2026/07/10-17:28:49.238 425c Manual compaction at level-1 from '!folders!0FfKAdFpzGsA9tuh' @ 72057594037927935 : 1 .. '!items!zxLcTChUjSJaNzlV' @ 0 : 0; will stop at (end)

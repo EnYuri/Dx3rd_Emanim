@@ -38,6 +38,7 @@
         createSkill: DX3rdActorSheetV2._onCreateSkill,
         editSkill: DX3rdActorSheetV2._onEditSkill,
         removeApplied: DX3rdActorSheetV2._onRemoveApplied,
+        editApplied: DX3rdActorSheetV2._onEditApplied,
         rollAbility: DX3rdActorSheetV2._onRollAbility,
         rollSkill: DX3rdActorSheetV2._onRollSkill,
         showApplied: DX3rdActorSheetV2._onShowApplied,
@@ -258,19 +259,24 @@
     }
 
     _getAppliedFromTarget(target) {
-      const itemId = target.closest('[data-applied-id]')?.dataset.appliedId;
-      if (!itemId?.startsWith('applied_')) return null;
+      const appliedId = target.closest('[data-applied-id]')?.dataset.appliedId
+        || target.closest('[data-item-id]')?.dataset.itemId;
+      if (!appliedId) return null;
 
-      const index = Number.parseInt(itemId.replace('applied_', ''), 10);
-      const applied = this.document.system?.attributes?.applied || {};
-      const keys = Object.keys(applied);
-      const key = keys[index];
-      if (!key) return null;
+      const applied = window.DX3rdAppliedEffects?.collect
+        ? window.DX3rdAppliedEffects.collect(this.document)
+        : (this.document.system?.attributes?.applied || {});
 
-      return {
-        key,
-        effect: applied[key]
-      };
+      // 직접 키 매칭
+      if (applied[appliedId]) return { key: appliedId, effect: applied[appliedId] };
+
+      // 레거시 applied_N 인덱스 형식 지원
+      if (appliedId.startsWith('applied_')) {
+        const index = Number.parseInt(appliedId.replace('applied_', ''), 10);
+        const key = Object.keys(applied)[index];
+        if (key) return { key, effect: applied[key] };
+      }
+      return null;
     }
 
     static _onRollAbility(event, target) {
@@ -542,6 +548,20 @@
 
       if (window.DX3rdActorAppliedDialogs) {
         await window.DX3rdActorAppliedDialogs.open(this.document, applied.key);
+        return;
+      }
+      ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
+    }
+
+    static async _onEditApplied(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+
+      const applied = this._getAppliedFromTarget(target);
+      if (!applied) return;
+
+      if (window.DX3rdActorAppliedDialogs?.edit) {
+        await window.DX3rdActorAppliedDialogs.edit(this.document, applied.key);
         return;
       }
       ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');

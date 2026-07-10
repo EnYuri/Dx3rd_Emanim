@@ -137,6 +137,9 @@
             // Applied 효과 보기 리스너
             compat.on(root, 'click', '.show-applied', this._onShowApplied.bind(this));
 
+            // Applied 효과 편집 리스너
+            compat.on(root, 'click', '.edit-applied', this._onEditApplied.bind(this));
+
             // 신드롬 체크박스 토글 - mousedown과 click 둘 다 처리하여 완전한 차단
             compat.on(root, 'mousedown', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onToggleSyndrome.bind(this));
             compat.on(root, 'click', 'input.item-checkbox[name^="system.attributes.syndrome."]', this._onSyndromeClick.bind(this));
@@ -571,6 +574,22 @@
             }
 
             await window.DX3rdActorAppliedDialogs.open(this.actor, itemId);
+        }
+
+        async _onEditApplied(event, target = event.currentTarget) {
+            event.preventDefault();
+            const itemId = target?.closest('.item')?.dataset?.itemId;
+
+            if (!itemId) {
+                return;
+            }
+
+            if (!window.DX3rdActorAppliedDialogs?.edit) {
+                ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
+                return;
+            }
+
+            await window.DX3rdActorAppliedDialogs.edit(this.actor, itemId);
         }
 
         async _onAbilityNameClick(event, target = event.currentTarget) {

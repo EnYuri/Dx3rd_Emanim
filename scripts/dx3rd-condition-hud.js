@@ -36,8 +36,44 @@
     hudEl = document.createElement('div');
     hudEl.id = HUD_ID;
     hudEl.style.display = 'none';
+    // 커스텀 applied 효과 아이콘 클릭 → 편집기(위임 리스너, 재렌더에도 유지).
+    hudEl.addEventListener('click', onHudClick);
     document.body.appendChild(hudEl);
     return hudEl;
+  }
+
+  /** 아이콘 클릭 처리: 커스텀 applied → 편집기, 토글 미러 → 소스 아이템 시트(내장 컨디션은 대상 아님). */
+  function onHudClick(event) {
+    const actor = getTargetToken()?.actor;
+    if (!actor) return;
+
+    const appliedIcon = event.target.closest('.dx3rd-applied-hud-icon[data-applied-key]');
+    if (appliedIcon) {
+      const key = appliedIcon.dataset.appliedKey;
+      if (window.DX3rdActorAppliedDialogs?.edit) window.DX3rdActorAppliedDialogs.edit(actor, key);
+      return;
+    }
+  }
+
+  /**
+   * 액터의 커스텀 applied ActiveEffect 목록을 [{key, name, img, disable}] 로 반환.
+   * 스크린 HUD 는 토큰 오버레이와 구별된다 — per-effect showOnScreen(기본 ON)이 꺼진 것만 제외.
+   */
+  function getAppliedEffects(actor) {
+    const result = [];
+    for (const eff of (actor?.effects || [])) {
+      const key = eff.getFlag?.(MODULE_ID, 'appliedKey');
+      if (!key) continue;
+      const payload = eff.getFlag?.(MODULE_ID, 'applied') || {};
+      if (payload.showOnScreen === false) continue; // 화면 표시 OFF 인 효과만 제외(기본 ON)
+      result.push({
+        key,
+        name: eff.name || payload.name || game.i18n.localize('DX3rd.Applied'),
+        img: eff.img || payload.img || 'icons/svg/aura.svg',
+        disable: payload.disable || '-'
+      });
+    }
+    return result;
   }
 
   /** 사이드바 폭을 고려해 우측 오프셋을 갱신한다. */
@@ -95,13 +131,16 @@
     }
 
     const active = getActiveConditions(actor);
-    if (active.length === 0) {
+    const applied = getAppliedEffects(actor);
+    if (active.length === 0 && applied.length === 0) {
       hudEl.style.display = 'none';
       hudEl.replaceChildren();
       return;
     }
 
     hudEl.replaceChildren();
+
+    // 내장 컨디션(클릭 대상 아님)
     for (const { key, meta, extra } of active) {
       const label = game.i18n.localize(meta.i18n);
       const title = extra ? `${label} (${extra})` : label;
@@ -127,6 +166,26 @@
       hudEl.appendChild(iconWrap);
     }
 
+    // 커스텀 applied 효과(클릭 시 편집기 오픈)
+    for (const { key, name, img: imgSrc, disable } of applied) {
+      const disableLabel = Handlebars?.helpers?.disable ? String(Handlebars.helpers.disable(disable)) : disable;
+      const title = `${name}${disable && disable !== '-' ? ` (${game.i18n.localize('DX3rd.DisableTiming')}: ${disableLabel})` : ''}`;
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-applied-hud-icon';
+      iconWrap.dataset.appliedKey = key;
+      iconWrap.setAttribute('data-tooltip', title);
+      iconWrap.title = title;
+      iconWrap.style.cursor = 'pointer';
+
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.alt = name;
+      iconWrap.appendChild(img);
+
+      hudEl.appendChild(iconWrap);
+    }
+
     updatePosition();
     hudEl.style.display = 'flex';
   }
@@ -141,6 +200,7 @@
   Hooks.on('canvasReady', () => render());
   Hooks.on('updateActor', (actor) => renderIfCurrent(actor));
   Hooks.on('createActiveEffect', (effect) => renderIfCurrent(effect.parent));
+  Hooks.on('updateActiveEffect', (effect) => renderIfCurrent(effect.parent));
   Hooks.on('deleteActiveEffect', (effect) => renderIfCurrent(effect.parent));
   // 사이드바 접힘/펼침 등 UI 변화 시 위치 재계산
   Hooks.on('collapseSidebar', () => setTimeout(updatePosition, 50));

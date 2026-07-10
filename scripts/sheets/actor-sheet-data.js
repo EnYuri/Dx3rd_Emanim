@@ -544,8 +544,11 @@
         else if (actorData.syndromeList.length === 2) actorData.syndromeType = game.i18n.localize("DX3rd.CrossBreed");
         else if (actorData.syndromeList.length === 3) actorData.syndromeType = game.i18n.localize("DX3rd.TriBreed");
 
-        actorData.applied = Object.entries(actor.system.attributes.applied ?? {}).map(([appliedKey, appliedEffect], index) => ({
-            _id: `applied_${index}`,
+        const appliedSource = window.DX3rdAppliedEffects?.collect
+            ? window.DX3rdAppliedEffects.collect(actor)
+            : (actor.system.attributes.applied ?? {});
+        actorData.applied = Object.entries(appliedSource).map(([appliedKey, appliedEffect], index) => ({
+            _id: appliedKey,
             name: appliedEffect.name || "알 수 없는 효과",
             img: appliedEffect.img || "icons/svg/aura.svg",
             system: {

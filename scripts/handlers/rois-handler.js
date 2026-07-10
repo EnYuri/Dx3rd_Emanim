@@ -486,12 +486,9 @@ window.DX3rdRoisHandler = {
     
     async createAppliedEffect(actor, name, disable, attributes, img) {
         try {
-            // system.attributes.applied에 직접 추가
-            const applied = actor.system.attributes.applied || {};
-            
             // 고유 키 생성 (타임스탬프 기반)
             const effectKey = `sublimation_${Date.now()}`;
-            
+
             // applied 효과 데이터 생성 (disable은 최상위)
             const effectData = {
                 name: name,
@@ -500,12 +497,10 @@ window.DX3rdRoisHandler = {
                 img: img || 'icons/svg/aura.svg',
                 attributes: attributes || {}
             };
-            
-            // system.attributes.applied에 추가
-            await actor.update({
-                [`system.attributes.applied.${effectKey}`]: effectData
-            });
-            
+
+            // 네이티브 ActiveEffect 로 저장
+            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
+
             ui.notifications.info(`${name} 효과가 적용되었습니다.`);
             
         } catch (error) {

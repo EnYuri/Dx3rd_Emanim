@@ -280,26 +280,24 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         
         // 기아(hunger) 타입이면 dice -5 패널티 적용
         if (selectedType.value === 'hunger') {
-          const appliedKey = 'berserk_hunger';
-          updates[`system.attributes.applied.${appliedKey}`] = {
+          await window.DX3rdAppliedEffects.set(actor, 'berserk_hunger', {
             name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeHunger'),
             attributes: {
               dice: -5
             },
             disable: '-'
-          };
+          });
         }
-        
+
         // 가학(tourture) 타입이면 attack -20 패널티 적용
         if (selectedType.value === 'tourture') {
-          const appliedKey = 'berserk_tourture';
-          updates[`system.attributes.applied.${appliedKey}`] = {
+          await window.DX3rdAppliedEffects.set(actor, 'berserk_tourture', {
             name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeTourture'),
             attributes: {
               attack: -20
             },
             disable: '-'
-          };
+          });
         }
         
         // 자해(selfmutilation) 타입이면 HP -5 데미지 (경감 무시, 최대 HP까지만)
@@ -422,26 +420,24 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
               
               // 기아(hunger) 타입이면 dice -5 패널티 적용
               if (berserkType === 'hunger') {
-                const appliedKey = 'berserk_hunger';
-                updates[`system.attributes.applied.${appliedKey}`] = {
+                await window.DX3rdAppliedEffects.set(actor, 'berserk_hunger', {
                   name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeHunger'),
                   attributes: {
                     dice: -5
                   },
                   disable: '-'
-                };
+                });
               }
-              
+
               // 가학(tourture) 타입이면 attack -20 패널티 적용
               if (berserkType === 'tourture') {
-                const appliedKey = 'berserk_tourture';
-                updates[`system.attributes.applied.${appliedKey}`] = {
+                await window.DX3rdAppliedEffects.set(actor, 'berserk_tourture', {
                   name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeTourture'),
                   attributes: {
                     attack: -20
                   },
                   disable: '-'
-                };
+                });
               }
               
               // 자해(selfmutilation) 타입이면 HP -5 데미지 (경감 무시, 최대 HP까지만)
@@ -522,10 +518,9 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         // 상태이상과 applied 효과 모두 제거
         await actor.update({
           "system.conditions.berserk.active": false,
-          "system.conditions.berserk.type": "-",
-          "system.attributes.applied.-=berserk_hunger": null,
-          "system.attributes.applied.-=berserk_tourture": null
+          "system.conditions.berserk.type": "-"
         });
+        await window.DX3rdAppliedEffects.removeMany(actor, ['berserk_hunger', 'berserk_tourture']);
         
         // 채팅 메시지 출력 (suppressMessage가 false일 때만)
         if (!suppressMessage) {
@@ -751,17 +746,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
   // 방심 처리
   if (conditionId === "dazed") {
     if (isActive) {
-      // applied 효과 추가 (dice -2) - 기존 구조 사용
-      const appliedKey = 'dazed';
-      await actor.update({
-        "system.conditions.dazed.active": true,
-        [`system.attributes.applied.${appliedKey}`]: {
-          name: game.i18n.localize('DX3rd.Dazed'),
-          attributes: {
-            dice: -2
-          },
-          disable: '-'
-        }
+      // applied 효과 추가 (dice -2) - 네이티브 ActiveEffect
+      await actor.update({ "system.conditions.dazed.active": true });
+      await window.DX3rdAppliedEffects.set(actor, 'dazed', {
+        name: game.i18n.localize('DX3rd.Dazed'),
+        attributes: {
+          dice: -2
+        },
+        disable: '-'
       });
       
       // 채팅 메시지 출력
@@ -778,10 +770,8 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     } else {
       if (!_cancellingCondition) {
         // 상태이상과 applied 효과 모두 제거
-        await actor.update({
-          "system.conditions.dazed.active": false,
-          "system.attributes.applied.-=dazed": null
-        });
+        await actor.update({ "system.conditions.dazed.active": false });
+        await window.DX3rdAppliedEffects.remove(actor, 'dazed');
         
         // 채팅 메시지 출력 (suppressMessage가 false일 때만)
         if (!suppressMessage) {
@@ -1207,10 +1197,13 @@ Hooks.once('ready', async function() {
   // 상태이상 토글 이벤트 후킹
   Hooks.on('createActiveEffect', async (effect, options, userId) => {
     if (game.user.id !== userId) return;
-    
+
     const actor = effect.parent;
     if (!actor) return;
-    
+
+    // applied 버프(네이티브 AE)는 컨디션 동기화 대상이 아니다 — 합성 status 로 인한 오탐 방지
+    if (effect.getFlag?.('dx3rd-emanim', 'appliedKey')) return;
+
     // statuses를 배열로 변환하여 첫 번째 요소 가져오기
     const conditionId = Array.from(effect.statuses || [])[0];
     
@@ -1263,10 +1256,13 @@ Hooks.once('ready', async function() {
   
   Hooks.on('deleteActiveEffect', async (effect, options, userId) => {
     if (game.user.id !== userId) return;
-    
+
     const actor = effect.parent;
     if (!actor) return;
-    
+
+    // applied 버프(네이티브 AE)는 컨디션 동기화 대상이 아니다 — 합성 status 로 인한 오탐 방지
+    if (effect.getFlag?.('dx3rd-emanim', 'appliedKey')) return;
+
     const conditionId = Array.from(effect.statuses || [])[0];
     
     if (conditionId) {

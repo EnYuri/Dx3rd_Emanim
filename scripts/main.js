@@ -828,7 +828,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                         }
                                     }
 
-                                    const content = title ? `<h3 style="color: white;  margin: 0px; border-bottom: 1px solid white;">#${nextNumber} ${title}</h3>` : `<h3 style="color: white;">#${nextNumber}</h3>`;
+                                    const content = `<h3 class="dx3rd-chat-heading">#${nextNumber}${title ? " " + title : ""}</h3>`;
                                     await ChatMessage.create({
                                         content,
                                         speaker: { alias: game.user.name }
@@ -939,7 +939,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
 
                                                     // 채팅 메시지 출력
                                                     await ChatMessage.create({
-                                                        content: `<h3 style="color: white; margin: 0px; border-bottom: 1px solid white;">${game.i18n.localize("DX3rd.SessionEnd")}</h3>`,
+                                                        content: `<h3 class="dx3rd-chat-heading">${game.i18n.localize("DX3rd.SessionEnd")}</h3>`,
                                                         speaker: { alias: game.user.name }
                                                     });
                                                 }

@@ -115,7 +115,9 @@
 
     // Applied 효과 보너스
     let appliedBonus = 0;
-    const appliedEffects = actor.system.attributes.applied || {};
+    const appliedEffects = window.DX3rdAppliedEffects?.collect
+      ? window.DX3rdAppliedEffects.collect(actor)
+      : (actor.system.attributes.applied || {});
     for (const appliedEffect of Object.values(appliedEffects)) {
       if (appliedEffect && appliedEffect.attributes) {
         for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {

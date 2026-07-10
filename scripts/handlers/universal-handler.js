@@ -1593,11 +1593,11 @@
         // 2) 판정보정 applied 버프
         if (applied && applied.attributes && Object.keys(applied.attributes).length) {
           const key = `rois_${applied.key || Date.now()}`;
-          await actor.update({ [`system.attributes.applied.${key}`]: {
+          await window.DX3rdAppliedEffects.set(actor, key, {
             name: applied.name || 'D로이스', source: actor.name,
             disable: applied.disable || 'roll', img: applied.img || 'icons/svg/aura.svg',
             attributes: applied.attributes,
-          }});
+          });
         }
       } catch (e) {
         console.error('DX3rd | roisActivate failed', e);
@@ -1798,23 +1798,12 @@
         return;
       }
 
-      const updates = {};
       let appliedKey = `applied_${item.id}`;
 
-      // applied 객체 초기화 (없으면 생성)
-      if (!targetActor.system.attributes.applied) {
-        updates['system.attributes.applied'] = {};
-      }
-
-      // 기존 효과 확인 (키는 유지하고 내용만 교체)
-      const existingApplied = targetActor.system.attributes.applied || {};
-      const existingKey = Object.keys(existingApplied).find(key => {
-        const effect = existingApplied[key];
-        return effect && effect.itemId === item.id;
-      });
-
-      if (existingKey) {
-        appliedKey = existingKey;
+      // 기존 AE 확인 (같은 아이템이면 키 유지하고 내용만 교체)
+      const existingEff = targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === item.id);
+      if (existingEff) {
+        appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
       }
 
       // 출처 아이템의 디스크립션 추출 (펼침 영역에서 표시용)
@@ -1855,23 +1844,19 @@
         };
       }
 
-      // 효과 추가
-      updates[`system.attributes.applied.${appliedKey}`] = foundry.utils.deepClone(appliedEffect);
+      // 효과 추가 (네이티브 ActiveEffect 로 저장)
+      try {
+        await window.DX3rdAppliedEffects.set(targetActor, appliedKey, foundry.utils.deepClone(appliedEffect));
+        ui.notifications.info(`${targetActor.name}에게 ${item.name}의 효과가 적용되었습니다.`);
 
-      if (Object.keys(updates).length > 0) {
-        try {
-          await targetActor.update(updates);
-          ui.notifications.info(`${targetActor.name}에게 ${item.name}의 효과가 적용되었습니다.`);
-
-          // 액터 시트가 열려있다면 재렌더링
-          const actorSheet = Object.values(ui.windows).find(app => app.actor?.id === targetActor.id);
-          if (actorSheet) {
-            actorSheet.render(false);
-          }
-        } catch (error) {
-          console.error('DX3rd | UniversalHandler._applyItemAttributes error:', error);
-          ui.notifications.error('어트리뷰트 적용 중 오류가 발생했습니다.');
+        // 액터 시트가 열려있다면 재렌더링
+        const actorSheet = Object.values(ui.windows).find(app => app.actor?.id === targetActor.id);
+        if (actorSheet) {
+          actorSheet.render(false);
         }
+      } catch (error) {
+        console.error('DX3rd | UniversalHandler._applyItemAttributes error:', error);
+        ui.notifications.error('어트리뷰트 적용 중 오류가 발생했습니다.');
       }
     },
 
@@ -1927,24 +1912,13 @@
         return;
       }
 
-      const updates = {};
       let appliedKey = `applied_${itemData.id || itemData.name}_${Date.now()}`;
 
-      // applied 객체 초기화
-      if (!targetActor.system.attributes.applied) {
-        updates['system.attributes.applied'] = {};
-      }
-
-      // 기존 효과 확인 (같은 아이템 ID면 덮어쓰기)
-      const existingApplied = targetActor.system.attributes.applied || {};
+      // 기존 AE 확인 (같은 아이템 ID면 키 유지하고 덮어쓰기)
       if (itemData.id) {
-        const existingKey = Object.keys(existingApplied).find(key => {
-          const effect = existingApplied[key];
-          return effect && effect.itemId === itemData.id;
-        });
-        
-        if (existingKey) {
-          appliedKey = existingKey;
+        const existingEff = targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === itemData.id);
+        if (existingEff) {
+          appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
         }
       }
 
@@ -1988,23 +1962,19 @@
         };
       }
 
-      // 효과 추가
-      updates[`system.attributes.applied.${appliedKey}`] = foundry.utils.deepClone(appliedEffect);
+      // 효과 추가 (네이티브 ActiveEffect 로 저장)
+      try {
+        await window.DX3rdAppliedEffects.set(targetActor, appliedKey, foundry.utils.deepClone(appliedEffect));
+        ui.notifications.info(`${targetActor.name}에게 ${itemData.name}의 효과가 적용되었습니다.`);
 
-      if (Object.keys(updates).length > 0) {
-        try {
-          await targetActor.update(updates);
-          ui.notifications.info(`${targetActor.name}에게 ${itemData.name}의 효과가 적용되었습니다.`);
-
-          // 액터 시트가 열려있다면 재렌더링
-          const actorSheet = Object.values(ui.windows).find(app => app.actor?.id === targetActor.id);
-          if (actorSheet) {
-            actorSheet.render(false);
-          }
-        } catch (error) {
-          console.error('DX3rd | UniversalHandler._applyEffectDataToActor error:', error);
-          ui.notifications.error('어트리뷰트 적용 중 오류가 발생했습니다.');
+        // 액터 시트가 열려있다면 재렌더링
+        const actorSheet = Object.values(ui.windows).find(app => app.actor?.id === targetActor.id);
+        if (actorSheet) {
+          actorSheet.render(false);
         }
+      } catch (error) {
+        console.error('DX3rd | UniversalHandler._applyEffectDataToActor error:', error);
+        ui.notifications.error('어트리뷰트 적용 중 오류가 발생했습니다.');
       }
     },
 
@@ -2214,7 +2184,7 @@
       let paranoiaPenalty = 0;
       const berserkActive = actor.system?.conditions?.berserk?.active || false;
       const berserkType = actor.system?.conditions?.berserk?.type || '';
-      const panic8Applied = actor.system?.attributes?.applied?.Panic8;
+      const panic8Applied = window.DX3rdAppliedEffects?.getEffect(actor, 'Panic8') || actor.system?.attributes?.applied?.Panic8;
       const madnessTypePrefixForPenalty = game.i18n.localize('DX3rd.MadnessType');
       const madness2Name = madnessTypePrefixForPenalty + ': ' + game.i18n.localize('DX3rd.Madness2');
       const hasMadness2 = actor.items.some(i => i.type === 'effect' && i.name === madness2Name);
@@ -5429,7 +5399,7 @@
       }
       
       // 공포 효과 의존 패널티 적용 (dice -4, 최소값 1 보장)
-      const panic8Applied = actor.system?.attributes?.applied?.Panic8;
+      const panic8Applied = window.DX3rdAppliedEffects?.getEffect(actor, 'Panic8') || actor.system?.attributes?.applied?.Panic8;
       if (panic8Applied) {
         // 액터의 토큰 찾기
         const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
@@ -6407,35 +6377,29 @@
               break;
             case 2:
               // 패닉 2: 도주 - applied 효과 적용 (dice -2)
-              await actor.update({
-                [`system.attributes.applied.Panic2`]: {
-                  name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic2'),
-                  description: game.i18n.localize('DX3rd.PanicText2'),
-                  attributes: { dice: -2 },
-                  disable: 'scene'
-                }
+              await window.DX3rdAppliedEffects.set(actor, 'Panic2', {
+                name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic2'),
+                description: game.i18n.localize('DX3rd.PanicText2'),
+                attributes: { dice: -2 },
+                disable: 'scene'
               });
               break;
             case 7:
               // 패닉 7: 환각 - applied 효과 적용 (dice -2)
-              await actor.update({
-                [`system.attributes.applied.Panic7`]: {
-                  name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic7'),
-                  description: game.i18n.localize('DX3rd.PanicText7'),
-                  attributes: { dice: -2 },
-                  disable: 'scene'
-                }
+              await window.DX3rdAppliedEffects.set(actor, 'Panic7', {
+                name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic7'),
+                description: game.i18n.localize('DX3rd.PanicText7'),
+                attributes: { dice: -2 },
+                disable: 'scene'
               });
               break;
             case 8:
               // 패닉 8: 의존 - applied 효과만 적용
-              await actor.update({
-                [`system.attributes.applied.Panic8`]: {
-                  name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic8'),
-                  description: game.i18n.localize('DX3rd.PanicText8'),
-                  attributes: {},
-                  disable: 'scene'
-                }
+              await window.DX3rdAppliedEffects.set(actor, 'Panic8', {
+                name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic8'),
+                description: game.i18n.localize('DX3rd.PanicText8'),
+                attributes: {},
+                disable: 'scene'
               });
               break;
             case 5:
@@ -7428,7 +7392,9 @@
       
       // 0. SpellCalamity 5번 효과 체크 (마술 사용 불가)
       if (itemType === 'spell') {
-        const appliedEffects = actor.system?.attributes?.applied || {};
+        const appliedEffects = window.DX3rdAppliedEffects?.collect
+          ? window.DX3rdAppliedEffects.collect(actor)
+          : (actor.system?.attributes?.applied || {});
         for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
           if (appliedEffect && appliedEffect.attributes) {
             let hasSpellDisabled = false;
@@ -8335,13 +8301,14 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
     const value = n * (Number(rc.mult) || 1);
     const uid = foundry.utils.randomID();
     const key = `rescost_${item.id}`;
-    await actor.update({ [`system.attributes.applied.${key}`]: {
+    await window.DX3rdAppliedEffects.set(actor, key, {
+      itemId: item.id,
       name: item.name,
       source: actor.name,
       disable: rc.disable || 'main',
       img: item.img || 'icons/svg/aura.svg',
       attributes: { [uid]: { key: rc.attrKey || 'add', label: rc.label || '-', value: value } }
-    }});
+    });
 
     // 채팅 통지(타 메시지 매처 트리거 방지 위해 중립 문구 사용)
     const attrLabel = game.i18n.localize(`DX3rd.ResourceCostAttr.${rc.attrKey || 'add'}`);

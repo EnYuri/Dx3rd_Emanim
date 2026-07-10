@@ -71,8 +71,10 @@
                     }
                 }
 
-                // 적용된 효과(Applied) 확인
-                const appliedEffects = actor.system.attributes.applied || {};
+                // 적용된 효과(Applied) 확인 (네이티브 AE 에서 재구성)
+                const appliedEffects = window.DX3rdAppliedEffects?.collect
+                    ? window.DX3rdAppliedEffects.collect(actor)
+                    : (actor.system.attributes.applied || {});
                 for (const [appliedKey, appliedData] of Object.entries(appliedEffects)) {
                     // appliedData가 객체 형식인 경우
                     if (appliedData && typeof appliedData === 'object') {
@@ -134,11 +136,10 @@
                     }
                 }
 
-                // 적용된 효과 제거
-                for (const appliedKey of appliedToRemove) {
-                    updates[`system.attributes.applied.-=${appliedKey}`] = null;
-                    removedAppliedCount++;
-                    console.log(`DX3rd | DisableHooks - Removed applied effect: ${appliedKey} from actor ${actor.name}`);
+                // 적용된 효과 제거 (네이티브 AE 삭제)
+                if (appliedToRemove.length) {
+                    removedAppliedCount += await window.DX3rdAppliedEffects.removeMany(actor, appliedToRemove);
+                    console.log(`DX3rd | DisableHooks - Removed applied effects: ${appliedToRemove.join(', ')} from actor ${actor.name}`);
                 }
 
                 // 액터 업데이트
