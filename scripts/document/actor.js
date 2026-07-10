@@ -274,11 +274,13 @@
                 return;
             }
 
-            // 활성 아이템 및 Applied 효과 목록 미리 준비
-            // (활성 콤보의 등록 이펙트를 펼쳐 넣어, 독립 활성 이펙트와 동일 경로로 지속 적용)
+            // 활성 아이템 및 Applied 효과 목록 미리 준비.
+            // 이펙트류(effect/spell/psionic/combo)는 자체계산에서 제외한다 — 이들은 토글 시
+            // appliedKey AE(DX3rdAppliedToggle)로 반영되어 collect()→appliedByKey 경로로 합산되므로
+            // 여기서 다시 세면 이중가산된다. 장비/기록/아이템/기타만 아이템 자체계산에 남긴다.
             const activeItems = this._expandActiveItems(this.items.filter(item =>
                 item.system?.active?.state === true &&
-                ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
+                ['weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
             ));
             // 소스 이행: applied 버프는 네이티브 ActiveEffect(flag)에서 재구성. (전환 브리지로 레거시 필드도 병합)
             const appliedEffects = window.DX3rdAppliedEffects?.collect
@@ -1362,7 +1364,10 @@
          */
         _prepareCastingStats() {
             const attrs = this.system.attributes;
-            const activeItems = this._expandActiveItems((this.items || []).filter(i => i.system?.active?.state));
+            // 이펙트류는 자체계산 제외(appliedByKey 로 합산) — cast_dice/cast_add 이중가산 방지.
+            const activeItems = this._expandActiveItems((this.items || []).filter(i =>
+                i.system?.active?.state &&
+                !['effect', 'spell', 'psionic', 'combo'].includes(i.type)));
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
                 : (this.system.attributes?.applied || {});
@@ -1401,10 +1406,11 @@
             const attrs = system.attributes;
             const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
 
-            // 활성 아이템 (combo, effect만) — 활성 콤보의 등록 이펙트도 펼쳐 넣는다
+            // 이펙트류(combo/effect)는 자체계산 제외 — 토글 시 appliedKey AE(DX3rdAppliedToggle)로
+            // 반영되어 appliedByKey 로 합산된다. enemy 도 동일 경로(sync 대상). 이중가산 방지.
             const activeItems = this._expandActiveItems(this.items.filter(item =>
                 item.system?.active?.state === true &&
-                ['combo', 'effect'].includes(item.type)
+                !['combo', 'effect', 'spell', 'psionic'].includes(item.type)
             ));
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
