@@ -1204,27 +1204,24 @@
 
               <ol class="items-list margin-top-10">
                 {{#each actor.applied as |item id|}}
-                  <li class="item flexrow" data-item-id="{{item._id}}" draggable="false">
+                  <li class="item flexrow applied-item" data-applied-id="{{item._id}}" data-item-id="{{item._id}}" draggable="false">
                     <h4 class="item-name">
                       <span class="echo-item" style="float:left;">
-                          <img src="{{item.img}}" title="{{item.name}}" width="37" height="37" style="vertical-align : middle;margin-right:10px;">
-                      </span> 
-                      <span class="item-label">{{item.name}}<br>
-                        <span style="color : gray; font-size : 0.7em;">
-                          {{localize "DX3rd.DisableTiming"}} : {{disable item.disable}}
-                          <span class="item-details-toggle"><i class="fas fa-chevron-down"></i></span>
-                        </span>
+                          <img src="{{item.img}}" title="{{item.name}}" width="28" height="28" style="vertical-align : middle;margin-right:8px;">
                       </span>
+                      <span class="item-label">{{item.name}}<br>
+                        <span class="applied-subtle">
+                          {{localize "DX3rd.DisableTiming"}} : {{disable item.disable}}{{#if item.system.description}} <span class="item-details-toggle"><i class="fas fa-chevron-down"></i></span>{{/if}}
+                        </span>
                       </span>
                     </h4>
 
-                    <h4 class="item-addon">
-                      <button type="button" class="show-applied" style="width: auto"><i class="fas fa-eye"></i></button>
-                      <button type="button" class="edit-applied" style="width: auto"><i class="fas fa-edit"></i></button>
-                      <button type="button" class="remove-applied" style="width: auto"><i class="fas fa-trash"></i></button>
-                    </h4>
-                    <div class="item-description">{{{item.system.description}}}
+                    <div class="item-controls applied-controls">
+                      <a class="item-control show-applied" title="{{localize "DX3rd.Detail"}}"><i class="fas fa-eye"></i></a>
+                      <a class="item-control edit-applied" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>
+                      <a class="item-control remove-applied" title="{{localize "DX3rd.Remove"}}"><i class="fas fa-trash"></i></a>
                     </div>
+                    {{#if item.system.description}}<div class="item-description" style="display:none;">{{{item.system.description}}}</div>{{/if}}
                   </li>
                 {{/each}}
 

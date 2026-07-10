@@ -1006,18 +1006,19 @@
             <div class="cell--title"><label>{{localize "DX3rd.Applied"}}</label></div>
             <ol class="items-list margin-top-10">
               {{#each actor.applied as |item|}}
-                <li class="item flexrow" data-applied-id="{{item._id}}" draggable="false">
+                <li class="item flexrow applied-item" data-applied-id="{{item._id}}" draggable="false">
                   <h4 class="item-name">
-                    <span class="echo-item" style="float:left;"><img src="{{item.img}}" title="{{item.name}}" width="37" height="37" style="vertical-align:middle;margin-right:10px;"></span>
-                    <span class="item-label">{{item.name}}<br>
-                      <span style="color:gray;font-size:0.7em;">{{localize "DX3rd.DisableTiming"}} : {{disable item.disable}}</span>
+                    <span class="echo-item" style="float:left;"><img src="{{item.img}}" title="{{item.name}}" width="28" height="28" style="vertical-align:middle;margin-right:8px;"></span>
+                    <span class="item-label" data-action="toggleDesc">{{item.name}}<br>
+                      <span class="applied-subtle">{{localize "DX3rd.DisableTiming"}} : {{disable item.disable}}{{#if item.system.description}} <span class="item-details-toggle"><i class="fas fa-chevron-down"></i></span>{{/if}}</span>
                     </span>
                   </h4>
-                  <h4 class="item-addon">
-                    <button type="button" class="show-applied" data-action="showApplied" style="width:auto"><i class="fas fa-eye"></i></button>
-                    {{#if ../canEdit}}<button type="button" class="edit-applied" data-action="editApplied" style="width:auto"><i class="fas fa-edit"></i></button>{{/if}}
-                    {{#if ../canEdit}}<button type="button" class="remove-applied" data-action="removeApplied" style="width:auto"><i class="fas fa-trash"></i></button>{{/if}}
-                  </h4>
+                  <div class="item-controls applied-controls">
+                    <a class="item-control show-applied" data-action="showApplied" title="{{localize "DX3rd.Detail"}}"><i class="fas fa-eye"></i></a>
+                    {{#if ../canEdit}}<a class="item-control edit-applied" data-action="editApplied" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
+                    {{#if ../canEdit}}<a class="item-control remove-applied" data-action="removeApplied" title="{{localize "DX3rd.Remove"}}"><i class="fas fa-trash"></i></a>{{/if}}
+                  </div>
+                  {{#if item.system.description}}<div class="item-description" style="display:none;">{{{item.system.description}}}</div>{{/if}}
                 </li>
               {{/each}}
             </ol>

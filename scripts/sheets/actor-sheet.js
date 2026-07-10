@@ -256,6 +256,15 @@
             // 입력 요소 위 우클릭(붙여넣기 등)은 가로채지 않는다
             if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
             event.preventDefault();
+            // 효과(Applied) 항목 우클릭 = 편집 UI(연필 버튼과 동일).
+            const appliedEl = target?.closest('[data-applied-id]');
+            if (appliedEl) {
+                const key = appliedEl.dataset.appliedId;
+                if (key && window.DX3rdActorAppliedDialogs?.edit) {
+                    window.DX3rdActorAppliedDialogs.edit(this.actor, key);
+                }
+                return;
+            }
             const itemId = target?.closest('[data-item-id]')?.dataset?.itemId;
             const item = itemId ? this.actor.items.get(itemId) : null;
             if (!item) return;

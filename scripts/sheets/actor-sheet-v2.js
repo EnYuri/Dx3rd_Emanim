@@ -224,6 +224,12 @@
         element.addEventListener('contextmenu', event => this._onItemContextMenu(event), listenerOptions);
       });
 
+      // 효과(Applied) 탭 항목: 우클릭 → 편집 UI(연필 버튼과 동일). data-item-id 가 없어
+      // 위의 아이템 컨텍스트 메뉴 경로에 걸리지 않으므로 별도 바인딩한다.
+      root.querySelectorAll('[data-applied-id]').forEach(element => {
+        element.addEventListener('contextmenu', event => this._onAppliedContextMenu(event), listenerOptions);
+      });
+
       // 변경 이벤트는 AppV1 마크업과 동일한 클래스 훅으로 바인딩한다.
       root.querySelectorAll('.used-input:not([disabled])').forEach(input => {
         input.addEventListener('change', event => this._onUsedStateChange(event), listenerOptions);
@@ -353,6 +359,20 @@
       if (!item) return;
       // 우클릭 컨텍스트 메뉴: 시트 열기 + (이펙트/무기) 콤보로 조합
       window.DX3rdItemContextMenu?.open(event, { actor: this.document, item, sheet: this });
+    }
+
+    // 효과(Applied) 항목 우클릭 = 편집 버튼과 동일하게 효과 편집 UI 를 연다.
+    _onAppliedContextMenu(event) {
+      if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      if (!this._canEdit()) return;
+      const applied = this._getAppliedFromTarget(event.currentTarget);
+      if (!applied) return;
+      if (window.DX3rdActorAppliedDialogs?.edit) {
+        window.DX3rdActorAppliedDialogs.edit(this.document, applied.key);
+        return;
+      }
+      ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
     }
 
     static async _onUseItem(event, target) {

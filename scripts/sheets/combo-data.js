@@ -602,7 +602,7 @@
 
   // 액터에서 "이미 prepareData가 지속 적용 중"인 이펙트 id 집합.
   //  (a) 독립적으로 active.state=true 인 이펙트
-  //  (b) active.state=true 인 콤보에 등록된 이펙트 (actor._expandActiveItems 로 펼쳐 적용됨)
+  //  (b) active.state=true 인 콤보에 등록된 이펙트 (토글 시 DX3rdAppliedToggle 이 appliedKey AE 로 반영)
   // 이 이펙트들은 능력치/스킬/굴림 total에 이미 반영되어 있으므로, 콤보/이펙트 굴림·공격
   // 보너스 계산에서 중복 가산하면 안 된다.
   function getPersistentEffectIds(actor) {

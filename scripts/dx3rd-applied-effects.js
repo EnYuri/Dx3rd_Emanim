@@ -226,10 +226,14 @@
       const payload = e.getFlag?.(SCOPE, 'applied');
       if (payload) out[key] = payload;
     }
+    // 전환 브리지: 이행 완료 월드에선 레거시 필드가 삭제(undefined)되거나 빈 {} 이므로
+    // 대개 아래를 건너뛴다. prepareData 핫패스에서 불필요한 순회/할당을 피하려 조기 종료한다.
     const legacy = actor.system?.attributes?.applied;
     if (legacy && typeof legacy === 'object') {
-      for (const [k, v] of Object.entries(legacy)) {
-        if (!(k in out) && v && typeof v === 'object') out[k] = v;
+      for (const k of Object.keys(legacy)) {
+        if (k in out) continue;
+        const v = legacy[k];
+        if (v && typeof v === 'object') out[k] = v;
       }
     }
     return out;

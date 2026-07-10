@@ -97,6 +97,21 @@
     return desired;
   }
 
+  // 수식 평가기(DX3rdFormulaEvaluator)가 payload 평가 시 참조하는 actor.system 하위 경로는
+  // 능력치 total(body/sense/mind/social)·스킬 total·encroachment.level 뿐이다. 아래 경로만
+  // 바뀌었다면 재평가는 반드시 전량 no-op 이 되므로 sync 를 통째로 스킵한다.
+  //   · attributes.hp: 전투 데미지/회복 핫패스 — 어떤 payload 수식도 hp 를 읽지 않는다.
+  const PAYLOAD_IRRELEVANT_SYSTEM = ['attributes.hp'];
+
+  /** changed.system 변경이 payload 평가에 영향을 줄 수 있는가(무관 경로만이면 false). */
+  function systemChangeAffectsPayload(changed) {
+    const sys = changed?.system;
+    if (!sys) return false;
+    const leaves = Object.keys(foundry.utils.flattenObject(sys));
+    if (!leaves.length) return false;
+    return leaves.some(k => !PAYLOAD_IRRELEVANT_SYSTEM.some(p => k === p || k.startsWith(p + '.')));
+  }
+
   /** 기존 AE 의 payload 와 새 payload 가 실질적으로 다른가(수식 추종 감지). */
   function payloadChanged(eff, payload) {
     const prev = eff.getFlag?.(SCOPE, 'applied') || {};
@@ -143,7 +158,17 @@
     }
   }
 
-  Hooks.on('updateActor', (actor) => { if (!syncing.has(actor.id)) sync(actor); });
+  Hooks.on('updateActor', (actor, changed) => {
+    if (syncing.has(actor.id)) return;
+    // payload 는 actor.system 스탯/스킬/레벨만 참조한다(evaluatedAttrs). system 밖 변경
+    // (flags/토큰/이름/이미지/소유권)은 payload 에 영향을 줄 수 없으므로 재평가를 스킵한다
+    // — 전투 중 토큰 이동·플래그 갱신 등 핫패스에서 desiredPayloads 전량 재계산 비용 제거.
+    // 토글 상태(active.state)는 아이템에 있어 updateItem 훅이 처리하므로 여기서 놓치지 않는다.
+    if (!foundry.utils.hasProperty(changed, 'system')) return;
+    // 무관 경로(예: attributes.hp)만 바뀐 변경은 재평가해도 전량 no-op → 스킵(전투 HP 핫패스 제거).
+    if (!systemChangeAffectsPayload(changed)) return;
+    sync(actor);
+  });
   Hooks.on('updateItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });
   Hooks.on('createItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });
   Hooks.on('deleteItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });

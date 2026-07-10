@@ -158,7 +158,18 @@
       </div>`;
   }
 
-  function renderEditForm(effect = {}) {
+  // label(대상 능력/기능) 자동완성 옵션: 능력치 4종 + 액터의 기능 키 전체.
+  // stat_bonus/stat_dice 의 label 은 이 키들을 참조하므로 실제 값으로 채운다.
+  function labelDatalistOptions(actor) {
+    const keys = ['body', 'sense', 'mind', 'social'];
+    const skills = actor?.system?.attributes?.skills;
+    if (skills && typeof skills === 'object') keys.push(...Object.keys(skills));
+    return [...new Set(keys)]
+      .map(k => `<option value="${escapeHTML(k)}"></option>`)
+      .join('');
+  }
+
+  function renderEditForm(effect = {}, actor = null) {
     const rows = Object.entries(effect.attributes || {}).map(([k, v]) => {
       const attr = (v && typeof v === 'object') ? v : { key: k, label: '', value: v };
       return attrRowHTML(attr);
@@ -172,10 +183,7 @@
 
     return `
       <div class="dx3rd-ae-edit">
-        <datalist id="dx3rd-ae-label-list">
-          <option value="body"></option><option value="sense"></option>
-          <option value="mind"></option><option value="social"></option>
-        </datalist>
+        <datalist id="dx3rd-ae-label-list">${labelDatalistOptions(actor)}</datalist>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
           <img class="ae-img-preview" src="${escapeHTML(effect.img || 'icons/svg/aura.svg')}" width="40" height="40" style="flex:0 0 auto;border:none;object-fit:contain;">
           <div style="flex:1 1 auto;">
@@ -195,6 +203,10 @@
             <label style="font-size:.75em;color:gray;">${escapeHTML(game.i18n.localize('DX3rd.DisableTiming'))}</label>
             <select class="ae-disable" style="width:100%;">${disableSel}</select>
           </div>
+        </div>
+        <div style="margin-bottom:8px;">
+          <label style="font-size:.75em;color:gray;">${escapeHTML(game.i18n.localize('DX3rd.Description'))}</label>
+          <textarea class="ae-description" rows="3" style="width:100%;resize:vertical;" placeholder="${escapeHTML(game.i18n.localize('DX3rd.Description'))}">${escapeHTML(effect.description || '')}</textarea>
         </div>
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
           <label style="display:flex;align-items:center;gap:6px;font-size:.8em;">
@@ -261,6 +273,7 @@
     const name = root.querySelector('.ae-name')?.value?.trim() || game.i18n.localize('DX3rd.Applied');
     const img = root.querySelector('.ae-img')?.value?.trim() || 'icons/svg/aura.svg';
     const disable = root.querySelector('.ae-disable')?.value || '-';
+    const description = root.querySelector('.ae-description')?.value ?? '';
     const showOnToken = !!root.querySelector('.ae-show-token')?.checked;
     const showOnScreen = !!root.querySelector('.ae-show-screen')?.checked;
 
@@ -275,7 +288,7 @@
     });
 
     // 원본 payload 를 보존하고 편집 필드만 덮어쓴다(itemId/source/timestamp 유지).
-    return { ...original, name, img, disable, showOnToken, showOnScreen, attributes };
+    return { ...original, name, img, disable, description, showOnToken, showOnScreen, attributes };
   }
 
   async function edit(actor, appliedIdOrKey) {
@@ -294,12 +307,27 @@
       return false;
     }
 
+    // 토글(아이템 자동생성) 소스 효과는 편집이 유지되지 않는다 — DX3rdAppliedToggle 이
+    // actor/item 업데이트마다 아이템 평가값으로 재동결하기 때문. 편집을 값이 실제로 유지되는
+    // 원본 아이템 시트로 유도한다. (수동/매크로 생성 applied 는 아래 편집 다이얼로그로 진행)
+    const KEY_PREFIX = window.DX3rdAppliedToggle?.KEY_PREFIX || 'toggle:';
+    if (String(applied.key).startsWith(KEY_PREFIX)) {
+      const itemId = applied.effect?.itemId || String(applied.key).slice(KEY_PREFIX.length);
+      const item = actor.items?.get(itemId);
+      if (item) {
+        item.sheet.render(true);
+        return true;
+      }
+      // 원본 아이템을 못 찾으면(삭제 등) 아래 편집 다이얼로그로 폴백한다.
+    }
+
     const name = applied.effect?.name || game.i18n.localize('DX3rd.Applied');
     let saved = false;
     await DialogV2.wait({
       window: { title: `${name} - ${game.i18n.localize('DX3rd.Edit')}` },
       position: { width: 480 },
-      content: renderEditForm(applied.effect),
+      classes: ['dx3rd-emanim', 'dialog'],
+      content: renderEditForm(applied.effect, actor),
       render: (_event, dialog) => wireEditForm(dialog.element),
       buttons: [
         {
@@ -344,7 +372,8 @@
 
     const name = applied.effect?.name || game.i18n.localize('DX3rd.Applied');
     await DialogV2.prompt({
-      window: { title: `${name} - 상세 정보` },
+      window: { title: `${name} - ${game.i18n.localize('DX3rd.Detail')}` },
+      classes: ['dx3rd-emanim', 'dialog'],
       content: renderDetails(applied.effect),
       ok: {
         icon: '<i class="fas fa-times"></i>',
@@ -363,6 +392,7 @@
     const name = applied?.effect?.name || applied?.key || game.i18n.localize('DX3rd.Applied');
     return DialogV2.confirm({
       window: { title: game.i18n.localize('DX3rd.RemoveApplied') },
+      classes: ['dx3rd-emanim', 'dialog'],
       content: `<p>${escapeHTML(game.i18n.format('DX3rd.ConfirmRemoveApplied', {name}))}</p>`,
       yes: {
         icon: '<i class="fas fa-trash"></i>',

@@ -50,7 +50,9 @@
 
     try {
       if (version < 1) await migrateActorsAppliedToAE();
-      if (version < 2) await backfillShowIconOnAppliedAE();
+      // (구 v2 backfillShowIconOnAppliedAE 제거: showIcon 을 ALWAYS 로 올리던 단계였으나
+      //  dnd5e 방식 전환으로 기본 OFF(NEVER) 정책이 확정되어 v3 가 이를 덮는다. v0 신규 이행은
+      //  buildAEData 가 이미 NEVER 로 생성하고 v3 가 no-op → v2 는 순수 churn 이라 삭제.)
       if (version < 3) await cleanupMirrorsAndDefaultOverlayOff();
       await game.settings.set('dx3rd-emanim', SETTING, CURRENT);
       console.log('DX3rd | applied→AE 이행 완료');
@@ -105,36 +107,6 @@
     }
 
     console.log(`DX3rd | applied 이행: ${migrated}개 버프를 AE 로 변환, ${actorsCleaned}개 액터 정리`);
-  }
-
-  /**
-   * v1 이행 시점에 생성된 applied AE 는 showIcon 이 기본값(CONDITIONAL)이라
-   * v14 Token#_drawEffects 필터(showIcon===ALWAYS || (CONDITIONAL && isTemporary))에서
-   * 제외되어 토큰 아이콘이 그려지지 않는다. 지속시간 기반이 아닌 applied 버프는 ALWAYS 여야
-   * 하므로, appliedKey 플래그를 가진 기존 AE 의 showIcon 을 ALWAYS 로 backfill 한다.
-   * (신규 생성은 buildAEData 가 이미 ALWAYS 로 지정하므로 이 단계는 구 문서 정리 전용.)
-   */
-  async function backfillShowIconOnAppliedAE() {
-    const ALWAYS = CONST.ACTIVE_EFFECT_SHOW_ICON?.ALWAYS ?? 2;
-    let fixed = 0;
-
-    for (const actor of game.actors) {
-      const updates = [];
-      for (const eff of actor.effects) {
-        if (!eff.getFlag?.('dx3rd-emanim', 'appliedKey')) continue;
-        if (eff.showIcon === ALWAYS) continue;
-        updates.push({ _id: eff.id, showIcon: ALWAYS });
-      }
-      if (!updates.length) continue;
-      try {
-        await actor.updateEmbeddedDocuments('ActiveEffect', updates, { render: false });
-        fixed += updates.length;
-      } catch (e) {
-        console.error(`DX3rd | showIcon backfill 실패: ${actor.name}`, e);
-      }
-    }
-
-    console.log(`DX3rd | applied AE showIcon backfill: ${fixed}개 문서 갱신`);
   }
 
   /**

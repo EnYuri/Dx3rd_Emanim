@@ -278,10 +278,10 @@
             // 이펙트류(effect/spell/psionic/combo)는 자체계산에서 제외한다 — 이들은 토글 시
             // appliedKey AE(DX3rdAppliedToggle)로 반영되어 collect()→appliedByKey 경로로 합산되므로
             // 여기서 다시 세면 이중가산된다. 장비/기록/아이템/기타만 아이템 자체계산에 남긴다.
-            const activeItems = this._expandActiveItems(this.items.filter(item =>
+            const activeItems = this.items.filter(item =>
                 item.system?.active?.state === true &&
                 ['weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
-            ));
+            );
             // 소스 이행: applied 버프는 네이티브 ActiveEffect(flag)에서 재구성. (전환 브리지로 레거시 필드도 병합)
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
@@ -1191,31 +1191,8 @@
             system.conditions = system.conditions || {};
 
             // 캐스팅 관련 파생치 최종 계산 (모든 스킬 계산 완료 후)
-            this._prepareCastingStats();
-        }
-
-        /**
-         * 활성 아이템 목록에 "활성 콤보가 등록한 자식 이펙트"를 펼쳐 넣는다.
-         * 콤보를 활성화하면 그 콤보에 묶인 이펙트들을 (독립적으로 활성화한 것과 동일하게)
-         * 액터의 능력치/스킬/굴림 파생치에 지속 버프로 적용하기 위함.
-         * 이미 목록에 있는(독립 활성) 이펙트는 중복 제외한다.
-         * 콤보 굴림 계산 쪽에서는 DX3rdComboData.getPersistentEffectIds 로 이 이펙트들을
-         * 제외해 이중 계산을 막는다.
-         */
-        _expandActiveItems(activeItems) {
-            const byId = new Map(activeItems.map(i => [i.id, i]));
-            const getEffectIds = window.DX3rdComboData?.getEffectIds;
-            for (const combo of activeItems) {
-                if (combo.type !== 'combo') continue;
-                const ids = getEffectIds ? getEffectIds(combo)
-                    : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
-                for (const eid of ids) {
-                    if (!eid || eid === '-' || byId.has(eid)) continue;
-                    const eff = this.items.get(eid);
-                    if (eff && eff.type === 'effect') byId.set(eid, eff);
-                }
-            }
-            return [...byId.values()];
+            // 성능: 상단에서 만든 appliedByKey 재사용 → collect()+색인 2차 호출 제거
+            this._prepareCastingStats(appliedByKey);
         }
 
         /**
@@ -1259,25 +1236,35 @@
         _makeContribReader(activeItems, appliedByKey) {
             const actor = this;
             const ev = (v, item) => Number(window.DX3rdFormulaEvaluator.evaluate(v, item, actor)) || 0;
-            const eachActiveAttr = (fn) => {
-                for (const item of activeItems) {
-                    const map = item.system?.attributes;
-                    if (!map) continue;
-                    for (const a of Object.values(map)) { if (a) fn(a, item); }
+            // 성능: 활성 아이템 어트리뷰트를 key별로 1회 색인({ [key]: [{a,item}] }).
+            //   기존엔 리더 호출(sum/byLabel/… 수십 회)마다 전체 activeItems×attrs 를 재스캔했다.
+            //   값(a.value)의 수식 평가는 여전히 소비 시점에 지연 수행 → 타이밍/결과 불변(diff=0).
+            const activeByKey = {};
+            for (const item of activeItems) {
+                const map = item.system?.attributes;
+                if (!map) continue;
+                for (const a of Object.values(map)) {
+                    if (!a || a.key == null) continue; // key 없는 어트리뷰트는 어떤 리더 키에도 매칭 안 됨(기존 동작)
+                    (activeByKey[a.key] = activeByKey[a.key] || []).push({ a, item });
                 }
+            }
+            const eachOfKey = (key, fn) => {
+                const list = activeByKey[key];
+                if (!list) return;
+                for (const { a, item } of list) fn(a, item);
             };
             return {
                 // 라벨 무관 단순 합
                 sum(key) {
                     let s = 0;
-                    eachActiveAttr((a, item) => { if (a.key === key && a.value) s += ev(a.value, item); });
+                    eachOfKey(key, (a, item) => { if (a.value) s += ev(a.value, item); });
                     for (const { val } of (appliedByKey[key] || [])) s += Number(val) || 0;
                     return s;
                 },
                 // 정확 라벨 일치 합 (stat_bonus 능력치·스킬, 능력치 stat_dice/stat_add)
                 byLabel(key, want) {
                     let s = 0;
-                    eachActiveAttr((a, item) => { if (a.key === key && a.label === want && a.value) s += ev(a.value, item); });
+                    eachOfKey(key, (a, item) => { if (a.label === want && a.value) s += ev(a.value, item); });
                     for (const { label, val } of (appliedByKey[key] || [])) if (label === want) s += Number(val) || 0;
                     return s;
                 },
@@ -1285,14 +1272,14 @@
                 bySkill(key, skillKey) {
                     const match = (label) => label === skillKey || window.DX3rdSkillGroupMatcher?.isSkillInGroup(skillKey, label);
                     let s = 0;
-                    eachActiveAttr((a, item) => { if (a.key === key && a.value && match(a.label)) s += ev(a.value, item); });
+                    eachOfKey(key, (a, item) => { if (a.value && match(a.label)) s += ev(a.value, item); });
                     for (const { label, val } of (appliedByKey[key] || [])) if (match(label)) s += Number(val) || 0;
                     return s;
                 },
                 // 최소치 (critical_min): seed 부터 더 작은 값으로
                 min(key, seed) {
                     let m = seed;
-                    eachActiveAttr((a, item) => { if (a.key === key && a.value) { const v = ev(a.value, item); if (v < m) m = v; } });
+                    eachOfKey(key, (a, item) => { if (a.value) { const v = ev(a.value, item); if (v < m) m = v; } });
                     for (const { val } of (appliedByKey[key] || [])) { const v = Number(val) || 0; if (v < m) m = v; }
                     return m;
                 },
@@ -1301,7 +1288,7 @@
                     const out = { _: 0 };
                     for (const l of labels) out[l] = 0;
                     const add = (label, v) => { if (labels.includes(label)) out[label] += v; else out._ += v; };
-                    eachActiveAttr((a, item) => { if (a.key === key && a.value) add(a.label || '-', ev(a.value, item)); });
+                    eachOfKey(key, (a, item) => { if (a.value) add(a.label || '-', ev(a.value, item)); });
                     for (const { label, val } of (appliedByKey[key] || [])) add(label || '-', Number(val) || 0);
                     return out;
                 },
@@ -1309,9 +1296,11 @@
                 mrd() {
                     const KS = ['major_dice', 'major_critical', 'major_add', 'reaction_dice', 'reaction_critical', 'reaction_add', 'dodge_dice', 'dodge_critical', 'dodge_add'];
                     const out = {};
-                    for (const k of KS) out[k] = 0;
-                    eachActiveAttr((a, item) => { if (a.value && Object.prototype.hasOwnProperty.call(out, a.key)) out[a.key] += ev(a.value, item); });
-                    for (const k of KS) for (const { val } of (appliedByKey[k] || [])) out[k] += Number(val) || 0;
+                    for (const k of KS) {
+                        out[k] = 0;
+                        eachOfKey(k, (a, item) => { if (a.value) out[k] += ev(a.value, item); });
+                        for (const { val } of (appliedByKey[k] || [])) out[k] += Number(val) || 0;
+                    }
                     return out;
                 },
             };
@@ -1362,15 +1351,19 @@
          * - cast.add = sum(cast_add from active/applied)
          * - cast.eibon = round(skills.cthulhu.total / 4)
          */
-        _prepareCastingStats() {
+        _prepareCastingStats(appliedByKey = null) {
             const attrs = this.system.attributes;
             // 이펙트류는 자체계산 제외(appliedByKey 로 합산) — cast_dice/cast_add 이중가산 방지.
-            const activeItems = this._expandActiveItems((this.items || []).filter(i =>
+            const activeItems = (this.items || []).filter(i =>
                 i.system?.active?.state &&
-                !['effect', 'spell', 'psionic', 'combo'].includes(i.type)));
-            const appliedEffects = window.DX3rdAppliedEffects?.collect
-                ? window.DX3rdAppliedEffects.collect(this)
-                : (this.system.attributes?.applied || {});
+                !['effect', 'spell', 'psionic', 'combo'].includes(i.type));
+            // 성능: 호출부(_prepareActorAttributes)가 이미 만든 색인을 재사용. 없을 때만 새로 수집.
+            if (!appliedByKey) {
+                const appliedEffects = window.DX3rdAppliedEffects?.collect
+                    ? window.DX3rdAppliedEffects.collect(this)
+                    : (this.system.attributes?.applied || {});
+                appliedByKey = this._indexAppliedEffects(appliedEffects);
+            }
 
             // base dice from ability/skill totals
             const mindTotal = attrs.mind?.total || 0;
@@ -1379,7 +1372,7 @@
             let castAdd = 0;
 
             // ④ 활성 아이템 + applied 의 cast_dice/cast_add 단일 경로 병합(색인 경유로 object/primitive 형 모두 포함)
-            const R = this._makeContribReader(activeItems, this._indexAppliedEffects(appliedEffects));
+            const R = this._makeContribReader(activeItems, appliedByKey);
             castDice += R.sum('cast_dice');
             castAdd += R.sum('cast_add');
 
@@ -1408,10 +1401,10 @@
 
             // 이펙트류(combo/effect)는 자체계산 제외 — 토글 시 appliedKey AE(DX3rdAppliedToggle)로
             // 반영되어 appliedByKey 로 합산된다. enemy 도 동일 경로(sync 대상). 이중가산 방지.
-            const activeItems = this._expandActiveItems(this.items.filter(item =>
+            const activeItems = this.items.filter(item =>
                 item.system?.active?.state === true &&
                 !['combo', 'effect', 'spell', 'psionic'].includes(item.type)
-            ));
+            );
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
                 : (attrs.applied || {});
