@@ -296,6 +296,16 @@
     width: 62px !important;
 }
 
+/* 마술/사이오닉 판정 타입: 공통 62px 는 effect 등 짧은 옵션 기준값이라, spell 의 "마술 굴림"
+   (~67px)·psionic 의 판정 열이 잘린다. 이 두 V2 시트만 스코프 오버라이드로 넓힌다.
+   auto 테이블 셀에서는 width 가 아니라 min-width 라야 열이 실제로 확장된다(width:62 !important
+   가 살아 있어도 min-width 가 상향 클램프). 표 폭 524 < 창 540 이라 오버플로 없음(실측). */
+.application.sheet.dx3rd-emanim.item.spell-sheet-v2 .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.roll"],
+.application.sheet.dx3rd-emanim.item.psionic-sheet-v2 .tab[data-tab="attributes"] > .sheet-wrapper > table select[name="system.roll"] {
+    width: auto !important;
+    min-width: 84px !important;
+}
+
 /* 실행 타이밍(colspan=5 셀)·매크로(colspan=5 셀): 두 필드가 놓인 셀의 오른쪽 끝은
    표 오른쪽 끝(=여섯째 열 비활성화 드롭다운의 오른쪽 끝)과 같으므로, 셀 폭 100% 로
    채워 우측 끝을 다른 최우측 필드와 정렬한다(좌측 끝도 둘째 열 필드와 맞음). */

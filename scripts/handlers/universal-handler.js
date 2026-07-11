@@ -1910,18 +1910,22 @@
       for (const [attrKey, attrData] of Object.entries(targetAttributes)) {
         if (!attrData || !attrData.value) continue;
 
-        // stat_* 류는 표시용 이름으로 label을 사용, 나머지는 key를 사용
-        const needsLabel = ['stat_bonus', 'stat_dice', 'stat_add'].includes(attrData.key);
-        const attributeName = needsLabel ? attrData.label : attrData.key;
-        if (!attributeName || attributeName === '-') continue;
+        // key 는 필수. label 은 원본 label 을 보존한다:
+        //   - stat_* 류는 표시용 이름(능력치/스킬)이 label 에 온다.
+        //   - attack/damage_roll 은 서브버킷(fist/melee/ranged)이 label 에 온다 → 소비부(actor.js bucket)가
+        //     label 로 서브버킷하므로, 여기서 label 을 key 로 덮어쓰면 맨손/백병 한정이 유실된다(축퇴기관 등).
+        //   - 그 외 키(add/guard/dice/critical/major_* 등)는 소비부가 label 을 무시하므로 label=null 이어도 무해.
+        const key = attrData.key;
+        if (!key || key === '-') continue;
+        const rawLabel = (attrData.label && attrData.label !== '-') ? attrData.label : null;
 
         // 시전자 정보로 평가된 값 저장하되, applied에서는 key/label/value 모두 보존
         const evaluated = window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, item.actor);
-        // 동일 라벨의 stat_*들이 덮어쓰지 않도록 저장 키를 key:label 조합으로 사용
-        const storageKey = needsLabel ? `${attrData.key}:${attributeName}` : attrData.key;
+        // 동일 key 의 서로 다른 label(fist/melee/ranged, 스킬별 stat_*)이 덮어쓰지 않도록 저장 키를 key:label 조합으로 사용
+        const storageKey = rawLabel ? `${key}:${rawLabel}` : key;
         appliedEffect.attributes[storageKey] = {
-          key: attrData.key,
-          label: attributeName,
+          key,
+          label: rawLabel,
           value: evaluated
         };
       }

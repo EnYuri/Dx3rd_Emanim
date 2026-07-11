@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.4.8",
+  "version": "1.4.9",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -68,12 +68,13 @@
     "scripts/sheets/protect-sheet.js",
     "scripts/sheets/protect-sheet-v2.js",
     "scripts/sheets/psionic-sheet.js",
+    "scripts/sheets/psionic-sheet-v2.js",
     "scripts/sheets/record-sheet.js",
     "scripts/sheets/record-sheet-v2.js",
     "scripts/sheets/rois-sheet.js",
     "scripts/sheets/rois-sheet-v2.js",
     "scripts/sheets/spell-sheet.js",
-    "scripts/sheets/minimal-active-sheet-v2.js",
+    "scripts/sheets/spell-sheet-v2.js",
     "scripts/sheets/syndrome-sheet.js",
     "scripts/sheets/syndrome-sheet-v2.js",
     "scripts/sheets/vehicle-sheet.js",
