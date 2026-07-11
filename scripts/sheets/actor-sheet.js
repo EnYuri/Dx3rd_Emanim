@@ -113,6 +113,7 @@
 
             // 아이템 에딧/삭제 리스너
             compat.on(root, 'click', '.item-edit', this._onItemEdit.bind(this));
+            compat.on(root, 'click', '.item-apply', this._onItemApplyEffect.bind(this));
             compat.on(root, 'click', '.item-delete', this._onItemDelete.bind(this));
             compat.on(root, 'click', '.item-create', this._onItemCreate.bind(this));
 
@@ -298,6 +299,15 @@
             }
 
             await window.DX3rdActorDeleteDialogs.deleteItem(this.actor, itemId);
+        }
+
+        // 대상 지정 특수효과(effect.attributes) 적용 — V2 _onApplyEffect 의 V1 패리티.
+        async _onItemApplyEffect(event, target = event.currentTarget) {
+            event.preventDefault();
+            const itemId = target?.closest('.item')?.dataset?.itemId;
+            const item = itemId && this.actor.items.get(itemId);
+            if (!item) return;
+            await window.DX3rdActorSheetData.applyItemEffect(this.actor, item);
         }
 
         async _onItemNameClick(event, target = event.currentTarget) {

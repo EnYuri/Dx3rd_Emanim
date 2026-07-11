@@ -46,7 +46,8 @@
         toggleDesc: DX3rdActorSheetV2._onToggleDescription,
         titus: DX3rdActorSheetV2._onTitus,
         sublimation: DX3rdActorSheetV2._onSublimation,
-        useItem: DX3rdActorSheetV2._onUseItem
+        useItem: DX3rdActorSheetV2._onUseItem,
+        applyEffect: DX3rdActorSheetV2._onApplyEffect
       }
     };
 
@@ -498,6 +499,17 @@
       if (!item) return;
       // 공격 굴림 dispatch는 공유 헬퍼로 위임 (V2 default 승격 대비 단일 경로)
       await actorData.attackRoll(this.document, item);
+    }
+
+    // 대상 지정 특수효과(effect.attributes) 적용 — 무기 handleOnlyApplied 를 타입 무관 일반화.
+    // 장착만 하던 protect/vehicle 등 "공격 없이 대상 디버프를 거는" 아이템의 발동점.
+    // 무기와 달리 공격 다이얼로그가 없으므로 시트 컨트롤에서 직접 대상에게 AE 적용.
+    static async _onApplyEffect(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+      const item = this._getItemFromTarget(target);
+      if (!item) return;
+      await actorData.applyItemEffect(this.document, item);
     }
 
     async _useItemFromTarget(target, roisAction = undefined) {

@@ -442,6 +442,29 @@
         return handler.handleAttackRoll(actor, item);
     }
 
+    // 아이템의 대상 지정 특수효과(system.effect.attributes)를 현재 타겟에게 적용한다.
+    // 무기의 "적용만"(handleOnlyApplied)을 타입 무관으로 일반화 — 공격 흐름이 없는
+    // protect/vehicle 등 "장착 중 대상에 디버프" 효과의 발동 경로. applyEffectData 가
+    // 타겟 수집·수식 평가·네이티브 AE 생성까지 처리한다.
+    function applyItemEffect(actor, item) {
+        const handler = window.DX3rdUniversalHandler;
+        if (!handler?.applyEffectData) {
+            ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
+            return Promise.resolve();
+        }
+        if (!actor || !item) return Promise.resolve();
+        return handler.applyEffectData(actor, {
+            id: item.id,
+            name: item.name,
+            img: item.img,
+            system: { description: item.system?.description ?? "" },
+            effect: {
+                disable: item.system?.effect?.disable || "-",
+                attributes: item.system?.effect?.attributes || {}
+            }
+        });
+    }
+
     function normalizeItems(items) {
         if (Array.isArray(items)) return items;
         try {
@@ -631,6 +654,7 @@
         checkItemChatGate,
         useItem,
         attackRoll,
+        applyItemEffect,
         prepareCharacterItems,
         generateAppliedEffectDescription,
         prepareSheetData

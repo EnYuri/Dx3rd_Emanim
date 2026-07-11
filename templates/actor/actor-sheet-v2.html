@@ -721,6 +721,7 @@
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
+                    {{#if item.system.getTarget}}<a class="item-control item-apply" data-action="applyEffect" title="{{localize "DX3rd.OnlyApplied"}}"><i class="fas fa-hand-sparkles"></i></a>{{/if}}
                     <a class="item-control item-delete" data-action="deleteItem" title="{{localize "DX3rd.Delete"}}"><i class="fas fa-trash"></i></a>
                   </div>
                   <div class="item-description" style="display:none;">{{{item.system.description}}}</div>
@@ -757,6 +758,7 @@
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
                     <a class="item-control item-attack" data-action="attackRoll" title="{{localize "DX3rd.AttackRoll"}}"><i class="fas fa-dice-d20"></i></a>
+                    {{#if item.system.getTarget}}<a class="item-control item-apply" data-action="applyEffect" title="{{localize "DX3rd.OnlyApplied"}}"><i class="fas fa-hand-sparkles"></i></a>{{/if}}
                     <a class="item-control item-delete" data-action="deleteItem" title="{{localize "DX3rd.Delete"}}"><i class="fas fa-trash"></i></a>
                   </div>
                   <div class="item-description" style="display:none;">{{{item.system.description}}}</div>
