@@ -1,0 +1,78 @@
+{
+ "!items!lfbL2gM2eW4WbiIS": {
+  "_id": "lfbL2gM2eW4WbiIS",
+  "name": "노도의 선풍",
+  "type": "effect",
+  "img": "icons/svg/aura.svg",
+  "system": {
+   "description": "<p>이 이펙트를 조합했을 때 [LV]점 이하의 임의의 HP를 소비할 것. 조합한 공격의 공격력에 +[소비한 HP×3]점을 추가한다.</p><p><em>한계를 뛰어넘은 스피드로 연격을 가하는 이펙트. 반동으로 육체에는 큰 부하가 걸리게 된다.</em></p>",
+   "skillTmp": "melee",
+   "skills": {},
+   "type": "normal",
+   "skill": "syndrome",
+   "comboSkill": "-",
+   "comboBase": "-",
+   "difficulty": "대결",
+   "limit": "0.8",
+   "timing": "major",
+   "target": "단독",
+   "range": "-",
+   "roll": "-",
+   "attackRoll": "-",
+   "attackAchievement": "-",
+   "encroach": {
+    "init": 0,
+    "value": "4"
+   },
+   "level": {
+    "init": 1,
+    "max": 5,
+    "value": 1,
+    "upgrade": true
+   },
+   "exp": {
+    "own": true,
+    "upgrade": true
+   },
+   "effect": {
+    "disable": "notCheck",
+    "runTiming": "instant",
+    "attributes": {}
+   },
+   "active": {
+    "state": false,
+    "disable": "-",
+    "runTiming": "instant"
+   },
+   "used": {
+    "state": 0,
+    "max": 0,
+    "level": false,
+    "disable": "notCheck"
+   },
+   "attributes": {},
+   "getTarget": false,
+   "scene": false,
+   "macro": "",
+   "macros": []
+  },
+  "effects": [],
+  "folder": "y2SsJMIc2216DkYO",
+  "sort": 64400000,
+  "ownership": {
+   "default": 0
+  },
+  "flags": {},
+  "_stats": {
+   "coreVersion": "14.363",
+   "systemId": null,
+   "systemVersion": null,
+   "createdTime": null,
+   "modifiedTime": null,
+   "lastModifiedBy": null,
+   "compendiumSource": null,
+   "duplicateSource": null,
+   "exportSource": null
+  }
+ }
+}
