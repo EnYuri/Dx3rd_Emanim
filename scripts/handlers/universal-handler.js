@@ -41,6 +41,44 @@
     });
   };
 
+  // 사용 시 수치 입력 프롬프트 (변동형 이펙트: "소모한 HP만큼" 등).
+  // 확인 시 입력한 숫자(음수/소수 방어), 취소 시 null 반환.
+  window.DX3rdUniversalNumberPromptV2 = async function({ title, label, defaultValue = 0 } = {}) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2?.wait) {
+      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+      return null;
+    }
+    const safeLabel = foundry.utils.escapeHTML ? foundry.utils.escapeHTML(String(label ?? '')) : String(label ?? '');
+    const content = `<div class="dx3rd-item-chat" style="padding:4px 2px;">`
+      + `<label style="display:block;margin-bottom:6px;">${safeLabel}</label>`
+      + `<input type="number" name="runtimeValue" value="${Number(defaultValue) || 0}" min="0" step="1" autofocus style="width:100%;box-sizing:border-box;"></div>`;
+    return DialogV2.wait({
+      window: { title: title || game.i18n.localize('DX3rd.RuntimeInput') },
+      content,
+      buttons: [
+        {
+          action: 'confirm',
+          icon: '<i class="fas fa-check"></i>',
+          label: game.i18n.localize('DX3rd.Confirm'),
+          default: true,
+          callback: (event, button) => {
+            const raw = button.form?.querySelector('input[name="runtimeValue"]')?.value;
+            const n = Math.max(0, Math.floor(Number(raw)));
+            return Number.isFinite(n) ? n : 0;
+          }
+        },
+        {
+          action: 'cancel',
+          icon: '<i class="fas fa-times"></i>',
+          label: game.i18n.localize('DX3rd.Cancel'),
+          callback: () => null
+        }
+      ],
+      rejectClose: false
+    });
+  };
+
   window.DX3rdUniversalHandler = {
     // AfterMain 큐 (이니셔티브 직전 실행) - 월드 설정에 저장
     get _afterMainQueue() {
@@ -346,8 +384,43 @@
           });
         }
         
+        // 0.5. 변동형 런타임 입력 (사용 시 수치 입력 → [소비HP]/[입력] 토큰 공급)
+        //   itemExtend.damage.runtimePrompt가 켜져 있으면 사용자에게 수치를 물어보고
+        //   actor._dx3rdRuntimeInput에 걸어둔다(FormulaEvaluator가 읽어 damage/weapon/protect 값에 반영).
+        //   runtimeConsumeHP면 입력값만큼 HP를 소모한다(아래 hpCostList에 합류하여 부족검사·차감·채팅 재사용).
+        //   콤보는 자신에게 설정이 없으면 포함 이펙트 중 첫 설정을 사용(단일 입력).
+        actor._dx3rdRuntimeInput = 0;
+        let runtimeConsumeAmount = 0;
+        {
+          let runtimeCfg = itemExtend.damage?.runtimePrompt ? itemExtend.damage : null;
+          if (!runtimeCfg && item.type === 'combo') {
+            for (const effectId of this.normalizeEffectIds(item)) {
+              const eff = actor.items.get(effectId);
+              const ex = eff?.getFlag?.('dx3rd-emanim', 'itemExtend');
+              if (ex?.damage?.runtimePrompt) { runtimeCfg = ex.damage; break; }
+            }
+          }
+          if (runtimeCfg) {
+            const label = runtimeCfg.runtimeLabel
+              || (runtimeCfg.runtimeConsumeHP
+                ? game.i18n.localize('DX3rd.RuntimeConsumeHP')
+                : game.i18n.localize('DX3rd.RuntimeInput'));
+            const entered = await window.DX3rdUniversalNumberPromptV2({
+              title: item.name,
+              label,
+              defaultValue: Number(runtimeCfg.runtimeDefault) || 0
+            });
+            if (entered === null || entered === undefined) {
+              console.log('DX3rd | Item use canceled at runtime input prompt');
+              return false; // 취소 → 사용 중단(코스트 미차감)
+            }
+            actor._dx3rdRuntimeInput = entered;
+            if (runtimeCfg.runtimeConsumeHP) runtimeConsumeAmount = entered;
+          }
+        }
+
         let costMessages = [];
-        
+
         // 1. HP 비용 처리 (아이템 + 익스텐드 통합)
         let totalHpCost = 0;
         let hpCostRolls = [];
@@ -365,7 +438,12 @@
           { raw: itemHpCostRaw, source: 'item' },
           { raw: extendHpCostRaw, source: 'extend' }
         ];
-        
+
+        // 1-C-2. 변동형 런타임 입력이 HP 소모형이면 입력값을 코스트에 합류
+        if (runtimeConsumeAmount > 0) {
+          hpCostList.push({ raw: String(runtimeConsumeAmount), source: 'runtime' });
+        }
+
         // 1-D. 콤보인 경우, 포함된 이펙트들의 익스텐션 HP 비용도 수집
         if (item.type === 'combo') {
           const effectIds = this.normalizeEffectIds(item);
@@ -1793,8 +1871,10 @@
      * @param {Item} item - The item being used
      * @param {Actor} targetActor - The target actor
      * @param {Object} targetAttributes - The attributes to apply
+     * @param {Object} [opts] - 선택 옵션. opts.disable 지정 시 applied 수명을 override
+     *   (사용 시 self 동결버프(applyMode='onUse')는 effect.disable이 아니라 active.disable이 수명이므로).
      */
-    async _applyItemAttributes(actor, item, targetActor, targetAttributes) {
+    async _applyItemAttributes(actor, item, targetActor, targetAttributes, opts = {}) {
       if (!targetActor) {
         ui.notifications.error('대상을 찾을 수 없습니다.');
         return;
@@ -1821,7 +1901,7 @@
         img: item.img,
         source: actor.name,
         timestamp: Date.now(),
-        disable: item.system.effect?.disable || '-',
+        disable: opts.disable ?? item.system.effect?.disable ?? '-',
         description: itemDescription,
         attributes: {}
       };
@@ -1860,6 +1940,21 @@
         console.error('DX3rd | UniversalHandler._applyItemAttributes error:', error);
         ui.notifications.error('어트리뷰트 적용 중 오류가 발생했습니다.');
       }
+    },
+
+    /**
+     * 사용 시 self 동결버프(applyMode='onUse') — 사용 시점에 item.system.attributes를 자신에게
+     * 1회 동결 적용한다. 토글(active.state) 채널과 달리 재계산되지 않으므로 런타임 입력값
+     * ([소비HP] 등, actor._dx3rdRuntimeInput)이 _applyItemAttributes의 동결 평가로 그대로 잡힌다.
+     * 수명은 active.disable(major/main/round/scene 등) — disable-hooks가 수명별 제거.
+     * active.state는 켜지 않으므로 dx3rd-applied-toggle resync 대상이 아니다.
+     * @param {Actor} actor - 사용 액터(=대상)
+     * @param {Item} item - 사용 아이템
+     */
+    async applySelfFrozenBuff(actor, item) {
+      const attrs = item.system?.attributes;
+      if (!attrs || Object.keys(attrs).length === 0) return;
+      await this._applyItemAttributes(actor, item, actor, attrs, { disable: item.system?.active?.disable });
     },
 
     /**
@@ -7442,6 +7537,8 @@
       // getItemLevel(helpers.js)이 이 임시 플래그를 우선 읽는다. 재진입 대비 이전 값 저장.
       const _prevFrozenEncLevel = actor._dx3rdUsageEncLevel;
       actor._dx3rdUsageEncLevel = Number(actor.system?.attributes?.encroachment?.level) || 0;
+      // 변동형 런타임 입력 스냅샷(재진입 대비): 사용 종료 시 복원해 잔류값이 다음 이펙트에 새지 않게 한다.
+      const _prevRuntimeInput = actor._dx3rdRuntimeInput;
       try {
       const usageAllowed = await this.processItemUsageCost(actor, item);
       if (!usageAllowed) {
@@ -7461,9 +7558,16 @@
       // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
       const activeDisable = item.system?.active?.disable ?? '-';
       const skipToggle = item.type === 'once' && activeDisable === '-';
+      const applyMode = item.system?.active?.applyMode || 'toggle';
       if (item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
-        await item.update({ 'system.active.state': true });
-        console.log('DX3rd | handleItemUse - Item activated (instant timing)');
+        if (applyMode === 'onUse') {
+          // 사용 시 self 동결버프: active.state는 켜지 않고, 런타임 입력이 반영된 동결 버프를 자신에게 적용.
+          await this.applySelfFrozenBuff(actor, item);
+          console.log('DX3rd | handleItemUse - Self frozen buff applied (onUse mode)');
+        } else {
+          await item.update({ 'system.active.state': true });
+          console.log('DX3rd | handleItemUse - Item activated (instant timing)');
+        }
       }
       
       // 2.7. 자원소비 비례형(네이티브 필드) 처리 — HP 등을 n 소비하고 n×배수만큼 판정/스탯 버프
@@ -7540,6 +7644,9 @@
         // 사용 종료: 사용-중 레벨 고정 해제(재진입 시 이전 값 복원)
         if (_prevFrozenEncLevel === undefined) delete actor._dx3rdUsageEncLevel;
         else actor._dx3rdUsageEncLevel = _prevFrozenEncLevel;
+        // 런타임 입력값 복원(잔류 방지)
+        if (_prevRuntimeInput === undefined) delete actor._dx3rdRuntimeInput;
+        else actor._dx3rdRuntimeInput = _prevRuntimeInput;
       }
     }
   };

@@ -128,9 +128,27 @@
                 <input type="checkbox" name="hpCostActivate" id="hpCostActivate">
                 <label for="hpCostActivate">{{localize "DX3rd.HP"}} {{localize "DX3rd.Cost"}}</label>
             </div>
+
+            <!-- Row 5: 사용 시 수치 입력 (변동형) -->
+            <div class="form-label">{{localize "DX3rd.RuntimeInput"}}</div>
+            <div><input type="text" name="runtimeLabel" placeholder="{{localize "DX3rd.RuntimeInputLabelPlaceholder"}}"></div>
+            <div style="text-align: center;">{{localize "DX3rd.Default"}}</div>
+            <div><input type="text" name="runtimeDefault" placeholder="0"></div>
+
+            <!-- Row 6 -->
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="runtimeConsumeHP" id="runtimeConsumeHP">
+                <label for="runtimeConsumeHP">{{localize "DX3rd.RuntimeConsumeHP"}}</label>
+            </div>
+            <div></div>
+            <div></div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="runtimePrompt" id="runtimePrompt">
+                <label for="runtimePrompt">{{localize "DX3rd.Activate"}}</label>
+            </div>
         </div>
     </section>
-    
+
     <!-- 상태이상 1 탭 -->
     <section class="content-section" id="condition1-content">
         <div class="form-grid">

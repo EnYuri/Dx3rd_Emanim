@@ -490,7 +490,12 @@
                     conditionalFormula: this._checked('input[name="damageConditionalFormula"]', root),
                     activate: this._checked('input[name="damageActivate"]', root),
                     hpCost: this._value('input[name="hpCost"]', root),
-                    hpCostActivate: this._checked('input[name="hpCostActivate"]', root)
+                    hpCostActivate: this._checked('input[name="hpCostActivate"]', root),
+                    // 변동형 런타임 입력: 사용 시 수치를 입력받아 [소비HP]/[입력] 토큰으로 공급
+                    runtimePrompt: this._checked('input[name="runtimePrompt"]', root),
+                    runtimeLabel: this._value('input[name="runtimeLabel"]', root),
+                    runtimeDefault: this._value('input[name="runtimeDefault"]', root),
+                    runtimeConsumeHP: this._checked('input[name="runtimeConsumeHP"]', root)
                 };
             }
 

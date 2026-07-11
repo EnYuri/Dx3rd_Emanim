@@ -294,6 +294,10 @@
   "DX3rd.Psionics": "사이오닉",
   "DX3rd.Psionic": "사이오닉",
   "DX3rd.Cost": "비용",
+  "DX3rd.Default": "기본값",
+  "DX3rd.RuntimeInput": "사용 시 수치 입력",
+  "DX3rd.RuntimeInputLabelPlaceholder": "입력 라벨 (예: 소비 HP)",
+  "DX3rd.RuntimeConsumeHP": "입력값만큼 HP 소모",
 
   "DX3rd.Spell": "술식",
   "DX3rd.Temporary": "임시 취득",
@@ -683,6 +687,9 @@
   "DX3rd.TargetAll": "자신/타겟",
 
   "DX3rd.RunTiming": "실행 타이밍",
+  "DX3rd.ApplyMode": "적용 방식",
+  "DX3rd.ApplyModeToggle": "토글 (상시/재계산)",
+  "DX3rd.ApplyModeOnUse": "사용 시 적용 (동결)",
   "DX3rd.Instant": "즉시",
   "DX3rd.OnInvoke": "호출 시",
   "DX3rd.AfterSuccess": "성공 시",

@@ -267,6 +267,18 @@
           </tr>
 
           <tr>
+            <th><span>{{localize "DX3rd.ApplyMode"}}</span></th>
+            <td colspan="5">
+              <select name="system.active.applyMode" data-dtype="String" style="width: 100%;">
+                {{#select system.active.applyMode}}
+                <option value="toggle">{{localize "DX3rd.ApplyModeToggle"}}</option>
+                <option value="onUse">{{localize "DX3rd.ApplyModeOnUse"}}</option>
+                {{/select}}
+              </select>
+            </td>
+          </tr>
+
+          <tr>
             <th><span>{{localize "DX3rd.UsedCount"}}</span></th>
             <td>
               <input type="number" class="checkbox-input" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}} disabled {{/ifEquals}}>/

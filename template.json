@@ -211,7 +211,8 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "toggle"
       },
       "used": {
         "state": 0,

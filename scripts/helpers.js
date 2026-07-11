@@ -210,6 +210,17 @@
                 result = result.replace(/\[레벨\]/g, itemLevel);
             }
 
+            // 1.5) 런타임 입력 토큰 치환 ([소비HP]/[입력]/[입력값]/[input])
+            //    사용 시점에 handleItemUse가 actor._dx3rdRuntimeInput에 걸어둔 플레이어 입력값.
+            //    "소모한 HP만큼", "원하는 만큼 소모하고 그만큼" 같은 변동형 수치를 잇는 통로.
+            //    사용 밖(시트 미리보기 등)에서는 값이 없으므로 0으로 치환한다.
+            if (actor) {
+                const runtimeInput = Number(actor._dx3rdRuntimeInput) || 0;
+                result = result.replace(/\[소비HP\]/gi, runtimeInput);
+                result = result.replace(/\[입력값?\]/g, runtimeInput);
+                result = result.replace(/\[input\]/gi, runtimeInput);
+            }
+
             // 액터 능력치/스킬 참조 치환 (대괄호 형태)
             if (actor) {
                 result = this.replaceActorReferences(result, actor);
@@ -236,6 +247,11 @@
         // 영문 키는 단어경계(\b)로, 한글 이름은 길이 내림차순(부분일치 방지)으로 치환한다.
         replaceBareTokens: function(inner, item, actor) {
             let s = inner;
+            // 런타임 입력 토큰(대괄호 없는 형태) — 다단 연산식 내부([소비HP*2] 등) 대응
+            if (actor) {
+                const runtimeInput = Number(actor._dx3rdRuntimeInput) || 0;
+                s = s.replace(/소비HP/gi, runtimeInput).replace(/입력값?/g, runtimeInput).replace(/\binput\b/gi, runtimeInput);
+            }
             if (item) {
                 const lvl = this.getItemLevel(item);
                 s = s.replace(/\bLv\b/gi, lvl).replace(/\blevel\b/gi, lvl).replace(/레벨/g, lvl);
