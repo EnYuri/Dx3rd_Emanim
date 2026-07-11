@@ -1,21 +1,8 @@
-2026/07/11-19:17:29.589 1240 Recovering log #491
-2026/07/11-19:17:29.593 1240 Delete type=0 #491
-2026/07/11-19:17:29.594 1240 Delete type=3 #489
-2026/07/11-19:35:54.030 2fe4 Level-0 table #495: started
-2026/07/11-19:35:54.030 2fe4 Level-0 table #495: 0 bytes OK
-2026/07/11-19:35:54.031 2fe4 Delete type=0 #493
-2026/07/11-19:35:54.039 2fe4 Manual compaction at level-0 from '!folders!0nwXnTha61OOvGAL' @ 72057594037927935 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at '!items!zPqt6DcLsPifSPVZ' @ 208 : 1
-2026/07/11-19:35:54.039 2fe4 Compacting 1@0 + 0@1 files
-2026/07/11-19:35:54.041 2fe4 Generated table #496@0: 10 keys, 5066 bytes
-2026/07/11-19:35:54.041 2fe4 Compacted 1@0 + 0@1 files => 5066 bytes
-2026/07/11-19:35:54.043 2fe4 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/07/11-19:35:54.043 2fe4 Delete type=2 #490
-2026/07/11-19:35:54.057 2fe4 Manual compaction at level-0 from '!items!zPqt6DcLsPifSPVZ' @ 208 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at (end)
-2026/07/11-19:35:54.074 2fe4 Manual compaction at level-1 from '!folders!0nwXnTha61OOvGAL' @ 72057594037927935 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at '!items!zPqt6DcLsPifSPVZ' @ 208 : 1
-2026/07/11-19:35:54.074 2fe4 Compacting 1@1 + 1@2 files
-2026/07/11-19:35:54.077 2fe4 Generated table #497@1: 110 keys, 39362 bytes
-2026/07/11-19:35:54.077 2fe4 Compacted 1@1 + 1@2 files => 39362 bytes
-2026/07/11-19:35:54.078 2fe4 compacted to: files[ 0 0 1 0 0 0 0 ]
-2026/07/11-19:35:54.078 2fe4 Delete type=2 #382
-2026/07/11-19:35:54.079 2fe4 Delete type=2 #496
-2026/07/11-19:35:54.090 2fe4 Manual compaction at level-1 from '!items!zPqt6DcLsPifSPVZ' @ 208 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at (end)
+2026/07/11-19:41:01.591 1240 Recovering log #494
+2026/07/11-19:41:01.595 1240 Delete type=0 #494
+2026/07/11-19:41:01.595 1240 Delete type=3 #492
+2026/07/11-19:49:29.556 2fe4 Level-0 table #501: started
+2026/07/11-19:49:29.556 2fe4 Level-0 table #501: 0 bytes OK
+2026/07/11-19:49:29.561 2fe4 Delete type=0 #499
+2026/07/11-19:49:29.563 2fe4 Manual compaction at level-0 from '!folders!0nwXnTha61OOvGAL' @ 72057594037927935 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at (end)
+2026/07/11-19:49:29.563 2fe4 Manual compaction at level-1 from '!folders!0nwXnTha61OOvGAL' @ 72057594037927935 : 1 .. '!items!zxA04Aecps4BY2qo' @ 0 : 0; will stop at (end)
