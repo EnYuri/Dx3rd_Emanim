@@ -1433,7 +1433,7 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .editor-content,
 body.fe-retro-theme .dx3rd-emanim prose-mirror .editor-content *,
 body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror,
 body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
-    color: var(--fe-ac-80) !important;
+    color: var(--fe-ac-80, #cccccc) !important;
 }
 
 .dx3rd-emanim .cell--title .addon {

@@ -654,13 +654,17 @@ Hooks.once('ready', () => {
           `;
         }
         
+        // 중복 다이얼로그 방지: 이전 턴의 행동 선택 창이 남아있으면 제거
+        // (남아있으면 document.getElementById가 옛 창의 버튼을 잡아 새 창이 먹통이 됨)
+        document.getElementById("dx3rd-action-dialog")?.remove();
         document.body.appendChild(dialog);
-        
-        document.getElementById("dx3rd-end-action-button").addEventListener("click", () => onSelect("end"));
+
+        // 리스너는 방금 만든 dialog 내부에서 직접 찾는다 (중복 id에 영향받지 않도록)
+        dialog.querySelector("#dx3rd-end-action-button").addEventListener("click", () => onSelect("end"));
         if (!isDelayed) {
-          document.getElementById("dx3rd-delay-action-button").addEventListener("click", () => onSelect("delay"));
+          dialog.querySelector("#dx3rd-delay-action-button").addEventListener("click", () => onSelect("delay"));
         }
-        document.getElementById("dx3rd-cancel-button").addEventListener("click", () => onSelect(null));
+        dialog.querySelector("#dx3rd-cancel-button").addEventListener("click", () => onSelect(null));
       });
       
       // 다이얼로그를 닫은 경우 (선택 안 함)
@@ -1074,9 +1078,11 @@ async function executeInitiativeProcess(combat) {
         ${game.i18n.localize("DX3rd.Confirm")}
       </button>
     `;
+    // 중복 다이얼로그 방지: 이전 개시 창이 남아있으면 제거
+    document.getElementById("dx3rd-initiative-dialog")?.remove();
     document.body.appendChild(dialog);
-    
-    document.getElementById("dx3rd-main-start-button").addEventListener("click", onStart);
+
+    dialog.querySelector("#dx3rd-main-start-button").addEventListener("click", onStart);
   });
 }
 
@@ -1617,9 +1623,15 @@ Hooks.once('ready', () => {
       return;
     }
     
-    // GM만 처리
+    // GM만 처리하되, 접속한 GM이 여러 명이면 대표 GM 한 명만 처리한다.
+    // (모두 처리하면 이니셔티브 진행/disable hook이 GM 수만큼 중복 실행됨)
+    // game.users.activeGM은 모든 클라이언트에서 동일하게 판정되는 단일 GM.
     if (!game.user.isGM) return;
-    
+    const responsibleGM = game.users.activeGM
+      ?? game.users.find(u => u.isGM && u.active)
+      ?? game.users.find(u => u.isGM);
+    if (responsibleGM && game.user.id !== responsibleGM.id) return;
+
     if (data.type === 'executeInitiativeProcess') {
       const combat = game.combats.get(data.combatId);
       if (combat) {

@@ -15,6 +15,14 @@
   "DX3rd.SkillsSettings": "기본 스킬 설정",
   "DX3rd.ManageSkills": "스킬 관리",
 
+  "DX3rd.CompendiumSyncName": "컴펜디움 동기화",
+  "DX3rd.CompendiumSyncLabel": "액터 아이템 갱신",
+  "DX3rd.CompendiumSyncHint": "월드 액터가 가진 아이템 중 컴펜디움과 이름·타입이 같은 것을 컴펜디움 데이터로 덮어씁니다. 장착·사용·활성·레벨 상태는 보존됩니다.",
+  "DX3rd.CompendiumSyncTitle": "컴펜디움 동기화 — 아이템 덮어쓰기",
+  "DX3rd.CompendiumSyncRun": "덮어쓰기 실행",
+  "DX3rd.CompendiumSyncScanning": "컴펜디움을 스캔하는 중...",
+  "DX3rd.CompendiumSyncNone": "갱신할 동명 아이템이 없습니다.",
+
   "DX3rd.RangeHighlight": "사정거리 시각화 설정",
   "DX3rd.RangeHighlightColor": "사정거리 사용자 색상 사용",
 
@@ -172,6 +180,7 @@
   "DX3rd.Limit": "제한",
   "DX3rd.Level": "레벨",
   "DX3rd.Timing": "타이밍",
+  "DX3rd.ComboTimingMismatch": "조합하는 모든 이펙트의 타이밍은 일치해야 합니다.",
   "DX3rd.Range": "사정거리",
   "DX3rd.Target": "대상",
   "DX3rd.Scene": "장면",

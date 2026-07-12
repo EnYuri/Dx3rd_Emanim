@@ -92,6 +92,27 @@
     return value === undefined || value === null || value === '' || value === '-';
   }
 
+  // 룰북 p.147: 조합하는 모든 이펙트의 타이밍과 기능은 일치해야 한다.
+  // '-'는 아직 데이터가 채워지지 않은 상태이므로, 그것만으로는 조합을 막지 않는다.
+  function getCombinedEffectTiming(actor, effectIds) {
+    const timings = normalizeIdList(effectIds)
+      .map(id => actor?.items.get(id)?.system?.timing)
+      .filter(timing => !isEmptyComboField(timing));
+    const uniqueTimings = [...new Set(timings)];
+    return {
+      value: uniqueTimings.length === 1 ? uniqueTimings[0] : null,
+      valid: uniqueTimings.length <= 1,
+      timings: uniqueTimings
+    };
+  }
+
+  function isComboTimingCompatible(comboItem, actor, effectIds) {
+    const combined = getCombinedEffectTiming(actor, effectIds);
+    if (!combined.valid) return false;
+    const comboTiming = comboItem?.system?.timing;
+    return isEmptyComboField(comboTiming) || !combined.value || comboTiming === combined.value;
+  }
+
   // 판정 "기능"이 아닌 센티넬 skill 값(콤보 판정 기능 소스에서 제외).
   //   syndrome: 컨센트레이트/리플렉스 등 — 이펙트를 사용한 판정에만 조합되는 순수 수정치(별도 attribute로 해소).
   //   text/cthulhu: 현재 데이터 없음(무시).
@@ -166,13 +187,28 @@
       if (cb !== (updates['system.base'] ?? cs.base)) updates['system.base'] = cb;
     }
 
-    // --- 공격판정(attackRoll): 이펙트 attackRoll(melee/ranged) > 무기 type ---
+    // --- 공격판정(attackRoll): 이펙트 명시 attackRoll > 이펙트 기능 > 무기 type/기능 ---
+    // 일부 기존 아이템은 attackRoll 대신 skill(또는 comboSkill)만 백병/사격으로 채워져 있다.
+    // 이 경우도 공격 종류를 판별할 수 있으므로 폴백으로 사용한다.
     let attackRoll = null;
     const effAR = effects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
     if (effAR) attackRoll = effAR.system.attackRoll;
     if (!attackRoll) {
+      const effSkillAR = effects.find(e =>
+        e.system?.comboSkill === 'melee' || e.system?.comboSkill === 'ranged' ||
+        e.system?.skill === 'melee' || e.system?.skill === 'ranged'
+      );
+      if (effSkillAR) attackRoll = (effSkillAR.system.comboSkill === 'melee' || effSkillAR.system.comboSkill === 'ranged')
+        ? effSkillAR.system.comboSkill
+        : effSkillAR.system.skill;
+    }
+    if (!attackRoll) {
       const wpnAR = weapons.find(w => w.system?.type === 'melee' || w.system?.type === 'ranged');
       if (wpnAR) attackRoll = wpnAR.system.type;
+    }
+    if (!attackRoll) {
+      const wpnSkillAR = weapons.find(w => w.system?.skill === 'melee' || w.system?.skill === 'ranged');
+      if (wpnSkillAR) attackRoll = wpnSkillAR.system.skill;
     }
     if (attackRoll && attackRoll !== cs.attackRoll) {
       updates['system.attackRoll'] = attackRoll;
@@ -189,7 +225,8 @@
     return updates;
   }
 
-  // 이펙트를 콤보에 추가할 때: 타이밍/고정무기(빈 값만)를 상속하고, 판정 기능/공격판정은 조합 우선순위로 재계산.
+  // 이펙트를 콤보에 추가할 때: 해설 탭의 기본값(타이밍/판정 종류/난이도)과 고정무기를
+  // 빈 값일 때만 상속하고, 판정 기능/공격판정은 조합 우선순위로 재계산.
   // prospectiveEffectIds: 아직 저장 전인 예정 이펙트 목록(방금 추가한 이펙트 포함).
   function computeInheritedComboFields(comboItem, effectItem, actor, prospectiveEffectIds = null) {
     const updates = {};
@@ -215,6 +252,16 @@
       effectIds: prospectiveEffectIds ?? getEffectIds(comboItem),
       weaponIds: effectiveWeapons
     }));
+
+    // 공격판정이 없는 이펙트도 자체 판정을 요구할 수 있다. 기존에는 attackRoll이 있을 때만
+    // roll='major'가 채워져, 일반 판정 이펙트를 넣어도 해설 탭이 '-'로 남았다.
+    // 사용자가 이미 고른 콤보 판정/난이도는 보존하고, 기본값일 때만 이펙트 값을 상속한다.
+    if (isEmptyComboField(cs.roll) && !isEmptyComboField(es.roll)) {
+      updates['system.roll'] = es.roll;
+    }
+    if (isEmptyComboField(cs.difficulty) && !isEmptyComboField(es.difficulty)) {
+      updates['system.difficulty'] = es.difficulty;
+    }
 
     return updates;
   }
@@ -259,6 +306,37 @@
     return { range: RT.combineRange(ranges), target: RT.combineTarget(targets) };
   }
 
+  // 등록 이펙트 원본이 편집됐을 때, 그 이펙트를 참조하는 콤보의 저장 파생값을 다시 맞춘다.
+  //
+  // 콤보가 직접 입력한 timing/무기 선택은 출처를 추적하지 않으므로 여기서 덮어쓰지 않는다.
+  // 반면 침식치, 기능/기본능력치/공격판정/공격력, 사정거리/대상은 기존의 추가·삭제 시점과
+  // 동일한 조합 규칙으로 안전하게 재계산할 수 있다.
+  function getRegisteredEffectSyncUpdates(comboItem, actor) {
+    if (!comboItem || !actor) return {};
+
+    const effectIds = getEffectIds(comboItem);
+    const updates = {
+      'system.encroach.value': calculateEncroachment(actor, effectIds),
+      ...deriveComboAttackFields(comboItem, actor, { effectIds })
+    };
+
+    const combined = combineEffectsRangeTarget(actor, effectIds);
+    if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
+    if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+
+    // updateItem 루프와 불필요한 문서 갱신을 피하기 위해 실제로 달라진 값만 남긴다.
+    return Object.fromEntries(Object.entries(updates).filter(([path, value]) =>
+      foundry.utils.getProperty(comboItem, path) !== value
+    ));
+  }
+
+  async function syncRegisteredEffectData(comboItem, actor) {
+    const updates = getRegisteredEffectSyncUpdates(comboItem, actor);
+    if (Object.keys(updates).length === 0) return false;
+    await comboItem.update(updates);
+    return true;
+  }
+
   async function addRegisteredEffect(item, actor, effectId) {
     if (!effectId || effectId === '-') {
       ui.notifications.warn("추가할 이펙트를 선택해주세요.");
@@ -272,12 +350,22 @@
     }
 
     const newEffects = [...currentEffects, effectId];
+    const combinedTiming = getCombinedEffectTiming(actor, newEffects);
+    if (!isComboTimingCompatible(item, actor, newEffects)) {
+      ui.notifications.warn(game.i18n.localize('DX3rd.ComboTimingMismatch'));
+    }
+
     // 타이밍/고정무기(빈 값만) 상속 + 판정 기능/공격판정은 조합 우선순위로 재계산(방금 추가 이펙트 포함).
     const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects),
       ...computeInheritedComboFields(item, actor?.items.get(effectId), actor, newEffects)
     };
+
+    // 모두 같은 타이밍이면 빈 콤보 표시값을 채운다. 불명('-')만 포함된 경우에는 사용자 입력을 기다린다.
+    if (isEmptyComboField(item.system?.timing) && combinedTiming.value) {
+      updates['system.timing'] = combinedTiming.value;
+    }
 
     // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
     const combined = combineEffectsRangeTarget(actor, newEffects);
@@ -911,6 +999,8 @@
     normalizeIdList,
     getEffectIds,
     getWeaponIds,
+    getCombinedEffectTiming,
+    isComboTimingCompatible,
     getPersistentEffectIds,
     calculateEncroachment,
     calculateSubmittedAttack,
@@ -919,6 +1009,8 @@
     computeInheritedComboFields,
     computeInheritedWeaponFields,
     deriveComboAttackFields,
+    getRegisteredEffectSyncUpdates,
+    syncRegisteredEffectData,
     applyWeaponAutoAttack,
     applyWeaponRemoved,
     openRegisteredEffectSheet,

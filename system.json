@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.5.8",
+  "version": "1.5.9",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -97,6 +97,7 @@
     "scripts/document/item.js",
     "scripts/migrations.js",
     "scripts/migrations-applied-ae.js",
+    "scripts/compendium-sync.js",
     "scripts/main.js"
   ],
   "styles": [

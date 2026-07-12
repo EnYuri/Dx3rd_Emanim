@@ -3211,6 +3211,10 @@
 
     // 전투 삭제 시 사이드 컨트롤 숨김
     Hooks.on('deleteCombat', (combat, options, userId) => {
+        // 전투용 플로팅 버튼이 떠 있으면 제거 (전투가 끝났는데 전투 버튼이 남는 문제 방지)
+        removeCombatButtons();
+        buttonsVisible = false;
+
         const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
         if (sideControlEnabled) {
             currentSideControlActionType = null;

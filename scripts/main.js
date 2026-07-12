@@ -4799,25 +4799,39 @@ function _dx3rdRerenderSheet(app) {
 
 // 침식률 등 액터 능력치가 바뀌면, 그 값을 표시/계산에 쓰는 열린 아이템 시트를 갱신.
 Hooks.on('updateActor', (actor, changed, options, userId) => {
-    if (!foundry.utils.hasProperty(changed, 'system.attributes')) return;
+    const hasAttributeChange = foundry.utils.hasProperty(changed, 'system.attributes') ||
+        Object.keys(changed || {}).some(key => key.startsWith('system.attributes.'));
+    if (!hasAttributeChange) return;
     for (const item of actor.items) {
         if (!['combo', 'effect', 'psionic'].includes(item.type)) continue;
         _dx3rdRerenderSheet(item._sheet);      // 아직 열린 적 없으면 생성하지 않는다
     }
 });
 
-// 이펙트가 바뀌면, 그 이펙트를 등록한 열린 콤보 시트를 갱신(등록 이펙트 파생값 반영).
-// 이펙트 자신의 시트는 Foundry가 updateItem 시 자동으로 다시 그린다.
-Hooks.on('updateItem', (item, changed, options, userId) => {
+// 이펙트가 바뀌면, 그 이펙트를 등록한 콤보의 저장 파생값도 같은 조합 규칙으로 동기화하고
+// 열린 콤보 시트를 갱신한다. 이펙트 자신의 시트는 Foundry가 updateItem 시 자동으로 다시 그린다.
+Hooks.on('updateItem', async (item, changed, options, userId) => {
     const actor = item.actor;
     if (!actor || item.type !== 'effect') return;
-    const getEffectIds = window.DX3rdComboData?.getEffectIds;
+    // 이름·이미지·정렬 변경은 콤보의 계산값에 영향이 없다.
+    // Foundry 버전/호출 경로에 따라 changes가 중첩 객체 또는 점 표기 키가 될 수 있다.
+    const hasSystemChange = foundry.utils.hasProperty(changed, 'system') ||
+        Object.keys(changed || {}).some(key => key.startsWith('system.'));
+    if (!hasSystemChange) return;
+
+    const comboData = window.DX3rdComboData;
+    const getEffectIds = comboData?.getEffectIds;
     for (const combo of actor.items) {
         if (combo.type !== 'combo') continue;
-        const app = combo._sheet;
-        if (!app?.rendered) continue;
         const ids = getEffectIds ? getEffectIds(combo)
             : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
-        if (ids.includes(item.id)) _dx3rdRerenderSheet(app);
+        if (!ids.includes(item.id)) continue;
+
+        try {
+            await comboData?.syncRegisteredEffectData?.(combo, actor);
+        } catch (error) {
+            console.error('DX3rd | Failed to synchronize combo after registered effect update', error);
+        }
+        _dx3rdRerenderSheet(combo._sheet);
     }
 });
