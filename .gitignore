@@ -12,6 +12,10 @@ _backup_*/
 # Foundry LevelDB 런타임 락 (커밋 금지)
 packs/*/LOCK
 
+# Foundry LevelDB 디버그 로그 (데이터 아님, 월드 켤 때마다 회전 → 커밋 금지)
+packs/*/LOG
+packs/*/LOG.old
+
 # OS / 에디터
 .DS_Store
 Thumbs.db
