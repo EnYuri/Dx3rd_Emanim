@@ -193,7 +193,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       
       if (otherTokens.length === 0) {
-        ui.notifications.warn("선택할 수 있는 다른 토큰이 없습니다.");
+        ui.notifications.warn(game.i18n.localize("DX3rd.NoHatredTarget"));
         const effect = actor.effects.find(e => e.statuses.has("hatred"));
         if (effect) await effect.delete();
         return;
@@ -1555,6 +1555,7 @@ Hooks.once('ready', async function() {
   
 });
 
+
 // 캔버스 준비 시 모든 dead 토큰에 death mark 표시 (초기 로드용)
 Hooks.on('canvasReady', async () => {
   if (!canvas.scene) return;
@@ -1616,4 +1617,3 @@ Hooks.on('canvasReady', async () => {
     }
   }
 });
-

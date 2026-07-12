@@ -33,7 +33,7 @@
         <tr style="text-align: center;">
             <td style="padding: 2px 0;"><input type="text" id="skill-key" class="text skill-input-box" value="{{skill.key}}" readonly></td>
             <td style="padding: 2px 0;">
-                <input type="text" id="skill-name" class="text skill-input-box skill-change" data-type="name" value="{{localize skill.name}}" data-dtype="String" disabled>
+                <input type="text" id="skill-name" class="text skill-input-box skill-change" data-type="name" value="{{localize skill.name}}" data-dtype="String" {{#unless skill.delete}}disabled{{/unless}}>
             </td>
             <td style="padding: 2px 0;"><input type="text" id="skill-dice" class="text skill-input-box" value="+{{skill.dice}}D" data-dtype="String" disabled></td>
             <td style="padding: 2px 0;"><input type="text" id="skill-total" class="text skill-input-box auto-sign" value="{{skill.total}}" data-dtype="String" disabled></td>

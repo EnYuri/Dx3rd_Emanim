@@ -451,7 +451,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -491,7 +491,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
                   </h4>
@@ -528,7 +528,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
                   </h4>
@@ -565,7 +565,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
                   </h4>
@@ -605,7 +605,7 @@
                       </span>
                     </span>
                   </h4>
-                  <h4 class="item-addon"><input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}></h4>
+                  <h4 class="item-addon"><input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}></h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
                     <a class="item-control item-delete" data-action="deleteItem" title="{{localize "DX3rd.Delete"}}"><i class="fas fa-trash"></i></a>
@@ -639,7 +639,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
                   </h4>
@@ -682,8 +682,8 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-equipment" {{#if item.system.equipment}} checked {{/if}}>
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-equipment" title="{{localize "DX3rd.Equipment"}}" {{#if item.system.equipment}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -716,8 +716,8 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-equipment" {{#if item.system.equipment}} checked {{/if}}>
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-equipment" title="{{localize "DX3rd.Equipment"}}" {{#if item.system.equipment}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -752,8 +752,8 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-equipment" {{#if item.system.equipment}} checked {{/if}}>
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-equipment" title="{{localize "DX3rd.Equipment"}}" {{#if item.system.equipment}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -808,7 +808,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{#unless (eq item.system.used.disable "notCheck")}}
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
@@ -839,7 +839,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{#unless (eq item.system.used.disable "notCheck")}}
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
@@ -870,7 +870,7 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
-                    <input type="checkbox" class="active-check" {{#if item.system.active.state}} checked {{/if}}>
+                    <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{#unless (eq item.system.used.disable "notCheck")}}
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>

@@ -613,6 +613,7 @@
 
   "DX3rd.Hatred": "증오",
   "DX3rd.HatredInputText": "증오의 대상을 입력하세요",
+  "DX3rd.NoHatredTarget": "증오 상태이상의 대상이 없습니다.",
   "DX3rd.MustAttackHatredTarget": "반드시 대상({target})을 공격해야 합니다",
 
   "DX3rd.Fear": "공포",

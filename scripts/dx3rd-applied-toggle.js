@@ -24,6 +24,16 @@
   // 이펙트류(→AE). 나머지(장비/기록/아이템/기타)는 actor.js 자체계산에 남는다.
   const TOGGLE_TYPES = ['effect', 'spell', 'psionic', 'combo'];
 
+  /**
+   * 아이템 훅이 applied-toggle 동기화를 유발해야 하는 타입인가.
+   * combo는 구성 effect를 참조하므로, 활성 여부와 관계없이 effect 변경은 동기화한다.
+   * 그 외 타입은 desiredPayloads()가 읽지 않아 장비 수정·상비화·이름 변경마다
+   * 액터 전체의 토글 효과를 재탐색할 필요가 없다.
+   */
+  function isToggleSourceItem(item) {
+    return !!item && TOGGLE_TYPES.includes(item.type);
+  }
+
   // 재진입 방지는 액터 단위. 전역 플래그로 두면 백필/동시 동기화 때 첫 액터가 잡은 사이
   // 나머지 액터의 sync 가 전부 스킵된다(서로 다른 액터는 간섭하면 안 됨).
   const syncing = new Set();
@@ -169,9 +179,18 @@
     if (!systemChangeAffectsPayload(changed)) return;
     sync(actor);
   });
-  Hooks.on('updateItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });
-  Hooks.on('createItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });
-  Hooks.on('deleteItem', (item) => { const a = item.parent; if (a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a); });
+  Hooks.on('updateItem', (item) => {
+    const a = item.parent;
+    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+  });
+  Hooks.on('createItem', (item) => {
+    const a = item.parent;
+    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+  });
+  Hooks.on('deleteItem', (item) => {
+    const a = item.parent;
+    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+  });
   Hooks.once('ready', () => { for (const a of game.actors) sync(a); });
 
   window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, desiredPayloads, isResponsible };

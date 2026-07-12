@@ -939,7 +939,9 @@
 .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .title::before {
     background: #404040;
     border: 2px solid rgb(0, 0, 0);
-    top: -4px;
+    /* 바탕을 위로만 확장하면 텍스트가 시각적으로 아래로 치우쳐 보인다. */
+    top: -2px;
+    bottom: -2px;
 }
 
 .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .title {
@@ -957,7 +959,7 @@
 
 .dx3rd-emanim .sheet-wrapper .sheet-stat .main-grid .skill-box .skill-edit {
     position: absolute;
-    top: 4px;
+    top: 6px;
     z-index: 2;
     right: 25px;
     cursor: pointer;
@@ -2451,6 +2453,22 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
    ========================================================================== */
 
 /* --- Rolling Dialog (shared) --- */
+.application.dialog.dx3rd-emanim.dx3rd-combo-confirm-dialog .window-content {
+    padding: 16px;
+    background: #121212;
+    color: #e0e0e0;
+}
+
+.application.dialog.dx3rd-emanim.dx3rd-combo-confirm-dialog .window-content p {
+    margin: 0;
+    text-align: center;
+    font-weight: bold;
+}
+
+.application.dialog.dx3rd-emanim.dx3rd-combo-confirm-dialog .dialog-buttons {
+    gap: 8px;
+}
+
 .dx3rd-casting-dialog { padding-top: 4px; }
 .dx3rd-row { display: grid; gap: 8px; }
 .dx3rd-3col { grid-template-columns: 1fr 1fr 1fr; }
@@ -2655,14 +2673,6 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 
 /* 데미지 적용 다이얼로그 (방어 다이얼로그) 스타일 */
 .defense-dialog.window-app {
-    top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
-    left: 50% !important;
-    transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
-}
-
-/* 판정 다이얼로그 스타일 */
-.dx3rd-rolling-dialog.window-app,
-.dx3rd-rolling-dialog.application {
     top: 70vh !important; /* 화면 아래에서 30% 위치 (화면 높이의 70% 위치) */
     left: 50% !important;
     transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */

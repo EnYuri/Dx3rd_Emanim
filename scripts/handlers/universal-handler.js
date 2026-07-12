@@ -5401,7 +5401,7 @@
       }
     },
     
-    showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
+    async showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
       // 권한 체크
       if (!actor.isOwner && !game.user.isGM) {
         ui.notifications.warn('이 액터에 대한 권한이 없습니다.');
@@ -5438,26 +5438,25 @@
         return;
       }
 
-      DialogV2.confirm({
+      // 다음 다이얼로그를 버튼 콜백 안에서 바로 열면, 확인 다이얼로그가 위치/드래그
+      // 상태를 정리하는 도중 새 창이 생성된다. 특히 "아니요" → 직접 판정 경로에서
+      // 새 창이 화면 하단에 고정되는 문제가 있어, confirm 완료 뒤에 다음 UI를 연다.
+      const useCombo = await DialogV2.confirm({
         window: { title },
         content: `<p>${title}?</p>`,
+        classes: ['dx3rd-emanim', 'dx3rd-combo-confirm-dialog'],
         yes: {
-          label: 'Yes',
-          callback: async () => {
-            await openCombo();
-            return true;
-          }
+          label: 'Yes'
         },
         no: {
-          label: 'No',
-          callback: () => {
-            rollDirectly();
-            return false;
-          }
+          label: 'No'
         },
         defaultYes: false,
         rejectClose: false
       });
+
+      if (useCombo === true) return openCombo();
+      if (useCombo === false) return rollDirectly();
     },
 
     /**
@@ -5903,21 +5902,16 @@
         window: { title: dialogTitle },
         content,
         position: { width: 400 },
-        classes: ['dx3rd-emanim','dx3rd-rolling-dialog'],
+        classes: ['dx3rd-emanim', 'dx3rd-rolling-dialog'],
         buttons: [{
-          action: 'noop',
-          label: '',
-          callback: () => {}
+          action: 'close',
+          label: game.i18n.localize('DX3rd.Close')
         }]
       });
       await dlg.render(true);
 
       const root = dlg.element;
       if (!root) return;
-      const noopButton = root.querySelector('button[data-action="noop"]');
-      const noopFooter = noopButton?.closest('footer');
-      if (noopButton) noopButton.hidden = true;
-      if (noopFooter) noopFooter.hidden = true;
 
       const diceDisplay = root.querySelector('.dx-dice-display');
       const diceInput = root.querySelector('.dx-dice-input');
