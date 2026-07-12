@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.5.9",
+  "version": "1.6.0",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -188,6 +188,30 @@
       "name": "dlois",
       "label": "D로이스",
       "path": "packs/dlois",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "works",
+      "label": "웍스",
+      "path": "packs/works",
+      "type": "Item",
+      "system": "dx3rd-emanim",
+      "ownership": {
+        "PLAYER": "OBSERVER",
+        "ASSISTANT": "OWNER"
+      },
+      "flags": {}
+    },
+    {
+      "name": "syndromes",
+      "label": "신드롬",
+      "path": "packs/syndromes",
       "type": "Item",
       "system": "dx3rd-emanim",
       "ownership": {

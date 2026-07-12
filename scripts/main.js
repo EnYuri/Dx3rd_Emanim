@@ -4769,6 +4769,38 @@ Hooks.on('preCreateItem', async (item, data, options, userId) => {
     }
 });
 
+// 컴펜디움 웍스를 액터에 추가할 때, 표에 지정된 전문 기능도 함께 만든다.
+// 〈운전:〉·〈지식:〉처럼 세부명이 비어 있는 기능은 사용자가 액터 시트에서
+// 이름을 정하면 되며, 여기서는 해당 웍스의 기능치 보너스가 즉시 적용되도록 한다.
+Hooks.on('createItem', async (item, options, userId) => {
+    const actor = item.actor;
+    if (!actor || actor.type !== 'character' || item.type !== 'works') return;
+    if (game.userId !== userId) return;
+
+    const updates = {};
+    for (const [key, skill] of Object.entries(item.system?.skills || {})) {
+        if (!key || actor.system?.attributes?.skills?.[key]) continue;
+        updates[`system.attributes.skills.${key}`] = {
+            name: skill.name || key,
+            point: 0,
+            bonus: 0,
+            extra: 0,
+            total: 0,
+            dice: 0,
+            add: 0,
+            base: skill.base || 'body',
+            delete: true
+        };
+    }
+    if (Object.keys(updates).length > 0) {
+        try {
+            await actor.update(updates);
+        } catch (error) {
+            console.error('DX3rd | 웍스 전문 기능 생성 실패', error);
+        }
+    }
+});
+
 // ========== AfterMain 큐 관리: 전투 시작 시 초기화 ========== //
 // 전투 종료 시 초기화는 combat.js의 deleteCombat 훅에서 처리
 Hooks.on('createCombat', async (combat, options, userId) => {

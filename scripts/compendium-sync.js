@@ -13,7 +13,7 @@
 (function() {
     const SCOPE = 'dx3rd-emanim';
     // Item 타입 컴펜디움 팩(system.json packs 순서와 동일)
-    const PACKS = ['effects', 'weapons', 'armors', 'vehicles', 'items', 'dlois'];
+    const PACKS = ['effects', 'weapons', 'armors', 'vehicles', 'items', 'dlois', 'works', 'syndromes'];
 
     // 인스턴스별 상태(사용자/런타임이 조작한 값). 교체 후 되살린다.
     const PRESERVE = [
