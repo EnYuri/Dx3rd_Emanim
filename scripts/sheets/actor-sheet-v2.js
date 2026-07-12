@@ -244,6 +244,54 @@
       root.querySelectorAll('.syndrome-check').forEach(input => {
         input.addEventListener('change', event => this._onSyndromeChange(event), listenerOptions);
       });
+
+      // 기능치가 4개를 초과하는 기능치 열은 5번째부터 접어 헤더 높이를 줄인다
+      // (새 액터는 모든 기능치가 등록돼 사회 열이 지나치게 길어지므로).
+      this._applySkillCollapse(root);
+    }
+
+    /**
+     * 각 능력치(육체/감각/정신/사회) 기능치 열에서 4개를 초과하는 항목을 접고,
+     * "더 보기(N)"/"접기" 토글 버튼을 주입한다. 펼침 상태는 시트 인스턴스에 유지되어
+     * 재렌더에도 사용자가 펼쳐둔 열은 그대로 유지된다(기본값은 접힘).
+     */
+    _applySkillCollapse(root) {
+      const THRESHOLD = 4;
+      this._expandedAbilities = this._expandedAbilities || new Set();
+
+      root.querySelectorAll('.main-grid .ability').forEach(ability => {
+        const abilityId = ability.dataset.abilityId || '';
+        const box = ability.querySelector('.skill-box');
+        if (!box) return;
+
+        // 재렌더/재적용 안전: 기존 토글 버튼 제거 후 다시 계산
+        box.querySelector('.skill-collapse-toggle')?.remove();
+        const skills = Array.from(box.querySelectorAll(':scope > .skill'));
+        if (skills.length <= THRESHOLD) {
+          skills.forEach(el => el.classList.remove('skill-hidden'));
+          return;
+        }
+
+        const expanded = this._expandedAbilities.has(abilityId);
+        skills.forEach((el, i) => {
+          el.classList.toggle('skill-hidden', !expanded && i >= THRESHOLD);
+        });
+
+        const hiddenCount = skills.length - THRESHOLD;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'skill-collapse-toggle';
+        toggle.textContent = expanded
+          ? game.i18n.localize('DX3rd.SkillCollapse')
+          : `${game.i18n.localize('DX3rd.SkillExpand')} (${hiddenCount})`;
+        toggle.addEventListener('click', ev => {
+          ev.preventDefault();
+          if (this._expandedAbilities.has(abilityId)) this._expandedAbilities.delete(abilityId);
+          else this._expandedAbilities.add(abilityId);
+          this._applySkillCollapse(root);
+        }, { signal: this._eventListeners.signal });
+        box.appendChild(toggle);
+      });
     }
 
     async _onClose(options) {

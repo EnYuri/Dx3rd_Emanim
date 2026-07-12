@@ -445,14 +445,18 @@
         const fixed = orderArr
             .map(key => [key, skills[key]])
             .filter(([_, skill]) => skill && skill.base === abilityId);
-        // 2. 나머지(추가된) 스킬
+        // 2. 나머지(추가된) 스킬 — 기본 기능 바로 아래에 LV(total) 높은 순으로 정렬
         const rest = Object.entries(skills)
             .filter(([key, skill]) => skill.base === abilityId && !orderArr.includes(key))
             .sort((a, b) => {
+                const lvA = Number(a[1].total) || 0;
+                const lvB = Number(b[1].total) || 0;
+                if (lvB !== lvA) return lvB - lvA; // 높은 LV 우선
+                // 동일 LV: 기존 order → 이름 순으로 안정적 정렬
                 if (a[1].order !== undefined && b[1].order !== undefined) {
                     return a[1].order - b[1].order;
                 }
-                return a[1].name.localeCompare(b[1].name);
+                return (a[1].name || '').localeCompare(b[1].name || '');
             });
         return [...fixed, ...rest];
     });

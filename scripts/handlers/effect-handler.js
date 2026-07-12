@@ -44,7 +44,38 @@ window.DX3rdEffectHandler = {
 
         // 일반/커스텀 스킬
         const stat = actor.system.attributes.skills?.[skillKey];
-        return { stat, label: stat ? this.getSkillDisplayName(skillKey, stat) : '' };
+        if (stat) return { stat, label: this.getSkillDisplayName(skillKey, stat) };
+
+        // 폴백: 액터가 보유하지 않은 (계통) 기능치를 참조하면 연결 능력치로 판정한다.
+        // (미습득 기능 = 능력치 판정, DX3 규칙과 일치. 계통 기능치를 새 캐릭터에 자동 시드하지
+        //  않으므로, 홈브루 이펙트가 그런 기능치를 참조해도 판정이 중단되지 않게 한다.)
+        const base = this._resolveSkillBase(skillKey);
+        if (base && actor.system.attributes[base]) {
+            const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
+            const cs = customSkills[skillKey];
+            const label = cs
+                ? (typeof cs === 'object' ? cs.name : cs)
+                : (skillKey.startsWith('DX3rd.') ? game.i18n.localize(skillKey) : skillKey);
+            return { stat: actor.system.attributes[base], label };
+        }
+
+        return { stat: null, label: '' };
+    },
+
+    /**
+     * 액터에 없는 기능치 키의 연결 능력치를 추정한다.
+     * customSkills 설정의 base 를 우선 사용하고, 없으면 계통 키 접두사로 추론한다.
+     */
+    _resolveSkillBase(skillKey) {
+        if (!skillKey) return null;
+        const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
+        const cs = customSkills[skillKey];
+        if (cs && typeof cs === 'object' && cs.base) return cs.base;
+        if (skillKey.startsWith('info_')) return 'social';
+        if (skillKey.startsWith('know_')) return 'mind';
+        if (skillKey.startsWith('drive_')) return 'body';
+        if (skillKey.startsWith('ars_')) return 'sense';
+        return null;
     },
 
     async handle(actorId, itemId, getTarget, options = {}) {

@@ -115,6 +115,40 @@ function removeDeathMarkFromToken(token) {
   }
 }
 
+/**
+ * suppress(시각 동기화) 경로에서도 팔레트 경로와 동일한 "생성 시 기계적 부수효과"를 적용한다.
+ * 채팅 메시지/다이얼로그 없이, 상태에 종속된 부수효과만 반영한다.
+ * - dead: 토큰에 death mark 추가 + 타 클라이언트 동기화(handleConditionToggle의 dead 분기와 동일)
+ * - dazed: dice -2 applied 효과(handleConditionToggle의 dazed 분기와 동일)
+ * (berserk의 파괴적/연쇄 효과나 poisoned 랭크 다이얼로그 등은 시각 동기화 경로에서 실행하지 않는다 —
+ *  이는 팔레트/아이템 경로에서만 적용된다.)
+ */
+async function applyConditionCreateSideEffects(actor, conditionId) {
+  if (!actor) return;
+  if (conditionId === "dead") {
+    if (canvas.scene) {
+      const tokens = canvas.scene.tokens.filter(t => t.actorId === actor.id);
+      for (const tokenDoc of tokens) {
+        const tokenObj = tokenDoc.object;
+        if (tokenObj) {
+          await addDeathMarkToToken(tokenObj);
+          tokenObj.refresh();
+          game.socket.emit('system.dx3rd-emanim', {
+            type: 'addDeathMark',
+            data: { tokenId: tokenDoc.id, sceneId: canvas.scene.id }
+          });
+        }
+      }
+    }
+  } else if (conditionId === "dazed") {
+    await window.DX3rdAppliedEffects.set(actor, 'dazed', {
+      name: game.i18n.localize('DX3rd.Dazed'),
+      attributes: { dice: -2 },
+      disable: '-'
+    });
+  }
+}
+
 async function handleConditionToggle(token, conditionId, isActive, triggerItemName, poisonedRank = null, specialTarget = null, suppressMessage = false) {
   const actor = token.actor;
   if (!actor) return;
@@ -229,22 +263,23 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제 (취소가 아닐 때만)
-      if (!_cancellingCondition) {
-        await actor.update({
-          "system.conditions.hatred.active": false,
-          "system.conditions.hatred.target": ""
+      // 해제: conditions 필드 원복은 항상 수행한다.
+      // (시트 체크박스로 켠 뒤 다이얼로그를 취소한 경우 active 가 true 로 남아 오버레이와
+      //  어긋나므로, _cancellingCondition 여부와 무관하게 false 로 되돌린다. active 가 이미
+      //  false 면 no-op diff 라 팔레트 취소 경로에는 영향이 없다.)
+      await actor.update({
+        "system.conditions.hatred.active": false,
+        "system.conditions.hatred.target": ""
+      });
+
+      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      if (!_cancellingCondition && !suppressMessage) {
+        const messageContent = `${game.i18n.localize("DX3rd.Hatred")} ${game.i18n.localize("DX3rd.Clear")}`;
+
+        ChatMessage.create({
+          content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+          speaker: getActorOnlySpeaker(actor)
         });
-        
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
-        if (!suppressMessage) {
-          const messageContent = `${game.i18n.localize("DX3rd.Hatred")} ${game.i18n.localize("DX3rd.Clear")}`;
-          
-          ChatMessage.create({
-            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-            speaker: getActorOnlySpeaker(actor)
-          });
-        }
       }
     }
   }
@@ -513,24 +548,23 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제 (취소가 아닐 때만)
-      if (!_cancellingCondition) {
-        // 상태이상과 applied 효과 모두 제거
-        await actor.update({
-          "system.conditions.berserk.active": false,
-          "system.conditions.berserk.type": "-"
+      // 해제: 상태이상 필드 원복 + applied 효과 제거는 항상 수행한다.
+      // (시트 체크박스로 켠 뒤 유형 다이얼로그를 취소한 경우 active 가 true 로 남는 것을 방지.
+      //  active 가 이미 false 면 no-op diff.)
+      await actor.update({
+        "system.conditions.berserk.active": false,
+        "system.conditions.berserk.type": "-"
+      });
+      await window.DX3rdAppliedEffects.removeMany(actor, ['berserk_hunger', 'berserk_tourture']);
+
+      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      if (!_cancellingCondition && !suppressMessage) {
+        const messageContent = `${game.i18n.localize("DX3rd.Berserk")} ${game.i18n.localize("DX3rd.Clear")}`;
+
+        ChatMessage.create({
+          content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+          speaker: getActorOnlySpeaker(actor)
         });
-        await window.DX3rdAppliedEffects.removeMany(actor, ['berserk_hunger', 'berserk_tourture']);
-        
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
-        if (!suppressMessage) {
-          const messageContent = `${game.i18n.localize("DX3rd.Berserk")} ${game.i18n.localize("DX3rd.Clear")}`;
-          
-          ChatMessage.create({
-            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-            speaker: getActorOnlySpeaker(actor)
-          });
-        }
       }
     }
   }
@@ -649,22 +683,21 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제 (취소가 아닐 때만)
-      if (!_cancellingCondition) {
-        await actor.update({
-          "system.conditions.fear.active": false,
-          "system.conditions.fear.target": ""
+      // 해제: conditions 필드 원복은 항상 수행(시트 체크박스 켠 뒤 다이얼로그 취소 대비).
+      // active 가 이미 false 면 no-op diff.
+      await actor.update({
+        "system.conditions.fear.active": false,
+        "system.conditions.fear.target": ""
+      });
+
+      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      if (!_cancellingCondition && !suppressMessage) {
+        const messageContent = `${game.i18n.localize("DX3rd.Fear")} ${game.i18n.localize("DX3rd.Clear")}`;
+
+        ChatMessage.create({
+          content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+          speaker: getActorOnlySpeaker(actor)
         });
-        
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
-        if (!suppressMessage) {
-          const messageContent = `${game.i18n.localize("DX3rd.Fear")} ${game.i18n.localize("DX3rd.Clear")}`;
-          
-          ChatMessage.create({
-            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-            speaker: getActorOnlySpeaker(actor)
-          });
-        }
       }
     }
   }
@@ -1089,22 +1122,21 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제 (취소가 아닐 때만)
-      if (!_cancellingCondition) {
-        await actor.update({
-          "system.conditions.poisoned.active": false,
-          "system.conditions.poisoned.value": 0
+      // 해제: conditions 필드 원복은 항상 수행(시트 체크박스 켠 뒤 랭크 다이얼로그 취소 대비).
+      // active 가 이미 false 면 no-op diff.
+      await actor.update({
+        "system.conditions.poisoned.active": false,
+        "system.conditions.poisoned.value": 0
+      });
+
+      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      if (!_cancellingCondition && !suppressMessage) {
+        const messageContent = `${game.i18n.localize("DX3rd.Poisoned")} ${game.i18n.localize("DX3rd.Clear")}`;
+
+        ChatMessage.create({
+          content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
+          speaker: getActorOnlySpeaker(actor)
         });
-        
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
-        if (!suppressMessage) {
-          const messageContent = `${game.i18n.localize("DX3rd.Poisoned")} ${game.i18n.localize("DX3rd.Clear")}`;
-          
-          ChatMessage.create({
-            content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
-            speaker: getActorOnlySpeaker(actor)
-          });
-        }
       }
     }
   }
@@ -1222,10 +1254,13 @@ Hooks.once('ready', async function() {
           specialTargetFromMap = payload.specialTarget || null;
           const suppressMessage = payload.suppressMessage || false;
           
-          // suppressMessage가 true면 메시지 출력하지 않고 바로 리턴
+          // suppressMessage가 true면 메시지·다이얼로그는 건너뛰되,
+          // 팔레트 경로와 동일한 기계적 부수효과(death mark / dazed applied 등)는 적용한다.
+          // (시트 체크박스 → updateActor 동기화 경로가 팔레트 경로와 같은 결과를 내도록 병합)
           // 단, 맵에서 데이터는 삭제하여 해제 시 메시지 억제가 적용되지 않도록 함
           if (suppressMessage) {
             window.DX3rdConditionTriggerMap.delete(key);
+            await applyConditionCreateSideEffects(actor, conditionId);
             return;
           }
           
@@ -1307,7 +1342,9 @@ Hooks.once('ready', async function() {
    * createActiveEffect/deleteActiveEffect 훅의 다이얼로그·중복 채팅을 억제한다(순수 시각 동기화).
    * effect 존재 여부로 idempotent 하게 동작하므로 팔레트 토글 경로와 충돌하지 않는다.
    *
-   * defeated(dead)는 death mark/HP 로직과 얽혀 있어 여기서 다루지 않고 기존 처리에 맡긴다.
+   * defeated 는 status "dead" 오버레이/죽음표식으로 동기화한다. 생성 시 death mark 는
+   * applyConditionCreateSideEffects(suppress 분기)에서, 삭제 시 handleConditionToggle 의
+   * dead 분기(suppress)에서 처리되므로 시트 체크박스↔토큰 오버레이가 일치한다.
    */
   const CONDITION_TO_STATUS = {
     poisoned: "poisoned",
@@ -1319,7 +1356,8 @@ Hooks.once('ready', async function() {
     dazed: "dazed",
     boarding: "boarding",
     stealth: "stealth",
-    fly: "fly"
+    fly: "fly",
+    defeated: "dead"
   };
 
   Hooks.on('updateActor', async (actor, updateData, options, userId) => {
@@ -1340,28 +1378,67 @@ Hooks.once('ready', async function() {
       const nowActive = !!flat[key];
       const hasEffect = actor.effects.some(e => e.statuses.has(status));
 
+      // 시트 체크박스로 상태이상을 켜고 끄면 팔레트/아이템 경로와 "완전히 동일하게" 발동시킨다.
+      // (다이얼로그 · 부수효과 · 채팅 메시지 포함) — 오버레이(ActiveEffect)를 생성/삭제하면
+      // 정규 createActiveEffect/deleteActiveEffect 훅이 handleConditionToggle 을 호출한다.
+      //
+      // 중복 발동은 hasEffect 가드가 막는다:
+      //   - 팔레트/아이템 경로: handleConditionToggle 이 먼저 오버레이를 만들고 conditions.active 를
+      //     세팅 → 이 훅이 그 업데이트로 다시 돌 때는 이미 hasEffect=true 라 재토글하지 않는다.
+      //   - 시트 경로: 이 훅이 최초로 오버레이를 만들고, handleConditionToggle 이 세팅하는
+      //     conditions.active(=true) 는 no-op diff 라 재진입하지 않는다.
       if (nowActive && !hasEffect) {
-        // 오버레이 생성(다이얼로그·메시지 억제)
-        window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
-        window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
         try {
           await actor.toggleStatusEffect(status, { active: true });
         } catch (e) {
           console.warn(`DX3rd | Failed to sync overlay ON for ${cond}:`, e);
-          window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
         }
       } else if (!nowActive && hasEffect) {
-        // 오버레이 삭제(메시지 억제)
-        window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
-        window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
         try {
           const eff = actor.effects.find(e => e.statuses.has(status));
           if (eff) await eff.delete();
-          else window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
         } catch (e) {
           console.warn(`DX3rd | Failed to sync overlay OFF for ${cond}:`, e);
-          window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
         }
+      }
+    }
+
+    // 폭주 유형에 종속된 "지속 패널티"를 시트 드롭다운 값에 맞춰 재조정한다.
+    // active 토글과 유형 변경(순서 무관)을 모두 커버하도록 .active/.type 변경 시 실행.
+    // 상태 종속 지속 효과(기아 dice-5, 가학 attack-20)만 다룬다 —
+    // 자해 HP-5, 공포→경직, 증오→증오, 흡혈 등 "적용 시점 1회성 이벤트"는
+    // 드롭다운 조작만으로 반복 발동되면 안 되므로 여기서 다루지 않는다(팔레트/아이템 발동 전용).
+    if ('system.conditions.berserk.active' in flat || 'system.conditions.berserk.type' in flat) {
+      const bActive = !!actor.system?.conditions?.berserk?.active;
+      const bType = actor.system?.conditions?.berserk?.type || '-';
+
+      const wantHunger = bActive && bType === 'hunger';
+      const wantTourture = bActive && bType === 'tourture';
+      const hasHunger = actor.effects.some(e => e.getFlag?.('dx3rd-emanim', 'appliedKey') === 'berserk_hunger');
+      const hasTourture = actor.effects.some(e => e.getFlag?.('dx3rd-emanim', 'appliedKey') === 'berserk_tourture');
+
+      try {
+        if (wantHunger && !hasHunger) {
+          await window.DX3rdAppliedEffects.set(actor, 'berserk_hunger', {
+            name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeHunger'),
+            attributes: { dice: -5 },
+            disable: '-'
+          });
+        } else if (!wantHunger && hasHunger) {
+          await window.DX3rdAppliedEffects.remove(actor, 'berserk_hunger');
+        }
+
+        if (wantTourture && !hasTourture) {
+          await window.DX3rdAppliedEffects.set(actor, 'berserk_tourture', {
+            name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeTourture'),
+            attributes: { attack: -20 },
+            disable: '-'
+          });
+        } else if (!wantTourture && hasTourture) {
+          await window.DX3rdAppliedEffects.remove(actor, 'berserk_tourture');
+        }
+      } catch (e) {
+        console.warn('DX3rd | Failed to reconcile berserk penalties:', e);
       }
     }
   });
@@ -1512,7 +1589,8 @@ Hooks.on('canvasReady', async () => {
     dazed: "dazed",
     boarding: "boarding",
     stealth: "stealth",
-    fly: "fly"
+    fly: "fly",
+    defeated: "dead"
   };
 
   const seenActors = new Set();

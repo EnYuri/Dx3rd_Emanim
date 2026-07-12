@@ -4671,26 +4671,12 @@ Hooks.on('createActor', async (actor, options, userId) => {
             };
         }
         
-        // 커스텀 스킬 추가 (customSkills는 위에서 이미 선언됨)
-        for (const [skillKey, data] of Object.entries(customSkills)) {
-            if (!actor.system.attributes.skills[skillKey]) {
-                const skillName = typeof data === 'object' ? data.name : data;
-                const skillBase = typeof data === 'object' ? data.base : 'body';
-                
-                updates[`system.attributes.skills.${skillKey}`] = {
-                    name: skillName,
-                    point: 0,
-                    bonus: 0,
-                    extra: 0,
-                    total: 0,
-                    dice: 0,
-                    add: 0,
-                    base: skillBase,
-                    delete: true
-                };
-            }
-        }
-        
+        // 계통 기능치(운전/예술/지식/정보 등 customSkills)는 새 캐릭터에 자동 주입하지 않는다.
+        // 취득한 계통 기능치만 시트의 '+'(기능치 추가)로 그때그때 등록한다. 컴펜디움 콘텐츠는
+        // 판정 기능으로 계통 하위 기능치를 참조하지 않으며(build-effects SKILL_MAP), 혹시 참조하는
+        // 홈브루가 있어도 effect-handler 가 연결 능력치로 폴백해 판정이 진행된다.
+        // (cthulhu 만 stageCRC 규칙상 위에서 별도 시드)
+
         if (Object.keys(updates).length > 0) {
             await actor.update(updates);
         }
