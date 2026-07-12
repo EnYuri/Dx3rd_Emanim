@@ -2379,6 +2379,29 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     display: none !important;
 }
 
+/* 상태이상 팔레트 정리: 코어 기본값은 행을 ~69px로 stretch 해서
+   아이콘(24px) 아래로 거대한 빈 공간을 만든다. 아이콘 크기에 딱 맞는
+   컴팩트한 5열 그리드로 고정해 여백을 없애고 정렬한다. */
+#token-hud .palette.status-effects {
+    display: grid;
+    grid-template-columns: repeat(5, 24px);
+    grid-template-rows: none;
+    grid-auto-rows: 24px;
+    align-content: start;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px;
+    width: max-content;
+    height: max-content;
+    min-height: 0;
+    border-radius: 6px;
+}
+#token-hud .palette.status-effects .effect-control {
+    width: 24px;
+    height: 24px;
+    margin: 0;
+}
+
 /* ==========================================================================
    Rolling Dialogs
    ========================================================================== */
