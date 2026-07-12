@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.5.5",
+  "version": "1.5.6",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
