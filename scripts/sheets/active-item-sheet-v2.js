@@ -42,8 +42,8 @@
     }
 
     /**
-     * AppV1 은 확장 도구를 헤더 버튼(_getHeaderButtons)으로 직접 노출하지만, AppV2 는
-     * _getHeaderControls 를 ⋮ 드롭다운으로만 렌더한다. AppV1 과 동일하게 헤더에 바로
+     * 이전 시트 은 확장 도구를 헤더 버튼(_getHeaderButtons)으로 직접 노출하지만, AppV2 는
+     * _getHeaderControls 를 ⋮ 드롭다운으로만 렌더한다. 이전 시트 과 동일하게 헤더에 바로
      * 노출하기 위해 드롭다운에서는 제거하고 _injectItemExtendButton 으로 직접 주입한다.
      */
     _getHeaderControls() {
@@ -125,11 +125,19 @@
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
       let clearValue = false;
-      if (changed?.name?.startsWith('system.attributes.') && changed.name.endsWith('.value')) {
+      if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
         const row = compat.closest(changed, '.attribute', this.element);
         const label = compat.query(row, '.attribute-label')?.value;
         const key = compat.query(row, '.attribute-key')?.value;
-        if (label) {
+        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(changed.value, key);
+        if (!formulaValidation.valid) {
+          ui.notifications.warn(formulaValidation.message);
+        }
+        if (formulaValidation.normalizedValue !== undefined) {
+          changed.value = formulaValidation.normalizedValue;
+          ui.notifications.info(formulaValidation.message);
+        }
+        if (formulaValidation.valid && label && changed.name.startsWith('system.attributes.')) {
           const result = window.DX3rdFormulaEvaluator.validateCircularReference(changed.value, label, this.item.actor, key);
           if (!result.valid) {
             changed.value = '';

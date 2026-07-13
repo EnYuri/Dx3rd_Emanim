@@ -153,7 +153,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdEffectSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['effect'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdEffectSheetV2 = DX3rdEffectSheetV2;
 })();

@@ -1,16 +1,117 @@
 /**
- * Book item AppV2 pilot sheet.
- * The AppV1 book sheet remains the default until parity testing is complete.
+ * Book item AppV2 sheet.
  */
 (function() {
   const ItemSheetV2 = window.DX3rdItemSheetV2;
   const compat = window.DX3rdApplicationCompat;
   const DialogV2 = foundry.applications?.api?.DialogV2;
-  const bookSheetData = window.DX3rdBookSheetData;
-  if (!ItemSheetV2 || !compat || !DialogV2 || !bookSheetData) {
+  if (!ItemSheetV2 || !compat || !DialogV2) {
     console.warn('DX3rd | AppV2 book sheet is unavailable in this Foundry version.');
     return;
   }
+
+  const bookSheetData = {
+    prepareBookSystem(item, system) {
+      system.description ??= '';
+      system.type ??= 'book';
+      system.decipher ??= item.system?.decipher ?? 0;
+      system.exp ??= item.system?.exp ?? 0;
+      system.equipment ??= item.system?.equipment ?? false;
+      system.macro ??= item.system?.macro ?? '';
+      system.spells ??= item.system?.spells ?? [];
+      system.saving ??= {};
+      system.saving.difficulty ??= item.system?.saving?.difficulty ?? '';
+      system.saving.value ??= item.system?.saving?.value ?? 0;
+      return system;
+    },
+
+    resolveSpellItems(spellIds = []) {
+      const spells = [];
+      const foundIds = new Set();
+      for (const spellId of spellIds) {
+        const worldSpell = game.items?.get(spellId);
+        if (worldSpell?.type !== 'spell') continue;
+        spells.push(worldSpell);
+        foundIds.add(spellId);
+      }
+      for (const actor of game.actors || []) {
+        for (const spellId of spellIds) {
+          if (foundIds.has(spellId)) continue;
+          const spell = actor.items?.get(spellId);
+          if (spell?.type !== 'spell') continue;
+          spells.push(spell);
+          foundIds.add(spellId);
+        }
+      }
+      return spells;
+    },
+
+    findSpell(spellId) {
+      const worldItem = game.items?.get(spellId);
+      if (worldItem?.type === 'spell') return worldItem;
+      for (const actor of game.actors || []) {
+        const spell = actor.items?.get(spellId);
+        if (spell?.type === 'spell') return spell;
+      }
+      return null;
+    },
+
+    normalizeSpellId(spellId) {
+      const normalized = String(spellId || '').trim();
+      return normalized.startsWith('Item.') ? normalized.substring(5) : normalized;
+    },
+
+    async addSpell(bookItem, spell) {
+      const currentSpells = bookItem.system.spells || [];
+      if (currentSpells.includes(spell.id)) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.SpellAlreadyAdded'));
+        return false;
+      }
+      await bookItem.update({'system.spells': [...currentSpells, spell.id]});
+      ui.notifications.info(`스펠 "${spell.name}"이 추가되었습니다.`);
+      return true;
+    },
+
+    async addSpellById(bookItem, spellId) {
+      const normalizedId = this.normalizeSpellId(spellId);
+      if (!normalizedId) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.EnterSpellID'));
+        return false;
+      }
+      const spell = this.findSpell(normalizedId);
+      if (!spell) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.SpellNotFound'));
+        return false;
+      }
+      return this.addSpell(bookItem, spell);
+    },
+
+    async removeSpell(bookItem, spellId) {
+      await bookItem.update({'system.spells': (bookItem.system.spells || []).filter(id => id !== spellId)});
+      ui.notifications.info('스펠이 삭제되었습니다.');
+    },
+
+    async resolveDroppedSpell(event) {
+      let data;
+      try {
+        data = JSON.parse(event.dataTransfer?.getData?.('text/plain') || '');
+      } catch (error) {
+        return {status: 'invalid'};
+      }
+      if (data.type !== 'Item') return {status: 'unsupported'};
+      if (!data.uuid) return {status: 'missingUuid'};
+      const item = await fromUuid(data.uuid);
+      if (!item) {
+        ui.notifications.warn('아이템을 찾을 수 없습니다.');
+        return {status: 'notFound'};
+      }
+      if (item.type !== 'spell') {
+        ui.notifications.warn('스펠 아이템만 추가할 수 있습니다.');
+        return {status: 'notSpell'};
+      }
+      return {status: 'ok', spell: item};
+    }
+  };
 
   class DX3rdBookSheetV2 extends ItemSheetV2 {
     static DEFAULT_OPTIONS = {
@@ -113,7 +214,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdBookSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['book'],
-    makeDefault: false
+    makeDefault: true
   });
 
   window.DX3rdBookSheetV2 = DX3rdBookSheetV2;

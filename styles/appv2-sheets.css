@@ -2,9 +2,9 @@
  * AppV2 시트 전용 스타일.
  *
  * 마이그레이션 중 AppV2 시트에만 필요한 보정을 여기에 격리한다.
- * AppV1 본체 스타일(styles/styles.css)은 AppV1/공용 규칙만 유지한다.
+ * 이전 시트 본체 스타일(styles/styles.css)은 이전 시트/공용 규칙만 유지한다.
  *
- * 액터 V2 시트는 AppV1 마크업/CSS를 그대로 이식했고, 컨테이너(window-content)에
+ * 액터 V2 시트는 이전 시트 마크업/CSS를 그대로 이식했고, 컨테이너(window-content)에
  * .sheet-wrapper 클래스를 부여(actor-sheet-v2.js _onRender)하므로 styles.css 의
  * .sheet-wrapper 스코프 규칙이 외형을 담당한다. 여기서는 AppV2 윈도우 크롬과
  * 충돌하는 부분만 최소한으로 보정한다.
@@ -30,7 +30,7 @@
 }
 
 /* 버튼/입력 기본 톤은 아이템 V2 시트에만 적용한다.
-   액터 V2 시트는 AppV1 .sheet-wrapper 규칙(styles.css)이 입력/버튼을 담당하므로
+   액터 V2 시트는 이전 시트 .sheet-wrapper 규칙(styles.css)이 입력/버튼을 담당하므로
    여기서 덮어쓰지 않는다. */
 .application.sheet.dx3rd-emanim.item button,
 .application.sheet.dx3rd-emanim.item .dialog-buttons button,
@@ -74,7 +74,7 @@
 }
 
 /* 드롭다운 배경: Foundry v13 테마가 select 요소에 --input-background-color(#302831,
-   보라빛)을 직접 주입해 AppV1 모노 톤과 어긋난다. select 자체에 변수를 덮어 모노로
+   보라빛)을 직접 주입해 이전 시트 모노 톤과 어긋난다. select 자체에 변수를 덮어 모노로
    되돌린다(조상 오버라이드는 self-set 변수에 가려 닿지 않음). */
 .application.sheet.dx3rd-emanim.item select {
     --input-background-color: rgba(0, 0, 0, 0.1) !important;
@@ -104,14 +104,14 @@
     min-height: 0;
     overflow-y: auto;
     /* AppV2 기본 window-content 패딩(16px)은 고정폭 그리드/표를 좁혀 라벨 줄바꿈을
-       유발한다. AppV1(.window-app) 기본값 8px 으로 맞춰 가용폭을 일치시킨다. */
+       유발한다. 이전 시트(.window-app) 기본값 8px 으로 맞춰 가용폭을 일치시킨다. */
     padding: 8px;
 }
 
-/* ---------- 아이템 V2 본문 표 레이아웃 보정 (AppV1 외형 일치) ----------
+/* ---------- 아이템 V2 본문 표 레이아웃 보정 (이전 시트 외형 일치) ----------
    효과/대상 탭은 <table> 마크업을 쓰는데, ApplicationV2 프레임워크 기본 표 스타일이
    th/td 에 padding:8px 16px 를 주어 라벨 칸이 좁아지고("활성화 → 활/성/화" 줄바꿈)
-   행 높이가 비대해진다. AppV1 의 th/td(padding:3.5px 0, line-height:normal) 박스모델로
+   행 높이가 비대해진다. 이전 시트 의 th/td(padding:3.5px 0, line-height:normal) 박스모델로
    되돌리고, 짧은 항목 라벨은 nowrap 으로 한 줄을 보장한다. */
 /* 실측 결과 Foundry 표 기본값은 우리 특이도로 이겨서 !important 불필요. */
 .application.sheet.dx3rd-emanim.item table th,
@@ -123,9 +123,9 @@
 
 /* 입력/셀렉트 클리핑 보정:
    AppV2 프레임워크가 input/select 에 line-height(약 32px)와 min-height 를 크게 주어,
-   AppV1 의 작은 고정 박스(숫자칸 22px 등) 안에서 텍스트가 세로로 잘리고, 좌우 패딩
+   이전 시트 의 작은 고정 박스(숫자칸 22px 등) 안에서 텍스트가 세로로 잘리고, 좌우 패딩
    8px 이 좁은 숫자칸 폭을 먹어 값이 보이지 않는다. line-height/min-height/padding 을
-   AppV1 값으로 되돌린다. */
+   이전 시트 값으로 되돌린다. */
 /* line-height 는 Foundry 프레임워크의 :where() 규칙(약 32px)이 실제로 경쟁하므로 !important
    유지 필요(실측: 벗기면 32px 로 되돌아감). min-height 는 경쟁 규칙이 우리 특이도 아래라 제거. */
 .application.sheet.dx3rd-emanim.item input:not([type="checkbox"]):not([type="radio"]),
@@ -346,7 +346,7 @@
 }
 
 /* 체크박스/토글 박스: AppV2 는 .flexrow > * 에 flex:1 을 줘서 체크박스를 ~40px 까지
-   가로로 늘려(여백 과다) AppV1 의 20px 정사각과 어긋난다. 아이템/액터 공통으로 20px
+   가로로 늘려(여백 과다) 이전 시트 의 20px 정사각과 어긋난다. 아이템/액터 공통으로 20px
    정사각 고정한다. */
 .application.sheet.dx3rd-emanim.item input[type="checkbox"],
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 input[type="checkbox"] {
@@ -367,8 +367,8 @@
 }
 
 /* 액터 V2: window-content 가 .sheet-wrapper(=flex column, height:100%) 역할을 겸한다.
-   세로 스크롤만 허용하고 내부는 AppV1 규칙에 맡긴다.
-   - padding 8px: AppV1(.window-app) 기본값과 동일하게 맞춰 내부 가용폭을 일치시킨다.
+   세로 스크롤만 허용하고 내부는 이전 시트 규칙에 맡긴다.
+   - padding 8px: 이전 시트(.window-app) 기본값과 동일하게 맞춰 내부 가용폭을 일치시킨다.
      (AppV2 기본 패딩은 더 커서 고정폭 그리드가 넘쳐 줄바꿈이 발생함)
    - gap 0: AppV2 기본 window-content gap 으로 섹션 사이가 벌어지는 것을 막는다.
    - scrollbar-gutter stable: 콤보/로이스처럼 내용이 짧아 스크롤바가 없는 탭과
@@ -384,28 +384,28 @@
     box-sizing: border-box;
 }
 
-/* ---------- 액터 V2 비주얼 보정 (AppV1 외형 일치) ---------- */
+/* ---------- 액터 V2 비주얼 보정 (이전 시트 외형 일치) ---------- */
 
-/* #2 최소 너비: AppV1 은 .app.window-app...actor 에 min/max-width:850px 가 걸려 있으나
+/* #2 최소 너비: 이전 시트 은 .app.window-app...actor 에 min/max-width:850px 가 걸려 있으나
    AppV2 외곽은 .application 이라 미적용 → 고정폭 그리드가 줄바꿈으로 깨진다.
    동일하게 850px 최소폭을 보장한다. */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 {
     min-width: 850px;
 }
 
-/* AppV2 기본 input/select min-height 가 AppV1 고정 높이 박스를 밀어내며
-   "박스 내 공백 과다"를 유발 → 0 으로 리셋(높이는 AppV1 규칙이 지정). */
+/* AppV2 기본 input/select min-height 가 이전 시트 고정 높이 박스를 밀어내며
+   "박스 내 공백 과다"를 유발 → 0 으로 리셋(높이는 이전 시트 규칙이 지정). */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 input,
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select {
     min-height: 0;
 }
 
-/* #2 입력 박스 공백/폭: AppV1 flex 모델을 그대로 재현한다.
-   AppV1 은 .stat 을 flex:1 1 0% + flex-wrap:wrap 으로 두어, 각 칸(155~162px 셀) 안에서
+/* #2 입력 박스 공백/폭: 이전 시트 flex 모델을 그대로 재현한다.
+   이전 시트 은 .stat 을 flex:1 1 0% + flex-wrap:wrap 으로 두어, 각 칸(155~162px 셀) 안에서
    가변 분배한다 → 행동치(단일 입력)=60px, 이동/상비점=41px, 경험점=36px 처럼 칸마다 다르다.
    이전에 이를 일괄 flex:0 0 36px 로 고정했더니 행동치가 60→36 으로 과도하게 줄고 다른 칸도
    어긋났다(실측 확인). 폭/높이는 styles.css(.sheet-stat .stat width:60px 등)에 맡기고
-   여기선 flex 분배와 shrink 만 AppV1 과 동일하게 보정한다. */
+   여기선 flex 분배와 shrink 만 이전 시트 과 동일하게 보정한다. */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .stat-box .stat-list {
     flex-wrap: wrap;
 }
@@ -439,7 +439,7 @@
 
 /* dice-info 의 다이스 표시(메이저/리액션 등) select 는 같은 행의 DX 보정 입력들과
    294px 폭을 나눠 써야 한다. AppV2 기본 flex:0 0 auto(축소 불가)면 select 가 내용폭
-   전체를 점유해 뒤 입력(DX 값·상비점)을 밀어낸다 → AppV1 과 동일하게 0 1 auto(축소
+   전체를 점유해 뒤 입력(DX 값·상비점)을 밀어낸다 → 이전 시트 과 동일하게 0 1 auto(축소
    허용)로 둔다. */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .dice-info .flex select {
     flex: 0 1 auto !important;
@@ -462,7 +462,7 @@
     line-height: 1;
 }
 
-/* #1 드롭다운 항목: AppV1 의 option { color:black } 규칙이 AppV2 다크 팝업에서
+/* #1 드롭다운 항목: 이전 시트 의 option { color:black } 규칙이 AppV2 다크 팝업에서
    검정 글씨가 되어 거의 안 보인다 → 흰 글씨/어두운 배경으로 강제. */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select option {
     background-color: #101010 !important;
@@ -470,9 +470,9 @@
 }
 
 /* #6 드롭다운 본체: (a) Foundry v13 테마가 select 에 --input-background-color(#302831,
-   보라빛)을 직접 주입해 모노 톤과 어긋난다 → 변수/배경을 AppV1 모노로 되돌린다.
+   보라빛)을 직접 주입해 모노 톤과 어긋난다 → 변수/배경을 이전 시트 모노로 되돌린다.
    (b) AppV2 기본 select 는 flex:0 0 auto + 내용폭(긴 옵션 기준)으로 커져 메이저/DX 행을
-   넘쳐 뒤 필드(DX 보정값·상비점)를 가린다 → 축소를 허용해 AppV1 처럼 줄어들게 한다.
+   넘쳐 뒤 필드(DX 보정값·상비점)를 가린다 → 축소를 허용해 이전 시트 처럼 줄어들게 한다.
    (단, .dice-info 의 고정폭 select 는 자체 규칙이 우선하도록 건드리지 않는다.) */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 select {
     --input-background-color: rgba(0, 0, 0, 0.1) !important;
@@ -611,7 +611,7 @@
     color: #fff;
 }
 
-/* ---------- 액터 V2 인라인 설명 펼침(AppV1 마크업과 동일 동작) ---------- */
+/* ---------- 액터 V2 인라인 설명 펼침(이전 시트 마크업과 동일 동작) ---------- */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item-description {
     flex: 1 0 100%;
     width: 100%;
@@ -622,10 +622,10 @@
     line-height: 1.5;
 }
 
-/* 목록 항목 행 높이: AppV1 환경은 목록 항목 h4 의 브라우저 기본 마진을 리셋하지만 AppV2
+/* 목록 항목 행 높이: 이전 시트 환경은 목록 항목 h4 의 브라우저 기본 마진을 리셋하지만 AppV2
    (.application)는 그렇지 않아, item-addon(h4)의 기본 상하 마진(≈32/16px)이 flex 교차축을
-   부풀려 콤보/이펙트/장비/로이스 탭의 행 높이가 과도하게 커진다(실측 99px vs AppV1 68px).
-   AppV1 처럼 마진을 제거해 행 높이를 맞춘다. */
+   부풀려 콤보/이펙트/장비/로이스 탭의 행 높이가 과도하게 커진다(실측 99px vs 이전 시트 68px).
+   이전 시트 처럼 마진을 제거해 행 높이를 맞춘다. */
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item h4 {
     margin: 0;
 }

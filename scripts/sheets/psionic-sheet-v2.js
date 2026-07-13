@@ -116,7 +116,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdPsionicSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['psionic'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdPsionicSheetV2 = DX3rdPsionicSheetV2;
 })();

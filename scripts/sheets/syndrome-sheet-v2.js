@@ -1,6 +1,6 @@
 /**
  * Syndrome item AppV2 pilot sheet.
- * The AppV1 syndrome sheet remains the default until parity testing is complete.
+ * The 이전 시트 syndrome sheet remains the default until parity testing is complete.
  */
 (function() {
     const ItemSheetV2 = window.DX3rdItemSheetV2;
@@ -37,7 +37,7 @@
     ItemsClass.registerSheet('dx3rd-emanim', DX3rdSyndromeSheetV2, {
         label: 'DX3rd.SheetV2',
         types: ['syndrome'],
-        makeDefault: false
+        makeDefault: true
     });
 
     window.DX3rdSyndromeSheetV2 = DX3rdSyndromeSheetV2;

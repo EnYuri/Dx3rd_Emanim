@@ -1,6 +1,5 @@
 /**
- * Double Cross 3rd Actor Sheet AppV2 pilot.
- * The AppV1 actor sheet remains the default until full parity testing is complete.
+ * Double Cross 3rd Actor Sheet AppV2.
  */
 (function() {
   const api = foundry.applications?.api;
@@ -87,7 +86,7 @@
     }
 
     /**
-     * AppV2 헤더 컨트롤(⋮ 메뉴). AppV1 은 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로
+     * AppV2 헤더 컨트롤(⋮ 메뉴). 이전 시트 은 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로
      * 노출하므로, 여기서는 동일한 항목들을 드롭다운에서 제거하고 _injectHeaderButtons 로
      * 헤더에 직접 주입한다(중복 방지).
      */
@@ -97,7 +96,7 @@
     }
 
     /**
-     * AppV1 _getHeaderButtons 의 인라인 버튼(액터 타입/프로토타입 토큰)을 AppV2 윈도우 헤더에
+     * 이전 시트 _getHeaderButtons 의 인라인 버튼(액터 타입/프로토타입 토큰)을 AppV2 윈도우 헤더에
      * 직접 주입한다. AppV2 는 _getHeaderControls 를 ⋮ 드롭다운으로만 렌더하므로,
      * "헤더에 노출"하려면 DOM 주입이 필요하다.
      */
@@ -108,7 +107,7 @@
       // 재렌더 시 중복 주입 방지
       header.querySelectorAll('.dx3rd-header-btn').forEach(el => el.remove());
 
-      // simple 시트(enemy 등 일부)는 액터 타입 편집을 노출하지 않는다(AppV1과 동일).
+      // simple 시트(enemy 등 일부)는 액터 타입 편집을 노출하지 않는다(이전 시트과 동일).
       if (actorData.shouldUseSimpleSheet(this.document)) return;
 
       const anchor = header.querySelector('[data-action="toggleControls"]')
@@ -205,11 +204,11 @@
       const root = this.element;
       if (!root) return;
 
-      // AppV1 styles.css는 .sheet-wrapper 스코프이므로, 컨테이너(window-content)에
+      // 이전 시트 styles.css는 .sheet-wrapper 스코프이므로, 컨테이너(window-content)에
       // sheet-wrapper 클래스를 부여해 동일한 외형 규칙을 그대로 적용한다.
       root.querySelector('.window-content')?.classList.add('sheet-wrapper');
 
-      // 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로 노출(AppV1 동작과 동일).
+      // 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로 노출(이전 시트 동작과 동일).
       this._injectHeaderButtons();
 
       // 헤더 버튼 정렬 + 이후 모듈 주입(female_edition 등)까지 관찰해 원하는 순서 유지.
@@ -231,7 +230,7 @@
         element.addEventListener('contextmenu', event => this._onAppliedContextMenu(event), listenerOptions);
       });
 
-      // 변경 이벤트는 AppV1 마크업과 동일한 클래스 훅으로 바인딩한다.
+      // 변경 이벤트는 이전 시트 마크업과 동일한 클래스 훅으로 바인딩한다.
       root.querySelectorAll('.used-input:not([disabled])').forEach(input => {
         input.addEventListener('change', event => this._onUsedStateChange(event), listenerOptions);
       });
@@ -365,7 +364,7 @@
       const abilityId = target.dataset.abilityId;
       if (!abilityId) return;
 
-      // 다이얼로그 생성은 공유 헬퍼로 위임 (AppV1 액터 시트와 동일한 경로)
+      // 다이얼로그 생성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
       actorData.openCreateSkillDialog(this.document, abilityId);
     }
 
@@ -376,7 +375,7 @@
       const skillId = target.closest('[data-skill-id]')?.dataset.skillId;
       if (!skillId) return;
 
-      // 다이얼로그 생성은 공유 헬퍼로 위임 (AppV1 액터 시트와 동일한 경로)
+      // 다이얼로그 생성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
       actorData.openEditSkillDialog(this.document, skillId);
     }
 
@@ -434,7 +433,7 @@
       const item = this._getItemFromTarget(target);
       if (!item) return;
 
-      // 채팅 출력 게이트(권한 + 소진)는 공유 헬퍼로 위임 (AppV1 _onItemNameClick 과 동일한 경로)
+      // 채팅 출력 게이트(권한 + 소진)는 공유 헬퍼로 위임 (이전 시트 _onItemNameClick 과 동일한 경로)
       const gate = actorData.checkItemChatGate(this.document, item);
       if (!gate.ok) {
         (ui.notifications[gate.level] || ui.notifications.warn).call(ui.notifications, gate.message);
@@ -444,7 +443,7 @@
       await this._sendItemToChat(item);
     }
 
-    // 아이템 설명 인라인 펼침/접기 (AppV1 _onItemLabelClick 과 동일한 동작)
+    // 아이템 설명 인라인 펼침/접기 (이전 시트 _onItemLabelClick 과 동일한 동작)
     static _onToggleDescription(event, target) {
       event.preventDefault();
       const li = target.closest('.item');
@@ -471,7 +470,7 @@
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(target);
       if (!item) return;
-      // 로이스 Titus화는 공유 헬퍼로 위임 (AppV1 액터 시트와 동일한 경로).
+      // 로이스 Titus화는 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로).
       // 채팅 '사용' 버튼과 일관되게 handleTitus 직접 호출 — handleItemUse 경유의 이중 매크로/추가 비용 회피.
       await actorData.useTitus(this.document, item);
     }
@@ -665,7 +664,7 @@
       const item = this._getItemFromTarget(event.currentTarget);
       if (!item) return;
 
-      // 드래그 데이터 구성은 공유 헬퍼로 위임 (AppV1 액터 시트와 동일한 경로)
+      // 드래그 데이터 구성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
       const dragData = window.DX3rdActorSheetData.buildItemDragData(this.document, item);
       if (!dragData) return;
       event.dataTransfer?.setData('text/plain', JSON.stringify(dragData));
@@ -681,7 +680,7 @@
 
       try {
         const data = JSON.parse(raw);
-        // 정렬/외부 드롭 처리는 공유 헬퍼로 위임 (AppV1 액터 시트와 동일한 경로)
+        // 정렬/외부 드롭 처리는 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
         await window.DX3rdActorSheetData.handleActorItemDrop(this.document, data, event.target);
       } catch (error) {
         console.error('DX3rd | ActorSheetV2 item drop failed:', error);
@@ -698,7 +697,7 @@
   ActorsClass.registerSheet('dx3rd-emanim', DX3rdActorSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['character', 'enemy'],
-    makeDefault: false
+    makeDefault: true
   });
 
   window.DX3rdActorSheetV2 = DX3rdActorSheetV2;

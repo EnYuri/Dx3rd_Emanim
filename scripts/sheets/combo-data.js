@@ -1,4 +1,4 @@
-/** Shared template-context preparation for AppV1 and AppV2 combo sheets. */
+/** Shared template-context preparation for 이전 시트 and AppV2 combo sheets. */
 (function() {
   const itemSheetData = window.DX3rdItemSheetData;
   const abilityKeys = ['body', 'sense', 'mind', 'social'];

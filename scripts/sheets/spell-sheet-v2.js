@@ -61,7 +61,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdSpellSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['spell'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdSpellSheetV2 = DX3rdSpellSheetV2;
 })();

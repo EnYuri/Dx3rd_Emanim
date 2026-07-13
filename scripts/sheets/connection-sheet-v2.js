@@ -1,6 +1,6 @@
 /**
  * Connection item AppV2 pilot sheet.
- * The AppV1 connection sheet remains the default until parity testing is complete.
+ * The 이전 시트 connection sheet remains the default until parity testing is complete.
  */
 (function() {
   const ItemSheetV2 = window.DX3rdItemSheetV2;
@@ -65,11 +65,19 @@
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
       let clearChangedValue = false;
-      if (changed?.name?.startsWith('system.attributes.') && changed.name.endsWith('.value')) {
+      if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
         const row = compat.closest(changed, '.attribute', this.element);
         const label = compat.query(row, '.attribute-label')?.value;
         const key = compat.query(row, '.attribute-key')?.value;
-        if (label) {
+        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(changed.value, key);
+        if (!formulaValidation.valid) {
+          ui.notifications.warn(formulaValidation.message);
+        }
+        if (formulaValidation.normalizedValue !== undefined) {
+          changed.value = formulaValidation.normalizedValue;
+          ui.notifications.info(formulaValidation.message);
+        }
+        if (formulaValidation.valid && label && changed.name.startsWith('system.attributes.')) {
           const validation = window.DX3rdFormulaEvaluator.validateCircularReference(
             changed.value,
             label,
@@ -120,7 +128,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdConnectionSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['connection'],
-    makeDefault: false
+    makeDefault: true
   });
 
   window.DX3rdConnectionSheetV2 = DX3rdConnectionSheetV2;

@@ -1,9 +1,9 @@
 /**
  * Double Cross 3rd 백트래킹(Backtrack) 워크플로우 공유 모듈.
  *
- * AppV1 액터 시트와 AppV2 파일럿 시트가 동일한 백트래킹 흐름을 공유하도록
+ * 이전 시트 액터 시트와 AppV2 파일럿 시트가 동일한 백트래킹 흐름을 공유하도록
  * `scripts/sheets/actor-sheet.js`에서 추출한 것이다. 내부 다이얼로그는 레거시
- * AppV1 다이얼로그 대신 `DialogV2`를 사용하지만 게임 규칙(침식률 감소량, 채팅 메시지,
+ * 이전 시트 다이얼로그 대신 `DialogV2`를 사용하지만 게임 규칙(침식률 감소량, 채팅 메시지,
  * 경험점 산정, 레코드 생성, 초기화)은 원본과 동일하게 유지한다.
  *
  * 공개 API: `window.DX3rdBacktrackWorkflow.start(actor)`

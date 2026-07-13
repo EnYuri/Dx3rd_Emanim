@@ -25,7 +25,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdProtectSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['protect'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdProtectSheetV2 = DX3rdProtectSheetV2;
 })();

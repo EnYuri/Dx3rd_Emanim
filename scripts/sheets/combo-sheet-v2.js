@@ -135,7 +135,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdComboSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['combo'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdComboSheetV2 = DX3rdComboSheetV2;
 })();

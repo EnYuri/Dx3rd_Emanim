@@ -1,7 +1,7 @@
 /*
- * 액터 아이템 채팅 출력 서브시스템 (AppV1/AppV2 공유).
+ * 액터 아이템 채팅 출력 서브시스템 (이전 시트/AppV2 공유).
  *
- * 원래 scripts/sheets/actor-sheet.js(AppV1)에만 있던 _sendItemToChat 및 그
+ * 원래 scripts/sheets/actor-sheet.js(이전 시트)에만 있던 _sendItemToChat 및 그
  * 보조 메서드(채팅 카드 HTML 생성, 토글 리스너, 루비 변환 등)를 그대로 옮겨
  * 한 클래스로 감쌌다. 클래스로 감싸면 this.actor(생성자 주입),
  * this._getSkillDisplay/this._createItemChatContent 등(프로토타입),
@@ -9,7 +9,7 @@
  * 동작하므로 본문은 한 줄도 수정하지 않았다.
  *
  * 외부(dx3rd-combat-ui / dx3rd-action-ui / dx3rd-macro)는 여전히
- * sheet._sendItemToChat(item) 으로 호출한다 — AppV1/AppV2 시트가 각각 얇은
+ * sheet._sendItemToChat(item) 으로 호출한다 — 이전 시트/AppV2 시트가 각각 얇은
  * 위임자를 두어 이 모듈로 넘긴다. 따라서 AppV2 액터 시트에서도 동일하게
  * 채팅 출력이 동작한다.
  */
@@ -901,7 +901,7 @@
   }
 
   window.DX3rdActorChat = {
-    /** 아이템 정보를 채팅으로 출력한다. AppV1/AppV2 시트 및 외부 UI 공용. */
+    /** 아이템 정보를 채팅으로 출력한다. 이전 시트/AppV2 시트 및 외부 UI 공용. */
     sendItemToChat(actor, item) {
       if (!actor) return;
       return new DX3rdActorChatHelper(actor)._sendItemToChat(item);

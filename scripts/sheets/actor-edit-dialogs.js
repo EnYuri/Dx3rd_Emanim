@@ -1,8 +1,8 @@
 /**
  * Double Cross 3rd 액터 시트 편집 다이얼로그 공유 모듈.
  *
- * AppV1 액터 시트와 AppV2 파일럿 시트가 동일한 편집 다이얼로그를 공유하도록
- * `scripts/sheets/actor-sheet.js`에서 추출한 것이다. 내부 다이얼로그는 레거시 AppV1
+ * 이전 시트 액터 시트와 AppV2 파일럿 시트가 동일한 편집 다이얼로그를 공유하도록
+ * `scripts/sheets/actor-sheet.js`에서 추출한 것이다. 내부 다이얼로그는 레거시 이전 시트
  * `Dialog` 대신 `DialogV2`를 사용하지만, 보너스 계산·auto-sign 표기·라이브 액터 갱신·
  * 채팅 메시지 등 동작은 원본과 동일하게 유지한다.
  *

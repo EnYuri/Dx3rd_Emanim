@@ -1,6 +1,6 @@
 /**
  * Double Cross 3rd AppV2 Item Sheet base.
- * AppV1 sheets remain registered while individual item types are migrated.
+ * AppV2 item sheet base shared by every DX3rd item sheet.
  */
 (function() {
     const api = foundry.applications?.api;

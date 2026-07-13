@@ -45,7 +45,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdWeaponSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['weapon'],
-    makeDefault: false
+    makeDefault: true
   });
   window.DX3rdWeaponSheetV2 = DX3rdWeaponSheetV2;
 })();

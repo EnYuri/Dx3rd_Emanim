@@ -69,7 +69,7 @@ window.DX3rdEffect = DX3rdEffect;
 CONFIG.Item.documentClass = DX3rdEffect;
 
 // 아이템 타입 라벨 등록 (AppV2 시트 제목 현지화)
-// AppV1 ItemSheet 제목은 item.name만 사용해 노출되지 않았지만,
+// 이전 시트 ItemSheet 제목은 item.name만 사용해 노출되지 않았지만,
 // AppV2 DocumentSheetV2 제목은 `타입라벨: 이름` 형식이라 매핑이 없으면
 // 기본 키("TYPES.Item.<type>")가 미현지화 상태로 그대로 노출된다.
 CONFIG.Item.typeLabels = {

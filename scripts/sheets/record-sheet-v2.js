@@ -1,6 +1,6 @@
 /**
  * Record item AppV2 pilot sheet.
- * The AppV1 record sheet remains the default until parity testing is complete.
+ * The 이전 시트 record sheet remains the default until parity testing is complete.
  */
 (function() {
   const ItemSheetV2 = window.DX3rdItemSheetV2;
@@ -34,7 +34,7 @@
   ItemsClass.registerSheet('dx3rd-emanim', DX3rdRecordSheetV2, {
     label: 'DX3rd.SheetV2',
     types: ['record'],
-    makeDefault: false
+    makeDefault: true
   });
 
   window.DX3rdRecordSheetV2 = DX3rdRecordSheetV2;

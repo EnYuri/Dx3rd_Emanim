@@ -1,11 +1,3 @@
-// v13/v14 호환: 레거시 대화상자 글로벌 보강
-(function() {
-    const legacyDialogName = 'Dia' + 'log';
-    if (!window[legacyDialogName]) {
-        window[legacyDialogName] = foundry.appv1?.applications?.[legacyDialogName];
-    }
-})();
-
 // Handlebars 헬퍼 함수들
 (function() {
     const fixedOrder = {
@@ -17,6 +9,47 @@
 
     // 수식 평가 함수 (안전한 계산)
     window.DX3rdFormulaEvaluator = {
+        /**
+         * 어트리뷰트 값은 prepareData 중 여러 번 평가되는 결정 수식이다.
+         * 주사위 표기는 실제로 계산되지 않으므로, 저장은 막지 않고 올바른 입력 방식을 안내한다.
+         * 실제 굴림은 roll/handler 경로에서만 처리한다.
+         */
+        validateDeterministicFormula: function(formula, attributeKey = null) {
+            if (formula === null || formula === undefined || formula === '') return { valid: true };
+
+            const formulaStr = String(formula).trim();
+            // 2d10, d10, 2D10 및 공백을 둔 표기를 모두 감지한다.
+            const diceTerms = [...formulaStr.matchAll(/(^|[^a-z0-9_])(\s*)(\d*)\s*d\s*(\d+)(?=$|[^a-z0-9_])/gi)];
+            if (diceTerms.length) {
+                // 굴림 계열 어트리뷰트는 다이스 자체가 아니라 "굴릴 d10 개수"를 저장한다.
+                // 예: 2d10 + [레벨] → 2 + [레벨]. 이 세 키에 한해서만 저장 시 정규화한다.
+                const suggestedFormula = formulaStr.replace(/(^|[^a-z0-9_])(\s*)(\d*)\s*d\s*10(?=$|[^a-z0-9_])/gi, (_match, prefix, whitespace, count) => {
+                    return `${prefix}${whitespace}${count || '1'}`;
+                });
+                const isRollCount = ['reduce_roll', 'guard_roll', 'dxroll'].includes(attributeKey);
+                const isD10Only = diceTerms.every(([, , , , faces]) => Number(faces) === 10);
+                if (isRollCount && isD10Only) {
+                    return {
+                        valid: true,
+                        normalizedValue: suggestedFormula,
+                        message: game.i18n.format('DX3rd.DiceFormulaConverted', {
+                            formula: formulaStr,
+                            suggestion: suggestedFormula
+                        })
+                    };
+                }
+                return {
+                    valid: false,
+                    message: game.i18n.format(
+                        isD10Only ? (isRollCount ? 'DX3rd.DiceFormulaRollGuidance' : 'DX3rd.DiceFormulaGuidance') : 'DX3rd.DiceFormulaNonD10Guidance',
+                        { formula: formulaStr, suggestion: suggestedFormula }
+                    )
+                };
+            }
+
+            return { valid: true };
+        },
+
         // 순환 참조 검증 함수
         validateCircularReference: function(formula, label, actor = null, attributeType = null) {
             if (!formula || !label) return { valid: true };
@@ -864,12 +897,12 @@
                 if (sheet._isAddingAttribute) return;
 
                 const name = element.getAttribute('name');
-                const value = element.value;
+                let value = element.value;
 
                 // attribute-key는 드롭다운에서 라벨 선택 시 저장되므로 제외
                 if (name && name.startsWith('system.') && !name.endsWith('.key')) {
-                    // attribute value 변경 시 순환 참조 검증 (메인 탭만, 서브/Target 탭은 제외)
-                    if (name.includes('.value') && name.startsWith('system.attributes.') && !name.startsWith('system.effect.attributes.')) {
+                    // 모든 어트리뷰트 값은 결정 수식만 허용한다. 순환 참조 검증은 메인 탭에만 적용한다.
+                    if (name.includes('.value') && (name.startsWith('system.attributes.') || name.startsWith('system.effect.attributes.'))) {
                         const row = element.closest('.attribute');
                         const labelName = name.replace('.value', '.label');
                         const keyName = name.replace('.value', '.key');
@@ -878,7 +911,17 @@
                         const labelValue = labelElement?.value;
                         const keyValue = keyElement?.value;
                         
-                        if (labelValue) {
+                        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(value, keyValue);
+                        if (!formulaValidation.valid) {
+                            ui.notifications.warn(formulaValidation.message);
+                        }
+                        if (formulaValidation.normalizedValue !== undefined) {
+                            value = formulaValidation.normalizedValue;
+                            element.value = value;
+                            ui.notifications.info(formulaValidation.message);
+                        }
+
+                        if (formulaValidation.valid && labelValue && name.startsWith('system.attributes.')) {
                             const validation = window.DX3rdFormulaEvaluator.validateCircularReference(value, labelValue, sheet.item?.actor, keyValue);
                             if (!validation.valid) {
                                 ui.notifications.warn(validation.message);

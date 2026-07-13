@@ -1,5 +1,5 @@
 /**
- * Shared compatibility helpers for the AppV1 to AppV2 migration.
+ * Shared compatibility helpers for the 이전 시트 to AppV2 migration.
  */
 (function() {
     function unwrapRoot(root) {

@@ -274,11 +274,22 @@
                 return;
             }
 
+            // prepareData 중 같은 아이템 타입을 반복 필터링하지 않도록 한 번만 분류한다.
+            // 각 버킷은 원래 컬렉션 순서를 유지하므로 기존 계산 순서와 결과는 동일하다.
+            const actorItems = Array.from(this.items || []);
+            const itemsByType = new Map();
+            for (const item of actorItems) {
+                const bucket = itemsByType.get(item.type);
+                if (bucket) bucket.push(item);
+                else itemsByType.set(item.type, [item]);
+            }
+            const itemsOfType = type => itemsByType.get(type) || [];
+
             // 활성 아이템 및 Applied 효과 목록 미리 준비.
             // 이펙트류(effect/spell/psionic/combo)는 자체계산에서 제외한다 — 이들은 토글 시
             // appliedKey AE(DX3rdAppliedToggle)로 반영되어 collect()→appliedByKey 경로로 합산되므로
             // 여기서 다시 세면 이중가산된다. 장비/기록/아이템/기타만 아이템 자체계산에 남긴다.
-            const activeItems = this.items.filter(item =>
+            const activeItems = actorItems.filter(item =>
                 item.system?.active?.state === true &&
                 ['weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
             );
@@ -293,10 +304,16 @@
 
             // 성능: 여러 파생치 계산에서 반복 호출되던 동일 아이템 필터를 1회만 수행해 재사용
             // (기존에는 능력치/스킬/경험치/장비 계산마다 this.items.filter를 매번 다시 돌렸음)
-            const worksItems = this.items.filter(item => item.type === 'works');
-            const syndromeItems = this.items.filter(item => item.type === 'syndrome');
-            const equippedProtects = this.items.filter(i => i.type === 'protect' && i.system?.equipment === true);
-            const equippedVehicles = this.items.filter(i => i.type === 'vehicle' && i.system?.equipment === true);
+            const worksItems = itemsOfType('works');
+            const syndromeItems = itemsOfType('syndrome');
+            const effectItems = itemsOfType('effect');
+            const recordItems = itemsOfType('record');
+            const psionicItems = itemsOfType('psionic');
+            const roisItems = itemsOfType('rois');
+            const spellItems = itemsOfType('spell');
+            const onceItems = itemsOfType('once');
+            const equippedProtects = itemsOfType('protect').filter(i => i.system?.equipment === true);
+            const equippedVehicles = itemsOfType('vehicle').filter(i => i.system?.equipment === true);
 
             // === 1차 패스: 능력치 total 계산 (stat_bonus만) ===
             for (const key of ["body", "sense", "mind", "social"]) {
@@ -486,10 +503,7 @@
             // Madness5 아이템 체크 및 init 패널티 적용 (폭주 패널티 전에 적용)
             const madnessTypePrefix = game.i18n.localize('DX3rd.MadnessType');
             const madness5Name = madnessTypePrefix + ': ' + game.i18n.localize('DX3rd.Madness5');
-            const hasMadness5 = this.items.some(item => 
-                item.type === 'effect' && 
-                item.name === madness5Name
-            );
+            const hasMadness5 = effectItems.some(item => item.name === madness5Name);
             
             if (hasMadness5) {
                 const initBeforeMadness5 = attrs.init.value;
@@ -522,10 +536,7 @@
             
             if (!simplifiedDistance) {
                 // 장착된 비클 확인 (move.battle 계산에 사용)
-                const equippedVehicle = this.items.find(item => 
-                    item.type === 'vehicle' && 
-                    item.system?.equipment === true
-                );
+                const equippedVehicle = equippedVehicles[0];
                 
                 // 기본 계산식: init.value + 5 또는 비클 move / 5 중 큰 값
                 let baseBattleMove = attrs.init.value + 5;
@@ -609,10 +620,7 @@
             } else {
                 // 간이 거리 계산식
                 // 장착된 비클 확인
-                const equippedVehicle = this.items.find(item => 
-                    item.type === 'vehicle' && 
-                    item.system?.equipment === true
-                );
+                const equippedVehicle = equippedVehicles[0];
                 
                 // 기본 계산식: Math.floor(init.value / 2) + 2 또는 비클 move / 5 중 큰 값
                 let baseBattleMove = Math.floor(attrs.init.value / 2) + 2;
@@ -707,7 +715,7 @@
             
             // 아이템의 saving.value 합계 (상비화 비용)
             let savingItemCost = 0;
-            const savingItems = this.items.filter(item => 
+            const savingItems = actorItems.filter(item =>
                 ['weapon', 'protect', 'vehicle', 'book', 'connection', 'etc', 'once'].includes(item.type)
             );
             
@@ -748,13 +756,13 @@
             
             // 침식률 초기값 계산 (input + 이펙트 아이템들의 encroach.init 합산 + 레코드 아이템들의 encroachment 합산)
             let encroachInitSum = 0;
-            for (const effect of this.items.filter(i => i.type === 'effect')) {
+            for (const effect of effectItems) {
                 const encroachInit = Number(effect.system?.encroach?.init) || 0;
                 encroachInitSum += encroachInit;
             }
             
             // 레코드 아이템의 encroachment 합산
-            for (const record of this.items.filter(i => i.type === 'record')) {
+            for (const record of recordItems) {
                 const recordEncroach = Number(record.system?.encroachment) || 0;
                 encroachInitSum += recordEncroach;
             }
@@ -764,7 +772,6 @@
 
             // 레코드 아이템의 경험치 합산
             let recordExpSum = 0;
-            const recordItems = this.items.filter(i => i.type === 'record');
             for (const record of recordItems) {
                 const recordExp = Number(record.system?.exp) || 0;
                 recordExpSum += recordExp;
@@ -917,7 +924,6 @@
             }
             
             // Effect 아이템들의 경험치 차감 계산
-            const effectItems = this.items.filter(i => i.type === 'effect');
             for (const effect of effectItems) {
                 const expOwn = effect.system?.exp?.own || false;
                 const expUpgrade = effect.system?.exp?.upgrade || false;
@@ -946,7 +952,6 @@
             }
             
             // Psionic 아이템들의 경험치 차감 계산
-            const psionicItems = this.items.filter(i => i.type === 'psionic');
             for (const psionic of psionicItems) {
                 const expOwn = psionic.system?.exp?.own || false;
                 const expUpgrade = psionic.system?.exp?.upgrade || false;
@@ -962,7 +967,6 @@
             }
             
             // Rois 아이템들의 경험치 차감 계산 (type이 M인 경우 15점 차감)
-            const roisItems = this.items.filter(i => i.type === 'rois');
             for (const rois of roisItems) {
                 const roisType = rois.system?.type || '-';
                 if (roisType === 'M') {
@@ -971,7 +975,6 @@
             }
             
             // Spell 아이템들의 경험치 차감 계산
-            const spellItems = this.items.filter(i => i.type === 'spell');
             for (const spell of spellItems) {
                 const temporarySpell = spell.system?.temporarySpell || false;
                 if (!temporarySpell) {
@@ -983,15 +986,13 @@
             // Weapon, Protect, Vehicle, Book, Connection, Etc 아이템들의 경험치 차감 계산
             const expItemTypes = ['weapon', 'protect', 'vehicle', 'book', 'connection', 'etc'];
             for (const itemType of expItemTypes) {
-                const items = this.items.filter(i => i.type === itemType);
-                for (const item of items) {
+                for (const item of itemsOfType(itemType)) {
                     const itemExp = Number(item.system?.exp) || 0;
                     expReduction += itemExp;
                 }
             }
             
             // Once 아이템들의 경험치 차감 계산
-            const onceItems = this.items.filter(i => i.type === 'once');
             for (const once of onceItems) {
                 const quantity = Number(once.system?.quantity) || 1;
                 const onceExp = Number(once.system?.exp) || 0;

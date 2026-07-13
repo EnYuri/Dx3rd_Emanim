@@ -17,7 +17,7 @@ function getActorOnlySpeaker(actor) {
 
 /**
  * 상태이상 입력 다이얼로그(확인/취소) 공용 헬퍼.
- * 레거시 AppV1 `Dialog`를 AppV2 `DialogV2`로 대체하되 동작(확인 시 폼 읽기, 취소 시 이펙트 제거,
+ * 레거시 이전 시트 `Dialog`를 AppV2 `DialogV2`로 대체하되 동작(확인 시 폼 읽기, 취소 시 이펙트 제거,
  * X 닫기 시 콜백 미실행)은 원본과 동일하게 유지한다.
  * @param {object} opts
  * @param {string} opts.title            창 제목

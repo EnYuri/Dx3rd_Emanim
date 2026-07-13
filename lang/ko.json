@@ -29,8 +29,9 @@
   "DX3rd.CompendiumSyncScanning": "컴펜디움을 스캔하는 중...",
   "DX3rd.CompendiumSyncNone": "갱신할 동명 아이템이 없습니다.",
   "DX3rd.CompendiumSyncGMOnly": "GM만 실행할 수 있습니다.",
-  "DX3rd.CompendiumSyncComplete": "DX3rd | 동기화 완료 — 액터 {actorsChanged} / 아이템 {itemsChanged} / 실패 {failed} / 원본 복원 {recovered}",
-  "DX3rd.CompendiumSyncRecovered": "실패한 액터의 원본은 복원되었습니다. 콘솔을 확인하세요.",
+    "DX3rd.CompendiumSyncComplete": "DX3rd | 동기화 완료 — 액터 {actorsChanged} / 아이템 {itemsChanged} / 실패 {failed} / 원본 복원 {recovered}",
+    "DX3rd.CompendiumSyncStale": "{stale}개 항목은 검사 후 변경되어 동기화하지 않았습니다. 다시 검사하세요.",
+    "DX3rd.CompendiumSyncRecovered": "실패한 액터의 원본은 복원되었습니다. 콘솔을 확인하세요.",
   "DX3rd.CompendiumSyncRecoveryFailed": "일부 원본 복원도 실패했습니다. 즉시 콘솔을 확인하세요.",
   "DX3rd.CompendiumAuditName": "컴펜디움 동기화 검사",
   "DX3rd.CompendiumAuditLabel": "액터 아이템 차이 검사",
@@ -39,6 +40,9 @@
   "DX3rd.CompendiumAuditSummary": "매칭 {matched}개 중 갱신 필요 <b>{changed}</b>개 / 동일 {unchanged}개 / 보존 상태만 다름 {preserveOnly}개 / 컴펜디움 미매칭 {unmatched}개",
   "DX3rd.CompendiumAuditReadOnly": "이 검사는 액터와 컴펜디움 데이터를 전혀 변경하지 않습니다. 갱신 필요 항목만 아래에 표시합니다.",
   "DX3rd.CompendiumAuditDuplicates": "⚠ 컴펜디움에 동일 (타입|이름) 중복 {dupes}건 — 마지막 항목 기준으로 검사했습니다.",
+  "DX3rd.CompendiumAuditMissingPacks": "⚠ 검사 대상 컴펜디움 팩을 찾지 못했습니다: {packs}",
+  "DX3rd.CompendiumAuditChanges": "갱신이 필요한 항목",
+  "DX3rd.CompendiumAuditUnmatched": "컴펜디움에 없는 액터 아이템 ({unmatched}개)",
   "DX3rd.CompendiumAuditFieldName": "이름",
   "DX3rd.CompendiumAuditFieldType": "타입",
   "DX3rd.CompendiumAuditFieldImg": "이미지",
@@ -127,8 +131,11 @@
   "DX3rd.RangedDamageRoll": "사격 데미지롤",
   "DX3rd.Guard": "가드",
   "DX3rd.GuardRoll": "가드 굴림",
+  "DX3rd.GuardRollDice": "가드 추가 d10",
   "DX3rd.DxRoll": "달성치 굴림",
+  "DX3rd.DxRollDice": "판정 추가 d10",
   "DX3rd.ReduceRoll": "경감 굴림",
+  "DX3rd.ReduceRollDice": "피해 경감 추가 d10",
   "DX3rd.Armor": "장갑",
   "DX3rd.Init": "행동치",
   "DX3rd.Move": "이동",
@@ -719,6 +726,10 @@
 
   "DX3rd.Conditional": "조건부",
   "DX3rd.Formula": "공식",
+  "DX3rd.DiceFormulaGuidance": "주사위 표기 \"{formula}\"은(는) 이 고정값 항목에서 자동 계산되지 않습니다. 굴림 횟수를 뜻한다면 ‘가드 추가 d10’·‘피해 경감 추가 d10’·‘판정 추가 d10’ 항목에 \"{suggestion}\"으로 입력하세요.",
+  "DX3rd.DiceFormulaRollGuidance": "주사위 표기 \"{formula}\" 대신 \"{suggestion}\"으로 입력하세요. 이 키는 d10 개수만 저장하며, 실제 굴림 때 시스템이 d10을 붙여 굴립니다.",
+  "DX3rd.DiceFormulaConverted": "주사위 표기 \"{formula}\"을(를) 굴림 개수 수식 \"{suggestion}\"으로 저장했습니다. 실제 굴림에서는 시스템이 d10을 붙여 처리합니다.",
+  "DX3rd.DiceFormulaNonD10Guidance": "\"{formula}\"에는 d10 이외의 주사위가 포함되어 있습니다. 이 시스템의 추가 굴림은 d10만 지원합니다.",
 
   "DX3rd.Self": "자신",
   "DX3rd.TargetAll": "자신/타겟",
@@ -849,7 +860,5 @@
   "DX3rd.ResourceCostAttr.attack": "공격력",
   "DX3rd.ResourceCostAttr.guard": "가드치",
   "DX3rd.ResourceCostAttr.armor": "장갑치",
-  "DX3rd.SheetV1": "DX3rd 시트 (AppV1 · 레거시)",
-  "DX3rd.SheetV2": "DX3rd 시트 (AppV2)",
-  "DX3rd.AppV2SheetsDefault": "AppV2 시트를 기본으로 사용"
+  "DX3rd.SheetV2": "DX3rd 시트 (AppV2)"
 }

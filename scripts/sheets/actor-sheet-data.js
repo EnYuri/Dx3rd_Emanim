@@ -1,5 +1,5 @@
 /**
- * Shared actor sheet data preparation for AppV1 and AppV2 sheets.
+ * Shared actor sheet data preparation for 이전 시트 and AppV2 sheets.
  */
 (function () {
     const LIST_KEYS = [
@@ -280,7 +280,7 @@
         return result;
     }
 
-    // 능력/스킬 굴림 dispatch와 콤보 빌더 위임. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 능력/스킬 굴림 dispatch와 콤보 빌더 위임. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     function openComboBuilder(actor, targetType, targetId) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.openComboBuilder) {
@@ -304,7 +304,7 @@
         );
     }
 
-    // 드래그/드롭 정렬 dispatch. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 드래그/드롭 정렬 dispatch. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     function buildItemDragData(actor, item) {
         if (!actor || !item) return null;
         return {
@@ -371,7 +371,7 @@
         await createDroppedItem(actor, item);
     }
 
-    // 스킬 생성/편집 다이얼로그 오픈. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 스킬 생성/편집 다이얼로그 오픈. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     // 다이얼로그는 ApplicationV2 기반이라 buttons/default 설정은 받지 않는다(클래스가 자체 렌더).
     function openCreateSkillDialog(actor, abilityId) {
         if (!window.DX3rdSkillCreateDialog) {
@@ -393,7 +393,7 @@
         new window.DX3rdSkillEditDialog(options).render(true);
     }
 
-    // 로이스 Titus화. AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 로이스 Titus화. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     // 채팅 '사용' 버튼(DX3rdRoisHandler.handle)과 동일하게 handleTitus를 직접 호출한다.
     // handleItemUse 경유 시 비용 게이트 추가 부과 + instant 매크로 이중 실행 문제가 있어 직접 호출로 통일.
     function useTitus(actor, item) {
@@ -404,7 +404,7 @@
         return window.DX3rdRoisHandler.handleTitus(actor.id, item.id);
     }
 
-    // 아이템을 채팅으로 출력하기 전 게이트(권한 + 사용횟수 소진). AppV1/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 아이템을 채팅으로 출력하기 전 게이트(권한 + 사용횟수 소진). 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     // raw 전송(_sendItemToChat → DX3rdActorChat)은 외부 호출자(combat-ui/action-ui)도 직접 쓰므로
     // 여기서는 게이트 판정만 반환하고 전송은 시트가 수행한다.
     function checkItemChatGate(actor, item) {

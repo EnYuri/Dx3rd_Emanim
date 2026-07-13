@@ -1,8 +1,8 @@
 /**
  * Double Cross 3rd 에너미(Troop) 스탯 수정 다이얼로그 공유 모듈.
  *
- * AppV1 액터 시트와 AppV2 파일럿 시트가 동일한 에너미 스탯 수정 흐름을 공유하도록
- * `scripts/sheets/actor-sheet.js`에서 추출한 것이다. 내부 다이얼로그는 레거시 AppV1
+ * 이전 시트 액터 시트와 AppV2 파일럿 시트가 동일한 에너미 스탯 수정 흐름을 공유하도록
+ * `scripts/sheets/actor-sheet.js`에서 추출한 것이다. 내부 다이얼로그는 레거시 이전 시트
  * `Dialog` 대신 `DialogV2`를 사용하지만, 보너스 계산(아이템/Applied 효과 합산)과
  * 액터 업데이트 동작(라이브 편집)은 원본과 동일하게 유지한다.
  *

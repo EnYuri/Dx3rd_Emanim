@@ -43,6 +43,10 @@
     const cloneData = (data) => foundry.utils?.deepClone
         ? foundry.utils.deepClone(data)
         : JSON.parse(JSON.stringify(data));
+    const packLabel = (doc) => {
+        const pack = typeof doc.pack === 'string' ? game.packs.get(doc.pack) : doc.pack;
+        return pack?.metadata?.label || pack?.collection || doc.pack || '?';
+    };
 
     // 동기화로 생성할 데이터. 검사와 실제 적용이 동일한 데이터를 기준으로 판단하게
     // 하여, 검사 결과와 적용 결과가 어긋나지 않게 한다.
@@ -92,30 +96,57 @@
             stableStringify(before[key]) !== stableStringify(after[key]));
     }
 
+    // 실제 교체가 필요한지 검사와 동일한 기준으로 판정한다. 보존 대상만 다른
+    // 아이템은 교체해도 결과가 같으므로, 삭제·재생성 자체를 생략하는 편이 안전하다.
+    function needsReplacement(item, src) {
+        const current = comparable(item.toObject());
+        const replacement = comparable(prepareReplacement(item, src));
+        return differingFields(current, replacement).length > 0;
+    }
+
+    // 확인 창을 띄운 뒤의 외부 변경을 감지하기 위한 월드 아이템 지문이다.
+    // 동기화 대상 필드만 포함해, 정렬·소유권 같은 문서 위치 메타데이터 변화에는
+    // 불필요하게 중단되지 않는다.
+    const itemFingerprint = (item) => stableStringify(comparable(item.toObject()));
+
     // 컴펜디움 인덱스: `${type}|${name}` → 컴펜디움 문서
     async function buildIndex() {
         const index = new Map();
-        let dupes = 0;
+        const duplicates = [];
+        const missingPacks = [];
         for (const packName of PACKS) {
             const pack = game.packs.get(`${SCOPE}.${packName}`);
-            if (!pack) continue;
+            if (!pack) {
+                missingPacks.push(packName);
+                continue;
+            }
             const docs = await pack.getDocuments();
             for (const doc of docs) {
                 const key = `${doc.type}|${doc.name}`;
-                if (index.has(key)) dupes++;   // 나중 항목이 이김
+                if (index.has(key)) {
+                    duplicates.push({
+                        key,
+                        previous: index.get(key),
+                        replacement: doc
+                    });
+                }
                 index.set(key, doc);
             }
         }
-        return { index, dupes };
+        return { index, dupes: duplicates.length, duplicates, missingPacks };
     }
 
-    // 드라이 스캔: 갱신 대상 계획 수집. [{actor, matches:[Item,...]}, ...]
+    // 드라이 스캔: 실제 갱신 대상 계획 수집. 동일/보존 상태만 다른 항목은 제외한다.
+    // [{actor, matches:[{item: Item, fingerprint: string}, ...]}, ...]
     function scan(index) {
         const plan = [];
         for (const actor of game.actors) {
             const matches = [];
             for (const item of actor.items) {
-                if (index.has(`${item.type}|${item.name}`)) matches.push(item);
+                const src = index.get(`${item.type}|${item.name}`);
+                if (src && needsReplacement(item, src)) {
+                    matches.push({ item, fingerprint: itemFingerprint(item) });
+                }
             }
             if (matches.length) plan.push({ actor, matches });
         }
@@ -132,15 +163,18 @@
             unchanged: 0,
             preserveOnly: 0,
             unmatched: 0,
-            rows: []
+            rows: [],
+            unmatchedRows: []
         };
 
         for (const actor of game.actors) {
             const changes = [];
+            const unmatched = [];
             for (const item of actor.items) {
                 const src = index.get(`${item.type}|${item.name}`);
                 if (!src) {
                     result.unmatched++;
+                    unmatched.push({ name: item.name, type: item.type });
                     continue;
                 }
                 result.matched++;
@@ -158,18 +192,27 @@
                 }
             }
             if (changes.length) result.rows.push({ actor, changes });
+            if (unmatched.length) result.unmatchedRows.push({ actor, unmatched });
         }
         return result;
     }
 
     // 실제 적용: 액터별로 삭제 후 재생성(keepId).
     async function apply(index, plan) {
-        let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0;
+        let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0, stale = 0;
         for (const { actor, matches } of plan) {
             const createData = [];
             const deleteIds = [];
             const originalData = [];
-            for (const item of matches) {
+            for (const planned of matches) {
+                // 계획 이후 변경된 문서는 삭제·재생성하지 않는다. 다음 검사에서 새
+                // 상태를 기준으로 다시 판단할 수 있으므로, 보수적으로 건너뛴다.
+                const item = actor.items.get(planned.item.id);
+                if (!item || itemFingerprint(item) !== planned.fingerprint) {
+                    stale++;
+                    console.warn(`DX3rd | 컴펜디움 동기화 건너뜀(검사 후 변경): ${actor.name} / ${planned.item.name}`);
+                    continue;
+                }
                 const src = index.get(`${item.type}|${item.name}`);
                 if (!src) continue;
                 const oldObj = item.toObject();
@@ -206,7 +249,7 @@
                 }
             }
         }
-        return { actorsChanged, itemsChanged, failed, recovered, recoveryFailed };
+        return { actorsChanged, itemsChanged, failed, recovered, recoveryFailed, stale };
     }
 
     async function openAudit() {
@@ -215,18 +258,27 @@
             return;
         }
         ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
-        const { index, dupes } = await buildIndex();
+        const { index, dupes, duplicates, missingPacks } = await buildIndex();
         const result = audit(index);
         const rows = result.rows.map(row => {
             const changes = row.changes.map(change =>
                 `${esc(change.name)} <small>(${change.fields.map(field => esc(localize(`DX3rd.CompendiumAuditField${field[0].toUpperCase()}${field.slice(1)}`))).join(', ')})</small>`).join(', ');
             return `<li><b>${esc(row.actor.name)}</b> — ${changes}</li>`;
         }).join('');
+        const unmatchedRows = result.unmatchedRows.map(row =>
+            `<li><b>${esc(row.actor.name)}</b> — ${row.unmatched.map(item =>
+                `${esc(item.name)} <small>(${esc(item.type)})</small>`).join(', ')}</li>`
+        ).join('');
+        const duplicateRows = duplicates.map(({ key, previous, replacement }) =>
+            `<li><code>${esc(key)}</code> — ${esc(packLabel(previous))} → ${esc(packLabel(replacement))}</li>`
+        ).join('');
         const content =
             `<p>${format('DX3rd.CompendiumAuditSummary', result)}</p>` +
             `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.CompendiumAuditReadOnly')}</p>` +
-            (dupes ? `<p style="color:orange">${format('DX3rd.CompendiumAuditDuplicates', { dupes })}</p>` : '') +
-            (rows ? `<ul style="max-height:300px;overflow:auto;margin:.5em 0">${rows}</ul>` : '');
+            (missingPacks.length ? `<p style="color:orange">${format('DX3rd.CompendiumAuditMissingPacks', { packs: missingPacks.map(esc).join(', ') })}</p>` : '') +
+            (dupes ? `<details><summary style="color:orange">${format('DX3rd.CompendiumAuditDuplicates', { dupes })}</summary><ul style="max-height:160px;overflow:auto;margin:.5em 0">${duplicateRows}</ul></details>` : '') +
+            (rows ? `<details open><summary>${localize('DX3rd.CompendiumAuditChanges')}</summary><ul style="max-height:220px;overflow:auto;margin:.5em 0">${rows}</ul></details>` : '') +
+            (unmatchedRows ? `<details><summary>${format('DX3rd.CompendiumAuditUnmatched', { unmatched: result.unmatched })}</summary><ul style="max-height:180px;overflow:auto;margin:.5em 0">${unmatchedRows}</ul></details>` : '');
         await foundry.applications.api.DialogV2.wait({
             window: { title: localize('DX3rd.CompendiumAuditTitle') },
             position: { width: 700, height: 'auto' },
@@ -255,7 +307,7 @@
         }
 
         const rows = plan.map(p =>
-            `<li><b>${esc(p.actor.name)}</b> — ${p.matches.length}개: ${p.matches.map(i => esc(i.name)).join(', ')}</li>`
+            `<li><b>${esc(p.actor.name)}</b> — ${p.matches.length}개: ${p.matches.map(({ item }) => esc(item.name)).join(', ')}</li>`
         ).join('');
         const content =
             `<p>${plan.length}개 액터의 <b>${totalItems}</b>개 아이템을 컴펜디움 데이터로 덮어씁니다.</p>` +
@@ -272,7 +324,12 @@
 
         const res = await apply(index, plan);
         const msg = format('DX3rd.CompendiumSyncComplete', res);
-        if (res.failed) ui.notifications.warn(msg + (res.recoveryFailed ? ` ${localize('DX3rd.CompendiumSyncRecoveryFailed')}` : ` ${localize('DX3rd.CompendiumSyncRecovered')}`));
+        if (res.failed || res.stale) {
+            const notices = [];
+            if (res.failed) notices.push(res.recoveryFailed ? localize('DX3rd.CompendiumSyncRecoveryFailed') : localize('DX3rd.CompendiumSyncRecovered'));
+            if (res.stale) notices.push(format('DX3rd.CompendiumSyncStale', { stale: res.stale }));
+            ui.notifications.warn(`${msg} ${notices.join(' ')}`);
+        }
         else ui.notifications.info(msg);
         console.log('DX3rd | 컴펜디움 동기화 결과', res);
     }
