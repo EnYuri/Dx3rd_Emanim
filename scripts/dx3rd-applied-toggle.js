@@ -130,28 +130,31 @@
     return JSON.stringify(prev.attributes || {}) !== JSON.stringify(payload.attributes || {});
   }
 
-  /** 액터의 토글 AE 집합을 현재 토글 상태에 맞춰 upsert/remove. */
-  async function sync(actor) {
-    if (!actor || syncing.has(actor.id)) return;
-    if (actor.type !== 'character' && actor.type !== 'enemy') return;
-    if (!isResponsible(actor)) return;
-    if (!window.DX3rdAppliedEffects?.set) return;
-
+  /** 한 액터의 토글 AE 보정 계획. 읽기 전용 검사와 실제 적용이 같은 기준을 쓴다. */
+  function syncPlan(actor) {
     const desired = desiredPayloads(actor);
     const existing = (actor.effects || []).filter(e =>
       String(e.getFlag?.(SCOPE, 'appliedKey') || '').startsWith(KEY_PREFIX));
     const existingByKey = new Map(existing.map(e => [e.getFlag(SCOPE, 'appliedKey'), e]));
-
-    const toDelete = existing
-      .filter(e => !desired.has(e.getFlag(SCOPE, 'appliedKey')))
-      .map(e => e.id);
+    const toDelete = existing.filter(e => !desired.has(e.getFlag(SCOPE, 'appliedKey'))).map(e => e.id);
     const toSet = [];
     for (const [key, payload] of desired) {
       const eff = existingByKey.get(key);
       if (!eff || payloadChanged(eff, payload)) toSet.push([key, payload]);
     }
+    return { toDelete, toSet };
+  }
 
-    if (!toDelete.length && !toSet.length) return; // no-op → 훅 캐스케이드 방지
+  /** 액터의 토글 AE 집합을 현재 토글 상태에 맞춰 upsert/remove. */
+  async function sync(actor) {
+    if (!actor || syncing.has(actor.id)) return false;
+    if (actor.type !== 'character' && actor.type !== 'enemy') return false;
+    if (!isResponsible(actor)) return false;
+    if (!window.DX3rdAppliedEffects?.set) return false;
+
+    const { toDelete, toSet } = syncPlan(actor);
+
+    if (!toDelete.length && !toSet.length) return false; // no-op → 훅 캐스케이드 방지
 
     syncing.add(actor.id);
     try {
@@ -161,11 +164,50 @@
       for (const [key, payload] of toSet) {
         await window.DX3rdAppliedEffects.set(actor, key, payload);
       }
+      return true;
     } catch (e) {
       console.error('DX3rd | applied-toggle sync 실패:', actor?.name, e);
+      return false;
     } finally {
       syncing.delete(actor.id);
     }
+  }
+
+  /**
+   * 명시적 전체 보정. 월드 기동 중 전수 AE 주입은 하지 않는다.
+   * 과거 데이터 복구가 필요할 때 GM이 콘솔에서
+   * `window.DX3rdAppliedToggle.syncAll()`로만 실행한다.
+   */
+  async function syncAll() {
+    if (!game.user?.isGM) {
+      ui.notifications?.warn('DX3rd | GM만 적용 효과 전체 보정을 실행할 수 있습니다.');
+      return { scanned: 0, changed: 0 };
+    }
+    let scanned = 0;
+    let changed = 0;
+    for (const actor of game.actors) {
+      if (actor.type !== 'character' && actor.type !== 'enemy') continue;
+      scanned++;
+      if (await sync(actor)) changed++;
+    }
+    console.log(`DX3rd | AppliedToggle explicit sync: ${scanned} actors scanned, ${changed} changed.`);
+    return { scanned, changed };
+  }
+
+  /** GM 설정 메뉴용 읽기 전용 전체 검사. */
+  function auditAll() {
+    const result = { scanned: 0, actors: 0, createOrUpdate: 0, remove: 0, rows: [] };
+    for (const actor of game.actors) {
+      if (actor.type !== 'character' && actor.type !== 'enemy') continue;
+      result.scanned++;
+      const { toDelete, toSet } = syncPlan(actor);
+      if (!toDelete.length && !toSet.length) continue;
+      result.actors++;
+      result.createOrUpdate += toSet.length;
+      result.remove += toDelete.length;
+      result.rows.push({ actor, createOrUpdate: toSet.length, remove: toDelete.length });
+    }
+    return result;
   }
 
   Hooks.on('updateActor', (actor, changed) => {
@@ -191,9 +233,11 @@
     const a = item.parent;
     if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
   });
-  Hooks.once('ready', () => { for (const a of game.actors) sync(a); });
+  // 월드 준비 중 전체 액터를 순회해 AE를 생성·삭제하지 않는다.
+  // 이후 아이템/액터 변경 훅은 필요한 해당 액터만 즉시 동기화한다.
+  Hooks.once('ready', () => console.log('DX3rd | AppliedToggle startup sweep skipped; explicit repair is available.'));
 
-  window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, desiredPayloads, isResponsible };
+  window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, syncAll, auditAll, desiredPayloads, isResponsible };
 
   console.log('DX3rd | AppliedToggle sync loaded');
 })();

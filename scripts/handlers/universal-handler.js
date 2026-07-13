@@ -97,6 +97,20 @@
     async processItemUsageCost(actor, item, options = {}) {
       const { skipMessage = false } = options;
       try {
+        // 컴펜디움 자동화 항목의 명시적 사용 제한. 플래그가 없는 기존 아이템에는 영향을 주지 않는다.
+        const automationExtend = item.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
+        // 통합 컴펜디움 오버라이드는 기존 확장 데이터 안에 자동화 제약을 보관한다.
+        // 과거에 직접 주입된 별도 플래그도 읽어 기존 월드 데이터와 호환한다.
+        const automation = automationExtend.automation || item.getFlag?.('dx3rd-emanim', 'automation') || {};
+        const maxEncroachmentExclusive = Number(automation.maxEncroachmentExclusive);
+        if (Number.isFinite(maxEncroachmentExclusive) && maxEncroachmentExclusive > 0) {
+          const encroachment = Number(actor.system?.attributes?.encroachment?.value) || 0;
+          if (encroachment >= maxEncroachmentExclusive) {
+            ui.notifications.warn(game.i18n.format('DX3rd.AutomationMaxEncroachment', { limit: maxEncroachmentExclusive }));
+            return false;
+          }
+        }
+
         // 0. Pressure 상태이상 체크 (오토 타이밍 아이템의 채팅 메시지 차단)
         const pressureActive = actor.system?.conditions?.pressure?.active || false;
         if (pressureActive) {
@@ -174,6 +188,12 @@
               if (effectId && effectId !== '-') {
                 const effect = actor.items.get(effectId);
                 if (effect && effect.type === 'effect') {
+                  const effectExtend = effect.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
+                  const effectAutomation = effectExtend.automation || effect.getFlag?.('dx3rd-emanim', 'automation') || {};
+                  if (effectAutomation.noCombo) {
+                    ui.notifications.warn(game.i18n.format('DX3rd.AutomationNoCombo', { name: effect.name }));
+                    return false;
+                  }
                   const effectUsedDisable = effect.system.used?.disable || 'notCheck';
                   if (effectUsedDisable !== 'notCheck') {
                     const effectUsedState = effect.system.used?.state || 0;
@@ -8026,7 +8046,7 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
   
   console.log('DX3rd | executeHealExtensionNow called', { actor: actor.name, actorId: actor.id, healData, item: item?.name, options });
   
-  const { formulaDice, formulaAdd, target, rivival, resurrect, selectedTargetIds, triggerItemName, healTo, encroachFixed } = healData;
+  const { formulaDice, formulaAdd, target, rivival, resurrect, selectedTargetIds, triggerItemName, healTo, encroachFixed, excludeSelf = false } = healData;
   const { skipDialog = false } = options;
   
   // 대상 수집
@@ -8042,7 +8062,7 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
       console.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
       selectedTargetIds.forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
-        if (token && token.actor && !targets.find(a => a.id === token.actor.id)) {
+        if (token && token.actor && (!excludeSelf || token.actor.id !== actor.id) && !targets.find(a => a.id === token.actor.id)) {
           targets.push(token.actor);
         }
       });
@@ -8050,7 +8070,7 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
       // 현재 선택된 타겟 사용 (즉시 실행인 경우)
       const selectedTargets = Array.from(game.user.targets);
       selectedTargets.forEach(t => {
-        if (t.actor && !targets.find(a => a.id === t.actor.id)) {
+        if (t.actor && (!excludeSelf || t.actor.id !== actor.id) && !targets.find(a => a.id === t.actor.id)) {
           targets.push(t.actor);
         }
       });
@@ -8060,7 +8080,7 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
   console.log(`DX3rd | Heal targets collected: ${targets.map(t => t.name).join(', ')} (total: ${targets.length})`);
   
   if (targets.length === 0) {
-    ui.notifications.warn('회복 대상이 없습니다.');
+    ui.notifications.warn(excludeSelf ? game.i18n.localize('DX3rd.HealTargetOtherOnly') : '회복 대상이 없습니다.');
     return;
   }
   

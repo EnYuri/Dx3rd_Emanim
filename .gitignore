@@ -3,8 +3,10 @@
 _backup_20260622_002233/
 docs/
 
-#로컬룰북데이터
-_source/
+#로컬룰북데이터 (개별 JSON은 로컬 전용, 통합 오버라이드만 추적)
+_source/*
+!_source/effect-mech-overrides.json
+!_source/item-mech-overrides.json
 
 # 로컬 백업
 _backup_*/

@@ -89,11 +89,17 @@ try {
   }
 
   const normalized = changes.filter(change => change.field !== REPAIR_WOUNDS.path.join("."));
-  if (normalized.length !== EXPECTED_NORMALIZATIONS) {
-    throw new Error(`Expected ${EXPECTED_NORMALIZATIONS} notation-only changes, found ${normalized.length}. Refusing to continue.`);
+  const repairChange = changes.some(change => change.field === REPAIR_WOUNDS.path.join("."));
+  const isPristineAuditedState = normalized.length === EXPECTED_NORMALIZATIONS;
+  const isRepairOnlyAuditedState = normalized.length === 0 && repairChange;
+  const isAlreadyMigratedState = normalized.length === 0 && !repairChange;
+  if (!isPristineAuditedState && !isRepairOnlyAuditedState && !isAlreadyMigratedState) {
+    throw new Error(
+      `Expected ${EXPECTED_NORMALIZATIONS} audited notation changes, the verified Repair Wounds-only state, or an already-migrated pack with 0 changes; found ${normalized.length} notation changes and repair=${repairChange}. Refusing partial or unknown pack state.`
+    );
   }
-  if (changes.length !== EXPECTED_NORMALIZATIONS + 1 && changes.length !== EXPECTED_NORMALIZATIONS) {
-    throw new Error(`Unexpected total change count: ${changes.length}`);
+  if (isPristineAuditedState && changes.length !== EXPECTED_NORMALIZATIONS + 1 && changes.length !== EXPECTED_NORMALIZATIONS) {
+    throw new Error(`Unexpected total change count in the audited pack state: ${changes.length}`);
   }
 
   const report = {

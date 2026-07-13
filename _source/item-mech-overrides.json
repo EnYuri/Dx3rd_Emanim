@@ -1,0 +1,5441 @@
+{
+  "weapons": {
+    "시저 리퍼": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "디스트로이어": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "혼돈의 창": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+3"
+        }
+      ]
+    },
+    "로켓 런처": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "파일 벙커": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "기타": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "배틀 가디언": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "하이매뉴버 미사일": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "수리검": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "라이트닝 카운트": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "스턴 그레네이드": {
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "카운실러스 엣지": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "critical",
+            "label": "critical",
+            "value": "+1"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "볼트액션 라이플": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "베넘 그레네이드": {
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "히트 윕": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "필중의 활": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "ranged",
+          "value": "+10"
+        }
+      ]
+    },
+    "바이브로 윕": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "레이징 아크": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "폴른 쉴드": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "FHG-666": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "ranged",
+          "value": "1"
+        }
+      ]
+    },
+    "폴른 개틀링": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "개리슨즈 실드": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+[mind]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "guard",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "round"
+      }
+    },
+    "쥬라기 레코드": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+10"
+        }
+      ]
+    },
+    "라이트 머신 건": {
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "칼리굴라": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "min([negotiation],10)"
+        }
+      ]
+    },
+    "스트라이크 칩": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "드릴": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "armor",
+            "label": "armor",
+            "value": "-2"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "토츠카 검": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "황금총": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 5,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "압축가스 나이프": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "조디악 웨폰": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "폴른 피스톨": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "reaction_critical",
+            "label": "reaction_critical",
+            "value": "+1"
+          }
+        ]
+      },
+      "getTarget": true,
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "가드 실드": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "guard",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "round"
+      }
+    },
+    "헬 스나이퍼": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "ranged",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "폴른 라이플": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "dice",
+            "label": "dice",
+            "value": "-(3)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "사출식 스턴 건": {
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "대공 미사일": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "AR 샷건": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "init",
+            "label": "init",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "킨 나이프 츠바이": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "armor",
+            "label": "armor",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "레이저 라이플": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "풀 오토 샷 건": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "레이징 블레이드": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "폴른 랜스": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "암 블레이드": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "guard",
+            "label": "guard",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "스피어 스틱": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "reaction_dice",
+            "label": "reaction_dice",
+            "value": "-(1)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "불가시의 칼날": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "armor",
+            "label": "armor",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "소닉 블리츠": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "dodge_dice",
+            "label": "dodge_dice",
+            "value": "-(1)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "예리한 나이프": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "guard",
+            "label": "guard",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "STALKER": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "min([count:정신강화수술]*2,6)"
+        }
+      ]
+    },
+    "스네이크 블레이드": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-(1)"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "센서 실드": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "perception",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "킨 나이프 쯔바이": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "armor",
+            "label": "armor",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "개시어스 블레이드": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "무고의 검": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ]
+    },
+    "전차포": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "결투자의 검": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "그래비티 앱소버": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "round"
+      }
+    },
+    "성검의 왕자": {
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "-2"
+        },
+        {
+          "key": "critical_min",
+          "label": "critical_min",
+          "value": "4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "데어 프라이쉬츠": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "dodge_dice",
+            "label": "dodge_dice",
+            "value": "-(2)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "리액티브 실드": {
+      "attributes": [
+        {
+          "key": "guard_roll",
+          "label": "guard_roll",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "R캐논": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+[sense]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "수어사이드 삐에로": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "발리스틱 나이프": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "dodge_dice",
+            "label": "dodge_dice",
+            "value": "-(4)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "샷건": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "리니어 캐논": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "dodge_dice",
+            "label": "dodge_dice",
+            "value": "-(2)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "히어로 슈터": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "소형부유포": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "어쌔시네이터": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "히어로 소드": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "패리 실드": {
+      "attributes": [
+        {
+          "key": "dodge_dice",
+          "label": "dodge_dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    }
+  },
+  "armors": {
+    "개념외장": {
+      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "전개장갑복": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "진화하는 장갑:감각": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+[sense]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "roll",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "스트레인저스 특수전투복": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "5"
+        }
+      ]
+    },
+    "암드 슈트": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "롤러부츠": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "진화하는 장갑:정신": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+[mind]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "roll",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "히어로 망토": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+10"
+        }
+      ]
+    },
+    "세계제복": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "레니게이드 서포터": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "마제스티 코트": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    },
+    "어보이드 망토": {
+      "attributes": [
+        {
+          "key": "dodge_dice",
+          "label": "dodge_dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "UGN 전투복": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "rc",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "UGN 전투복 Ⅱ": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "강화 비즈니스 슈트": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "social",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "에이전트 슈트": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "FH 전투복": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "FH 인터셉터": {
+      "attributes": [
+        {
+          "key": "dodge_add",
+          "label": "dodge_add",
+          "value": "min([count:정신강화수술],3)"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "min([count:정신강화수술],3)"
+        }
+      ]
+    },
+    "사운드 아머": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "라이더 슈트": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "drive_bike",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "슈터즈 재킷": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "ranged",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "진화하는 장갑:사회": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+[social]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "roll",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "암드 스카프": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "얼티메이트복": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "rc",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "스니킹 슈트": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "리빙코트": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "FH 전투 장갑복": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "5"
+        }
+      ]
+    },
+    "아머드 슈트": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "3"
+        }
+      ]
+    },
+    "어뎁트 아머": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "아머 스킨": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "AI 보조슈트": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "완전열광학미채복": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "리액티브 아머": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "스테이지 의상": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "ars",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "연구복": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "know",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "안티 레니게이드 슈트": {
+      "attributes": [
+        {
+          "key": "reaction_dice",
+          "label": "reaction_dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "UGN 전투복 2": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "미스리더": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "reaction_critical",
+            "label": "reaction_critical",
+            "value": "+1"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "리액티브 코트": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "파워 어시스트 아머": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "귀인의 예장": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "트랙 슈트": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "melee",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "부스트 아머": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "히어로 코스튬": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "social",
+          "value": "1"
+        }
+      ]
+    },
+    "죄인의 속박": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "진화하는 장갑:육체": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+[body]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "roll",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "프로텍트 아머": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "어스름의 외투": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "EX 패스파인더": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+7"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "미라쥬 코트": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "승부복": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "will",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "FH 전투 코트": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "다기능 헬멧": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "perception",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    }
+  },
+  "vehicles": {
+    "테크니컬": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+20"
+        }
+      ]
+    },
+    "리니어 비클": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+5"
+        }
+      ]
+    },
+    "인연의 애마": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "경비행기": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+        }
+      ]
+    },
+    "전투헬기": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+        }
+      ]
+    },
+    "오르토로스": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "rc",
+          "value": "+10"
+        }
+      ]
+    },
+    "모핑 헬리콥터II": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+        }
+      ]
+    },
+    "커맨드 모빌": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "dice",
+            "label": "dice",
+            "value": "+(3)"
+          }
+        ]
+      },
+      "getTarget": true,
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "모핑 헬리콥터2": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+        }
+      ]
+    },
+    "폴른 비클": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "모핑 헬리콥터": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+        }
+      ]
+    }
+  },
+  "items": {
+    "자동 복원 기구": {
+      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "3", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "고성능치료 팩": {
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "3d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "의료 트렁크": {
+      "used": { "state": 0, "max": 1, "level": false, "disable": "scene" },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "악식의 기호품": {
+      "used": { "state": 0, "max": 3, "level": false, "disable": "session" },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "심해도시의 꿈": {
+      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+      "itemExtend": {
+        "automation": { "maxEncroachmentExclusive": 110 },
+        "heal": { "formulaDice": "0", "formulaAdd": "3d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": true, "activate": true },
+        "statusClear": { "timing": "instant", "target": "self", "exclude": [], "activate": true }
+      }
+    },
+    "강철의 의지": {
+      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+      "itemExtend": { "statusClear": { "timing": "instant", "target": "self", "exclude": ["hatred", "fear", "rigor", "pressure", "dazed", "poisoned"], "activate": true } }
+    },
+    "피지컬 블러드": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "우량병기": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        },
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "RC 부스터": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "rc",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "지원요청 : 곡사포": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+8"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "니트로 시스템": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+20"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "아이템 수리 서비스": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "지원요청 : 항모기동부대": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "할로우 포인트탄": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "커넥션:정보원": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_underworld",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "실버 ID 카드": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "+2"
+        },
+        {
+          "key": "stat_add",
+          "label": "procure",
+          "value": "+2"
+        }
+      ]
+    },
+    "피스 렐릭": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "원더 퍼퓸": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "커넥션:브로커": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "procure",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "체인드": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "세계의 알": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "무지갯빛 모래": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "에시젠 결정": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "알파 트랜스": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "스마일리의 대여금고": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "음파 모니터": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "실버 햄머": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "R면": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "1d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "R 컨트롤러": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "rc",
+          "value": "5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "스페셜 에이전트": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "심벌라이즈 카드": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "스펠북": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+7"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "서약의 눈동자": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "rc",
+          "value": "2"
+        }
+      ]
+    },
+    "이레귤러 조커": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "영광의 팔찌": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "mind",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "종자의 회로": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "rc",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "유니버셜 팬": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "스팅어": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "올 카인즈": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션: V넷의 그림자": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_villain",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "수확자의 장갑": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "이레이스 트레이스": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "블루 게일": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "승천하는 용 문신": {
+      "attributes": [
+        {
+          "key": "major_critical",
+          "label": "major_critical",
+          "value": "-1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "FH 간부": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "2"
+        }
+      ]
+    },
+    "엔젤릭 크래시": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "종자의 옷": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "종자의 발굽": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "해독제": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "R 감시 팀": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "수호자의 장갑": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "조혈제": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "전투적성체": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "네비게이션 시스템": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "drive",
+          "value": "1"
+        }
+      ]
+    },
+    "배틀 매뉴버": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "melee",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "틴달로스 스트랩": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "body",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "B랭크:디펜더": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+2"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-1"
+        }
+      ]
+    },
+    "화이트 페노미나": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "키리타니 커넥션": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "길드 카드": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "negotiation",
+          "value": "1"
+        }
+      ]
+    },
+    "Mailcia": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "세이프 하우스": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "info",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "완전의체": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "황금의 야수": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "근력 증가": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션:해커": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_web",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "신인류 연구소": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "know",
+          "value": "3"
+        }
+      ]
+    },
+    "커넥션:연구자": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_study",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "스위퍼": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "스틸 마인드": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "will",
+          "value": "2"
+        }
+      ]
+    },
+    "시냅스 부스터": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "mind",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    },
+    "지원요청 : DIA": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "경찰수첩": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "social",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "어리광쟁이": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "rc",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "문 도그": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "우주우애협회 바펜": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "론 오버드": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "세컨드 하트": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "999"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "R 인스티튜트": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "금속골격": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "틴달로스 소년대": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "레전드 웨폰": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "가디언즈 사인": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "회사편찬과": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "1"
+        }
+      ]
+    },
+    "크리스탈 경비 보장": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "선즈 에이전트": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+20"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "비콘": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "에피션트 워크": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "뇌충": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "과학 수사 연구소": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "2"
+        }
+      ]
+    },
+    "불길한 나무열매": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "다채색 재능:사회": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "social",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "응급치료 키트": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "맨 이터": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "레니게이드 체커": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "스켑터": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "스타리 프레셔스": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "social",
+          "value": "3"
+        }
+      ]
+    },
+    "차일드 플레이어": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "레전드 비클": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        },
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+25"
+        }
+      ]
+    },
+    "잉크 리본": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "오버 마인드": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        },
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "A랭크:디펜더": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "실드 블러드": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "추가장갑": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+3"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-3"
+        }
+      ]
+    },
+    "레니게이드 트레이닝": {
+      "attributes": [
+        {
+          "key": "dodge_dice",
+          "label": "dodge_dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "하드 바디": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "레전드 아머": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+5"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+2"
+        }
+      ]
+    },
+    "비틀린 왕국": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "민치 야키소바 빵": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "statusClear": { "timing": "instant", "target": "self", "exclude": ["berserk"], "activate": true } }
+    },
+    "피클 웨더": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-(1)"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "무 민족 반": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "know",
+          "value": "3"
+        }
+      ]
+    },
+    "보건실이용 허가증": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "트루스 사이트": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "오버카운터": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션: 히어로 매니아": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_hero",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "블랙 카드": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "지원요청 : UAV": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "에버 스탠드": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "트래퍼": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "미스틱 아이": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "mind",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    },
+    "자색 힘": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "조커": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "간이수술키트": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "4d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "메디컬 어시스턴트": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "레드 나이트 메어": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "R 컨버터": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "킨 슬레이어": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "사이드 릴": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "데이터 브레인": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "info",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "라스트런": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "다채색 재능:감각": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "sense",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "시간의 모래시계": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "라이트 서버": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "rc",
+          "value": "+20"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "더멀 플레이트": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+5"
+        }
+      ]
+    },
+    "회색 희생": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "RC 스캐너": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "rc",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "화이트 허브": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "getTarget": true,
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "targetToken", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "워몽거": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ]
+    },
+    "조준기": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "오퍼레이션 X": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "소중한 일품": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "안티 레니게이드 탄": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "dice",
+            "label": "dice",
+            "value": "-(2)"
+          }
+        ]
+      },
+      "getTarget": true
+    },
+    "서치 레이더": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "perception",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "컴뱃 포커스": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "락 온 사이트": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "ranged",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "성자의 유골": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "강화의체": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "슈페리올 믹스": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "동료": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "info",
+          "value": "+2"
+        }
+      ]
+    },
+    "웨폰 커스터마이즈": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "서바이버": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "다채색 재능:육체": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "body",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "무색의 마경": {
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "다이몬 뱃지": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "social",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "라스트 블러드": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "보이스 체인저": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "negotiation",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "B랭크:어택커": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+2"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "-1"
+        }
+      ]
+    },
+    "S랭크:디펜더": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "항 레니게이드 탄": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "dice",
+            "label": "dice",
+            "value": "-(1)"
+          }
+        ]
+      },
+      "getTarget": true,
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "커넥션:경찰관": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_police",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "마그넷 코팅": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "FH 메신저": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_underworld",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "찰나의 부적": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "모바일 PC": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_web",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "파워 부스터": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+[mind]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "전문서적": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "know",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션:매스미디어": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_media",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "블랙 어비스": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "총알": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "사이드킥": {
+      "attributes": [
+        {
+          "key": "major_critical",
+          "label": "major_critical",
+          "value": "-1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "오르페우스 링": {
+      "attributes": [
+        {
+          "key": "guard_roll",
+          "label": "guard_roll",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      }
+    },
+    "R오버드라이브": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "파나케이아의 열매": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "기브&테이크": {
+      "attributes": [
+        {
+          "key": "stat_bonus",
+          "label": "social",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "스타베트로D": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "마스터 킬러": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "지원요청 : 수송": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "썬더 스톰": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "5"
+        }
+      ]
+    },
+    "비컨": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "슈피리얼 네트워크": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "카스가 일족": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "업그레이드": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "에나베트로D": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "양산품": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      }
+    },
+    "요툰의 피": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+20"
+        }
+      ]
+    },
+    "브라스 기아스": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "예비심장": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "0", "healTo": "1", "timing": "instant", "target": "self", "encroachFixed": "2d10", "resurrect": false, "rivival": true, "activate": true } }
+    },
+    "이스케이프": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "몽환의 심장": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "블랙 스피어": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    },
+    "히페리온": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "종자의 체구": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+5"
+        }
+      ]
+    },
+    "철갑탄": {
+      "effect": {
+        "disable": "major",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "armor",
+            "label": "armor",
+            "value": "-5"
+          }
+        ]
+      },
+      "getTarget": true,
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "인피니티 노바": {
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "-1"
+        },
+        {
+          "key": "critical_min",
+          "label": "critical_min",
+          "value": "6"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션:UGN 간부": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_ugn",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "데리버리": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "출력강화장치": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "브레이크 불릿": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "트랜스디미너": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "negotiation",
+          "value": "1"
+        },
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "1"
+        }
+      ]
+    },
+    "리마인드 소울": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "케이지 블러드": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "플래티넘 내비게이션": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "심원한 지식": {
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "귀인예찬": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "social",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "친구": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "info",
+          "value": "+2"
+        }
+      ]
+    },
+    "헬즈 월": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+[body]"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "강화소재": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "어드밴스드 고글": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션:소식통 친구": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_rumor",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "내츄럴 본": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "negotiation",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "비클 스파이크": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-3"
+        }
+      ]
+    },
+    "콤비네이터": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    },
+    "다채색 재능:정신": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "mind",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "커넥션:요인에게 지운 빚": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "특수장갑의수": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+4"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+3"
+        },
+        {
+          "key": "stat_dice",
+          "label": "melee",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "하이 디자인": {
+      "attributes": [
+        {
+          "key": "armor",
+          "label": "armor",
+          "value": "+7"
+        },
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+3"
+        }
+      ]
+    },
+    "커넥션:용병": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_military",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "내추럴 크리에이션": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "CR 탄환": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "R 엔핸서": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "자기장 생성기": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "reaction",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "베넘 블러드": {
+      "effect": {
+        "disable": "round",
+        "runTiming": "afterDamage",
+        "attributes": [
+          {
+            "key": "dice",
+            "label": "dice",
+            "value": "-(2)"
+          }
+        ]
+      },
+      "getTarget": true,
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "니벨룽의 반지": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        },
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-(1)"
+        }
+      ]
+    },
+    "모노리스 반": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "3"
+        }
+      ]
+    },
+    "아세틱": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "mind",
+          "value": "1"
+        }
+      ]
+    },
+    "퍼플 템터": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      },
+      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "10", "timing": "instant", "target": "self", "encroachFixed": "3", "resurrect": false, "rivival": false, "activate": true } }
+    },
+    "미제리코드": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "서포트 프로그램": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "추억의 물건": {
+      "attributes": [
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "+1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "커넥션:코퍼레이트": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_business",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      }
+    },
+    "컴뱃 블러드": {
+      "used": {
+        "state": false,
+        "max": 1,
+        "level": false,
+        "disable": "notCheck"
+      }
+    },
+    "리틀 그레이 탐정사무소": {
+      "attributes": [
+        {
+          "key": "reaction_critical",
+          "label": "reaction_critical",
+          "value": "-1"
+        },
+        {
+          "key": "critical_min",
+          "label": "critical_min",
+          "value": "6"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "round",
+        "runTiming": "instant"
+      }
+    }
+  },
+  "dlois": {
+    "No.38 나찰": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+6"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.90 쾌남": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ]
+    },
+    "No.60 시인": {
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": true,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.06 전투용인격": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+4"
+        }
+      ]
+    },
+    "No.95 가면": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "No.35a 담피르": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "No.G01 선별자": {
+      "attributes": [
+        {
+          "key": "major_critical",
+          "label": "major_critical",
+          "value": "-1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "No.01 현자의 돌": {
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await window.DX3rdUniversalHandler?.roisActivate(actor, { encroach: '1d10', applied: { key: item.id, name: item.name, disable: 'roll', attributes: { critical: '-2' } } });"
+        }
+      ]
+    },
+    "No.34 기계화병": {
+      "attributes": [
+        {
+          "key": "reduce",
+          "label": "reduce",
+          "value": "10"
+        }
+      ],
+      "active": {
+        "state": true,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.C02 마스터 레이스": {
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.16 특이점": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+20"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      },
+      "macros": [
+        {
+          "timing": "instant",
+          "command": "await window.DX3rdUniversalHandler?.roisActivate(actor, { applied: { key: item.id, name: item.name, disable: 'roll', attributes: { add: '20' } } });"
+        }
+      ]
+    },
+    "상시폭주": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        },
+        {
+          "key": "reaction_dice",
+          "label": "reaction_dice",
+          "value": "-5"
+        }
+      ],
+      "active": {
+        "state": true,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.10 전승자": {
+      "attributes": [
+        {
+          "key": "dxroll",
+          "label": "dxroll",
+          "value": "3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.87 진상(眞相)": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ]
+    },
+    "No.53 강화병": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        },
+        {
+          "key": "stat_add",
+          "label": "will",
+          "value": "-5"
+        }
+      ],
+      "active": {
+        "state": true,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.H02 황천역행": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+2"
+        }
+      ]
+    },
+    "No.73 초대받지 않은 손님": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+1"
+        }
+      ]
+    },
+    "No.84 악마의 오른팔": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ]
+    },
+    "No.50 절대영도": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+3"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.C01 올드 레이스": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+5"
+        }
+      ]
+    },
+    "No.04 대항종": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.25 초침식": {
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        },
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.94 파괴자": {
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "+5"
+        },
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        },
+        {
+          "key": "dodge_dice",
+          "label": "dodge_dice",
+          "value": "-3"
+        },
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "-5"
+        }
+      ],
+      "active": {
+        "state": true,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.46 달인": {
+      "attributes": [
+        {
+          "key": "major_dice",
+          "label": "major_dice",
+          "value": "+2"
+        },
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      }
+    },
+    "No.59 잊을 수 없는 사람": {
+      "attributes": [
+        {
+          "key": "penetrate",
+          "label": "penetrate",
+          "value": "99"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "No.91 비의 중의 비의": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+4"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "No.93 해결사": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+5"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      }
+    },
+    "No.40 기물술사": {
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "+5"
+        }
+      ]
+    },
+    "피의 권속": {
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ]
+    }
+  }
+}

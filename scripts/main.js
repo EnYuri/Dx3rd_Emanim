@@ -4841,21 +4841,29 @@ Hooks.on('updateActor', (actor, changed, options, userId) => {
 });
 
 // 즉석 콤보는 저장 버튼을 누르기 전까지 월드 데이터가 아니다.
-// 브라우저 새로고침/비정상 창 종료로 남은 문서는 GM이 월드 준비 직후 한 번만 정리한다.
-// 명시적으로 저장한 콤보는 instantCombo 플래그가 없으므로 절대 삭제 대상이 아니다.
-Hooks.once('ready', async () => {
-    if (!game.user.isGM || typeof window.DX3rdIsInstantCombo !== 'function') return;
-    let removed = 0;
-    for (const actor of game.actors) {
-        const ids = actor.items
-            .filter(item => window.DX3rdIsInstantCombo(item))
-            .map(item => item.id);
-        if (!ids.length) continue;
-        await actor.deleteEmbeddedDocuments('Item', ids);
-        removed += ids.length;
+// 브라우저 새로고침/비정상 창 종료로 남은 문서는 기동 중 자동 삭제하지 않는다.
+// 명시적으로 저장한 콤보는 instantCombo 플래그가 없으므로 절대 정리 대상이 아니다.
+window.DX3rdInstantComboCleanup = {
+    audit() {
+        const rows = [];
+        for (const actor of game.actors) {
+            const items = actor.items.filter(item => window.DX3rdIsInstantCombo?.(item));
+            if (items.length) rows.push({ actor, items });
+        }
+        return { actors: rows.length, items: rows.reduce((count, row) => count + row.items.length, 0), rows };
+    },
+    async repair() {
+        if (!game.user.isGM) return { actors: 0, items: 0 };
+        const audit = this.audit();
+        let removed = 0;
+        for (const { actor, items } of audit.rows) {
+            await actor.deleteEmbeddedDocuments('Item', items.map(item => item.id), { render: false });
+            removed += items.length;
+        }
+        console.log(`DX3rd | Explicit instant combo cleanup: ${removed} removed.`);
+        return { actors: audit.actors, items: removed };
     }
-    if (removed) console.log(`DX3rd | Removed ${removed} abandoned instant combo(s).`);
-});
+};
 
 // 이펙트가 바뀌면, 그 이펙트를 등록한 콤보의 저장 파생값도 같은 조합 규칙으로 동기화하고
 // 열린 콤보 시트를 갱신한다. 이펙트 자신의 시트는 Foundry가 updateItem 시 자동으로 다시 그린다.

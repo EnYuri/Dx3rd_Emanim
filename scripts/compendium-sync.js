@@ -197,6 +197,46 @@
         return result;
     }
 
+    // 기동 중 자동으로 쓰지 않는 복구 항목의 읽기 전용 점검 결과.
+    function runtimeAudit() {
+        const empty = { actors: 0, items: 0, effects: 0, rows: [] };
+        return {
+            applied: window.DX3rdAppliedToggle?.auditAll?.() || { scanned: 0, actors: 0, createOrUpdate: 0, remove: 0, rows: [] },
+            instantCombo: window.DX3rdInstantComboCleanup?.audit?.() || empty,
+            conditionOverlay: window.DX3rdConditionOverlayRepair?.audit?.() || empty
+        };
+    }
+
+    function runtimeHasWork(result) {
+        return result.applied.actors || result.instantCombo.items || result.conditionOverlay.effects;
+    }
+
+    function runtimeAuditContent(result) {
+        const appliedRows = result.applied.rows.map(row =>
+            `<li><b>${esc(row.actor.name)}</b> — ${format('DX3rd.AppliedToggleRepairRow', row)}</li>`).join('');
+        const comboRows = result.instantCombo.rows.map(row =>
+            `<li><b>${esc(row.actor.name)}</b> — ${format('DX3rd.InstantComboCleanupRow', { items: row.items.length })}</li>`).join('');
+        const conditionRows = result.conditionOverlay.rows.map(row =>
+            `<li><b>${esc(row.actor.name)}</b> — ${format('DX3rd.ConditionOverlayRepairRow', { effects: row.missing.length })}</li>`).join('');
+        return `<h3>${localize('DX3rd.RuntimeSyncTitle')}</h3>` +
+            `<p>${format('DX3rd.RuntimeSyncSummary', {
+                appliedActors: result.applied.actors,
+                appliedEffects: result.applied.createOrUpdate + result.applied.remove,
+                instantCombos: result.instantCombo.items,
+                conditionEffects: result.conditionOverlay.effects
+            })}</p>` +
+            (appliedRows ? `<details><summary>${localize('DX3rd.AppliedToggleRepairLabel')}</summary><ul>${appliedRows}</ul></details>` : '') +
+            (comboRows ? `<details><summary>${localize('DX3rd.InstantComboCleanupLabel')}</summary><ul>${comboRows}</ul></details>` : '') +
+            (conditionRows ? `<details><summary>${localize('DX3rd.ConditionOverlayRepairLabel')}</summary><ul>${conditionRows}</ul></details>` : '');
+    }
+
+    async function repairRuntime() {
+        const applied = await window.DX3rdAppliedToggle?.syncAll?.() || { scanned: 0, changed: 0 };
+        const instantCombo = await window.DX3rdInstantComboCleanup?.repair?.() || { actors: 0, items: 0 };
+        const conditionOverlay = await window.DX3rdConditionOverlayRepair?.repair?.() || { actors: 0, effects: 0 };
+        return { applied, instantCombo, conditionOverlay };
+    }
+
     // 실제 적용: 액터별로 삭제 후 재생성(keepId).
     async function apply(index, plan) {
         let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0, stale = 0;
@@ -260,6 +300,7 @@
         ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
         const { index, dupes, duplicates, missingPacks } = await buildIndex();
         const result = audit(index);
+        const runtime = runtimeAudit();
         const rows = result.rows.map(row => {
             const changes = row.changes.map(change =>
                 `${esc(change.name)} <small>(${change.fields.map(field => esc(localize(`DX3rd.CompendiumAuditField${field[0].toUpperCase()}${field.slice(1)}`))).join(', ')})</small>`).join(', ');
@@ -278,7 +319,8 @@
             (missingPacks.length ? `<p style="color:orange">${format('DX3rd.CompendiumAuditMissingPacks', { packs: missingPacks.map(esc).join(', ') })}</p>` : '') +
             (dupes ? `<details><summary style="color:orange">${format('DX3rd.CompendiumAuditDuplicates', { dupes })}</summary><ul style="max-height:160px;overflow:auto;margin:.5em 0">${duplicateRows}</ul></details>` : '') +
             (rows ? `<details open><summary>${localize('DX3rd.CompendiumAuditChanges')}</summary><ul style="max-height:220px;overflow:auto;margin:.5em 0">${rows}</ul></details>` : '') +
-            (unmatchedRows ? `<details><summary>${format('DX3rd.CompendiumAuditUnmatched', { unmatched: result.unmatched })}</summary><ul style="max-height:180px;overflow:auto;margin:.5em 0">${unmatchedRows}</ul></details>` : '');
+            (unmatchedRows ? `<details><summary>${format('DX3rd.CompendiumAuditUnmatched', { unmatched: result.unmatched })}</summary><ul style="max-height:180px;overflow:auto;margin:.5em 0">${unmatchedRows}</ul></details>` : '') +
+            runtimeAuditContent(runtime);
         await foundry.applications.api.DialogV2.wait({
             window: { title: localize('DX3rd.CompendiumAuditTitle') },
             position: { width: 700, height: 'auto' },
@@ -291,7 +333,7 @@
     }
 
     // 스캔 → 확인 다이얼로그 → 적용 → 결과 보고
-    async function open() {
+    async function openItemSync() {
         if (!game.user.isGM) {
             ui.notifications.warn('DX3rd | GM만 실행할 수 있습니다.');
             return;
@@ -334,6 +376,99 @@
         console.log('DX3rd | 컴펜디움 동기화 결과', res);
     }
 
+    // 동기화 버튼의 단일 실행 경로: 모든 자동 복구 후보를 검사한 뒤 GM 확인 후에만 적용.
+    async function open() {
+        if (!game.user.isGM) {
+            ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
+            return;
+        }
+        ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
+        const { index, dupes } = await buildIndex();
+        const plan = scan(index);
+        const runtime = runtimeAudit();
+        const totalItems = plan.reduce((n, p) => n + p.matches.length, 0);
+        if (!totalItems && !runtimeHasWork(runtime)) {
+            ui.notifications.info(localize('DX3rd.FullSyncNone'));
+            return;
+        }
+        const itemRows = plan.map(p =>
+            `<li><b>${esc(p.actor.name)}</b> — ${p.matches.length}개: ${p.matches.map(({ item }) => esc(item.name)).join(', ')}</li>`).join('');
+        const content =
+            `<p>${format('DX3rd.FullSyncSummary', { actors: plan.length, items: totalItems })}</p>` +
+            `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.FullSyncHint')}</p>` +
+            (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '') +
+            (itemRows ? `<details open><summary>${localize('DX3rd.CompendiumSyncLabel')}</summary><ul style="max-height:200px;overflow:auto;margin:.5em 0">${itemRows}</ul></details>` : '') +
+            runtimeAuditContent(runtime);
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            window: { title: localize('DX3rd.CompendiumSyncHubTitle') }, content, modal: true
+        });
+        if (!confirmed) return;
+        const compendium = totalItems ? await apply(index, plan) : { actorsChanged: 0, itemsChanged: 0, failed: 0 };
+        const repaired = await repairRuntime();
+        ui.notifications.info(format('DX3rd.FullSyncComplete', {
+            actors: compendium.actorsChanged,
+            items: compendium.itemsChanged,
+            aeActors: repaired.applied.changed,
+            instantCombos: repaired.instantCombo.items,
+            conditionEffects: repaired.conditionOverlay.effects
+        }));
+    }
+
+    // 토글형 이펙트의 Applied ActiveEffect는 기동 중 전수 생성하지 않는다.
+    // 이 메뉴에서만 검사 → 확인 → 필요한 항목만 보정한다.
+    async function openAppliedToggleRepair() {
+        if (!game.user.isGM) {
+            ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
+            return;
+        }
+        const toggle = window.DX3rdAppliedToggle;
+        if (!toggle?.auditAll || !toggle?.syncAll) {
+            ui.notifications.error(localize('DX3rd.AppliedToggleRepairUnavailable'));
+            return;
+        }
+        const audit = toggle.auditAll();
+        if (!audit.actors) {
+            ui.notifications.info(localize('DX3rd.AppliedToggleRepairNone'));
+            return audit;
+        }
+        const rows = audit.rows.map(row =>
+            `<li><b>${esc(row.actor.name)}</b> — ${format('DX3rd.AppliedToggleRepairRow', row)}</li>`
+        ).join('');
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+            window: { title: localize('DX3rd.AppliedToggleRepairTitle') },
+            content:
+                `<p>${format('DX3rd.AppliedToggleRepairSummary', audit)}</p>` +
+                `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.AppliedToggleRepairHint')}</p>` +
+                `<ul style="max-height:240px;overflow:auto;margin:.5em 0">${rows}</ul>`,
+            modal: true
+        });
+        if (!confirmed) return audit;
+        const result = await toggle.syncAll();
+        ui.notifications.info(format('DX3rd.AppliedToggleRepairComplete', result));
+        return result;
+    }
+
+    // 이전 선택식 UI 호환용 진입점. 설정 메뉴는 아래에서 open() 일괄 동기화를 사용한다.
+    async function openHub() {
+        if (!game.user.isGM) {
+            ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
+            return;
+        }
+        const action = await foundry.applications.api.DialogV2.wait({
+            window: { title: localize('DX3rd.CompendiumSyncHubTitle') },
+            position: { width: 520, height: 'auto' },
+            classes: ['dx3rd-emanim', 'dialog', 'compendium-sync-hub'],
+            content: `<p>${localize('DX3rd.CompendiumSyncHubHint')}</p>`,
+            buttons: [
+                { action: 'items', icon: 'fas fa-cloud-download-alt', label: localize('DX3rd.CompendiumSyncLabel'), callback: () => 'items' },
+                { action: 'applied', icon: 'fas fa-wand-magic-sparkles', label: localize('DX3rd.AppliedToggleRepairLabel'), callback: () => 'applied' },
+                { action: 'cancel', icon: 'fas fa-times', label: localize('DX3rd.Cancel'), callback: () => 'cancel' }
+            ]
+        });
+        if (action === 'items') return open();
+        if (action === 'applied') return openAppliedToggleRepair();
+    }
+
     // 설정 메뉴 버튼 등록. type 클래스는 render 시 확인 플로우만 띄우고 창은 열지 않는다.
     Hooks.once('init', function() {
         class CompendiumSyncMenu extends foundry.applications.api.ApplicationV2 {
@@ -368,5 +503,5 @@
         });
     });
 
-    window.DX3rdCompendiumSync = { open, openAudit, buildIndex, scan, audit, apply };
+    window.DX3rdCompendiumSync = { open, openItemSync, openAudit, openHub, openAppliedToggleRepair, buildIndex, scan, audit, apply, runtimeAudit };
 })();

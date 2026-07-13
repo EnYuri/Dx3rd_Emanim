@@ -1574,46 +1574,50 @@ Hooks.on('canvasReady', async () => {
   }
 });
 
-// 캔버스 준비 시, 이미 active 상태인 conditions에 대응하는 오버레이(ActiveEffect)가
-// 없으면 생성하여 아이콘을 복원한다. (월드/씬 재로드 후에도 상태이상 아이콘 유지)
-// 중복 생성을 막기 위해 GM만 수행한다.
-Hooks.on('canvasReady', async () => {
-  if (!canvas.scene || !game.user.isGM) return;
+// 상태이상 오버레이 복구는 기동 중 자동 생성하지 않고 동기화 메뉴에서만 명시 실행한다.
+// 현재 씬에서 system.conditions 는 active 이지만 대응 ActiveEffect 가 없는 경우만 대상이다.
+const DX3RD_CONDITION_TO_STATUS = {
+  poisoned: "poisoned", hatred: "hatred", fear: "fear", berserk: "berserk",
+  rigor: "rigor", pressure: "pressure", dazed: "dazed", boarding: "boarding",
+  stealth: "stealth", fly: "fly", defeated: "dead"
+};
 
-  const CONDITION_TO_STATUS = {
-    poisoned: "poisoned",
-    hatred: "hatred",
-    fear: "fear",
-    berserk: "berserk",
-    rigor: "rigor",
-    pressure: "pressure",
-    dazed: "dazed",
-    boarding: "boarding",
-    stealth: "stealth",
-    fly: "fly",
-    defeated: "dead"
-  };
-
-  const seenActors = new Set();
-  for (const tokenDoc of canvas.scene.tokens) {
-    const actor = tokenDoc.actor;
-    if (!actor || seenActors.has(actor.id)) continue;
-    seenActors.add(actor.id);
-
-    const conditions = actor.system?.conditions || {};
-    for (const [cond, status] of Object.entries(CONDITION_TO_STATUS)) {
-      if (!conditions[cond]?.active) continue;
-      const hasEffect = actor.effects.some(e => e.statuses.has(status));
-      if (hasEffect) continue;
-
-      window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
-      window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
-      try {
-        await actor.toggleStatusEffect(status, { active: true });
-      } catch (e) {
-        console.warn(`DX3rd | Failed to restore overlay for ${cond}:`, e);
-        window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+window.DX3rdConditionOverlayRepair = {
+  audit(scene = canvas?.scene) {
+    const rows = [];
+    if (!scene) return { actors: 0, effects: 0, rows };
+    const seenActors = new Set();
+    for (const tokenDoc of scene.tokens) {
+      const actor = tokenDoc.actor;
+      if (!actor || seenActors.has(actor.id)) continue;
+      seenActors.add(actor.id);
+      const missing = [];
+      const conditions = actor.system?.conditions || {};
+      for (const [cond, status] of Object.entries(DX3RD_CONDITION_TO_STATUS)) {
+        if (conditions[cond]?.active && !actor.effects.some(e => e.statuses.has(status))) missing.push({ cond, status });
+      }
+      if (missing.length) rows.push({ actor, missing });
+    }
+    return { actors: rows.length, effects: rows.reduce((count, row) => count + row.missing.length, 0), rows };
+  },
+  async repair() {
+    if (!game.user.isGM) return { actors: 0, effects: 0 };
+    const audit = this.audit();
+    let restored = 0;
+    for (const { actor, missing } of audit.rows) {
+      for (const { status } of missing) {
+        window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
+        window.DX3rdConditionTriggerMap.set(`${actor.id}:${status}`, { suppressMessage: true });
+        try {
+          await actor.toggleStatusEffect(status, { active: true });
+          restored++;
+        } catch (e) {
+          console.warn(`DX3rd | Failed to restore condition overlay for ${status}:`, e);
+          window.DX3rdConditionTriggerMap.delete(`${actor.id}:${status}`);
+        }
       }
     }
+    console.log(`DX3rd | Explicit condition overlay repair: ${restored} restored.`);
+    return { actors: audit.actors, effects: restored };
   }
-});
+};
