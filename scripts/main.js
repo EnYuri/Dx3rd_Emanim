@@ -3028,7 +3028,16 @@ window.DX3rdChatToggleManager = {
             const preservedActorDamageRoll = dx3rdReadData(button, 'preserved-actor-damage-roll');
             const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
             const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
+            const preservedAttackFormulaEncoded = dx3rdReadData(button, 'preserved-attack-formula');
             const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
+            let preservedAttackFormula = null;
+            if (typeof preservedAttackFormulaEncoded === 'string' && preservedAttackFormulaEncoded !== '') {
+                try {
+                    preservedAttackFormula = decodeURIComponent(preservedAttackFormulaEncoded);
+                } catch (e) {
+                    console.warn('DX3rd | Could not read preserved attack formula', e);
+                }
+            }
             
             if (!actorId || !itemId) return;
             
@@ -3072,7 +3081,9 @@ window.DX3rdChatToggleManager = {
                 actorAttack: preservedActorAttack || 0,
                 actorDamageRoll: preservedActorDamageRoll || 0,
                 actorPenetrate: preservedActorPenetrate || 0,
-                weaponAttack: preservedWeaponAttack || 0 // 이미 선택한 무기들의 공격력이 합산되어 있음
+                // 이전 채팅 카드는 숫자 보존값을 계속 지원한다.
+                weaponAttack: preservedWeaponAttack || 0,
+                weaponAttackFormula: preservedAttackFormula
             };
             
             // 사용된 무기들의 attack-used.state 증가 (이펙트/콤보/사이오닉에서 무기 사용한 경우)
@@ -4827,6 +4838,23 @@ Hooks.on('updateActor', (actor, changed, options, userId) => {
         if (!['combo', 'effect', 'psionic'].includes(item.type)) continue;
         _dx3rdRerenderSheet(item._sheet);      // 아직 열린 적 없으면 생성하지 않는다
     }
+});
+
+// 즉석 콤보는 저장 버튼을 누르기 전까지 월드 데이터가 아니다.
+// 브라우저 새로고침/비정상 창 종료로 남은 문서는 GM이 월드 준비 직후 한 번만 정리한다.
+// 명시적으로 저장한 콤보는 instantCombo 플래그가 없으므로 절대 삭제 대상이 아니다.
+Hooks.once('ready', async () => {
+    if (!game.user.isGM || typeof window.DX3rdIsInstantCombo !== 'function') return;
+    let removed = 0;
+    for (const actor of game.actors) {
+        const ids = actor.items
+            .filter(item => window.DX3rdIsInstantCombo(item))
+            .map(item => item.id);
+        if (!ids.length) continue;
+        await actor.deleteEmbeddedDocuments('Item', ids);
+        removed += ids.length;
+    }
+    if (removed) console.log(`DX3rd | Removed ${removed} abandoned instant combo(s).`);
 });
 
 // 이펙트가 바뀌면, 그 이펙트를 등록한 콤보의 저장 파생값도 같은 조합 규칙으로 동기화하고

@@ -1962,6 +1962,67 @@
     },
 
     /**
+     * 시트의 "효과 적용" 전용 경로.
+     * 대상 탭(system.effect.attributes)과 자기 효과 탭(system.attributes)은 서로 다른
+     * 의미이므로, 자신을 타겟으로 잡았고 둘 다 있을 때만 어느 쪽을 적용할지 묻는다.
+     */
+    async applyChosenItemEffect(actor, item, options = {}) {
+      const targets = Array.from(game.user.targets || []);
+      if (!targets.length) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
+        return false;
+      }
+
+      const hasUsableAttribute = attributes => Object.values(attributes || {}).some(attribute =>
+        attribute?.key && attribute.key !== '-' && String(attribute.value ?? '').trim() !== ''
+      );
+      const targetAttributes = item.system?.effect?.attributes || {};
+      const selfAttributes = item.system?.attributes || {};
+      const hasTargetEffect = hasUsableAttribute(targetAttributes);
+      const hasSelfEffect = hasUsableAttribute(selfAttributes);
+      const includesSelf = targets.some(target => target.actor?.id === actor.id);
+
+      if (!hasTargetEffect && !hasSelfEffect) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoApplicableEffect'));
+        return false;
+      }
+
+      let source = null;
+      if (includesSelf && hasTargetEffect && hasSelfEffect) {
+        if (typeof window.DX3rdChooseEffectApplySource !== 'function') {
+          ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+          return false;
+        }
+        source = await window.DX3rdChooseEffectApplySource(options.menuAnchor);
+        if (source === null) return false;
+      } else if (hasTargetEffect) {
+        source = 'target';
+      } else if (includesSelf && hasSelfEffect) {
+        source = 'self';
+      } else {
+        // 자기 효과는 타겟으로 지정한 시전자에게만 적용한다. 다른 액터에게 전파하지 않는다.
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoApplicableEffect'));
+        return false;
+      }
+
+      if (source === 'self') {
+        await this._applyItemAttributes(actor, item, actor, selfAttributes, {
+          disable: item.system?.active?.disable ?? '-'
+        });
+        return true;
+      }
+
+      await this.applyEffectData(actor, {
+        id: item.id,
+        name: item.name,
+        img: item.img,
+        system: {description: item.system?.description ?? ''},
+        effect: {disable: item.system?.effect?.disable || '-', attributes: targetAttributes}
+      });
+      return true;
+    },
+
+    /**
      * Apply effect data from itemData to targeted actors
      * @param {Actor} actor - The actor using the item
      * @param {Object} itemData - Item data with effect information
@@ -2197,13 +2258,13 @@
       
       if (preservedValues) {
         // 보존된 값들 사용 (비활성화 훅 실행 전의 값)
-        weaponAttack = preservedValues.weaponAttack || 0;
+        weaponAttack = preservedValues.weaponAttackFormula ?? preservedValues.weaponAttack ?? 0;
         actorAttack = preservedValues.actorAttack || 0;
         actorDamageRoll = preservedValues.actorDamageRoll || 0;
         actorPenetrate = preservedValues.actorPenetrate || 0;
       } else {
         // 현재 값들 사용 (비활성화 훅 실행 후의 값)
-        weaponAttack = window.DX3rdFormulaEvaluator.evaluate(item.system.attack, item, actor);
+        weaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
         // 공격 타입 확인
         let attackType = null;
@@ -2365,14 +2426,25 @@
         madness7Bonus = 5;
       }
       
-      // 데미지 공식: [공격 메이저 롤의 결과/10(소수점 버림)+1+액터의 damage_roll 값]D10 +액터의 attack 값 + 무기의 attack 값
-      const baseDamageAdd = actorAttack + weaponAttack + fearPenalty;
+      // 참조는 이미 명중 시점의 값으로 고정되어 있다. 공격력의 다이스식만 확정 버튼까지
+      // 남겨 두어, 산출 창에는 결과가 아닌 원 수식이 보이도록 한다.
+      const weaponAttackFormula = String(weaponAttack ?? 0).trim() || '0';
+      const appendFormulaTerm = (formula, value) => {
+        const term = String(value ?? '').trim();
+        if (!term || term === '0' || term === '+0' || term === '-0') return formula;
+        if (!formula) return term;
+        return term.startsWith('-')
+          ? `${formula} - ${term.slice(1).trim()}`
+          : `${formula} + ${term}`;
+      };
+      const joinFormulaTerms = (...terms) => terms.reduce(appendFormulaTerm, '') || '0';
+      const baseDamageAddFormula = joinFormulaTerms(actorAttack, weaponAttackFormula, fearPenalty);
       const diceCount = Math.floor(attackRollResult / 10) + 1 + actorDamageRoll + madness6Bonus;
-      const totalDamageAdd = baseDamageAdd + madness7Bonus;  // 공포 패널티, 트리거 해피 적용
+      const totalDamageAddFormula = joinFormulaTerms(baseDamageAddFormula, madness7Bonus);
       
       // 템플릿 데이터 준비 (과대망상·트리거 해피 각각 구분 표기)
       const dicePart = `[${attackRollResult} / 10 + 1 + ${actorDamageRoll}${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
-      const addPart = `${baseDamageAdd}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
+      const addPart = `${baseDamageAddFormula}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
       const templateData = {
         formula: `${dicePart} + ${addPart}`,
         actorPenetrate: actorPenetrate,
@@ -2414,8 +2486,9 @@
               // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
               const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + actorDamageRoll + addDamageRoll + madness6Bonus;
               
-              // 최종 데미지 가산치 계산
-              const finalDamageAdd = totalDamageAdd + addDamage;
+              // 아이템 공격력의 다이스식은 바로 여기서 한 번만 확정한다.
+              const finalDamageAddFormula = joinFormulaTerms(totalDamageAddFormula, addDamage);
+              const finalDamageFormula = joinFormulaTerms(`${finalDiceCount}d10`, finalDamageAddFormula);
               
               // 최종 장갑 무시 값 = 사용자가 입력한 값을 그대로 사용
               const finalPenetrate = penetrate;
@@ -2423,7 +2496,7 @@
               
               try {
                 // 데미지 롤 실행
-                const damageRoll = await (new Roll(`${finalDiceCount}d10 + ${finalDamageAdd}`)).roll();
+                const damageRoll = await (new Roll(finalDamageFormula)).roll();
                 
                 // 롤 결과를 HTML로 변환
                 const rollHTML = await damageRoll.render();
@@ -2463,7 +2536,7 @@
                 };
                 
                 // comboAfterDamage 데이터나 임시 콤보가 있는 경우에만 flags 초기화
-                if (comboAfterDamageData || (item && item.id && item.id.startsWith('_temp_combo_'))) {
+                if (comboAfterDamageData || window.DX3rdIsInstantCombo?.(item)) {
                   messageData.flags = {
                     'dx3rd-emanim': {}
                 };
@@ -2474,8 +2547,8 @@
                 }
                 
                 // 임시 콤보인 경우 아이템 데이터도 복사
-                if (item && item.id && item.id.startsWith('_temp_combo_')) {
-                  messageData.flags['dx3rd-emanim'].tempComboItem = item;
+                if (window.DX3rdIsInstantCombo?.(item)) {
+                  messageData.flags['dx3rd-emanim'].tempComboItem = window.DX3rdSerializeInstantCombo(item);
                   }
                 }
                 
@@ -3785,7 +3858,7 @@
      * @param {Item} item - 사용하는 아이템
      * @returns {boolean} - 성공 여부
      */
-      handleAttackRoll: async function(actor, item) {
+       handleAttackRoll: async function(actor, item, options = {}) {
         
         // 아이템의 소유자 액터를 토큰으로 선택
       let previousToken = null;
@@ -3855,23 +3928,18 @@
         return false;
       }
       
-      // 콤보 확인 다이얼로그 먼저 표시
-      const title = game.i18n.localize('DX3rd.Combo');
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2?.confirm) {
-        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-        return false;
-      }
-
-      const useCombo = await DialogV2.confirm({
-        title,
-        content: '',
-        yes: { label: 'Yes' },
-        no: { label: 'No' },
-        defaultYes: false,
-        rejectClose: false
-      });
-      if (useCombo === null) return true;
+       // handleItemUse에서 이미 고른 경우에는 같은 선택을 다시 묻지 않는다.
+       let useCombo;
+       if (options.comboMode === 'combo') useCombo = true;
+       else if (options.comboMode === 'normal') useCombo = false;
+       else {
+         if (typeof window.DX3rdChooseRollMode !== 'function') {
+           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+           return false;
+         }
+         useCombo = await window.DX3rdChooseRollMode();
+         if (useCombo === null) return true;
+       }
 
       if (useCombo) {
         // 콤보 빌더 열기 (스킬 타입으로, 무기 아이템 전달하여 attackRoll 초기값 설정)
@@ -3954,8 +4022,9 @@
         // 대상 확인 (다시 가져오기)
         const targets = Array.from(game.user.targets);
         
-        // 현재 시점의 액터 값들 저장 (비활성화 전)
-        const itemAttackValue = window.DX3rdFormulaEvaluator.evaluate(item.system.attack, item, actor);
+        // 참조값은 명중 판정 시점으로 고정하되, 다이스식은 데미지 굴림 확정까지 보류한다.
+        // 이렇게 하면 공격 카드가 아직 공개하지 않은 데미지 결과를 품지 않는다.
+        const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
         // 공격 타입 확인
         let attackType = null;
@@ -3993,11 +4062,11 @@
         
         // 아이템 타입별 공격력 키 설정
         if (item.type === 'weapon') {
-          preservedValues.weaponAttack = itemAttackValue;
+          preservedValues.weaponAttackFormula = itemAttackFormula;
         } else if (item.type === 'vehicle') {
-          preservedValues.vehicleAttack = itemAttackValue;
+          preservedValues.weaponAttackFormula = itemAttackFormula;
         } else {
-          preservedValues.itemAttack = itemAttackValue;
+          preservedValues.weaponAttackFormula = itemAttackFormula;
         }
         
       
@@ -4083,12 +4152,12 @@
         
         // 아이템 타입별 공격력 데이터 속성 추가
         if (item.type === 'weapon') {
-          damageRollButtonContent += `\n                    data-preserved-weapon-attack="${preservedValues.weaponAttack}"`;
+          damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
           damageRollButtonContent += `\n                    data-weapon-ids="${item.id}"`; // 무기 자신의 ID 추가
         } else if (item.type === 'vehicle') {
-          damageRollButtonContent += `\n                    data-preserved-vehicle-attack="${preservedValues.vehicleAttack}"`;
+          damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
         } else {
-          damageRollButtonContent += `\n                    data-preserved-item-attack="${preservedValues.itemAttack}"`;
+          damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
         }
         
         damageRollButtonContent += `>
@@ -5289,8 +5358,8 @@
      *   - {Item} originalItem: 원본 아이템 (예: 마도서)
      *   - {Object} predefinedDifficulty: 미리 정의된 난이도 데이터
      */
-    // 콤보 빌더: 즉석 조합을 실제 콤보 아이템으로 액터에 생성하고 그 시트를 연다.
-    // (기존의 가짜 임시 콤보 객체 + 다이얼로그 방식을 대체. 시트에서 이펙트/무기/판정을 직접 편집·사용한다.)
+    // 콤보 빌더: 편집 가능한 임시 콤보 문서를 만들고 그 시트를 연다.
+    // 사용/취소 시 문서는 자동 삭제되고, 저장 버튼을 누른 경우에만 영구 콤보로 남는다.
     // 무기에서 시작하면 공격 콤보로 자동 시드(공격판정=무기 type, 기능=무기 공격기능).
     async openComboBuilder(actor, targetType, targetId, weaponItem = null, options = {}) {
       const comboData = window.DX3rdComboData;
@@ -5365,8 +5434,9 @@
         : 0;
 
       const comboItemData = {
-        name: game.i18n.localize('DX3rd.Combo'),
+        name: `${game.i18n.localize('DX3rd.TemporaryItem')} ${game.i18n.localize('DX3rd.Combo')}`,
         type: 'combo',
+        flags: {'dx3rd-emanim': {instantCombo: true}},
         system: {
           skill,
           base,
@@ -5422,7 +5492,6 @@
         if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
       }
       
-      const title = game.i18n.localize('DX3rd.Combo');
       const openCombo = async () => {
         if (openComboBuilderCallback) {
           return openComboBuilderCallback(targetType, targetId);
@@ -5432,28 +5501,11 @@
       };
       const rollDirectly = () => this.showStatRollDialog(actor, stat, label, specificRollType);
 
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2?.confirm) {
+      if (typeof window.DX3rdChooseRollMode !== 'function') {
         ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
-
-      // 다음 다이얼로그를 버튼 콜백 안에서 바로 열면, 확인 다이얼로그가 위치/드래그
-      // 상태를 정리하는 도중 새 창이 생성된다. 특히 "아니요" → 직접 판정 경로에서
-      // 새 창이 화면 하단에 고정되는 문제가 있어, confirm 완료 뒤에 다음 UI를 연다.
-      const useCombo = await DialogV2.confirm({
-        window: { title },
-        content: `<p>${title}?</p>`,
-        classes: ['dx3rd-emanim', 'dx3rd-combo-confirm-dialog'],
-        yes: {
-          label: 'Yes'
-        },
-        no: {
-          label: 'No'
-        },
-        defaultYes: false,
-        rejectClose: false
-      });
+      const useCombo = await window.DX3rdChooseRollMode();
 
       if (useCombo === true) return openCombo();
       if (useCombo === false) return rollDirectly();
@@ -6162,7 +6214,8 @@
             actorAttack: attackBonus,
             actorDamageRoll: damageRollBonus,
             actorPenetrate: actor.system.attributes.penetrate?.value || 0,
-            weaponAttack: effectiveWeaponBonus.attack || 0 // 무기 보너스 (null이면 0)
+            // 이 경로의 무기 보너스는 기존에 이미 숫자로 계산된 값이다.
+            weaponAttackFormula: String(effectiveWeaponBonus.attack || 0)
           };
         }
         
@@ -6252,7 +6305,7 @@
                       data-preserved-actor-attack="${preservedValues.actorAttack}"
                       data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
                       data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
-                      data-preserved-weapon-attack="${preservedValues.weaponAttack}"
+                      data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"
                       data-weapon-ids="${weaponIdsStr}">
                 ${game.i18n.localize('DX3rd.DamageRoll')}
               </button>
@@ -6341,7 +6394,7 @@
         };
         
         // 콤보 afterSuccess, afterDamage 데이터나 임시 콤보가 있는 경우에만 flags 초기화
-        if (comboAfterSuccessData || comboAfterDamageData || (item && item.id && item.id.startsWith('_temp_combo_'))) {
+        if (comboAfterSuccessData || comboAfterDamageData || window.DX3rdIsInstantCombo?.(item)) {
           messageData.flags = {
             'dx3rd-emanim': {}
         };
@@ -6364,8 +6417,8 @@
           }
           
           // 임시 콤보인 경우 아이템 데이터 저장
-          if (item && item.id && item.id.startsWith('_temp_combo_')) {
-            messageData.flags['dx3rd-emanim'].tempComboItem = item;
+          if (window.DX3rdIsInstantCombo?.(item)) {
+            messageData.flags['dx3rd-emanim'].tempComboItem = window.DX3rdSerializeInstantCombo(item);
           }
         }
         
@@ -7436,6 +7489,43 @@
       if (!item) {
         return false;
       }
+
+      // 무기/비클은 비용·사용 채팅카드보다 먼저 판정 방식을 고른다.
+      // 콤보를 고르면 개별 장비 사용으로 간주하지 않고, 즉석 콤보만 연다.
+      if (itemType === 'weapon' || itemType === 'vehicle') {
+        if (options.comboMode === 'combo') {
+          const skillKey = item.system?.skill;
+          if (!skillKey || skillKey === '-') {
+            ui.notifications.warn(`${item.name} ${game.i18n.localize('DX3rd.Unable')}`);
+            return false;
+          }
+          await this.openComboBuilder(actor, 'skill', skillKey, item);
+          return true;
+        }
+        if (options.comboMode === 'normal') {
+          // 시트 메뉴에서 이미 선택했다.
+        } else {
+        if (typeof window.DX3rdChooseItemMode !== 'function') {
+          ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+          return false;
+        }
+        const mode = await window.DX3rdChooseItemMode(options.menuAnchor);
+        if (mode === null) return false;
+        if (mode === 'combo') {
+          const skillKey = item.system?.skill;
+          if (!skillKey || skillKey === '-') {
+            ui.notifications.warn(`${item.name} ${game.i18n.localize('DX3rd.Unable')}`);
+            return false;
+          }
+          await this.openComboBuilder(actor, 'skill', skillKey, item);
+          return true;
+        }
+        if (mode === 'apply') {
+          return this.applyChosenItemEffect(actor, item, options);
+        }
+        options = {...options, comboMode: 'normal'};
+        }
+      }
       
       // 대상 필요 시: 타겟이 없으면 중단 (하이라이트 유지)
       const requiresTarget = getTarget !== undefined ? getTarget : !!item.system?.getTarget;
@@ -8001,9 +8091,18 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
   if (formulaAdd) {
     const addFormula = String(formulaAdd).trim();
     if (addFormula && addFormula !== '0') {
-      evaluatedAdd = window.DX3rdFormulaEvaluator.evaluate(addFormula, itemForFormula, actor);
+      // 다이스식은 승인 뒤 GM이 굴린다. 여기서는 숫자식만 미리 계산한다.
+      evaluatedAdd = window.DX3rdFormulaEvaluator.hasDice(addFormula)
+        ? 0
+        : window.DX3rdFormulaEvaluator.evaluate(addFormula, itemForFormula, actor);
     }
   }
+  // formulaAdd는 고정 가산치였지만, 이제 Foundry 코어 다이스식도 허용한다.
+  // 참조만 먼저 치환해 GM에게 전달하고 실제 굴림은 승인 뒤 정확히 한 번 수행한다.
+  const resolvedAddFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(formulaAdd || '0', itemForFormula, actor);
+  const rollFormula = Math.max(0, parseInt(evaluatedDice) || 0) > 0
+    ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10 + (${resolvedAddFormula})`
+    : resolvedAddFormula;
   
   console.log(`DX3rd | Heal formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
 
@@ -8034,6 +8133,7 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
     targets: targets.map(t => ({ id: t.id, name: t.name })),
     formulaDice: Math.max(0, parseInt(evaluatedDice) || 0),
     formulaAdd: parseInt(evaluatedAdd) || 0,
+    rollFormula,
     healTo: evaluatedHealTo,
     encroachFixed: encFixedOut,
     rivival: rivival || false,
@@ -8073,15 +8173,11 @@ window.DX3rdUniversalHandler.handleHealRequest = async function(requestData) {
   }
   
   // instant에서 온 경우: 기존 로직
-  const { userId, actorId, actorName, targets, formulaDice, formulaAdd, rivival, resurrect, triggerItemName, healTo, encroachFixed } = requestData;
+  const { userId, actorId, actorName, targets, formulaDice, formulaAdd, rollFormula, rivival, resurrect, triggerItemName, healTo, encroachFixed } = requestData;
   
   // 공식 텍스트 생성
   let formulaText = '';
-  if (formulaDice > 0) {
-    formulaText = `${formulaDice}D10+${formulaAdd}`;
-  } else {
-    formulaText = `${formulaAdd}`;
-  }
+  formulaText = rollFormula || (formulaDice > 0 ? `${formulaDice}D10+${formulaAdd}` : `${formulaAdd}`);
   
   // GM 확인 다이얼로그
   const targetNames = targets.map(t => t.name).join(', ');
@@ -8128,17 +8224,17 @@ window.DX3rdUniversalHandler.handleHealRequest = async function(requestData) {
   let healAmount = 0;
   let rollMessage = '';
   
-  if (formulaDice > 0) {
-    const roll = await new Roll(`${formulaDice}d10 + ${formulaAdd}`).roll();
+  if (rollFormula ? window.DX3rdFormulaEvaluator.hasDice(rollFormula) : formulaDice > 0) {
+    const roll = await new Roll(rollFormula || `${formulaDice}d10 + ${formulaAdd}`).roll();
     healAmount = roll.total;
     
     // 롤 결과를 HTML로 변환
     const rollHTML = await roll.render();
     rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
     
-    console.log(`DX3rd | HP heal roll: ${formulaDice}d10+${formulaAdd} = ${healAmount}`);
+    console.log(`DX3rd | HP heal roll: ${formulaText} = ${healAmount}`);
   } else {
-    healAmount = formulaAdd;
+    healAmount = rollFormula ? window.DX3rdFormulaEvaluator.evaluate(rollFormula) : formulaAdd;
     console.log(`DX3rd | HP heal (no dice): ${healAmount}`);
   }
   
@@ -8711,10 +8807,19 @@ window.DX3rdUniversalHandler.executeDamageExtensionNow = async function(actor, d
   if (formulaAdd) {
     const addFormula = String(formulaAdd).trim();
     if (addFormula && addFormula !== '0') {
-      evaluatedAdd = window.DX3rdFormulaEvaluator.evaluate(addFormula, itemForFormula, actor);
+      // 다이스식은 승인 뒤 GM이 굴린다. 여기서는 숫자식만 미리 계산한다.
+      evaluatedAdd = window.DX3rdFormulaEvaluator.hasDice(addFormula)
+        ? 0
+        : window.DX3rdFormulaEvaluator.evaluate(addFormula, itemForFormula, actor);
     }
   }
   
+  // 참조를 치환한 원문 수식을 GM에게 넘겨 승인 뒤 한 번만 굴린다.
+  const resolvedAddFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(formulaAdd || '0', itemForFormula, actor);
+  const rollFormula = Math.max(0, parseInt(evaluatedDice) || 0) > 0
+    ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10 + (${resolvedAddFormula})`
+    : resolvedAddFormula;
+
   console.log(`DX3rd | Damage formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
   
   // GM에게 소켓 요청
@@ -8725,6 +8830,7 @@ window.DX3rdUniversalHandler.executeDamageExtensionNow = async function(actor, d
     targets: targets.map(t => ({ id: t.id, name: t.name })),
     formulaDice: Math.max(0, parseInt(evaluatedDice) || 0),
     formulaAdd: parseInt(evaluatedAdd) || 0,
+    rollFormula,
     ignoreReduce: ignoreReduce || false,
     triggerItemName: (triggerItemName || item?.name || null),
     skipDialog: skipDialog  // 확인 다이얼로그 건너뛰기 플래그
@@ -8768,15 +8874,11 @@ window.DX3rdUniversalHandler.handleDamageRequest = async function(requestData) {
   }
   
   // instant에서 온 경우: 기존 로직
-  const { userId, actorId, actorName, targets, formulaDice, formulaAdd, ignoreReduce, triggerItemName } = requestData;
+  const { userId, actorId, actorName, targets, formulaDice, formulaAdd, rollFormula, ignoreReduce, triggerItemName } = requestData;
   
   // 공식 텍스트 생성
   let formulaText = '';
-  if (formulaDice > 0) {
-    formulaText = `${formulaDice}D10+${formulaAdd}`;
-  } else {
-    formulaText = `${formulaAdd}`;
-  }
+  formulaText = rollFormula || (formulaDice > 0 ? `${formulaDice}D10+${formulaAdd}` : `${formulaAdd}`);
   
   // GM 확인 다이얼로그
   const targetNames = targets.map(t => t.name).join(', ');
@@ -8825,17 +8927,17 @@ window.DX3rdUniversalHandler.handleDamageRequest = async function(requestData) {
   let damageAmount = 0;
   let rollMessage = '';
   
-  if (formulaDice > 0) {
-    const roll = await new Roll(`${formulaDice}d10 + ${formulaAdd}`).roll();
+  if (rollFormula ? window.DX3rdFormulaEvaluator.hasDice(rollFormula) : formulaDice > 0) {
+    const roll = await new Roll(rollFormula || `${formulaDice}d10 + ${formulaAdd}`).roll();
     damageAmount = roll.total;
     
     // 롤 결과를 HTML로 변환
     const rollHTML = await roll.render();
     rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
     
-    console.log(`DX3rd | HP damage roll: ${formulaDice}d10+${formulaAdd} = ${damageAmount}`);
+    console.log(`DX3rd | HP damage roll: ${formulaText} = ${damageAmount}`);
   } else {
-    damageAmount = formulaAdd;
+    damageAmount = rollFormula ? window.DX3rdFormulaEvaluator.evaluate(rollFormula) : formulaAdd;
     console.log(`DX3rd | HP damage (no dice): ${damageAmount}`);
   }
   

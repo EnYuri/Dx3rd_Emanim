@@ -6,6 +6,22 @@
     </div>
   </header>
 
+  {{#if isInstantCombo}}
+  <div class="instant-combo-actions" role="toolbar" aria-label="{{localize "DX3rd.Combo"}}">
+    <button type="button" class="instant-combo-run" data-action="runInstantCombo">
+      <i class="fas fa-dice-d20"></i>
+      <span>{{#if instantComboHasAttack}}{{localize "DX3rd.AttackRoll"}}{{else}}{{localize "DX3rd.Use"}}{{/if}}</span>
+    </button>
+    <button type="button" class="instant-combo-save" data-action="saveInstantCombo" title="{{localize "DX3rd.SaveAsCombo"}}" aria-label="{{localize "DX3rd.SaveAsCombo"}}">
+      <i class="fas fa-save"></i>
+    </button>
+    <button type="button" class="instant-combo-cancel" data-action="cancelInstantCombo">
+      <i class="fas fa-times"></i>
+      <span>{{localize "DX3rd.Cancel"}}</span>
+    </button>
+  </div>
+  {{/if}}
+
   {{!-- Sheet Tab Navigation --}}
   <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
     <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description" }}</a>

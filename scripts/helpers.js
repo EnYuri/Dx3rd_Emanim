@@ -10,44 +10,45 @@
     // 수식 평가 함수 (안전한 계산)
     window.DX3rdFormulaEvaluator = {
         /**
-         * 어트리뷰트 값은 prepareData 중 여러 번 평가되는 결정 수식이다.
-         * 주사위 표기는 실제로 계산되지 않으므로, 저장은 막지 않고 올바른 입력 방식을 안내한다.
-         * 실제 굴림은 roll/handler 경로에서만 처리한다.
+         * 저장 단계 검증. 다이스 수식은 Foundry Roll 문법의 정상적인 일부이므로
+         * 여기서는 변환하거나 거부하지 않는다. 실제 굴림은 evaluateRoll()을 호출한
+         * 행동 경로에서만 일어난다.
          */
         validateDeterministicFormula: function(formula, attributeKey = null) {
             if (formula === null || formula === undefined || formula === '') return { valid: true };
-
-            const formulaStr = String(formula).trim();
-            // 2d10, d10, 2D10 및 공백을 둔 표기를 모두 감지한다.
-            const diceTerms = [...formulaStr.matchAll(/(^|[^a-z0-9_])(\s*)(\d*)\s*d\s*(\d+)(?=$|[^a-z0-9_])/gi)];
-            if (diceTerms.length) {
-                // 굴림 계열 어트리뷰트는 다이스 자체가 아니라 "굴릴 d10 개수"를 저장한다.
-                // 예: 2d10 + [레벨] → 2 + [레벨]. 이 세 키에 한해서만 저장 시 정규화한다.
-                const suggestedFormula = formulaStr.replace(/(^|[^a-z0-9_])(\s*)(\d*)\s*d\s*10(?=$|[^a-z0-9_])/gi, (_match, prefix, whitespace, count) => {
-                    return `${prefix}${whitespace}${count || '1'}`;
-                });
-                const isRollCount = ['reduce_roll', 'guard_roll', 'dxroll'].includes(attributeKey);
-                const isD10Only = diceTerms.every(([, , , , faces]) => Number(faces) === 10);
-                if (isRollCount && isD10Only) {
-                    return {
-                        valid: true,
-                        normalizedValue: suggestedFormula,
-                        message: game.i18n.format('DX3rd.DiceFormulaConverted', {
-                            formula: formulaStr,
-                            suggestion: suggestedFormula
-                        })
-                    };
-                }
-                return {
-                    valid: false,
-                    message: game.i18n.format(
-                        isD10Only ? (isRollCount ? 'DX3rd.DiceFormulaRollGuidance' : 'DX3rd.DiceFormulaGuidance') : 'DX3rd.DiceFormulaNonD10Guidance',
-                        { formula: formulaStr, suggestion: suggestedFormula }
-                    )
-                };
-            }
-
             return { valid: true };
+        },
+
+        hasDice: function(formula) {
+            return typeof formula === 'string' && /(?:^|[^a-z0-9_])\d*\s*d\s*\d+(?=$|[^a-z0-9_])/i.test(formula);
+        },
+
+        /** 참조를 치환한 Foundry Roll 수식. prepareData에서는 이 값을 굴리지 않는다. */
+        prepareRollFormula: function(formula, item = null, actor = null) {
+            if (formula === null || formula === undefined || formula === '') return '0';
+            let result = String(formula).trim().replace(/×/g, '*').replace(/÷/g, '/');
+            if (item || actor) result = this.replaceReferences(result, item, actor);
+            return result || '0';
+        },
+
+        /**
+         * 행동 시점용 비동기 해석기.
+         * 일반 산술식은 기존 evaluate와 같은 값을 돌려주고, 다이스식은 Foundry 코어 Roll로
+         * 정확히 한 번 굴린다. 호출자는 반환된 roll을 채팅 메시지에 포함시켜 같은 행동 안에서
+         * 결과를 재사용해야 한다.
+         */
+        evaluateRoll: async function(formula, item = null, actor = null) {
+            const prepared = this.prepareRollFormula(formula, item, actor);
+            if (!this.hasDice(prepared)) {
+                return { total: this.evaluate(prepared), roll: null, formula: prepared };
+            }
+            try {
+                const roll = await (new Roll(prepared)).evaluate();
+                return { total: Number(roll.total) || 0, roll, formula: prepared };
+            } catch (error) {
+                console.warn(`DX3rd | Dice formula evaluation error: ${prepared}`, error);
+                return { total: 0, roll: null, formula: prepared };
+            }
         },
 
         // 순환 참조 검증 함수
@@ -915,11 +916,6 @@
                         if (!formulaValidation.valid) {
                             ui.notifications.warn(formulaValidation.message);
                         }
-                        if (formulaValidation.normalizedValue !== undefined) {
-                            value = formulaValidation.normalizedValue;
-                            element.value = value;
-                            ui.notifications.info(formulaValidation.message);
-                        }
 
                         if (formulaValidation.valid && labelValue && name.startsWith('system.attributes.')) {
                             const validation = window.DX3rdFormulaEvaluator.validateCircularReference(value, labelValue, sheet.item?.actor, keyValue);
@@ -1536,3 +1532,108 @@
 
     // 기존의 다른 헬퍼 함수들...
 })(); 
+
+// 임시 콤보는 실행 후 문서를 제거해도 채팅 카드의 후속 처리가 계속될 수 있어야 한다.
+// 따라서 채팅 플래그에는 Document 인스턴스가 아닌 직렬화 가능한 스냅샷만 보관한다.
+(function() {
+    const FLAG_SCOPE = 'dx3rd-emanim';
+    const FLAG_KEY = 'instantCombo';
+
+    window.DX3rdIsInstantCombo = function(item) {
+        if (!item || item.type !== 'combo') return false;
+        if (String(item.id || '').startsWith('_temp_combo_')) return true;
+        return item.getFlag?.(FLAG_SCOPE, FLAG_KEY) === true
+            || item.flags?.[FLAG_SCOPE]?.[FLAG_KEY] === true;
+    };
+
+    window.DX3rdSerializeInstantCombo = function(item) {
+        if (!item) return null;
+        const snapshot = item.toObject ? item.toObject() : foundry.utils.deepClone(item);
+        // Foundry의 toObject()는 _id만 보장하지만, 기존 채팅 버튼은 id를 기준으로 찾는다.
+        snapshot.id ??= item.id || snapshot._id;
+        snapshot.flags ??= {};
+        snapshot.flags[FLAG_SCOPE] ??= {};
+        snapshot.flags[FLAG_SCOPE][FLAG_KEY] = true;
+        return snapshot;
+    };
+})();
+
+// "즉석 콤보를 사용할까요?" 확인창을 대체하는 비모달 선택 메뉴.
+// 호출 위치의 포커스 요소 아래에 붙고, 포커스가 없을 때만 화면 중앙 근처에 배치한다.
+(function() {
+    let activeMenu = null;
+
+    const chooseMode = function(anchor, choices) {
+        if (activeMenu) activeMenu.resolve(null);
+
+        return new Promise(resolve => {
+            const menu = document.createElement('div');
+            menu.className = `dx3rd-roll-mode-menu${choices.length === 3 ? ' is-three-options' : ''}`;
+            menu.setAttribute('role', 'menu');
+            menu.innerHTML = choices.map(choice => `
+                <button type="button" role="menuitem" class="dx3rd-roll-mode-option" data-mode="${choice.value}">
+                    <i class="${choice.icon}"></i><span>${choice.label}</span>
+                </button>`).join('');
+
+            const finish = value => {
+                if (!menu.isConnected) return;
+                menu.remove();
+                document.removeEventListener('pointerdown', onOutside, true);
+                document.removeEventListener('keydown', onKeyDown, true);
+                if (activeMenu?.menu === menu) activeMenu = null;
+                resolve(value);
+            };
+            const onOutside = event => {
+                if (!menu.contains(event.target) && event.target !== anchor) finish(null);
+            };
+            const onKeyDown = event => {
+                if (event.key === 'Escape') finish(null);
+            };
+
+            menu.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', event => {
+                event.preventDefault();
+                finish(choices.find(choice => String(choice.value) === button.dataset.mode)?.value ?? null);
+            }));
+            document.body.appendChild(menu);
+
+            const candidateRect = anchor?.getBoundingClientRect?.();
+            // body/html은 (0, 0)을 돌려주므로 메뉴의 실제 호출 위치가 아니다.
+            // 클릭 요소처럼 면적이 있는 앵커만 사용하고, 그 외에는 화면 중앙에 둔다.
+            const rect = candidateRect?.width > 0 && candidateRect?.height > 0 ? candidateRect : null;
+            const preferredLeft = rect ? rect.left : (window.innerWidth / 2 - menu.offsetWidth / 2);
+            const preferredTop = rect ? rect.bottom + 6 : (window.innerHeight / 2 - menu.offsetHeight / 2);
+            menu.style.left = `${Math.min(Math.max(8, preferredLeft), window.innerWidth - menu.offsetWidth - 8)}px`;
+            menu.style.top = `${Math.min(Math.max(8, preferredTop), window.innerHeight - menu.offsetHeight - 8)}px`;
+
+            activeMenu = {menu, resolve: finish};
+            setTimeout(() => {
+                if (!menu.isConnected) return;
+                document.addEventListener('pointerdown', onOutside, true);
+                document.addEventListener('keydown', onKeyDown, true);
+            }, 0);
+            menu.querySelector('[data-mode]')?.focus();
+        });
+    };
+
+    window.DX3rdChooseRollMode = function(anchor = document.activeElement) {
+        return chooseMode(anchor, [
+            {value: false, icon: 'fa-solid fa-dice-d20', label: game.i18n.localize('DX3rd.Normal')},
+            {value: true, icon: 'fa-solid fa-link', label: game.i18n.localize('DX3rd.Combo')}
+        ]);
+    };
+
+    window.DX3rdChooseItemMode = function(anchor = document.activeElement) {
+        return chooseMode(anchor, [
+            {value: 'normal', icon: 'fa-solid fa-dice-d20', label: game.i18n.localize('DX3rd.Normal')},
+            {value: 'combo', icon: 'fa-solid fa-link', label: game.i18n.localize('DX3rd.Combo')},
+            {value: 'apply', icon: 'fa-solid fa-hand-sparkles', label: game.i18n.localize('DX3rd.ApplyEffect')}
+        ]);
+    };
+
+    window.DX3rdChooseEffectApplySource = function(anchor = document.activeElement) {
+        return chooseMode(anchor, [
+            {value: 'target', icon: 'fa-solid fa-crosshairs', label: game.i18n.localize('DX3rd.TargetEffect')},
+            {value: 'self', icon: 'fa-solid fa-user', label: game.i18n.localize('DX3rd.SelfEffect')}
+        ]);
+    };
+})();

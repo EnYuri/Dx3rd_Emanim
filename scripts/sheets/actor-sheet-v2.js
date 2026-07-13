@@ -433,6 +433,48 @@
       const item = this._getItemFromTarget(target);
       if (!item) return;
 
+      // 자기 보정만 있는 이펙트는 적용 메뉴를 열지 않는다. 목록의 활성 체크박스와
+      // 같은 상태를 전환해, 지속 AE의 생성/제거 경로를 하나로 유지한다.
+      if (actorData.usesSelfEffectActiveToggle?.(item)) {
+        if (!this._canEdit()) return;
+        await actorData.updateOwnedItemActiveState(this.document, item.id, !item.system?.active?.state);
+        return;
+      }
+
+      // 능동 아이템은 카드보다 먼저 사용 방식을 고른다.
+      // 효과만 적용은 독립 경로이므로 비용·사용 카드 없이 현재 타겟에게만 적용한다.
+      if (['weapon', 'vehicle', 'effect'].includes(item.type)) {
+        if (typeof window.DX3rdChooseItemMode !== 'function') {
+          ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+          return;
+        }
+        const mode = await window.DX3rdChooseItemMode(target || event.currentTarget);
+        if (mode === null) return;
+        if (mode === 'apply') {
+          if (!(game.user.targets?.size > 0)) {
+            ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
+            return;
+          }
+          await actorData.applyItemEffect(this.document, item, {
+            menuAnchor: target || event.currentTarget
+          });
+          return;
+        }
+        if (mode === 'combo' && item.type === 'effect') {
+          const skill = item.system?.skill;
+          const targetId = skill && skill !== '-' ? skill : '-';
+          await window.DX3rdUniversalHandler?.openComboBuilder?.(this.document, 'skill', targetId, null, {
+            preselectEffectIds: [item.id]
+          });
+          return;
+        }
+        await this._useItemFromTarget(target, undefined, {
+          menuAnchor: target || event.currentTarget,
+          comboMode: mode
+        });
+        return;
+      }
+
       // 채팅 출력 게이트(권한 + 소진)는 공유 헬퍼로 위임 (이전 시트 _onItemNameClick 과 동일한 경로)
       const gate = actorData.checkItemChatGate(this.document, item);
       if (!gate.ok) {
@@ -548,23 +590,22 @@
       await actorData.attackRoll(this.document, item);
     }
 
-    // 대상 지정 특수효과(effect.attributes) 적용 — 무기 handleOnlyApplied 를 타입 무관 일반화.
-    // 장착만 하던 protect/vehicle 등 "공격 없이 대상 디버프를 거는" 아이템의 발동점.
-    // 무기와 달리 공격 다이얼로그가 없으므로 시트 컨트롤에서 직접 대상에게 AE 적용.
+    // 공격 흐름이 없는 아이템의 효과 적용 발동점.
+    // 대상 효과와 자기 효과가 함께 있으면 공용 분기에서 어느 효과를 적용할지 고른다.
     static async _onApplyEffect(event, target) {
       event.preventDefault();
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(target);
       if (!item) return;
-      await actorData.applyItemEffect(this.document, item);
+      await actorData.applyItemEffect(this.document, item, {menuAnchor: target});
     }
 
-    async _useItemFromTarget(target, roisAction = undefined) {
+    async _useItemFromTarget(target, roisAction = undefined, options = {}) {
       if (!this._canEdit()) return false;
       const item = this._getItemFromTarget(target);
       if (!item) return false;
       // 아이템 사용 dispatch는 공유 헬퍼로 위임 (V2 default 승격 대비 단일 경로)
-      return actorData.useItem(this.document, item, roisAction, undefined);
+      return actorData.useItem(this.document, item, roisAction, undefined, options);
     }
 
     static async _onDeleteItem(event, target) {

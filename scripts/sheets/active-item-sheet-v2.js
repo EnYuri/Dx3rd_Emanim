@@ -133,10 +133,6 @@
         if (!formulaValidation.valid) {
           ui.notifications.warn(formulaValidation.message);
         }
-        if (formulaValidation.normalizedValue !== undefined) {
-          changed.value = formulaValidation.normalizedValue;
-          ui.notifications.info(formulaValidation.message);
-        }
         if (formulaValidation.valid && label && changed.name.startsWith('system.attributes.')) {
           const result = window.DX3rdFormulaEvaluator.validateCircularReference(changed.value, label, this.item.actor, key);
           if (!result.valid) {

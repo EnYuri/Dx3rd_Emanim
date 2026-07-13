@@ -6,7 +6,14 @@
   if (!Base || !compat || !comboData) return;
 
   class DX3rdComboSheetV2 extends Base {
-    static DEFAULT_OPTIONS = {classes: ['combo-sheet-v2']};
+    static DEFAULT_OPTIONS = {
+      classes: ['combo-sheet-v2'],
+      actions: {
+        runInstantCombo: DX3rdComboSheetV2._onRunInstantCombo,
+        saveInstantCombo: DX3rdComboSheetV2._onSaveInstantCombo,
+        cancelInstantCombo: DX3rdComboSheetV2._onCancelInstantCombo
+      }
+    };
     static PARTS = {main: {template: 'systems/dx3rd-emanim/templates/item/combo-sheet-v2.html', root: true}};
     static TABS = {primary: {
       tabs: [{id: 'description'}, {id: 'effect'}, {id: 'weapon'}, {id: 'attributes'}, {id: 'target'}],
@@ -17,6 +24,8 @@
       const context = await super._prepareContext(options);
       await comboData.prepareSheetData(context, this.item, this.item.actor);
       context.enrichedDescription ??= context.enrichedBiography || context.system.description || '';
+      context.isInstantCombo = window.DX3rdIsInstantCombo?.(this.item) === true;
+      context.instantComboHasAttack = context.system.attackRoll && context.system.attackRoll !== '-';
       return context;
     }
 
@@ -43,6 +52,59 @@
       window.DX3rdRangeTarget?.setupFieldListeners(this.element, this.item, {
         update: (it, upd) => it.update(upd)
       });
+    }
+
+    async _submitPendingChanges() {
+      if (typeof this.submit === 'function') await this.submit({preventClose: true});
+    }
+
+    async _runInstantCombo(event) {
+      event.preventDefault();
+      const actor = this.item.actor;
+      if (!actor) return;
+      await this._submitPendingChanges();
+      const handler = window.DX3rdUniversalHandler;
+      if (!handler?.handleItemUse) {
+        ui.notifications.error(game.i18n.localize('DX3rd.HandlerNotFound'));
+        return;
+      }
+      await handler.handleItemUse(actor.id, this.item.id, 'combo', null, undefined);
+      await this.close();
+    }
+
+    async _saveInstantCombo(event) {
+      event.preventDefault();
+      await this._submitPendingChanges();
+      const temporaryLabel = game.i18n.localize('DX3rd.TemporaryItem');
+      const defaultName = game.i18n.localize('DX3rd.Combo');
+      const name = this.item.name.replace(temporaryLabel, '').trim() || defaultName;
+      await this.item.update({name});
+      await this.item.unsetFlag('dx3rd-emanim', 'instantCombo');
+      ui.notifications.info(game.i18n.format('DX3rd.ComboSaved', {name}));
+      this.render(false);
+    }
+
+    async _cancelInstantCombo(event) {
+      event.preventDefault();
+      await this.close();
+    }
+
+    static async _onRunInstantCombo(event) { await this._runInstantCombo(event); }
+    static async _onSaveInstantCombo(event) { await this._saveInstantCombo(event); }
+    static async _onCancelInstantCombo(event) { await this._cancelInstantCombo(event); }
+
+    async close(options = {}) {
+      const discard = window.DX3rdIsInstantCombo?.(this.item) === true;
+      const result = await super.close(options);
+      // AppV2의 내부 _onClose 호출 순서와 무관하게, 창 닫기 자체를 삭제 보장 지점으로 삼는다.
+      if (discard && this.item.actor?.items?.has(this.item.id)) await this.item.delete();
+      return result;
+    }
+
+    async _onClose(options) {
+      this._listenerCleanups?.forEach(cleanup => cleanup());
+      this._listenerCleanups = [];
+      await super._onClose(options);
     }
 
     _effectIds() {

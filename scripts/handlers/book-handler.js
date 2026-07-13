@@ -170,23 +170,11 @@ window.DX3rdBookHandler = {
             actorTokens[0].control({ releaseOthers: true });
         }
         
-        if (!DialogV2?.confirm) {
+        if (typeof window.DX3rdChooseRollMode !== 'function') {
             ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
             return;
         }
-
-        // 콤보 확인 다이얼로그
-        const title = game.i18n.localize('DX3rd.Combo');
-        const useCombo = await DialogV2.confirm({
-            window: { title },
-            yes: {
-                label: 'Yes'
-            },
-            no: {
-                label: 'No'
-            },
-            defaultYes: false
-        });
+        const useCombo = await window.DX3rdChooseRollMode();
 
         if (useCombo === null) return;
 

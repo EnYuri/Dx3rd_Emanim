@@ -422,14 +422,14 @@
 
     // 아이템 사용/공격 굴림 dispatch. 현재는 AppV2 시트 전용 버튼이지만,
     // V2 default 승격을 대비해 단일 테스트 경로를 확보한다(UniversalHandler 직접 호출 통일).
-    function useItem(actor, item, roisAction = undefined, getTarget = undefined) {
+    function useItem(actor, item, roisAction = undefined, getTarget = undefined, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.handleItemUse) {
             ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
             return Promise.resolve(false);
         }
         if (!actor || !item) return Promise.resolve(false);
-        return handler.handleItemUse(actor.id, item.id, item.type, roisAction, getTarget);
+        return handler.handleItemUse(actor.id, item.id, item.type, roisAction, getTarget, options);
     }
 
     function attackRoll(actor, item) {
@@ -442,27 +442,16 @@
         return handler.handleAttackRoll(actor, item);
     }
 
-    // 아이템의 대상 지정 특수효과(system.effect.attributes)를 현재 타겟에게 적용한다.
-    // 무기의 "적용만"(handleOnlyApplied)을 타입 무관으로 일반화 — 공격 흐름이 없는
-    // protect/vehicle 등 "장착 중 대상에 디버프" 효과의 발동 경로. applyEffectData 가
-    // 타겟 수집·수식 평가·네이티브 AE 생성까지 처리한다.
-    function applyItemEffect(actor, item) {
+    // 대상 탭 효과와 자기 효과 탭을 구분해 적용한다. 자신이 타겟이고 둘 다 있으면
+    // UniversalHandler가 대상 효과/자기 효과 선택 메뉴를 제공한다.
+    function applyItemEffect(actor, item, options = {}) {
         const handler = window.DX3rdUniversalHandler;
-        if (!handler?.applyEffectData) {
+        if (!handler?.applyChosenItemEffect) {
             ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
             return Promise.resolve();
         }
         if (!actor || !item) return Promise.resolve();
-        return handler.applyEffectData(actor, {
-            id: item.id,
-            name: item.name,
-            img: item.img,
-            system: { description: item.system?.description ?? "" },
-            effect: {
-                disable: item.system?.effect?.disable || "-",
-                attributes: item.system?.effect?.attributes || {}
-            }
-        });
+        return handler.applyChosenItemEffect(actor, item, options);
     }
 
     function normalizeItems(items) {
@@ -473,6 +462,23 @@
             console.warn("DX3rd | Failed to convert actor sheet items to array:", error);
             return [];
         }
+    }
+
+    // 효과 탭(system.attributes)과 대상 탭(system.effect.attributes)을 구분한다.
+    // 0과 false도 유효한 효과값이므로, 값의 진실값이 아닌 입력 여부로 판단한다.
+    function hasUsableEffectAttributes(attributes) {
+        return Object.values(attributes || {}).some(attribute =>
+            attribute?.key && attribute.key !== "-" && String(attribute.value ?? "").trim() !== ""
+        );
+    }
+
+    // 자기 보정만 가진 이펙트는 목록의 활성 토글로 관리한다. 대상 효과가 하나라도
+    // 있으면 효과 적용 메뉴가 유일한 진입점이므로 토글을 표시하지 않는다.
+    function usesSelfEffectActiveToggle(item) {
+        if (item?.type !== "effect") return false;
+        const hasSelfEffect = hasUsableEffectAttributes(item.system?.attributes);
+        const hasTargetEffect = hasUsableEffectAttributes(item.system?.effect?.attributes);
+        return hasSelfEffect && !hasTargetEffect;
     }
 
     function prepareItemDisplayDefaults(item, actor) {
@@ -490,6 +496,9 @@
         if (!item.system.active) item.system.active = { state: false };
         if (!item.system.encroach) item.system.encroach = { value: 0 };
         if (!item.system.level) item.system.level = { value: 0 };
+
+        // 렌더 전용 플래그다. Item 문서 데이터에는 저장되지 않는다.
+        item.showActiveToggle = usesSelfEffectActiveToggle(item);
 
         if (item.system.used.disable === "notCheck") {
             item.system.used.displayMax = 0;
@@ -644,6 +653,8 @@
         updateOwnedItemEquipmentState,
         getSyndromeSelectionUpdate,
         updateActorSyndromeSelection,
+        hasUsableEffectAttributes,
+        usesSelfEffectActiveToggle,
         showStatRoll,
         openComboBuilder,
         buildItemDragData,

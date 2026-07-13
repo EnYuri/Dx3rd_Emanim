@@ -1011,6 +1011,99 @@
 .dx3rd-emanim .sheet-wrapper .stock-title:hover {
     text-shadow: 0 0 8px var(--color-shadow-primary);
 }
+
+/* 임시 콤보: 콤보 시트의 검정 바탕·회색 탭·얇은 검정 테두리를 그대로 따른다. */
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    margin: 4px 10px 0;
+    padding: 0 0 2px;
+    border: 0;
+    background: transparent;
+}
+
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button {
+    min-height: 26px;
+    margin: 0;
+    padding: 2px 8px;
+    border: 1px solid #000;
+    border-radius: 3px;
+    background: #404040;
+    color: #f5f5f5;
+    box-shadow: none;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-run {
+    flex: 1 1 auto;
+    background: #2a2a2a;
+    font-weight: 700;
+}
+
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-save {
+    flex: 0 0 34px;
+    padding: 2px 0;
+}
+
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-cancel {
+    flex: 0 0 auto;
+}
+
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:hover,
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:focus-visible {
+    background: #5a5a5a;
+    border-color: #909090;
+    color: #fff;
+    outline: 0;
+}
+
+/* 즉석 콤보 선택: 액터 시트의 어두운 아이템 행과 같은 짧은 컨트롤. */
+.dx3rd-roll-mode-menu {
+    position: fixed;
+    z-index: 10001;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(82px, 1fr));
+    overflow: hidden;
+    border: 1px solid #000;
+    border-radius: 3px;
+    background: #121212;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+.dx3rd-roll-mode-menu.is-three-options {
+    grid-template-columns: repeat(3, minmax(82px, 1fr));
+}
+
+.dx3rd-roll-mode-option {
+    min-height: 32px;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 0;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    font-size: 0.84em;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.dx3rd-roll-mode-option + .dx3rd-roll-mode-option {
+    border-left: 1px solid #000;
+}
+
+.dx3rd-roll-mode-option i {
+    margin-right: 6px;
+    color: #cfcfcf;
+}
+
+.dx3rd-roll-mode-option:hover,
+.dx3rd-roll-mode-option:focus-visible {
+    outline: 0;
+    background: #404040;
+    color: #fff;
+}
   
 
 .dx3rd-emanim .sheet-wrapper .sheet-attributes {
@@ -1832,6 +1925,13 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     padding-left: 8px;
     padding-right: 8px;
     margin: 4px 0;
+    transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+/* 채팅 카드는 DX3rd의 밝은 외곽 광택으로 호버 상태만 조용히 드러낸다. */
+.dx3rd-item-chat:hover {
+    border-color: #f5f5f5;
+    box-shadow: 0 0 7px rgba(255, 255, 255, 0.48);
 }
 
 .dx3rd-item-chat .item-header {

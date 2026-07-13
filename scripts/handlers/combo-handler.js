@@ -1079,8 +1079,8 @@ window.DX3rdComboHandler = {
             }
         }
         
-        // 현재 시점의 액터 값들 저장
-        const itemAttackValue = window.DX3rdFormulaEvaluator.evaluate(item.system.attack, item, actor);
+        // 참조값만 명중 시점으로 고정하고, 공격력 다이스식은 데미지 굴림 확정까지 보류한다.
+        const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
         // 공격 타입 확인
         let attackType = null;
@@ -1118,11 +1118,11 @@ window.DX3rdComboHandler = {
         
         // 아이템 타입별 공격력 키 설정
         if (item.type === 'weapon') {
-            preservedValues.weaponAttack = itemAttackValue;
+            preservedValues.weaponAttackFormula = itemAttackFormula;
         } else if (item.type === 'vehicle') {
-            preservedValues.vehicleAttack = itemAttackValue;
+            preservedValues.weaponAttackFormula = itemAttackFormula;
         } else {
-            preservedValues.itemAttack = itemAttackValue;
+            preservedValues.weaponAttackFormula = itemAttackFormula;
         }
         
         // 공격 굴림 메시지 출력 (루비 텍스트 제거)
@@ -1177,12 +1177,12 @@ window.DX3rdComboHandler = {
         
         // 아이템 타입별 공격력 데이터 속성 추가
         if (item.type === 'weapon') {
-            damageRollButtonContent += `\n                    data-preserved-weapon-attack="${preservedValues.weaponAttack}"`;
+            damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
             damageRollButtonContent += `\n                    data-weapon-ids="${item.id}"`;
         } else if (item.type === 'vehicle') {
-            damageRollButtonContent += `\n                    data-preserved-vehicle-attack="${preservedValues.vehicleAttack}"`;
+            damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
         } else {
-            damageRollButtonContent += `\n                    data-preserved-item-attack="${preservedValues.itemAttack}"`;
+            damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
         }
         
         damageRollButtonContent += `>
@@ -1206,7 +1206,7 @@ window.DX3rdComboHandler = {
             speaker: ChatMessage.getSpeaker({ actor: actor }),
             content: attackMessageContent
         };
-        if (afterSuccessData || afterDamageData || (item.id && item.id.startsWith('_temp_combo_'))) {
+        if (afterSuccessData || afterDamageData || window.DX3rdIsInstantCombo?.(item)) {
             messageData.flags = { 'dx3rd-emanim': {} };
             if (afterSuccessData) {
                 messageData.flags['dx3rd-emanim'].comboAfterSuccess = {
@@ -1222,8 +1222,8 @@ window.DX3rdComboHandler = {
                     ...afterDamageData
                 };
             }
-            if (item.id && item.id.startsWith('_temp_combo_')) {
-                messageData.flags['dx3rd-emanim'].tempComboItem = item;
+            if (window.DX3rdIsInstantCombo?.(item)) {
+                messageData.flags['dx3rd-emanim'].tempComboItem = window.DX3rdSerializeInstantCombo(item);
             }
         }
         
