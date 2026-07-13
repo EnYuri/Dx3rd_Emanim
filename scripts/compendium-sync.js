@@ -38,6 +38,59 @@
 
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const localize = (key) => game.i18n.localize(key);
+    const format = (key, data) => game.i18n.format(key, data);
+    const cloneData = (data) => foundry.utils?.deepClone
+        ? foundry.utils.deepClone(data)
+        : JSON.parse(JSON.stringify(data));
+
+    // 동기화로 생성할 데이터. 검사와 실제 적용이 동일한 데이터를 기준으로 판단하게
+    // 하여, 검사 결과와 적용 결과가 어긋나지 않게 한다.
+    function prepareReplacement(item, src, preserveState = true) {
+        // toObject() 구현체가 반환한 객체를 절대 직접 수정하지 않는다. 검사에서는
+        // 같은 원본을 여러 번 비교하므로 특히 중요하다.
+        const data = cloneData(src.toObject());
+        data._id = item.id;              // 임베디드 id 보존(콤보/신드롬 참조 유지)
+        data.sort = item.sort;           // 시트 정렬 위치 보존
+        delete data.ownership;           // 임베디드는 액터 소유권을 따르므로 컴펜디움 소유권 제거
+        delete data.folder;              // 임베디드는 폴더 무의미
+
+        if (preserveState) {
+            const oldObj = item.toObject();
+            for (const p of PRESERVE) {
+                const v = getPath(oldObj, p);
+                if (v !== undefined) setPath(data, p, v);
+            }
+        }
+        return data;
+    }
+
+    // 동기화 의미가 있는 필드만 비교한다. _id/sort/ownership/folder 같은 문서 위치
+    // 메타데이터는 제외해 검사 결과가 실제 갱신 필요성과 일치하도록 한다.
+    function comparable(data) {
+        return {
+            name: data.name,
+            type: data.type,
+            img: data.img,
+            system: data.system || {},
+            flags: data.flags || {},
+            effects: data.effects || []
+        };
+    }
+
+    function stableStringify(value) {
+        if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+        if (value && typeof value === 'object') {
+            return `{${Object.keys(value).sort().map(key =>
+                `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+        }
+        return JSON.stringify(value);
+    }
+
+    function differingFields(before, after) {
+        return Object.keys(after).filter(key =>
+            stableStringify(before[key]) !== stableStringify(after[key]));
+    }
 
     // 컴펜디움 인덱스: `${type}|${name}` → 컴펜디움 문서
     async function buildIndex() {
@@ -69,44 +122,120 @@
         return plan;
     }
 
+    // 읽기 전용 감사. 실제 동기화에 쓰일 최종 데이터와 현재 아이템을 비교한다.
+    function audit(index) {
+        const plan = scan(index);
+        const result = {
+            plan,
+            matched: 0,
+            changed: 0,
+            unchanged: 0,
+            preserveOnly: 0,
+            unmatched: 0,
+            rows: []
+        };
+
+        for (const actor of game.actors) {
+            const changes = [];
+            for (const item of actor.items) {
+                const src = index.get(`${item.type}|${item.name}`);
+                if (!src) {
+                    result.unmatched++;
+                    continue;
+                }
+                result.matched++;
+                const current = comparable(item.toObject());
+                const replacement = comparable(prepareReplacement(item, src));
+                const rawReplacement = comparable(prepareReplacement(item, src, false));
+                const fields = differingFields(current, replacement);
+                if (fields.length) {
+                    result.changed++;
+                    changes.push({ name: item.name, fields });
+                } else if (differingFields(current, rawReplacement).length) {
+                    result.preserveOnly++;
+                } else {
+                    result.unchanged++;
+                }
+            }
+            if (changes.length) result.rows.push({ actor, changes });
+        }
+        return result;
+    }
+
     // 실제 적용: 액터별로 삭제 후 재생성(keepId).
     async function apply(index, plan) {
-        let actorsChanged = 0, itemsChanged = 0, failed = 0;
+        let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0;
         for (const { actor, matches } of plan) {
             const createData = [];
             const deleteIds = [];
+            const originalData = [];
             for (const item of matches) {
                 const src = index.get(`${item.type}|${item.name}`);
                 if (!src) continue;
-
-                const data = src.toObject();     // system/flags/img/effects 포함(컴펜디움 새 _id)
-                data._id = item.id;              // 임베디드 id 보존(콤보/신드롬 참조 유지)
-                data.sort = item.sort;           // 시트 정렬 위치 보존
-                delete data.ownership;           // 임베디드는 액터 소유권을 따르므로 컴펜디움 소유권 제거
-                delete data.folder;              // 임베디드는 폴더 무의미
-
-                // 인스턴스 상태 복원
                 const oldObj = item.toObject();
-                for (const p of PRESERVE) {
-                    const v = getPath(oldObj, p);
-                    if (v !== undefined) setPath(data, p, v);
-                }
-
+                const data = prepareReplacement(item, src);
                 deleteIds.push(item.id);
                 createData.push(data);
+                originalData.push(oldObj);
             }
             if (!createData.length) continue;
+            let deleted = false;
             try {
                 await actor.deleteEmbeddedDocuments('Item', deleteIds, { render: false });
-                await actor.createEmbeddedDocuments('Item', createData, { keepId: true, render: false });
+                deleted = true;
+                const created = await actor.createEmbeddedDocuments('Item', createData, { keepId: true, render: false });
+                if (created.length !== createData.length) throw new Error('동기화 아이템 생성 수가 일치하지 않습니다.');
                 actorsChanged++;
                 itemsChanged += createData.length;
             } catch (e) {
                 console.error(`DX3rd | 컴펜디움 동기화 실패: ${actor.name} (${actor.id})`, e);
                 failed++;
+                if (!deleted) continue;
+                try {
+                    // 부분 생성도 원래 ID를 점유할 수 있으므로, 같은 ID의 잔여 문서를
+                    // 지운 뒤 삭제 전 스냅샷으로 복원한다.
+                    const partialIds = actor.items.filter(item => deleteIds.includes(item.id)).map(item => item.id);
+                    if (partialIds.length) await actor.deleteEmbeddedDocuments('Item', partialIds, { render: false });
+                    const restored = await actor.createEmbeddedDocuments('Item', originalData, { keepId: true, render: false });
+                    if (restored.length !== originalData.length) throw new Error('원본 아이템 복원 수가 일치하지 않습니다.');
+                    recovered++;
+                    console.warn(`DX3rd | 컴펜디움 동기화 원본 복원 완료: ${actor.name} (${actor.id})`);
+                } catch (recoveryError) {
+                    recoveryFailed++;
+                    console.error(`DX3rd | 컴펜디움 동기화 원본 복원 실패: ${actor.name} (${actor.id})`, recoveryError);
+                }
             }
         }
-        return { actorsChanged, itemsChanged, failed };
+        return { actorsChanged, itemsChanged, failed, recovered, recoveryFailed };
+    }
+
+    async function openAudit() {
+        if (!game.user.isGM) {
+            ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
+            return;
+        }
+        ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
+        const { index, dupes } = await buildIndex();
+        const result = audit(index);
+        const rows = result.rows.map(row => {
+            const changes = row.changes.map(change =>
+                `${esc(change.name)} <small>(${change.fields.map(field => esc(localize(`DX3rd.CompendiumAuditField${field[0].toUpperCase()}${field.slice(1)}`))).join(', ')})</small>`).join(', ');
+            return `<li><b>${esc(row.actor.name)}</b> — ${changes}</li>`;
+        }).join('');
+        const content =
+            `<p>${format('DX3rd.CompendiumAuditSummary', result)}</p>` +
+            `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.CompendiumAuditReadOnly')}</p>` +
+            (dupes ? `<p style="color:orange">${format('DX3rd.CompendiumAuditDuplicates', { dupes })}</p>` : '') +
+            (rows ? `<ul style="max-height:300px;overflow:auto;margin:.5em 0">${rows}</ul>` : '');
+        await foundry.applications.api.DialogV2.wait({
+            window: { title: localize('DX3rd.CompendiumAuditTitle') },
+            position: { width: 700, height: 'auto' },
+            classes: ['dx3rd-emanim', 'dialog', 'compendium-audit-dialog'],
+            content,
+            buttons: [{ action: 'close', label: localize('DX3rd.Close') }]
+        });
+        console.log('DX3rd | 컴펜디움 동기화 감사 결과', result);
+        return result;
     }
 
     // 스캔 → 확인 다이얼로그 → 적용 → 결과 보고
@@ -142,9 +271,8 @@
         if (!confirmed) return;
 
         const res = await apply(index, plan);
-        const msg = `DX3rd | 동기화 완료 — 액터 ${res.actorsChanged} / 아이템 ${res.itemsChanged}` +
-            (res.failed ? ` / 실패 ${res.failed}` : '');
-        if (res.failed) ui.notifications.warn(msg + ' (콘솔 확인)');
+        const msg = format('DX3rd.CompendiumSyncComplete', res);
+        if (res.failed) ui.notifications.warn(msg + (res.recoveryFailed ? ` ${localize('DX3rd.CompendiumSyncRecoveryFailed')}` : ` ${localize('DX3rd.CompendiumSyncRecovered')}`));
         else ui.notifications.info(msg);
         console.log('DX3rd | 컴펜디움 동기화 결과', res);
     }
@@ -158,6 +286,13 @@
                 return this;
             }
         }
+        class CompendiumAuditMenu extends foundry.applications.api.ApplicationV2 {
+            static DEFAULT_OPTIONS = { id: 'dx3rd-compendium-audit-menu' };
+            async render() {
+                await openAudit();
+                return this;
+            }
+        }
         game.settings.registerMenu(SCOPE, 'compendiumSyncMenu', {
             name: 'DX3rd.CompendiumSyncName',
             label: 'DX3rd.CompendiumSyncLabel',
@@ -166,7 +301,15 @@
             type: CompendiumSyncMenu,
             restricted: true
         });
+        game.settings.registerMenu(SCOPE, 'compendiumAuditMenu', {
+            name: 'DX3rd.CompendiumAuditName',
+            label: 'DX3rd.CompendiumAuditLabel',
+            hint: 'DX3rd.CompendiumAuditHint',
+            icon: 'fas fa-magnifying-glass-chart',
+            type: CompendiumAuditMenu,
+            restricted: true
+        });
     });
 
-    window.DX3rdCompendiumSync = { open, buildIndex, scan, apply };
+    window.DX3rdCompendiumSync = { open, openAudit, buildIndex, scan, audit, apply };
 })();

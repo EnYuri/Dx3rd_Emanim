@@ -25,4 +25,5 @@ Thumbs.db
 AGENTS.md
 CLAUDE.md
 tmp/
+dist/
 rule-vs-code-audit.md

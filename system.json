@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.6.5",
+  "version": "1.6.6",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/helpers.js",
@@ -235,13 +235,23 @@
   "relationships": {},
   "flags": {
     "hotReload": {
-      "extensions": ["css", "html", "hbs", "json"],
-      "paths": ["templates", "styles", "lang/ko.json", "scripts/dialog"]
+      "extensions": [
+        "css",
+        "html",
+        "hbs",
+        "json"
+      ],
+      "paths": [
+        "templates",
+        "styles",
+        "lang/ko.json",
+        "scripts/dialog"
+      ]
     }
   },
   "url": "https://github.com/EnYuri/Dx3rd_Emanim",
   "manifest": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/system.json",
-  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/download/1.2.13/dx3rd-emanim.zip",
+  "download": "https://github.com/EnYuri/Dx3rd_Emanim/releases/latest/download/dx3rd-emanim.zip",
   "license": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/LICENSE.md",
   "readme": "https://github.com/EnYuri/Dx3rd_Emanim/blob/main/README.md"
 }

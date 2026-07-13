@@ -1,9 +1,11 @@
 <form class="skills-settings-form">
+    <p class="skills-settings-hint">{{localize "DX3rd.SkillsSettingsHint"}}</p>
     <div class="form-group">
         <div class="skills-grid">
             <!-- 육체 스킬들 -->
-            <div class="body-skills">
+                <div class="body-skills">
                 <div class="attribute-header">육체</div>
+                <div class="skill-column-labels"><span>{{localize "DX3rd.SkillKey"}}</span><span>{{localize "DX3rd.SkillName"}}</span></div>
                 {{#each skillsByAttribute.0.skills as |skill|}}
                 <div class="skill-row">
                     <div class="skill-key">
@@ -20,8 +22,8 @@
                                placeholder="스킬 이름">
                     </div>
                     <div class="skill-actions">
-                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
-                            <i class="fas fa-trash"></i>
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}" {{#unless skill.delete}}disabled{{/unless}}>
+                            {{localize "DX3rd.Delete"}}
                         </button>
                     </div>
                 </div>
@@ -39,15 +41,16 @@
                     </div>
                     <div class="skill-actions">
                         <button type="button" class="add-skill" data-attribute="body">
-                            <i class="fas fa-plus"></i>
+                            {{localize "DX3rd.AddSkill"}}
                         </button>
                     </div>
                 </div>
             </div>
             
             <!-- 감각 스킬들 -->
-            <div class="sense-skills">
+                <div class="sense-skills">
                 <div class="attribute-header">감각</div>
+                <div class="skill-column-labels"><span>{{localize "DX3rd.SkillKey"}}</span><span>{{localize "DX3rd.SkillName"}}</span></div>
                 {{#each skillsByAttribute.1.skills as |skill|}}
                 <div class="skill-row">
                     <div class="skill-key">
@@ -64,8 +67,8 @@
                                placeholder="스킬 이름">
                     </div>
                     <div class="skill-actions">
-                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
-                            <i class="fas fa-trash"></i>
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}" {{#unless skill.delete}}disabled{{/unless}}>
+                            {{localize "DX3rd.Delete"}}
                         </button>
                     </div>
                 </div>
@@ -83,15 +86,16 @@
                     </div>
                     <div class="skill-actions">
                         <button type="button" class="add-skill" data-attribute="sense">
-                            <i class="fas fa-plus"></i>
+                            {{localize "DX3rd.AddSkill"}}
                         </button>
                     </div>
                 </div>
             </div>
             
             <!-- 정신 스킬들 -->
-            <div class="mind-skills">
+                <div class="mind-skills">
                 <div class="attribute-header">정신</div>
+                <div class="skill-column-labels"><span>{{localize "DX3rd.SkillKey"}}</span><span>{{localize "DX3rd.SkillName"}}</span></div>
                 {{#each skillsByAttribute.2.skills as |skill|}}
                 <div class="skill-row">
                     <div class="skill-key">
@@ -108,8 +112,8 @@
                                placeholder="스킬 이름">
                     </div>
                     <div class="skill-actions">
-                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
-                            <i class="fas fa-trash"></i>
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}" {{#unless skill.delete}}disabled{{/unless}}>
+                            {{localize "DX3rd.Delete"}}
                         </button>
                     </div>
                 </div>
@@ -127,15 +131,16 @@
                     </div>
                     <div class="skill-actions">
                         <button type="button" class="add-skill" data-attribute="mind">
-                            <i class="fas fa-plus"></i>
+                            {{localize "DX3rd.AddSkill"}}
                         </button>
                     </div>
                 </div>
             </div>
             
             <!-- 사회 스킬들 -->
-            <div class="social-skills">
+                <div class="social-skills">
                 <div class="attribute-header">사회</div>
+                <div class="skill-column-labels"><span>{{localize "DX3rd.SkillKey"}}</span><span>{{localize "DX3rd.SkillName"}}</span></div>
                 {{#each skillsByAttribute.3.skills as |skill|}}
                 <div class="skill-row">
                     <div class="skill-key">
@@ -152,8 +157,8 @@
                                placeholder="스킬 이름">
                     </div>
                     <div class="skill-actions">
-                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}">
-                            <i class="fas fa-trash"></i>
+                        <button type="button" class="delete-skill {{#unless skill.delete}}disabled{{/unless}}" data-skill-key="{{skill.key}}" {{#unless skill.delete}}disabled{{/unless}}>
+                            {{localize "DX3rd.Delete"}}
                         </button>
                     </div>
                 </div>
@@ -171,7 +176,7 @@
                     </div>
                     <div class="skill-actions">
                         <button type="button" class="add-skill" data-attribute="social">
-                            <i class="fas fa-plus"></i>
+                            {{localize "DX3rd.AddSkill"}}
                         </button>
                     </div>
                 </div>
@@ -181,8 +186,7 @@
     
     <div class="form-buttons">
         <button type="button" class="save-skills">
-            <i class="fas fa-save"></i> SAVE
+            <i class="fas fa-save"></i> {{localize "DX3rd.Save"}}
         </button>
     </div>
 </form>
-

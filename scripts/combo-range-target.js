@@ -188,6 +188,27 @@
     return { option: '기타', param: v };
   }
 
+  // 조합 난이도 합성(룰북 p.13 「난이도의 변경」):
+  //  - 대결 이 하나라도 있으면 자동적으로 대결.
+  //  - 그 외에는 가장 높은(엄격한) 숫자 난이도를 적용.
+  //  - 자동성공 과 비자동성공(숫자/대결)이 섞이면 비자동성공을 적용(자동성공은 배제).
+  //  - 효과참조/기타/미지정('-')만 있으면 자동 결정 불가(사용자 값 보존).
+  // 우선순위(높을수록 채택): 대결 > 숫자(최댓값) > 자동성공.
+  // 반환: { value:string, resolved:boolean }  resolved=false면 사용자 값 보존.
+  function combineDifficulty(rawList) {
+    const cls = (rawList || []).map(classifyDifficulty);
+    if (cls.some(c => c.option === '대결')) return { value: '대결', resolved: true };
+    const nums = cls.filter(c => c.option === '숫자').map(c => parseInt(c.param, 10)).filter(n => !isNaN(n));
+    if (nums.length > 0) return { value: String(Math.max(...nums)), resolved: true };
+    if (cls.some(c => c.option === '자동성공')) return { value: '자동성공', resolved: true };
+    return { value: '-', resolved: false };
+  }
+
+  // 사정거리 값이 「무기」 특수 지시자인지(조합 시 무기 사정거리를 대입).
+  function isWeaponRange(raw) {
+    return normalizeRange(raw) === '무기';
+  }
+
   function difficultyFieldContext(rawValue) {
     const cls = classifyDifficulty(rawValue);
     return {
@@ -272,7 +293,8 @@
     combineRange, combineTarget,
     classifyRange, classifyTarget,
     rangeOptions, targetOptions,
-    difficultyOptions, classifyDifficulty, difficultyFieldContext,
+    difficultyOptions, classifyDifficulty, difficultyFieldContext, combineDifficulty,
+    isWeaponRange,
     fieldContext, composeValue, setupFieldListeners,
     RANGE_DEFS, TARGET_DEFS
   };

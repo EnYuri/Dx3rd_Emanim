@@ -48,8 +48,8 @@
                 resizable: true
             },
             position: {
-                width: 1000,
-                height: 'auto'
+                width: 720,
+                height: 620
             }
         };
 
@@ -207,59 +207,10 @@
             }
 
             await game.settings.set('dx3rd-emanim', 'customSkills', customSkills);
-
-            const actors = game.actors.filter(actor => actor.type === 'character');
-            let updatedActorCount = 0;
-
-            for (const actor of actors) {
-                const updates = {};
-                let hasUpdates = false;
-
-                for (const [skillKey, customData] of Object.entries(customSkills)) {
-                    const actorSkill = actor.system?.attributes?.skills?.[skillKey];
-                    if (!actorSkill) continue;
-
-                    const newName = typeof customData === 'object' ? customData.name : customData;
-                    if (actorSkill.name !== newName) {
-                        updates[`system.attributes.skills.${skillKey}.name`] = newName;
-                        hasUpdates = true;
-                    }
-                }
-
-                for (const skillKey of Object.keys(DEFAULT_SKILL_BASES)) {
-                    const actorSkill = actor.system?.attributes?.skills?.[skillKey];
-                    if (!actorSkill) continue;
-
-                    if (actorSkill.point === undefined) {
-                        updates[`system.attributes.skills.${skillKey}.point`] = 0;
-                        hasUpdates = true;
-                    }
-                    if (actorSkill.bonus === undefined) {
-                        updates[`system.attributes.skills.${skillKey}.bonus`] = 0;
-                        hasUpdates = true;
-                    }
-                    if (actorSkill.extra === undefined) {
-                        updates[`system.attributes.skills.${skillKey}.extra`] = 0;
-                        hasUpdates = true;
-                    }
-                    if (actorSkill.base === undefined) {
-                        updates[`system.attributes.skills.${skillKey}.base`] = DEFAULT_SKILL_BASES[skillKey] || 'mind';
-                        hasUpdates = true;
-                    }
-                    if (actorSkill.delete === undefined) {
-                        updates[`system.attributes.skills.${skillKey}.delete`] = false;
-                        hasUpdates = true;
-                    }
-                }
-
-                if (hasUpdates) {
-                    await actor.update(updates);
-                    updatedActorCount++;
-                }
-            }
-
-            ui.notifications.info(`스킬 설정이 저장되었습니다. (${updatedActorCount}명의 액터 업데이트됨)`);
-            this.close();
+            // 이름 표시는 customSkills 설정을 직접 참조한다. 여기서 모든 액터를
+            // 갱신하면 단순한 설정 저장이 대량 문서 수정으로 바뀌므로 하지 않는다.
+            ui.notifications.info(game.i18n.localize('DX3rd.SkillsSettingsSaved'));
+            this.render({ force: true });
         }
 
         async _onAddSkill(button) {

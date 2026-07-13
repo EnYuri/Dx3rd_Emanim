@@ -1,0 +1,3 @@
+# Foundry v11+ compendium packs are LevelDB databases.  Never apply text
+# line-ending conversion or textual diff drivers to their files.
+packs/** binary

@@ -272,12 +272,20 @@
     return deriveComboAttackFields(comboItem, actor);
   }
 
+  // 조합 무기가 바뀌면 「무기」 사정거리를 쓰는 이펙트의 사정거리가 달라지므로 range/target도 재계산해 updates에 반영.
+  function applyWeaponRangeRecalc(updates, comboItem, actor) {
+    const combined = combineEffectsRangeTarget(actor, getEffectIds(comboItem), getWeaponIds(comboItem));
+    if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
+    if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+  }
+
   // 무기 추가 직후 호출: 콤보를 공격 콤보로 재구성. 무기 아이템에만 적용(비클 제외).
   async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
     if (!comboItem || !weaponId || weaponId === '-') return false;
     const weaponItem = actor?.items.get(weaponId);
     if (!weaponItem || weaponItem.type !== 'weapon') return false;
     const updates = computeInheritedWeaponFields(comboItem, weaponItem, actor);
+    applyWeaponRangeRecalc(updates, comboItem, actor);
     if (Object.keys(updates).length === 0) return false;
     await comboItem.update(updates);
     return true;
@@ -287,23 +295,92 @@
   async function applyWeaponRemoved(comboItem, actor) {
     if (!comboItem) return false;
     const updates = deriveComboAttackFields(comboItem, actor);
+    applyWeaponRangeRecalc(updates, comboItem, actor);
     if (Object.keys(updates).length === 0) return false;
     await comboItem.update(updates);
     return true;
   }
 
   // 조합된 전체 이펙트에서 사거리/대상을 합성(가장 제한적인 값). 자신 규칙 위반은 selfConflict로 표시.
-  function combineEffectsRangeTarget(actor, effectIds) {
+  // 룰북 p.13 「사정거리의 축소」: 사정거리가 「무기」인 이펙트는 조합된 무기의 사정거리를 대입한다.
+  //   weaponIds를 넘기면 그 무기들의 사정거리로 「무기」 지시자를 치환한 뒤 최소값을 계산한다.
+  function combineEffectsRangeTarget(actor, effectIds, weaponIds = null) {
     const RT = window.DX3rdRangeTarget;
     if (!RT) return null;
     const ranges = [], targets = [];
+    const weaponRanges = normalizeIdList(weaponIds ?? [])
+      .map(id => actor?.items.get(id)?.system?.range)
+      .filter(r => r && r !== '-');
     for (const id of normalizeIdList(effectIds)) {
       const eff = actor?.items.get(id);
       if (!eff) continue;
-      ranges.push(eff.system?.range);
+      const range = eff.system?.range;
+      if (RT.isWeaponRange?.(range)) {
+        // 「무기」 지시자: 조합된 무기들의 실제 사정거리를 대신 넣는다(무기가 없으면 순위 없음으로 무시).
+        for (const wr of weaponRanges) ranges.push(wr);
+      } else {
+        ranges.push(range);
+      }
       targets.push(eff.system?.target);
     }
     return { range: RT.combineRange(ranges), target: RT.combineTarget(targets) };
+  }
+
+  // 조합된 전체 이펙트에서 난이도를 합성(룰북 p.13 「난이도의 변경」: 대결 자동승격 > 최고 숫자 > 자동성공).
+  function combineEffectsDifficulty(actor, effectIds) {
+    const RT = window.DX3rdRangeTarget;
+    if (!RT?.combineDifficulty) return null;
+    const list = normalizeIdList(effectIds)
+      .map(id => actor?.items.get(id)?.system?.difficulty)
+      .filter(v => v !== undefined && v !== null);
+    return RT.combineDifficulty(list);
+  }
+
+  // 합성 난이도를 콤보에 반영하기 위한 업데이트를 updates에 적용(roll 정합성 보정 포함).
+  //  - 숫자/대결: 판정이 필요하므로 콤보 roll이 비어 있으면 major로 활성화.
+  //  - 자동성공: 판정이 불필요하므로, 다른 신호(공격판정 등)로 roll이 설정되지 않았다면 '-'로 둔다.
+  // 자동 결정 불가(효과참조/미지정만)면 사용자 값을 보존한다.
+  function applyCombinedDifficulty(updates, comboItem, actor, effectIds) {
+    const diff = combineEffectsDifficulty(actor, effectIds);
+    if (!diff?.resolved) return;
+    updates['system.difficulty'] = diff.value;
+
+    const currentRoll = updates['system.roll'] ?? comboItem?.system?.roll;
+    if (diff.value === '자동성공') {
+      if (isEmptyComboField(currentRoll)) updates['system.roll'] = '-';
+    } else if (isEmptyComboField(currentRoll)) {
+      updates['system.roll'] = 'major';
+    }
+  }
+
+  // 조합 자격 검증(룰북 p.13-14). 위반 시 경고 i18n 키 목록을 반환(진행은 허용).
+  //  - 기능 일치: 판정 기능(comboSkill 우선, 없으면 skill)이 서로 다르면 경고.
+  //    '-'(와일드카드)와 'syndrome'(조합 전용, 상대 기능을 채택)은 비교에서 제외.
+  //  - 공격 유형: 백병(melee) 이펙트와 사격(ranged) 이펙트는 서로 조합 불가.
+  function validateComboCombination(actor, effectIds) {
+    const warnings = [];
+    const effects = normalizeIdList(effectIds).map(id => actor?.items.get(id)).filter(e => e?.type === 'effect');
+
+    // 기능 일치
+    const skills = new Set();
+    for (const e of effects) {
+      const s = !isEmptyComboField(e.system?.comboSkill) ? e.system.comboSkill : e.system?.skill;
+      if (isEmptyComboField(s) || isNonJudgmentSkill(s)) continue;
+      skills.add(s);
+    }
+    if (skills.size > 1) warnings.push('DX3rd.ComboSkillMismatch');
+
+    // 공격 유형 충돌(백병 vs 사격) — 명시 attackRoll 또는 기능/조합기능 신호로 판별.
+    const attackTypes = new Set();
+    for (const e of effects) {
+      const es = e.system || {};
+      for (const sig of [es.attackRoll, es.comboSkill, es.skill]) {
+        if (sig === 'melee' || sig === 'ranged') attackTypes.add(sig);
+      }
+    }
+    if (attackTypes.has('melee') && attackTypes.has('ranged')) warnings.push('DX3rd.ComboAttackTypeConflict');
+
+    return warnings;
   }
 
   // 등록 이펙트 원본이 편집됐을 때, 그 이펙트를 참조하는 콤보의 저장 파생값을 다시 맞춘다.
@@ -320,9 +397,11 @@
       ...deriveComboAttackFields(comboItem, actor, { effectIds })
     };
 
-    const combined = combineEffectsRangeTarget(actor, effectIds);
+    const combined = combineEffectsRangeTarget(actor, effectIds, getWeaponIds(comboItem));
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+    // 난이도: 등록 이펙트 원본이 바뀌면 조합 규칙으로 재계산.
+    applyCombinedDifficulty(updates, comboItem, actor, effectIds);
 
     // updateItem 루프와 불필요한 문서 갱신을 피하기 위해 실제로 달라진 값만 남긴다.
     return Object.fromEntries(Object.entries(updates).filter(([path, value]) =>
@@ -354,6 +433,10 @@
     if (!isComboTimingCompatible(item, actor, newEffects)) {
       ui.notifications.warn(game.i18n.localize('DX3rd.ComboTimingMismatch'));
     }
+    // 조합 자격 경고(기능 불일치 / 백병+사격 충돌) — 진행은 허용.
+    for (const key of validateComboCombination(actor, newEffects)) {
+      ui.notifications.warn(game.i18n.localize(key));
+    }
 
     // 타이밍/고정무기(빈 값만) 상속 + 판정 기능/공격판정은 조합 우선순위로 재계산(방금 추가 이펙트 포함).
     const updates = {
@@ -367,10 +450,15 @@
       updates['system.timing'] = combinedTiming.value;
     }
 
-    // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
-    const combined = combineEffectsRangeTarget(actor, newEffects);
+    // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). 「무기」 사정거리는 조합 무기로 치환.
+    //   rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
+    const effectiveWeapons = normalizeIdList(updates['system.weapon'] ?? getWeaponIds(item));
+    const combined = combineEffectsRangeTarget(actor, newEffects, effectiveWeapons);
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+
+    // 난이도: 조합 규칙(대결 자동승격 > 최고 숫자 > 자동성공)으로 재계산.
+    applyCombinedDifficulty(updates, item, actor, newEffects);
 
     await item.update(updates);
 
@@ -410,10 +498,12 @@
       // 제거 후 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용; 예: RC 변경 이펙트 제거 시 무기 기능으로 복귀).
       ...deriveComboAttackFields(item, actor, { effectIds: newEffects })
     };
-    // 제거 후 남은 이펙트로 사거리/대상 재계산(rankable 없으면 보존).
-    const combined = combineEffectsRangeTarget(actor, newEffects);
+    // 제거 후 남은 이펙트로 사거리/대상 재계산(「무기」는 조합 무기로 치환, rankable 없으면 보존).
+    const combined = combineEffectsRangeTarget(actor, newEffects, getWeaponIds(item));
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
+    // 난이도: 남은 이펙트로 조합 규칙 재계산.
+    applyCombinedDifficulty(updates, item, actor, newEffects);
     await item.update(updates);
     return true;
   }

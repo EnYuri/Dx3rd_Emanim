@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+# A private-source release gate.
+#
+# Automatically bump the patch version unless the user already staged an
+# explicit version change. Then rebuild declared compendium packs from the
+# untracked private _source directory and stage only those pack results. This
+# lets the public GitHub Action publish the exact local build without ever
+# receiving source material.
+
+set -eu
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+BASE_VERSION="$(git show HEAD:system.json 2>/dev/null | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => { try { console.log(JSON.parse(s).version) } catch { console.log("") } })')"
+STAGED_VERSION=""
+if ! git diff --cached --quiet -- system.json; then
+  STAGED_VERSION="$(git show :system.json | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
+fi
+
+# An explicit version is a release-authoring choice. Otherwise every normal
+# commit receives the next patch version and therefore becomes releasable when
+# it reaches main.
+if [ -z "$STAGED_VERSION" ] || [ "$STAGED_VERSION" = "$BASE_VERSION" ]; then
+  node tools/bump-version.mjs system.json
+  git add -- system.json
+  STAGED_VERSION="$(git show :system.json | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
+fi
+
+echo "DX3rd | version $BASE_VERSION -> $STAGED_VERSION: building private compendia before commit"
+
+if command -v powershell.exe >/dev/null 2>&1; then
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/release.ps1 -UpdatePacks
+elif command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -File tools/release.ps1 -UpdatePacks
+else
+  echo "DX3rd | PowerShell is required to build release packs." >&2
+  exit 1
+fi
+
+# Do not stage undeclared/legacy packs or unrelated working-tree changes.
+node -e '
+  const fs = require("fs");
+  const { spawnSync } = require("child_process");
+  const packs = JSON.parse(fs.readFileSync("system.json", "utf8")).packs.map(p => `packs/${p.name}`);
+  const r = spawnSync("git", ["add", "--", ...packs], { stdio: "inherit" });
+  process.exit(r.status ?? 1);
+'
