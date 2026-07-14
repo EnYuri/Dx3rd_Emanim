@@ -872,15 +872,30 @@ window.DX3rdComboHandler = {
         
         // 무기 탭에 등록된 무기들 가져오기
         const registeredWeapons = item.system?.weapon || [];
+        const comboEffects = (item.system?.effectIds || []).map(id => actor.items.get(id)).filter(Boolean);
+        const multiWeapon = comboEffects.map(effect => effect.system?.multiWeapon).find(rule => rule?.enabled);
+        const selectedWeapons = registeredWeapons.filter(id => id && id !== '-');
+        if (selectedWeapons.length > 1 && !multiWeapon) {
+            ui.notifications.warn('복수 무기 합산 이펙트 없이 여러 무기를 사용합니다. 모든 무기를 합산합니다.');
+        }
         
         console.log('DX3rd | ComboHandler - Registered weapons:', registeredWeapons);
         
         // 각 등록된 무기의 보너스 합산 (공격 횟수가 남은 무기만)
-        for (const weaponId of registeredWeapons) {
+        for (const weaponId of selectedWeapons) {
             if (weaponId && weaponId !== '-') {
                 // 액터의 아이템 또는 가상 무기에서 무기 데이터 가져오기
                 const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
                 if (weaponItem && weaponItem.type === 'weapon') {
+                    if (multiWeapon?.weaponType && multiWeapon.weaponType !== '-' && weaponItem.system?.type !== multiWeapon.weaponType) {
+                        ui.notifications.warn(`복수 무기 조건: ${weaponItem.name}은(는) 요구 종별(${multiWeapon.weaponType})과 다릅니다. 합산은 유지합니다.`);
+                    }
+                    if (multiWeapon?.requireSameSkill && weaponBonus.weaponIds.length) {
+                        const first = window.DX3rdResolveWeapon(actor, weaponBonus.weaponIds[0]);
+                        if (first?.system?.skill !== weaponItem.system?.skill) {
+                            ui.notifications.warn(`복수 무기 조건: ${weaponItem.name}은(는) 첫 무기와 기능이 다릅니다. 합산은 유지합니다.`);
+                        }
+                    }
                     // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
                     const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
                     const attackUsedState = weaponItem.system['attack-used']?.state || 0;

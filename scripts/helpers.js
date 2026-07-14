@@ -537,6 +537,14 @@
         return skill.name || key;
     });
 
+    // system.skill은 기존 롤/조합 경로용 대표 기능으로 유지한다. 이 헬퍼는
+    // 원본에 명시된 "백병/사격" 등의 복수 허용 기능을 표시할 때 사용한다.
+    Handlebars.registerHelper('skillChoicesByKey', function(actor, keys) {
+        const values = Array.isArray(keys) ? keys : [];
+        if (!values.length) return '-';
+        return values.map(key => Handlebars.helpers.skillByKey(actor, key)).join(' / ');
+    });
+
     // ========== 어트리뷰트 관리 유틸리티 함수들 ========== //
     /**
      * 스킬 그룹 매칭 헬퍼
@@ -1195,6 +1203,12 @@
 
             // 이펙트 아이템의 경우 신드롬을 맨 마지막에 추가
             if (itemType === 'effect') {
+                options.push(
+                    { value: 'drive', label: localizeIfKey('DX3rd.drive') },
+                    { value: 'ars', label: localizeIfKey('DX3rd.ars') },
+                    { value: 'know', label: localizeIfKey('DX3rd.know') },
+                    { value: 'info', label: localizeIfKey('DX3rd.info') }
+                );
                 options.push({ value: 'syndrome', label: localizeIfKey('DX3rd.Syndrome') });
             }
 

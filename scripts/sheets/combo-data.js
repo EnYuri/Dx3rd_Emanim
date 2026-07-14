@@ -121,6 +121,19 @@
     return NON_JUDGMENT_SKILLS.has(value);
   }
 
+  function effectSkillChoices(effect) {
+    const s = effect?.system || {};
+    if (!isEmptyComboField(s.comboSkill)) return [s.comboSkill];
+    const choices = Array.isArray(s.skillChoices) ? s.skillChoices.filter(v => !isEmptyComboField(v) && !isNonJudgmentSkill(v)) : [];
+    if (choices.length) return choices;
+    return (!isEmptyComboField(s.skill) && !isNonJudgmentSkill(s.skill)) ? [s.skill] : [];
+  }
+  function getCompatibleSkillChoices(effects) {
+    const lists = effects.map(effectSkillChoices).filter(a => a.length);
+    if (!lists.length) return [];
+    return lists[0].filter(skill => lists.every(list => list.includes(skill)));
+  }
+
   // 콤보의 판정 기능(skill/base)·공격판정(attackRoll)·공격력을 "조합 우선순위"로 재계산.
   //
   // 우선순위(항상 재계산): 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추(ranged→사격, melee→백병).
@@ -149,16 +162,11 @@
     //   "명중판정을 〈RC〉/사격/정신 등으로 변경"한다고 재정의하는 특수 이펙트는 기계 판별 불가하므로,
     //   전용 필드 system.comboSkill(조합시 기능 변경)을 두어 우선 신호로 쓰고 기능 항목을 폴백한다.
     let skill = null;
+    const compatibleSkills = getCompatibleSkillChoices(effects);
     // B: 이펙트 지정 기능 — 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백.
     //   단 skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 "이펙트를 사용한 판정에만
     //   조합되는 순수 수정치" 센티넬이므로 콤보의 판정 기능 소스에서 제외한다(별도 attribute로 해소됨).
-    const effCombo = effects.find(e => !isEmptyComboField(e.system?.comboSkill));
-    if (effCombo) {
-      skill = effCombo.system.comboSkill;
-    } else {
-      const effSkill = effects.find(e => !isEmptyComboField(e.system?.skill) && !isNonJudgmentSkill(e.system.skill));
-      if (effSkill) skill = effSkill.system.skill;
-    }
+    if (compatibleSkills.length) skill = compatibleSkills.includes(cs.skill) ? cs.skill : compatibleSkills[0];
     // C: 무기 명시 기능
     if (!skill) {
       const wpnSkill = weapons.find(w => !isEmptyComboField(w.system?.skill));
@@ -194,13 +202,7 @@
     const effAR = effects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
     if (effAR) attackRoll = effAR.system.attackRoll;
     if (!attackRoll) {
-      const effSkillAR = effects.find(e =>
-        e.system?.comboSkill === 'melee' || e.system?.comboSkill === 'ranged' ||
-        e.system?.skill === 'melee' || e.system?.skill === 'ranged'
-      );
-      if (effSkillAR) attackRoll = (effSkillAR.system.comboSkill === 'melee' || effSkillAR.system.comboSkill === 'ranged')
-        ? effSkillAR.system.comboSkill
-        : effSkillAR.system.skill;
+      if (skill === 'melee' || skill === 'ranged') attackRoll = skill;
     }
     if (!attackRoll) {
       const wpnAR = weapons.find(w => w.system?.type === 'melee' || w.system?.type === 'ranged');
@@ -362,19 +364,14 @@
     const effects = normalizeIdList(effectIds).map(id => actor?.items.get(id)).filter(e => e?.type === 'effect');
 
     // 기능 일치
-    const skills = new Set();
-    for (const e of effects) {
-      const s = !isEmptyComboField(e.system?.comboSkill) ? e.system.comboSkill : e.system?.skill;
-      if (isEmptyComboField(s) || isNonJudgmentSkill(s)) continue;
-      skills.add(s);
-    }
-    if (skills.size > 1) warnings.push('DX3rd.ComboSkillMismatch');
+    const skillLists = effects.map(effectSkillChoices).filter(a => a.length);
+    if (skillLists.length > 1 && getCompatibleSkillChoices(effects).length === 0) warnings.push('DX3rd.ComboSkillMismatch');
 
     // 공격 유형 충돌(백병 vs 사격) — 명시 attackRoll 또는 기능/조합기능 신호로 판별.
     const attackTypes = new Set();
     for (const e of effects) {
       const es = e.system || {};
-      for (const sig of [es.attackRoll, es.comboSkill, es.skill]) {
+      for (const sig of [es.attackRoll, es.comboSkill, ...(es.skillChoices || []), es.skill]) {
         if (sig === 'melee' || sig === 'ranged') attackTypes.add(sig);
       }
     }
@@ -1085,6 +1082,9 @@
 
     // 액터 스킬 데이터 추가
     itemSheetData.prepareSkillOptions(item, data, 'combo', {includeActorType: true});
+    const effects = getEffectIds(item).map(id => actor?.items.get(id)).filter(Boolean);
+    data.comboSkillChoices = getCompatibleSkillChoices(effects);
+    if (data.comboSkillChoices.length) data.system.skillOptions = data.system.skillOptions.filter(o => o.value === '-' || data.comboSkillChoices.includes(o.value));
 
     // Description 에디터를 위한 데이터 추가 (helpers.js 사용)
     data = await itemSheetData.enrichSheetData(item, data);
@@ -1111,6 +1111,8 @@
     getEffectIds,
     getWeaponIds,
     getCombinedEffectTiming,
+    getCompatibleSkillChoices,
+    combineEffectsRangeTarget,
     isComboTimingCompatible,
     getPersistentEffectIds,
     calculateEncroachment,

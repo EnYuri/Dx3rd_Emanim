@@ -51,6 +51,12 @@
               {{/select}}
             </select>
           </div>
+          {{#if comboSkillChoices.length}}
+          <div class="cell grid-4">
+            <label class="cell--title">{{localize "DX3rd.Skill"}} (선택 가능)</label>
+            <div>{{#each comboSkillChoices}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</div>
+          </div>
+          {{/if}}
 
           <div class="cell grid-4">
             <label class="cell--title">
