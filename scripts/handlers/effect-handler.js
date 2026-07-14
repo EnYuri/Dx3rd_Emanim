@@ -94,13 +94,21 @@ window.DX3rdEffectHandler = {
 
         // 이펙트 롤 타입 분기: '-'는 기본 로직, 그 외는 판정 처리
         const rollType = item.system?.roll ?? '-';
-        
-        if (rollType === '-') {
+        // attackRoll(백병/사격)이 설정된 자체공격 이펙트는 roll이 '-'라도 공격 판정으로 라우팅한다.
+        // (자동 기계화가 roll을 '-'로 둔 케이스의 안전망이며, 향후 공격 이펙트도 자동 커버한다.)
+        const hasAttackRoll = item.system?.attackRoll && item.system.attackRoll !== '-';
+
+        if (rollType === '-' && !hasAttackRoll) {
             // 기본 처리: 침식률 증가 및 통합 메시지 출력 (instant는 universal-handler에서 이미 처리됨)
             await this.handleBasicEffect(actor, item);
         } else {
-            // 판정 처리: major/reaction/dodge
-            await this.handleEffectRoll(actor, item, rollType, getTarget, options);
+            // 판정 처리: major/reaction/dodge. roll이 '-'인 공격 이펙트는 판정 종류를 timing에서 유추한다.
+            let effectiveRoll = rollType;
+            if (rollType === '-') {
+                const timing = item.system?.timing;
+                effectiveRoll = (timing === 'reaction' || timing === 'dodge') ? timing : 'major';
+            }
+            await this.handleEffectRoll(actor, item, effectiveRoll, getTarget, options);
         }
     },
     

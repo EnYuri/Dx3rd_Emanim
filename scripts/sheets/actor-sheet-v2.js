@@ -237,6 +237,9 @@
       root.querySelectorAll('.active-check').forEach(input => {
         input.addEventListener('change', event => this._onActiveChange(event), listenerOptions);
       });
+      root.querySelectorAll('.applied-active-check').forEach(input => {
+        input.addEventListener('change', event => this._onAppliedActiveChange(event), listenerOptions);
+      });
       root.querySelectorAll('.active-equipment').forEach(input => {
         input.addEventListener('change', event => this._onEquipmentChange(event), listenerOptions);
       });
@@ -634,6 +637,19 @@
       const item = this._getItemFromTarget(event.currentTarget);
       if (!item) return;
       await window.DX3rdActorSheetData.updateOwnedItemActiveState(this.document, item.id, event.currentTarget.checked);
+    }
+
+    // 효과(Applied) 목록의 활성/비활성 토글: 체크 = 활성.
+    // 단일 소스 라우팅(setActive) — toggle 파생 AE 는 소스 아이템 토글을, 그 외는 AE.disabled 를 제어.
+    async _onAppliedActiveChange(event) {
+      if (!this._canEdit()) return;
+      const applied = this._getAppliedFromTarget(event.currentTarget);
+      if (!applied) return;
+      if (window.DX3rdAppliedEffects?.setActive) {
+        await window.DX3rdAppliedEffects.setActive(this.document, applied.key, event.currentTarget.checked);
+        return;
+      }
+      ui.notifications.error('DX3rdAppliedEffects를 찾을 수 없습니다.');
     }
 
     async _onEquipmentChange(event) {

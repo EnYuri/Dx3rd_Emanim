@@ -1290,7 +1290,7 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
           : (actor.system?.attributes?.applied || {});
 
         for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-          if (appliedEffect && appliedEffect.attributes) {
+          if (appliedEffect && appliedEffect.attributes && !appliedEffect._disabled) {
             // spell_disabled 효과가 있는지 확인
             let hasSpellDisabled = false;
             let currentCount = 0;

@@ -6274,8 +6274,11 @@
         // 공포 판정인 경우
         flavorText = `${game.i18n.localize('DX3rd.PanicTest')} - ${label}${typeText ? `(${typeText})` : ''}`;
       } else if (item) {
-        // 아이템이 있는 경우: 기능(타이밍)만 표시 (아이템 사용 메시지는 이미 출력됨)
-        flavorText = `${label}${typeText ? `(${typeText})` : ''}`;
+        // 아이템이 있는 경우: 기능(타이밍) 표시 (아이템 사용 메시지는 이미 출력됨).
+        // 공격 이펙트(attackRoll 설정)는 어떤 이펙트로 공격했는지 이름도 함께 표시한다.
+        const isAtkRoll = item.system?.attackRoll && item.system.attackRoll !== '-';
+        const namePrefix = isAtkRoll && item.name ? `${item.name} — ` : '';
+        flavorText = `${namePrefix}${label}${typeText ? `(${typeText})` : ''}`;
       } else {
         // 일반 능력치/스킬 판정
         flavorText = `${label}${typeText ? `(${typeText})` : ''}`;

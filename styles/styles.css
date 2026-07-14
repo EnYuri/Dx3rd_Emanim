@@ -2451,6 +2451,15 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     cursor: pointer;
 }
 
+/* 활성/비활성 토글 체크박스: 아이콘 버튼과 같은 행에 정렬 */
+.dx3rd-emanim .applied-item .applied-controls .applied-active-check {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    cursor: pointer;
+}
+
 .dx3rd-emanim .applied-item .item-description {
     flex-basis: 100%;
     margin-top: 4px;

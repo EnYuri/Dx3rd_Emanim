@@ -36,23 +36,36 @@
     hudEl = document.createElement('div');
     hudEl.id = HUD_ID;
     hudEl.style.display = 'none';
-    // 커스텀 applied 효과 아이콘 클릭 → 편집기(위임 리스너, 재렌더에도 유지).
-    hudEl.addEventListener('click', onHudClick);
+    // dnd5e 식 상호작용(위임 리스너, 재렌더에도 유지):
+    //  · 우클릭(contextmenu) → 편집기
+    //  · 더블클릭(dblclick) → 활성/비활성 토글
+    hudEl.addEventListener('contextmenu', onHudContextMenu);
+    hudEl.addEventListener('dblclick', onHudDblClick);
     document.body.appendChild(hudEl);
     return hudEl;
   }
 
-  /** 아이콘 클릭 처리: 커스텀 applied → 편집기, 토글 미러 → 소스 아이템 시트(내장 컨디션은 대상 아님). */
-  function onHudClick(event) {
+  /** 우클릭: 커스텀 applied → 편집기(내장 컨디션은 대상 아님). */
+  function onHudContextMenu(event) {
+    const appliedIcon = event.target.closest('.dx3rd-applied-hud-icon[data-applied-key]');
+    if (!appliedIcon) return;
+    event.preventDefault();
     const actor = getTargetToken()?.actor;
     if (!actor) return;
+    const key = appliedIcon.dataset.appliedKey;
+    if (window.DX3rdActorAppliedDialogs?.edit) window.DX3rdActorAppliedDialogs.edit(actor, key);
+  }
 
+  /** 더블클릭: 커스텀 applied → 활성/비활성 토글. */
+  function onHudDblClick(event) {
     const appliedIcon = event.target.closest('.dx3rd-applied-hud-icon[data-applied-key]');
-    if (appliedIcon) {
-      const key = appliedIcon.dataset.appliedKey;
-      if (window.DX3rdActorAppliedDialogs?.edit) window.DX3rdActorAppliedDialogs.edit(actor, key);
-      return;
-    }
+    if (!appliedIcon) return;
+    event.preventDefault();
+    const actor = getTargetToken()?.actor;
+    if (!actor) return;
+    const key = appliedIcon.dataset.appliedKey;
+    // 단일 소스 라우팅: toggle 파생은 아이템 토글, 그 외는 AE.disabled.
+    if (window.DX3rdAppliedEffects?.toggleActive) window.DX3rdAppliedEffects.toggleActive(actor, key);
   }
 
   /**
@@ -70,7 +83,8 @@
         key,
         name: eff.name || payload.name || game.i18n.localize('DX3rd.Applied'),
         img: eff.img || payload.img || 'icons/svg/aura.svg',
-        disable: payload.disable || '-'
+        disable: payload.disable || '-',
+        disabled: !!eff.disabled
       });
     }
     return result;
@@ -87,6 +101,20 @@
       offset = Math.max(0, window.innerWidth - rect.left) + 12;
     }
     hudEl.style.right = `${offset}px`;
+  }
+
+  // 사이드바 접힘/펼침은 CSS 트랜지션이라, 훅 직후 1회 측정하면 애니메이션 중간값을 읽어
+  // HUD 가 어긋난다. 트랜지션 종료(transitionend) 시 최종 위치로 스냅한다(부드러운 추적은 불필요).
+  let sidebarBound = false;
+  function bindSidebarTransition() {
+    if (sidebarBound) return;
+    const sidebar = document.getElementById('sidebar') || document.getElementById('ui-right');
+    if (!sidebar) return;
+    sidebar.addEventListener('transitionend', (ev) => {
+      // width/left/transform 등 위치에 영향을 주는 속성 전이 종료 시에만 반응
+      if (['width', 'left', 'right', 'transform', 'margin-right'].includes(ev.propertyName)) updatePosition();
+    });
+    sidebarBound = true;
   }
 
   /** 현재 표시 대상 토큰(단일 선택된 토큰) 반환. */
@@ -166,13 +194,15 @@
       hudEl.appendChild(iconWrap);
     }
 
-    // 커스텀 applied 효과(클릭 시 편집기 오픈)
-    for (const { key, name, img: imgSrc, disable } of applied) {
+    // 커스텀 applied 효과(우클릭 → 편집기 / 더블클릭 → 활성 토글)
+    for (const { key, name, img: imgSrc, disable, disabled } of applied) {
       const disableLabel = Handlebars?.helpers?.disable ? String(Handlebars.helpers.disable(disable)) : disable;
-      const title = `${name}${disable && disable !== '-' ? ` (${game.i18n.localize('DX3rd.DisableTiming')}: ${disableLabel})` : ''}`;
+      const baseTitle = `${name}${disable && disable !== '-' ? ` (${game.i18n.localize('DX3rd.DisableTiming')}: ${disableLabel})` : ''}`;
+      // 상호작용 안내를 툴팁에 덧붙인다(우클릭 편집 / 더블클릭 토글).
+      const title = `${baseTitle}${disabled ? ` — ${game.i18n.localize('DX3rd.DisableTiming')}` : ''}`;
 
       const iconWrap = document.createElement('div');
-      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-applied-hud-icon';
+      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-applied-hud-icon' + (disabled ? ' dx3rd-applied-disabled' : '');
       iconWrap.dataset.appliedKey = key;
       iconWrap.setAttribute('data-tooltip', title);
       iconWrap.title = title;
@@ -203,12 +233,15 @@
   Hooks.on('updateActiveEffect', (effect) => renderIfCurrent(effect.parent));
   Hooks.on('deleteActiveEffect', (effect) => renderIfCurrent(effect.parent));
   // 사이드바 접힘/펼침 등 UI 변화 시 위치 재계산
-  Hooks.on('collapseSidebar', () => setTimeout(updatePosition, 50));
-  Hooks.on('renderSidebar', () => updatePosition());
+  //  · 즉시 1회 + transitionend 최종 스냅(bindSidebarTransition) 조합으로 어긋남 방지.
+  //  · transitionend 가 없는(즉시 토글) 환경 대비 지연 폴백 1회.
+  Hooks.on('collapseSidebar', () => { updatePosition(); setTimeout(updatePosition, 350); });
+  Hooks.on('renderSidebar', () => { bindSidebarTransition(); updatePosition(); });
   window.addEventListener('resize', () => updatePosition());
 
   Hooks.once('ready', () => {
     ensureHud();
+    bindSidebarTransition();
     render();
   });
 

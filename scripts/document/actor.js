@@ -1253,6 +1253,8 @@
             ]);
             for (const eff of Object.values(appliedEffects || {})) {
                 if (!eff || !eff.attributes) continue;
+                if (eff._disabled) continue; // 비활성화(disabled) 토글된 applied 효과는 계산 제외
+
                 for (const [attrName, attrValue] of Object.entries(eff.attributes)) {
                     const isObj = (typeof attrValue === 'object' && attrValue !== null);
                     const key = isObj ? attrValue.key : attrName;

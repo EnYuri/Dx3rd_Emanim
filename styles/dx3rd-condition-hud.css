@@ -34,6 +34,14 @@
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
 }
 
+/* 비활성화된 applied 효과: 흐리게 + 회색조로 표시(더블클릭으로 재활성) */
+#dx3rd-condition-hud .dx3rd-applied-hud-icon.dx3rd-applied-disabled {
+  opacity: 0.4;
+}
+#dx3rd-condition-hud .dx3rd-applied-hud-icon.dx3rd-applied-disabled img {
+  filter: grayscale(1) drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+
 #dx3rd-condition-hud .dx3rd-condition-hud-badge {
   position: absolute;
   bottom: -1px;

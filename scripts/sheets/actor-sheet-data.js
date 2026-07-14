@@ -594,6 +594,7 @@
                 description: generateAppliedEffectDescription(appliedEffect, appliedKey)
             },
             disable: appliedEffect.disable || "-",
+            enabled: !appliedEffect._disabled,
             appliedEffect
         }));
     }

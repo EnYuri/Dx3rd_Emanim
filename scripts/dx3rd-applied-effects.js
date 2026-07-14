@@ -178,6 +178,65 @@
     }
   }
 
+  /** applied 버프의 활성/비활성(disabled) 상태를 설정. dnd5e 식 토글 소스. */
+  async function setDisabled(actor, appliedKey, disabled) {
+    const eff = getEffect(actor, appliedKey);
+    if (!eff) return false;
+    try {
+      await eff.update({ disabled: !!disabled });
+      return true;
+    } catch (e) {
+      console.error('DX3rd | DX3rdAppliedEffects.setDisabled 실패:', appliedKey, e);
+      return false;
+    }
+  }
+
+  /** applied 버프의 활성/비활성 상태를 반전. */
+  async function toggleDisabled(actor, appliedKey) {
+    const eff = getEffect(actor, appliedKey);
+    if (!eff) return false;
+    return setDisabled(actor, appliedKey, !eff.disabled);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 활성/비활성 "단일 소스" 통합 제어.
+  //  · toggle 파생 AE(appliedKey='toggle:<itemId>')의 진짜 상태는 소스 아이템의
+  //    system.active.state 다(applied-toggle sync 가 그것에서 AE 를 파생/삭제). 따라서
+  //    체크박스/HUD 는 AE.disabled 가 아니라 아이템 토글을 직접 뒤집는다 → 이중 상태 소멸.
+  //    끄면 sync 가 AE 를 삭제하므로 목록/HUD 에서 사라진다(toggle 효과의 정상 동작).
+  //  · 그 외 독립 applied 버프(Panic·매크로 등)는 AE 자체의 disabled 를 토글한다.
+  //  · 소스 아이템이 사라진 toggle AE 는 AE.disabled 로 폴백.
+  // ---------------------------------------------------------------------------
+
+  /** appliedKey 가 toggle 파생이면 소스 아이템을, 아니면 null 을 반환. */
+  function getToggleSourceItem(actor, appliedKey) {
+    const key = String(appliedKey || '');
+    if (!key.startsWith('toggle:')) return null;
+    const itemId = key.slice('toggle:'.length);
+    return actor?.items?.get(itemId) || null;
+  }
+
+  /** applied 효과를 활성/비활성으로 설정(단일 소스 라우팅). */
+  async function setActive(actor, appliedKey, active) {
+    const item = getToggleSourceItem(actor, appliedKey);
+    if (item) {
+      const svc = window.DX3rdActorSheetData?.updateOwnedItemActiveState;
+      if (svc) await svc(actor, item.id, !!active);            // effect 탭 체크박스와 동일 경로
+      else await item.update({ 'system.active.state': !!active });
+      return true;
+    }
+    return setDisabled(actor, appliedKey, !active);
+  }
+
+  /** applied 효과의 활성/비활성을 반전(단일 소스 라우팅). */
+  async function toggleActive(actor, appliedKey) {
+    const item = getToggleSourceItem(actor, appliedKey);
+    if (item) return setActive(actor, appliedKey, !(item.system?.active?.state));
+    const eff = getEffect(actor, appliedKey);
+    if (!eff) return false;
+    return setDisabled(actor, appliedKey, !eff.disabled);
+  }
+
   /** 여러 key 를 한 번에 제거(배치). */
   async function removeMany(actor, appliedKeys = []) {
     if (!actor || !appliedKeys.length) return 0;
@@ -224,7 +283,11 @@
       const key = e.getFlag?.(SCOPE, 'appliedKey');
       if (!key) continue;
       const payload = e.getFlag?.(SCOPE, 'applied');
-      if (payload) out[key] = payload;
+      // AE 의 disabled 상태를 payload 사본에 얕게 실어 내보낸다(원본 flag 오염 방지).
+      //  · _indexAppliedEffects 는 _disabled === true 를 계산에서 제외한다.
+      //  · 시트 Applied 목록/HUD 는 _disabled 로 토글 상태를 표시한다.
+      //  · normalizePayload 는 화이트리스트라 _disabled 가 다시 flag 에 저장되지 않는다.
+      if (payload) out[key] = { ...payload, _disabled: !!e.disabled };
     }
     // 전환 브리지: 이행 완료 월드에선 레거시 필드가 삭제(undefined)되거나 빈 {} 이므로
     // 대개 아래를 건너뛴다. prepareData 핫패스에서 불필요한 순회/할당을 피하려 조기 종료한다.
@@ -246,6 +309,11 @@
     buildAEData,
     getEffect,
     set,
+    setDisabled,
+    toggleDisabled,
+    getToggleSourceItem,
+    setActive,
+    toggleActive,
     remove,
     removeMany,
     removeByItem,
