@@ -640,13 +640,14 @@
     }
 
     // 효과(Applied) 목록의 활성/비활성 토글: 체크 = 활성.
-    // 단일 소스 라우팅(setActive) — toggle 파생 AE 는 소스 아이템 토글을, 그 외는 AE.disabled 를 제어.
+    // 이 탭은 적용 중인 효과 자체만 제어한다. 토글형 이펙트의 원본 아이템을 끄면
+    // 파생 AE가 제거되어 다시 켤 값이 사라지므로, 여기서는 항상 AE.disabled만 변경한다.
     async _onAppliedActiveChange(event) {
       if (!this._canEdit()) return;
       const applied = this._getAppliedFromTarget(event.currentTarget);
       if (!applied) return;
-      if (window.DX3rdAppliedEffects?.setActive) {
-        await window.DX3rdAppliedEffects.setActive(this.document, applied.key, event.currentTarget.checked);
+      if (window.DX3rdAppliedEffects?.setDisabled) {
+        await window.DX3rdAppliedEffects.setDisabled(this.document, applied.key, !event.currentTarget.checked);
         return;
       }
       ui.notifications.error('DX3rdAppliedEffects를 찾을 수 없습니다.');

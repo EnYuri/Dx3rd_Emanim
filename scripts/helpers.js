@@ -199,6 +199,10 @@
             // 수식 평가 (안전한 문자만 허용). Math.min/Math.max만 화이트리스트(쉼표=함수 인자 구분).
             const stripped = evalStr.replace(/Math\.(?:min|max)/g, '');
             if (/[^0-9+\-*/(),.\s]/.test(stripped)) {
+                // 다이스식은 행동 경로에서 evaluateRoll()/Foundry Roll로 별도 처리한다.
+                // 이 동기 평가기는 수치 미리보기·집계에도 쓰이므로 여기서 다시 경고를
+                // 내지 않고 0을 돌려준다. 실제 굴림 결과에는 영향을 주지 않는다.
+                if (this.hasDice(formulaStr)) return 0;
                 // boolean 값 "true"/"false" 문자열은 경고하지 않음
                 if (formulaStr !== 'true' && formulaStr !== 'false') {
                     console.warn(`DX3rd | Invalid characters in formula: ${formulaStr}`);

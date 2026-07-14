@@ -103,6 +103,10 @@
     flex-direction: column;
     min-height: 0;
     overflow-y: auto;
+    /* 이펙트처럼 탭별 내용량 차이가 큰 시트는 스크롤바가 생길 때만 본문 가로폭이
+       줄어 표/그리드가 우측으로 흔들린다. 스크롤바 공간을 항상 예약해 탭 전환과
+       내용 변경 전후에도 동일한 가로폭을 유지한다. */
+    scrollbar-gutter: stable;
     /* AppV2 기본 window-content 패딩(16px)은 고정폭 그리드/표를 좁혀 라벨 줄바꿈을
        유발한다. 이전 시트(.window-app) 기본값 8px 으로 맞춰 가용폭을 일치시킨다. */
     padding: 8px;

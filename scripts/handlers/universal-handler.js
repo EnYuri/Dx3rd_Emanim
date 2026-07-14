@@ -803,6 +803,7 @@
         if (type === 'heal' || type === 'damage') {
           let totalDice = 0;
           let totalAdd = 0;
+          const diceFormulaTerms = [];
           let hasRivival = false;
           let hasResurrect = false;
           let hasIgnoreReduce = false;
@@ -829,7 +830,12 @@
             if (dice) {
               const diceStr = String(dice).trim();
               if (diceStr && diceStr !== '0') {
-                evaluatedDice = window.DX3rdFormulaEvaluator.evaluate(diceStr, itemForFormula, actor);
+                if (window.DX3rdFormulaEvaluator.hasDice(diceStr)) {
+                  // 각 원본 이펙트의 레벨/능력치 참조를 여기서 해석해 합산 후에도 보존한다.
+                  diceFormulaTerms.push(window.DX3rdFormulaEvaluator.prepareRollFormula(diceStr, itemForFormula, actor));
+                } else {
+                  evaluatedDice = window.DX3rdFormulaEvaluator.evaluate(diceStr, itemForFormula, actor);
+                }
               }
             }
             if (add || add === 0) {
@@ -841,10 +847,13 @@
             totalDice += Math.max(0, parseInt(evaluatedDice) || 0);
             totalAdd += parseInt(evaluatedAdd) || 0;
           }
+          const mergedDice = diceFormulaTerms.length > 0
+            ? [totalDice > 0 ? `${totalDice}d10` : '', ...diceFormulaTerms].filter(Boolean).join(' + ')
+            : totalDice;
           results.push({
             type, timing, target, custom: false,
             parentRunTiming,
-            merged: { dice: totalDice, add: totalAdd },
+            merged: { dice: mergedDice, add: totalAdd },
             rivival: hasRivival,
             resurrect: hasResurrect,
             ignoreReduce: hasIgnoreReduce,
@@ -8249,7 +8258,10 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
   if (formulaDice) {
     const diceFormula = String(formulaDice).trim();
     if (diceFormula && diceFormula !== '0') {
-      evaluatedDice = window.DX3rdFormulaEvaluator.evaluate(diceFormula, itemForFormula, actor);
+      // NdM은 수량식이 아니라 Foundry Roll 수식으로 뒤에서 그대로 굴린다.
+      evaluatedDice = window.DX3rdFormulaEvaluator.hasDice(diceFormula)
+        ? 0
+        : window.DX3rdFormulaEvaluator.evaluate(diceFormula, itemForFormula, actor);
     }
   }
   
@@ -8265,9 +8277,13 @@ window.DX3rdUniversalHandler.executeHealExtensionNow = async function(actor, hea
   // formulaAdd는 고정 가산치였지만, 이제 Foundry 코어 다이스식도 허용한다.
   // 참조만 먼저 치환해 GM에게 전달하고 실제 굴림은 승인 뒤 정확히 한 번 수행한다.
   const resolvedAddFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(formulaAdd || '0', itemForFormula, actor);
-  const rollFormula = Math.max(0, parseInt(evaluatedDice) || 0) > 0
-    ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10 + (${resolvedAddFormula})`
-    : resolvedAddFormula;
+  const rawDiceFormula = String(formulaDice || '').trim();
+  const resolvedDiceFormula = window.DX3rdFormulaEvaluator.hasDice(rawDiceFormula)
+    ? window.DX3rdFormulaEvaluator.prepareRollFormula(rawDiceFormula, itemForFormula, actor)
+    : (Math.max(0, parseInt(evaluatedDice) || 0) > 0 ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10` : '');
+  const rollFormula = [resolvedDiceFormula, resolvedAddFormula !== '0' ? `(${resolvedAddFormula})` : '']
+    .filter(Boolean)
+    .join(' + ') || '0';
   
   console.log(`DX3rd | Heal formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
 
@@ -8965,7 +8981,10 @@ window.DX3rdUniversalHandler.executeDamageExtensionNow = async function(actor, d
   if (formulaDice) {
     const diceFormula = String(formulaDice).trim();
     if (diceFormula && diceFormula !== '0') {
-      evaluatedDice = window.DX3rdFormulaEvaluator.evaluate(diceFormula, itemForFormula, actor);
+      // NdM은 수량식이 아니라 Foundry Roll 수식으로 뒤에서 그대로 굴린다.
+      evaluatedDice = window.DX3rdFormulaEvaluator.hasDice(diceFormula)
+        ? 0
+        : window.DX3rdFormulaEvaluator.evaluate(diceFormula, itemForFormula, actor);
     }
   }
   
@@ -8981,9 +9000,13 @@ window.DX3rdUniversalHandler.executeDamageExtensionNow = async function(actor, d
   
   // 참조를 치환한 원문 수식을 GM에게 넘겨 승인 뒤 한 번만 굴린다.
   const resolvedAddFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(formulaAdd || '0', itemForFormula, actor);
-  const rollFormula = Math.max(0, parseInt(evaluatedDice) || 0) > 0
-    ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10 + (${resolvedAddFormula})`
-    : resolvedAddFormula;
+  const rawDiceFormula = String(formulaDice || '').trim();
+  const resolvedDiceFormula = window.DX3rdFormulaEvaluator.hasDice(rawDiceFormula)
+    ? window.DX3rdFormulaEvaluator.prepareRollFormula(rawDiceFormula, itemForFormula, actor)
+    : (Math.max(0, parseInt(evaluatedDice) || 0) > 0 ? `${Math.max(0, parseInt(evaluatedDice) || 0)}d10` : '');
+  const rollFormula = [resolvedDiceFormula, resolvedAddFormula !== '0' ? `(${resolvedAddFormula})` : '']
+    .filter(Boolean)
+    .join(' + ') || '0';
 
   console.log(`DX3rd | Damage formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
   

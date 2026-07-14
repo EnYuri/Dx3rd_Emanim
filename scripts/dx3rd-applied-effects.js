@@ -320,5 +320,33 @@
     collect
   };
 
+  // 토큰 HUD의 효과 오버레이 좌클릭은 Foundry 기본 동작으로 ActiveEffect를 삭제한다.
+  // applied AE만 가로채 액터 시트의 적용 효과 체크박스와 동일하게 disabled를 반전한다.
+  // 일반 상태이상은 Foundry 기본 동작을 그대로 유지한다.
+  Hooks.on('renderTokenHUD', (hud, html) => {
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    if (!root || root.dataset.dx3rdAppliedOverlayBound) return;
+    root.dataset.dx3rdAppliedOverlayBound = 'true';
+
+    root.addEventListener('click', async (event) => {
+      const control = event.target.closest?.('.effect-control');
+      if (!control) return;
+
+      const actor = hud.object?.actor;
+      if (!actor?.isOwner) return;
+      const effectId = control.dataset.effectId;
+      const statusId = control.dataset.statusId;
+      const effect = (effectId ? actor.effects.get(effectId) : null)
+        || (statusId ? actor.effects.find(e => e.statuses?.has(statusId)) : null);
+      const appliedKey = effect?.getFlag?.(SCOPE, 'appliedKey');
+      if (!appliedKey) return;
+
+      // 캡처 단계에서 막아 Foundry의 삭제 핸들러가 실행되지 않게 한다.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      await setDisabled(actor, appliedKey, !effect.disabled);
+    }, true);
+  });
+
   console.log('DX3rd | AppliedEffects adapter loaded');
 })();

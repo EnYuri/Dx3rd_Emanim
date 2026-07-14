@@ -82,6 +82,9 @@
                 data.actorSkills = skills;
                 data.weaponSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('weapon', skills);
                 data.vehicleSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('vehicle', skills);
+                if (item.type === 'effect') {
+                    data.effectSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', skills);
+                }
             }
 
             return data;
@@ -572,6 +575,26 @@
                 const sub = this.currentSubTab;
                 if (!sub) return;
                 this._storeCurrentSubTab();
+
+                // 이펙트의 기타 탭은 확장 플래그가 아니라 기존 system 필드를 그대로 편집한다.
+                // 데이터 경로를 보존하므로 컴펜디움/월드 아이템 마이그레이션이 필요 없다.
+                if (sub === 'effectSettings') {
+                    if (item.type !== 'effect') return;
+                    await item.update({
+                        'system.comboSkill': this._value('select[name="effectSettingsComboSkill"]'),
+                        'system.comboBase': this._value('select[name="effectSettingsComboBase"]'),
+                        'system.active.applyMode': this._value('select[name="effectSettingsApplyMode"]'),
+                        'system.resourceCost.enabled': this._checked('input[name="effectSettingsResourceEnabled"]'),
+                        'system.resourceCost.cap': this._value('input[name="effectSettingsResourceCap"]'),
+                        'system.resourceCost.mult': Number(this._value('input[name="effectSettingsResourceMult"]')) || 1,
+                        'system.resourceCost.attrKey': this._value('select[name="effectSettingsResourceAttrKey"]'),
+                        'system.resourceCost.label': this._value('select[name="effectSettingsResourceLabel"]'),
+                        'system.resourceCost.disable': this._value('select[name="effectSettingsResourceDisable"]')
+                    });
+                    // 열려 있는 원본 시트가 숨긴 필드의 현재값을 계속 들고 있지 않도록 즉시 갱신한다.
+                    item.sheet?.render(false);
+                    return;
+                }
 
                 const existing = foundry.utils.deepClone(item.getFlag('dx3rd-emanim', 'itemExtend') || {});
 

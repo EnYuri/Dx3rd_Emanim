@@ -47,36 +47,6 @@
           </div>
           {{/if}}
 
-          <div class="cell grid-4">
-            <label class="cell--title" title="{{localize "DX3rd.ComboSkillHint"}}">
-              {{localize "DX3rd.ComboSkill"}}
-            </label>
-            <select name="system.comboSkill">
-              {{#select system.comboSkill}}
-              {{#each system.skillOptions as |option|}}
-              <option value="{{option.value}}">{{localize option.label}}</option>
-              {{/each}}
-              {{/select}}
-            </select>
-
-          </div>
-
-          <div class="cell grid-4">
-            <label class="cell--title" title="{{localize "DX3rd.ComboBaseHint"}}">
-              {{localize "DX3rd.ComboBase"}}
-            </label>
-            <select name="system.comboBase">
-              {{#select system.comboBase}}
-              <option value="-">-</option>
-              <option value="body">{{localize "DX3rd.Body"}}</option>
-              <option value="sense">{{localize "DX3rd.Sense"}}</option>
-              <option value="mind">{{localize "DX3rd.Mind"}}</option>
-              <option value="social">{{localize "DX3rd.Social"}}</option>
-              {{/select}}
-            </select>
-
-          </div>
-
           <div class="cell grid-4 space-between">
             <label class="cell--title">
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Difficulty"}}</span>
@@ -106,7 +76,7 @@
           <div class="cell grid-4 space-between">
             <label class="cell--title">
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Level"}}</span>
-              <input type="checkbox" class="cell--crit" name="system.level.upgrade" {{#if system.level.upgrade}} checked {{/if}}>
+              <input type="checkbox" class="cell--crit" name="system.level.upgrade" title="{{localize "DX3rd.LevelUpgradeHint"}}" aria-label="{{localize "DX3rd.LevelUpgradeHint"}}" {{#if system.level.upgrade}} checked {{/if}}>
             </label>
             <div class="flex">
               <input name="system.level.init" type="number" value="{{system.level.init}}" data-dtype="Number" min="0">
@@ -200,8 +170,8 @@
             {{#unless (eq system.type "extra")}}
             <span class="bio-exp flexrow">
               <span>{{localize "DX3rd.EXP"}} </span>
-              <input type="checkbox" name="system.exp.own" {{#if system.exp.own}} checked {{/if}} data-dtype="Boolean"/>
-              <input type="checkbox" name="system.exp.upgrade" {{#if system.exp.upgrade}} checked {{/if}} data-dtype="Boolean"/>
+              <input type="checkbox" name="system.exp.own" title="{{localize "DX3rd.ExpOwnHint"}}" aria-label="{{localize "DX3rd.ExpOwnHint"}}" {{#if system.exp.own}} checked {{/if}} data-dtype="Boolean"/>
+              <input type="checkbox" name="system.exp.upgrade" title="{{localize "DX3rd.ExpUpgradeHint"}}" aria-label="{{localize "DX3rd.ExpUpgradeHint"}}" {{#if system.exp.upgrade}} checked {{/if}} data-dtype="Boolean"/>
             </span>
             {{/unless}}
           </label>
@@ -274,18 +244,6 @@
           </tr>
 
           <tr>
-            <th><span>{{localize "DX3rd.ApplyMode"}}</span></th>
-            <td colspan="5">
-              <select name="system.active.applyMode" data-dtype="String" style="width: 100%;">
-                {{#select system.active.applyMode}}
-                <option value="toggle">{{localize "DX3rd.ApplyModeToggle"}}</option>
-                <option value="onUse">{{localize "DX3rd.ApplyModeOnUse"}}</option>
-                {{/select}}
-              </select>
-            </td>
-          </tr>
-
-          <tr>
             <th><span>{{localize "DX3rd.UsedCount"}}</span></th>
             <td>
               <input type="number" class="checkbox-input" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}} disabled {{/ifEquals}}>/
@@ -307,51 +265,6 @@
             </td>
           </tr>
 
-          <tr>
-            <th><span>{{localize "DX3rd.ResourceCostEnabled"}}</span></th>
-            <td><input type="checkbox" name="system.resourceCost.enabled" {{#if system.resourceCost.enabled}} checked {{/if}}></td>
-            <th><span>{{localize "DX3rd.ResourceCostCap"}}</span></th>
-            <td><input type="text" name="system.resourceCost.cap" data-dtype="String" value="{{system.resourceCost.cap}}"></td>
-            <th><span>{{localize "DX3rd.ResourceCostMult"}}</span></th>
-            <td><input type="number" name="system.resourceCost.mult" data-dtype="Number" value="{{system.resourceCost.mult}}" min="1" step="1"></td>
-          </tr>
-          <tr>
-            <th><span>{{localize "DX3rd.ResourceCostAttrLabel"}}</span></th>
-            <td>
-              <select name="system.resourceCost.attrKey" data-dtype="String" style="width: 100%;">
-                {{#select system.resourceCost.attrKey}}
-                <option value="add">{{localize "DX3rd.ResourceCostAttr.add"}}</option>
-                <option value="attack">{{localize "DX3rd.ResourceCostAttr.attack"}}</option>
-                <option value="guard">{{localize "DX3rd.ResourceCostAttr.guard"}}</option>
-                <option value="armor">{{localize "DX3rd.ResourceCostAttr.armor"}}</option>
-                {{/select}}
-              </select>
-            </td>
-            <th><span>{{localize "DX3rd.AttackRoll"}}</span></th>
-            <td>
-              <select name="system.resourceCost.label" data-dtype="String" style="width: 100%;">
-                {{#select system.resourceCost.label}}
-                <option value="-">-</option>
-                <option value="melee">{{localize "DX3rd.Melee"}}</option>
-                <option value="ranged">{{localize "DX3rd.Ranged"}}</option>
-                <option value="fist">{{localize "DX3rd.Fist"}}</option>
-                {{/select}}
-              </select>
-            </td>
-            <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
-            <td>
-              <select name="system.resourceCost.disable" data-dtype="String" style="width: 100%;">
-                {{#select system.resourceCost.disable}}
-                <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
-                <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
-                <option value="main">{{localize "DX3rd.AfterMain"}}</option>
-                <option value="reaction">{{localize "DX3rd.AfterReaction"}}</option>
-                <option value="round">{{localize "DX3rd.AfterRound"}}</option>
-                <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
-                {{/select}}
-              </select>
-            </td>
-          </tr>
         </table>
 
         <div class="dx3rd-embed-macros">

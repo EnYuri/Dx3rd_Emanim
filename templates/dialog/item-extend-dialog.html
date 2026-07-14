@@ -3,6 +3,7 @@
 <div class="top-tabs">
     <button type="button" class="top-tab" data-tab="affectCharacter">{{localize "DX3rd.AffectCharacter"}}</button>
     <button type="button" class="top-tab" data-tab="createItem">{{localize "DX3rd.CreateItem"}}</button>
+    {{#ifEquals item.type "effect"}}<button type="button" class="top-tab" data-tab="other">{{localize "DX3rd.Other"}}</button>{{/ifEquals}}
 </div>
 
 <!-- Sub Navigation -->
@@ -22,10 +23,104 @@
         <button type="button" class="sub-tab" data-tab="protect">{{localize "DX3rd.Protect"}}</button>
         <button type="button" class="sub-tab" data-tab="vehicle">{{localize "DX3rd.Vehicle"}}</button>
     </div>
+
+    {{#ifEquals item.type "effect"}}
+    <div class="sub-tabs" id="other-sub-tabs">
+        <button type="button" class="sub-tab" data-tab="effectSettings">{{localize "DX3rd.EffectAdvancedSettings"}}</button>
+    </div>
+    {{/ifEquals}}
 </div>
 
 <!-- Content Area -->
 <div class="sub-tab-content">
+    {{#ifEquals item.type "effect"}}
+    <section class="content-section" id="effectSettings-content">
+        <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.ResourceCostEnabled"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="effectSettingsResourceEnabled" {{#if item.system.resourceCost.enabled}}checked{{/if}}>
+            </div>
+            <div class="form-label">{{localize "DX3rd.ResourceCostCap"}}</div>
+            <div><input type="text" name="effectSettingsResourceCap" value="{{item.system.resourceCost.cap}}"></div>
+
+            <div class="form-label">{{localize "DX3rd.ResourceCostMult"}}</div>
+            <div><input type="number" name="effectSettingsResourceMult" value="{{item.system.resourceCost.mult}}" min="1" step="1"></div>
+            <div></div>
+            <div></div>
+
+            <div class="form-label" title="{{localize "DX3rd.ComboSkillHint"}}">{{localize "DX3rd.ComboSkill"}}</div>
+            <div style="grid-column: span 3;">
+                <select name="effectSettingsComboSkill">
+                    {{#select item.system.comboSkill}}
+                    {{#each effectSkillOptions as |option|}}
+                    <option value="{{option.value}}">{{localize option.label}}</option>
+                    {{/each}}
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.ComboBaseHint"}}">{{localize "DX3rd.ComboBase"}}</div>
+            <div>
+                <select name="effectSettingsComboBase">
+                    {{#select item.system.comboBase}}
+                    <option value="-">-</option>
+                    <option value="body">{{localize "DX3rd.Body"}}</option>
+                    <option value="sense">{{localize "DX3rd.Sense"}}</option>
+                    <option value="mind">{{localize "DX3rd.Mind"}}</option>
+                    <option value="social">{{localize "DX3rd.Social"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label">{{localize "DX3rd.ApplyMode"}}</div>
+            <div>
+                <select name="effectSettingsApplyMode">
+                    {{#select item.system.active.applyMode}}
+                    <option value="toggle">{{localize "DX3rd.ApplyModeToggle"}}</option>
+                    <option value="onUse">{{localize "DX3rd.ApplyModeOnUse"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label">{{localize "DX3rd.ResourceCostAttrLabel"}}</div>
+            <div>
+                <select name="effectSettingsResourceAttrKey">
+                    {{#select item.system.resourceCost.attrKey}}
+                    <option value="add">{{localize "DX3rd.ResourceCostAttr.add"}}</option>
+                    <option value="attack">{{localize "DX3rd.ResourceCostAttr.attack"}}</option>
+                    <option value="guard">{{localize "DX3rd.ResourceCostAttr.guard"}}</option>
+                    <option value="armor">{{localize "DX3rd.ResourceCostAttr.armor"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label">{{localize "DX3rd.AttackRoll"}}</div>
+            <div>
+                <select name="effectSettingsResourceLabel">
+                    {{#select item.system.resourceCost.label}}
+                    <option value="-">-</option>
+                    <option value="melee">{{localize "DX3rd.Melee"}}</option>
+                    <option value="ranged">{{localize "DX3rd.Ranged"}}</option>
+                    <option value="fist">{{localize "DX3rd.Fist"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label">{{localize "DX3rd.DisableTiming"}}</div>
+            <div>
+                <select name="effectSettingsResourceDisable">
+                    {{#select item.system.resourceCost.disable}}
+                    <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
+                    <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
+                    <option value="main">{{localize "DX3rd.AfterMain"}}</option>
+                    <option value="reaction">{{localize "DX3rd.AfterReaction"}}</option>
+                    <option value="round">{{localize "DX3rd.AfterRound"}}</option>
+                    <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+        </div>
+    </section>
+    {{/ifEquals}}
+
     <!-- HP Recovery Tab -->
     <section class="content-section" id="heal-content">
         <div class="form-grid">
