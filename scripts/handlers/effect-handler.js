@@ -189,16 +189,14 @@ window.DX3rdEffectHandler = {
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
         const allWeapons = actor.items.filter(w => w.type === 'weapon' || w.type === 'vehicle');
-        
-        if (allWeapons.length === 0) {
-            ui.notifications.warn('무기/비클이 없습니다.');
-            return;
-        }
-        
+        // 가상(월드) 무기 항상 노출 - 대응 무기가 없어도 백병/사격 공격 채널 제공
+        const virtualWeapons = window.DX3rdVirtualWeapons?.list?.() || [];
+        const weapons = [...virtualWeapons, ...allWeapons];
+
         // 무기 선택 다이얼로그 표시
         new window.DX3rdWeaponForAttackDialog({
             actor: actor,
-            weapons: allWeapons,
+            weapons: weapons,
             attackRoll: attackRollType,
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
@@ -221,7 +219,7 @@ window.DX3rdEffectHandler = {
         for (const weaponId of registeredWeapons) {
             if (weaponId && weaponId !== '-') {
                 // 액터의 아이템에서 직접 무기 데이터 가져오기
-                const weaponItem = actor.items.get(weaponId);
+                const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
                 if (weaponItem && weaponItem.type === 'weapon') {
                     // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
                     const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';

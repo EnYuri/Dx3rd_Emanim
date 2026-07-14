@@ -64,7 +64,7 @@
     }
 
     for (const weaponId of normalizeIdList(weaponIds)) {
-      totalAttack += Number(actor?.items.get(weaponId)?.system?.attack) || 0;
+      totalAttack += Number(window.DX3rdResolveWeapon(actor, weaponId)?.system?.attack) || 0;
     }
 
     return totalAttack;
@@ -282,7 +282,7 @@
   // 무기 추가 직후 호출: 콤보를 공격 콤보로 재구성. 무기 아이템에만 적용(비클 제외).
   async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
     if (!comboItem || !weaponId || weaponId === '-') return false;
-    const weaponItem = actor?.items.get(weaponId);
+    const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
     if (!weaponItem || weaponItem.type !== 'weapon') return false;
     const updates = computeInheritedWeaponFields(comboItem, weaponItem, actor);
     applyWeaponRangeRecalc(updates, comboItem, actor);
@@ -629,7 +629,7 @@
   function calculateWeaponAddBonus(actor, weaponIds) {
     let weaponAddBonus = 0;
     for (const weaponId of normalizeIdList(weaponIds)) {
-      const weaponItem = actor?.items.get(weaponId);
+      const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
       if (weaponItem) {
         const weaponAdd = Number(weaponItem.system?.add) || 0;
         weaponAddBonus += weaponAdd;
@@ -644,7 +644,7 @@
     const formula = window.DX3rdFormulaEvaluator;
     const terms = [];
     for (const weaponId of normalizeIdList(weaponIds)) {
-      const weapon = actor?.items.get(weaponId);
+      const weapon = window.DX3rdResolveWeapon(actor, weaponId);
       if (!weapon) continue;
       const prepared = formula.prepareRollFormula(weapon.system?.[field] ?? '0', weapon, actor);
       if (formula.hasDice(prepared)) terms.push(prepared);
@@ -924,7 +924,7 @@
   function calculateWeaponAttack(actor, weaponIds) {
     let weaponAttack = 0;
     for (const weaponId of normalizeIdList(weaponIds)) {
-      weaponAttack += Number(actor?.items.get(weaponId)?.system?.attack) || 0;
+      weaponAttack += Number(window.DX3rdResolveWeapon(actor, weaponId)?.system?.attack) || 0;
     }
     return weaponAttack;
   }

@@ -166,7 +166,8 @@
       "state": false,
       "disable": "major",
       "runTiming": "instant"
-    }
+    },
+    "attackRoll": "ranged"
   },
   "희생의 피": {
     "attributes": [
@@ -1659,7 +1660,12 @@
     ]
   },
   "극사의 땅": {
-    "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+    "used": {
+      "state": 0,
+      "max": 1,
+      "level": false,
+      "disable": "session"
+    },
     "itemExtend": {
       "damage": {
         "formulaDice": "3",
@@ -1705,5 +1711,11 @@
         "activate": true
       }
     }
+  },
+  "강철의 턱": {
+    "attackRoll": "ranged"
+  },
+  "결합해제": {
+    "attackRoll": "ranged"
   }
 }

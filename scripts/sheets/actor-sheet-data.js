@@ -480,6 +480,9 @@
     // 있으면 효과 적용 메뉴가 유일한 진입점이므로 토글을 표시하지 않는다.
     function usesSelfEffectActiveToggle(item) {
         if (item?.type !== "effect") return false;
+        // 백병/사격 공격 이펙트는 지속 버프가 아니라 즉시 공격력 보정 채널이므로 토글을 숨긴다.
+        const attackRoll = item.system?.attackRoll;
+        if (attackRoll && attackRoll !== "-") return false;
         const hasSelfEffect = hasUsableEffectAttributes(item.system?.attributes);
         const hasTargetEffect = hasUsableEffectAttributes(item.system?.effect?.attributes);
         return hasSelfEffect && !hasTargetEffect;

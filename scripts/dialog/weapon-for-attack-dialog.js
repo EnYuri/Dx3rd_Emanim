@@ -47,6 +47,8 @@
             const context = await super._prepareContext(options);
             const preparedWeapons = this.weapons.map(weapon => this.prepareWeaponData(weapon));
             const sortedWeapons = preparedWeapons.sort((a, b) => {
+                if (a.isVirtual && !b.isVirtual) return -1;
+                if (!a.isVirtual && b.isVirtual) return 1;
                 if (!a.attackExhausted && b.attackExhausted) return -1;
                 if (a.attackExhausted && !b.attackExhausted) return 1;
                 if (a.equipped && !b.equipped) return -1;
@@ -125,6 +127,7 @@
                 guard: weapon.system.guard || '0',
                 equipped: weapon.system.equipment || false,
                 isVehicle: false,
+                isVirtual: !!weapon.isVirtualWeapon,
                 sort: weapon.sort || 0,
                 attackExhausted: isAttackExhausted,
                 attackUsedState: attackUsedState,

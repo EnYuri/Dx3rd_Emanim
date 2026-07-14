@@ -977,6 +977,9 @@
 
             // 액터 무기 아이템 목록 생성 (무기 + 비클, sort 값으로 정렬)
             data.actorWeapon = {};
+            // 가상(월드) 무기를 맨 위에 노출 - 액터/컴펜디움 무관하게 항상 등록 가능
+            const virtualWeapons = window.DX3rdVirtualWeapons?.list?.() || [];
+            virtualWeapons.forEach(vw => { data.actorWeapon[vw.id] = vw.name; });
             if (item.actor) {
                 // 무기 먼저 추가 (sort 값으로 정렬)
                 const weaponItems = item.actor.items.filter(i => i.type === 'weapon')
@@ -997,8 +1000,8 @@
             if (Array.isArray(data.system.weapon)) {
                 data.system.weapon.forEach((weaponId) => {
                     if (weaponId && weaponId !== '-') {
-                        // 액터의 무기 또는 비클 아이템에서 찾기
-                        const weaponOrVehicleItem = item.actor?.items.get(weaponId);
+                        // 액터의 무기/비클 아이템 또는 가상(월드) 무기에서 찾기
+                        const weaponOrVehicleItem = window.DX3rdResolveWeapon?.(item.actor, weaponId) || item.actor?.items.get(weaponId);
                         if (weaponOrVehicleItem && (weaponOrVehicleItem.type === 'weapon' || weaponOrVehicleItem.type === 'vehicle')) {
                             data.system.weaponItems[weaponId] = weaponOrVehicleItem;
                         }
