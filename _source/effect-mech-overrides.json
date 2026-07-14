@@ -1657,5 +1657,53 @@
         "value": "[level]*8"
       }
     ]
+  },
+  "극사의 땅": {
+    "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+    "itemExtend": {
+      "damage": {
+        "formulaDice": "3",
+        "formulaAdd": "0",
+        "target": "self",
+        "timing": "afterMain",
+        "ignoreReduce": true,
+        "conditionalFormula": false,
+        "hpCost": "0",
+        "hpCostActivate": false,
+        "activate": true
+      }
+    }
+  },
+  "아스클레피오스의 지팡이": {
+    "getTarget": true,
+    "itemExtend": {
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "[level]d10",
+        "healTo": "",
+        "encroachFixed": "",
+        "timing": "instant",
+        "target": "targetToken",
+        "resurrect": false,
+        "rivival": false,
+        "activate": true
+      }
+    }
+  },
+  "힐링 스프레이": {
+    "getTarget": true,
+    "itemExtend": {
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "[level]d10",
+        "healTo": "",
+        "encroachFixed": "",
+        "timing": "instant",
+        "target": "targetToken",
+        "resurrect": false,
+        "rivival": false,
+        "activate": true
+      }
+    }
   }
 }
