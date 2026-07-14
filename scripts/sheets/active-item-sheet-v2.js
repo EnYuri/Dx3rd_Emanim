@@ -98,6 +98,7 @@
       this._macroCleanups?.forEach(cleanup => cleanup());
       this._macroCleanups = [];
       const listen = (...args) => this._macroCleanups.push(compat.on(this.element, ...args));
+      listen('input', '.attribute-value', (event, target) => this._validateFormulaInput(target));
       listen('change', '.macro-timing', event => this._updateMacro(event, 'timing'));
       listen('change', '.macro-disabled', event => this._updateMacro(event, 'disabled'));
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
@@ -106,6 +107,23 @@
 
       // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
       itemSheetData.migrateLegacyMacroField(this.item);
+      this._refreshFormulaValidation();
+    }
+
+    _validateFormulaInput(input) {
+      const row = compat.closest(input, '.attribute', this.element);
+      const label = compat.query(row, '.attribute-label')?.value;
+      const key = compat.query(row, '.attribute-key')?.value;
+      let result = window.DX3rdFormulaEvaluator.validateDeterministicFormula(input.value, key);
+      if (result.valid && label && input.name.startsWith('system.attributes.')) {
+        result = window.DX3rdFormulaEvaluator.validateCircularReference(input.value, label, this.item.actor, key);
+      }
+      window.DX3rdFormulaEvaluator.setInputValidationState(input, result);
+      return result;
+    }
+
+    _refreshFormulaValidation() {
+      compat.queryAll(this.element, '.attribute-value').forEach(input => this._validateFormulaInput(input));
     }
 
     async _updateMacro(event, property) {
@@ -130,26 +148,10 @@
 
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
-      let clearValue = false;
       if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
-        const row = compat.closest(changed, '.attribute', this.element);
-        const label = compat.query(row, '.attribute-label')?.value;
-        const key = compat.query(row, '.attribute-key')?.value;
-        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(changed.value, key);
-        if (!formulaValidation.valid) {
-          ui.notifications.warn(formulaValidation.message);
-        }
-        if (formulaValidation.valid && label && changed.name.startsWith('system.attributes.')) {
-          const result = window.DX3rdFormulaEvaluator.validateCircularReference(changed.value, label, this.item.actor, key);
-          if (!result.valid) {
-            changed.value = '';
-            clearValue = true;
-            ui.notifications.warn(result.message);
-          }
-        }
+        this._validateFormulaInput(changed);
       }
       const data = super._prepareSubmitData(event, form, formData, updateData);
-      if (clearValue) foundry.utils.setProperty(data, changed.name, '');
       if (data.system.used?.disable === 'notCheck') {
         data.system.used.state = 0;
         data.system.used.max = 0;

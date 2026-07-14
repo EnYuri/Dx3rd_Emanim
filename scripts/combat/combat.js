@@ -252,6 +252,8 @@ async function executeMacrosByPrefix(prefix) {
   const _CombatBase = foundry.documents?.Combat ?? globalThis.Combat;
   const _CombatantBase = foundry.documents?.Combatant ?? globalThis.Combatant;
   const toFiniteInitiative = (value) => {
+    // 프로세스 컴배턴트는 이니셔티브 순서에 참여하지 않는다.
+    if (value === null || value === undefined || value === "") return -Infinity;
     const number = Number(value);
     return Number.isFinite(number) ? number : -Infinity;
   };
@@ -294,20 +296,13 @@ async function executeMacrosByPrefix(prefix) {
         
         // 프로세스 컴배턴트 확인
         const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-        const processType = combatant.getFlag('dx3rd-emanim', 'processType');
-        
-        let initValue;
-        
         if (isProcessCombatant) {
-          // 프로세스 컴배턴트에 고정 이니셔티브 할당
-          if (processType === 'setup') {
-            initValue = 9999; // 셋업이 가장 먼저
-          } else if (processType === 'cleanup') {
-            initValue = -9999; // 클린업이 가장 나중
-          } else {
-            initValue = 0;
-          }
-        } else {
+          // 셋업/클린업은 진행 표시를 위한 가상 컴배턴트다. 주도권을 굴리거나 소유하지 않는다.
+          continue;
+        }
+
+        let initValue;
+        {
           // 일반 액터
           const actor = combatant.actor;
           if (!actor) {
@@ -435,59 +430,20 @@ Hooks.once('ready', () => {
       const wrapped = async () => {
         return await originalNextTurn.apply(this, args);
       };
+
+      // FVTT의 다음 턴 버튼은 시스템 전투 상태 기계의 단일 진입점으로 보낸다.
+      // 행동 종료/대기는 진행 표시줄에서 명시적으로 선택한 경우에만 아래 기존 규칙 처리를 사용한다.
+      if (!this._dx3rdForcedTurnChoice) {
+        return window.DX3rdCombatFlow?.advance?.(this, 'forward');
+      }
       
       // 커스텀 로직 시작
       // 현재 컴배턴트 확인
       const currentCombatant = this.combatant;
       
-      // 프로세스 컴배턴트 확인
-      const isProcessCombatant = currentCombatant?.getFlag('dx3rd-emanim', 'isProcessCombatant');
-      if (isProcessCombatant) {
-        const processType = currentCombatant?.getFlag('dx3rd-emanim', 'processType');
-        
-        // 셋업 프로세스인 경우, 행동 가능한 액터가 있는지 확인
-        if (processType === 'setup') {
-          const combatantsArray = Array.from(this.combatants);
-          const hasAvailableActor = combatantsArray.some(combatant => {
-            const isCombatProcess = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-            if (isCombatProcess) return false;
-            
-            // action_end 상태 확인 및 HP 체크
-            const actor = combatant.actor;
-            if (actor) {
-              const actionEnd = actor.system?.conditions?.action_end?.active ?? false;
-              if (actionEnd) return false;
-              
-              // HP 0 이하인 액터 제외
-              const currentHP = actor.system?.attributes?.hp?.value ?? 0;
-              if (currentHP <= 0) return false;
-            }
-            
-            return true;
-          });
-          
-          // 행동 가능한 액터가 없으면 클린업으로 이동
-          if (!hasAvailableActor) {
-            const cleanupCombatant = this.combatants.find(c => 
-              c.getFlag('dx3rd-emanim', 'processType') === 'cleanup'
-            );
-            if (cleanupCombatant) {
-              const cleanupIndex = this.turns.findIndex(t => t.id === cleanupCombatant.id);
-              if (cleanupIndex >= 0) {
-                await this.update({ turn: cleanupIndex });
-                return;
-              }
-            }
-          }
-          
-          // 행동 가능한 액터가 있으면 이니셔티브 프로세스 실행
-          await executeInitiativeProcess(this);
-          return;
-        }
-        
-        // 클린업 등 다른 프로세스 컴배턴트는 바로 넘김
-        return wrapped();
-      }
+      // 셋업/클린업은 Combat 플래그로만 관리한다. 가상 컴배턴트는 만들지 않는다.
+      const currentProcess = this.getFlag('dx3rd-emanim', 'currentProcess');
+      if (currentProcess?.type !== 'main') return;
       
       // 액터가 있는 일반 컴배턴트만 다이얼로그 표시
       if (!currentCombatant || !currentCombatant.actor) {
@@ -498,8 +454,33 @@ Hooks.once('ready', () => {
       const actor = currentCombatant.actor;
       const isDelayed = actor?.system?.conditions?.action_delay?.active ?? false;
       
+      // 전투 카운트 바에서 명시적으로 고른 종료/대기는 다이얼로그를 열지 않는다.
+      const forcedChoice = this._dx3rdForcedTurnChoice;
+      delete this._dx3rdForcedTurnChoice;
+
+      // FVTT 전투 트래커의 다음 턴은 시스템 선택창 없이 원래대로 즉시 넘긴다.
+      // 행동 종료/대기는 공용 전투 진행 표시줄에서만 명시적으로 선택한다.
+      if (!forcedChoice) {
+        // 원본 nextTurn이 실제로 선택한 다음 전투원을 기준으로 이니셔티브를 연다.
+        // updateCombat 훅과 경쟁하지 않도록 전환 중임을 표시한다.
+        this._dx3rdAdvancingNativeTurn = true;
+        try {
+          const result = await wrapped();
+          const nextCombatant = this.combatant;
+          const process = this.getFlag('dx3rd-emanim', 'currentProcess');
+          if (nextCombatant?.actor && process?.type !== 'setup' && process?.type !== 'cleanup') {
+            await executeInitiativeProcess(this, nextCombatant.id);
+          }
+          return result;
+        } finally {
+          delete this._dx3rdAdvancingNativeTurn;
+        }
+      }
+      const choice = forcedChoice;
+
+      /*
       // 행동 종료/대기 선택 다이얼로그 (플레이어도 표시) - DOM 방식
-      const choice = await new Promise((resolve) => {
+      const choice = forcedChoice || await new Promise((resolve) => {
         const onSelect = (selection) => {
           dialog.remove();
           resolve(selection);
@@ -666,6 +647,7 @@ Hooks.once('ready', () => {
         }
         dialog.querySelector("#dx3rd-cancel-button").addEventListener("click", () => onSelect(null));
       });
+      */
       
       // 다이얼로그를 닫은 경우 (선택 안 함)
       if (!choice) {
@@ -720,12 +702,6 @@ Hooks.once('ready', () => {
           }
         }
         
-        // 채팅 메시지 출력
-        await ChatMessage.create({
-          content: game.i18n.localize("DX3rd.ActionEnd"),
-          speaker: ChatMessage.getSpeaker({ actor: actor })
-        });
-        
         // main disable hook 실행 요청
         if (game.user.isGM) {
           // GM이면 직접 실행
@@ -760,11 +736,10 @@ Hooks.once('ready', () => {
             'system.conditions.action_delay.value': delayCount + 1
           });
         }
-        
-        // 채팅 메시지 출력
+
         await ChatMessage.create({
           content: game.i18n.localize("DX3rd.ActionDelay"),
-          speaker: ChatMessage.getSpeaker({ actor: actor })
+          speaker: ChatMessage.getSpeaker({ actor })
         });
         
         // main disable hook 실행 요청
@@ -782,17 +757,8 @@ Hooks.once('ready', () => {
         }
       }
       
-      // 이니셔티브 프로세스 실행 요청
-      if (game.user.isGM) {
-        // GM이면 직접 실행
-        await executeInitiativeProcess(this);
-      } else {
-        // 플레이어면 GM에게 소켓으로 전달
-        game.socket.emit('system.dx3rd-emanim', {
-          type: 'executeInitiativeProcess',
-          combatId: this.id
-        });
-      }
+      // 종료/대기 뒤에도 같은 상태 기계로 다음 단계로 진행한다.
+      await advanceCombatState(this, 'forward');
       
       // nextTurn은 메인 프로세스 개시 버튼에서 실행하므로 여기서는 실행 안 함
       return;
@@ -813,27 +779,25 @@ Hooks.once('ready', () => {
     Combat.prototype.previousTurn._dx3rdOriginal = originalPreviousTurn;
     
     Combat.prototype.previousTurn = async function(...args) {
+      return window.DX3rdCombatFlow?.advance?.(this, 'backward');
+
       // 원본 메서드 래퍼 (저장된 변수 사용)
       const wrapped = async () => {
         return await originalPreviousTurn.apply(this, args);
       };
       
-      // 커스텀 로직 시작
-      // 현재 컴배턴트 확인
-      const currentCombatant = this.combatant;
-      
-      // 프로세스 컴배턴트 확인
-      const isProcessCombatant = currentCombatant?.getFlag('dx3rd-emanim', 'isProcessCombatant');
-      const processType = currentCombatant?.getFlag('dx3rd-emanim', 'processType');
-      
-      // 셋업 프로세스에서는 일반 previousTurn 실행
-      if (isProcessCombatant && processType === 'setup') {
-        return wrapped();
+      // 원본 previousTurn이 선택한 이전 전투원을 기준으로 이니셔티브를 연다.
+      this._dx3rdRewindingNativeTurn = true;
+      try {
+        const result = await wrapped();
+        const previousCombatant = this.combatant;
+        if (previousCombatant?.actor) {
+          await executeInitiativeProcess(this, previousCombatant.id);
+        }
+        return result;
+      } finally {
+        delete this._dx3rdRewindingNativeTurn;
       }
-      
-      const result = await wrapped();
-      await syncCombatProcessToCurrentTurn(this);
-      return result;
       // 커스텀 로직 끝
     };
   }
@@ -864,25 +828,136 @@ async function syncCombatProcessToCurrentTurn(combat) {
   });
 }
 
+async function clearProcessInitiatives(combat) {
+  if (!combat || !game.user.isGM) return;
+  const processIds = combat.combatants
+    .filter(combatant => combatant.getFlag('dx3rd-emanim', 'isProcessCombatant'))
+    .map(combatant => combatant.id);
+  if (processIds.length) await combat.deleteEmbeddedDocuments('Combatant', processIds);
+}
+
+// 이전 버전에서 만들어진 셋업/클린업 가상 컴배턴트도 한 번만 정리한다.
+Hooks.once('ready', async () => {
+  if (game.user.isGM && game.combat) await clearProcessInitiatives(game.combat);
+});
+
+async function advanceToSetupProcess(combat) {
+  if (!combat || !game.user.isGM) return;
+  const process = combat.getFlag('dx3rd-emanim', 'currentProcess');
+  // 새 라운드는 항상 Foundry 순서의 첫 전투원에서 시작한다.
+  // 라운드만 올리고 이전 액터 커서를 유지하면 셋업/이니셔티브 대상이 뒤섞인다.
+  if (process?.needsRoundAdvance) {
+    await combat.update({round: (combat.round || 0) + 1, turn: 0});
+  } else if (combat.turn !== 0) {
+    await combat.update({turn: 0});
+  }
+  await runCombatProcess(combat, 'setup');
+}
+
+// 이니셔티브 프로세스에서 메인 프로세스를 시작한다.
+// 확인 다이얼로그를 거치지 않고 전투 진행 표시줄의 이니셔티브 신호를 눌러 실행한다.
+async function startMainProcessFromInitiative(combat) {
+  if (!combat || !game.user.isGM) return;
+
+  // 1. 모든 컴배턴트의 이니셔티브 재확인
+  await combat.rollInitiative(combat.combatants.map(c => c.id));
+
+  // 약간의 딜레이 (이니셔티브 업데이트 대기)
+  await new Promise(resolve => setTimeout(resolve, 100));
+
+  // 2. 행동 종료하지 않은 액터 중 가장 높은 이니셔티브 찾기
+  let candidates = [];
+
+  for (let combatant of combat.combatants) {
+    const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
+    if (isProcessCombatant) continue;
+
+    const actor = combatant.actor;
+    if (actor) {
+      if (actor.system?.conditions?.action_end?.active) continue;
+      if ((actor.system?.attributes?.hp?.value ?? 0) <= 0) continue;
+    }
+
+    candidates.push({ combatant, init: combatant.initiative ?? -Infinity, actor });
+  }
+
+  candidates.sort((a, b) => {
+    if (a.init !== b.init) return b.init - a.init;
+    if (!a.actor || !b.actor) return 0;
+    const actorTypePriority = {PlayerCharacter: 1, Enemy: 2, Ally: 3, Troop: 4, NPC: 5};
+    const aPriority = actorTypePriority[a.actor.system?.actorType] ?? 99;
+    const bPriority = actorTypePriority[b.actor.system?.actorType] ?? 99;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    const aExtraTurn = a.actor.system?.conditions?.['extra-turn']?.active ?? false;
+    const bExtraTurn = b.actor.system?.conditions?.['extra-turn']?.active ?? false;
+    if (aExtraTurn !== bExtraTurn) return aExtraTurn ? 1 : -1;
+    const aSense = a.actor.system?.attributes?.sense?.total ?? 0;
+    const bSense = b.actor.system?.attributes?.sense?.total ?? 0;
+    if (aSense !== bSense) return bSense - aSense;
+    const aMind = a.actor.system?.attributes?.mind?.total ?? 0;
+    const bMind = b.actor.system?.attributes?.mind?.total ?? 0;
+    if (aMind !== bMind) return bMind - aMind;
+    return a.combatant.name.localeCompare(b.combatant.name);
+  });
+
+  const pendingCombatantId = combat.getFlag('dx3rd-emanim', 'currentProcess')?.pendingCombatantId;
+  const nextCombatant = candidates.find(candidate => candidate.combatant.id === pendingCombatantId)?.combatant
+    || (candidates.length > 0 ? candidates[0].combatant : null);
+  if (nextCombatant !== null) {
+    const turnIndex = combat.turns.findIndex(t => t.id === nextCombatant.id);
+    combat._dx3rdSelectingMainProcess = true;
+    try {
+      await combat.update({ turn: turnIndex });
+    } finally {
+      delete combat._dx3rdSelectingMainProcess;
+    }
+    await combat.setFlag('dx3rd-emanim', 'currentProcess', {
+      type: 'main', actorId: nextCombatant.actor?.id ?? null, combatantId: nextCombatant.id
+    });
+    // 매 메인 프로세스 시작 시 이전 액션 표시를 초기화한다.
+    await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
+
+    showTurnActor(nextCombatant.actor?.img ?? "", nextCombatant.name);
+    game.socket.emit('system.dx3rd-emanim', {type: 'showTurnActor', imgSrc: nextCombatant.actor?.img ?? "", actorName: nextCombatant.name});
+    await executeMacrosByPrefix('main-process-macro-');
+  } else {
+    await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
+  }
+}
+
+window.DX3rdCombatFlow = window.DX3rdCombatFlow || {};
+window.DX3rdCombatFlow.startMainProcessFromInitiative = startMainProcessFromInitiative;
+
 // 이니셔티브 프로세스 실행
-async function executeInitiativeProcess(combat) {
+async function executeInitiativeProcess(combat, pendingCombatantId = null) {
+  await clearProcessInitiatives(combat);
   // === AfterMain 큐 처리 (이니셔티브 직전) ===
   if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.processAfterMainQueue) {
     await window.DX3rdUniversalHandler.processAfterMainQueue();
   }
+
+  // 이니셔티브는 이전 액터가 아니라, 이번에 행동할 다음 전투원을 대상으로 표시한다.
+  // (행동 종료 처리로 action_end가 갱신된 뒤에 계산해야 한다.)
+  await combat.rollInitiative(combat.combatants.map(combatant => combatant.id));
+  await new Promise(resolve => setTimeout(resolve, 100));
+  if (!pendingCombatantId) {
+    const nextCombatant = combat.turns.find(combatant => {
+      if (combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return false;
+      const actor = combatant.actor;
+      return !actor
+        || (!actor.system?.conditions?.action_end?.active
+          && (actor.system?.attributes?.hp?.value ?? 0) > 0);
+    });
+    pendingCombatantId = nextCombatant?.id ?? null;
+  }
   
   // 이니셔티브 프로세스 플래그 설정
+  const pendingCombatant = pendingCombatantId ? combat.combatants.get(pendingCombatantId) : null;
   await combat.setFlag('dx3rd-emanim', 'currentProcess', {
     type: 'initiative',
-    actorId: null,
-    combatantId: null
-  });
-  
-  // 이니셔티브 프로세스 채팅 메시지 출력
-  const initiativeProcessMsg = game.i18n.localize('DX3rd.InitiativeProcess');
-  await ChatMessage.create({
-    content: `<h3 class="dx3rd-combat-msg">${initiativeProcessMsg}</h3>`,
-    speaker: getGMSpeaker(),
+    actorId: pendingCombatant?.actor?.id ?? null,
+    combatantId: null,
+    pendingCombatantId
   });
   
   // 범위 하이라이트 큐 초기화 (모든 유저에게)
@@ -898,193 +973,72 @@ async function executeInitiativeProcess(combat) {
   // 이니셔티브 프로세스 매크로 실행
   await executeMacrosByPrefix('init-process-macro-');
   
-  // GM에게 메인 프로세스 개시 다이얼로그 표시 (DOM 방식)
-  if (!game.user.isGM) return;
-  
-  return new Promise((resolve) => {
-    const onStart = async () => {
-      dialog.remove();
-      
-      // 1. 모든 컴배턴트의 이니셔티브 재확인
-      await combat.rollInitiative(combat.combatants.map(c => c.id));
-      
-      // 약간의 딜레이 (이니셔티브 업데이트 대기)
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // 2. 행동 종료하지 않은 액터 중 가장 높은 이니셔티브 찾기
-      let candidates = [];
-      
-      for (let combatant of combat.combatants) {
-        // 프로세스 컴배턴트 제외
-        const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-        if (isProcessCombatant) {
-          continue;
-        }
-        
-        // action_end 상태인 액터 제외 및 HP 체크
-        const actor = combatant.actor;
-        if (actor) {
-          const actionEnd = actor.system?.conditions?.action_end?.active ?? false;
-          if (actionEnd) {
-            continue;
-          }
-          
-          // HP 0 이하인 액터 제외
-          const currentHP = actor.system?.attributes?.hp?.value ?? 0;
-          if (currentHP <= 0) {
-            continue;
-          }
-        }
-        
-        // 후보에 추가
-        const init = combatant.initiative ?? -Infinity;
-        candidates.push({ combatant, init, actor });
-      }
-      
-      // candidates 배열을 동일한 규칙으로 정렬 (_sortCombatants와 동일)
-      candidates.sort((a, b) => {
-        // 1순위: 이니셔티브 (높은 순)
-        if (a.init !== b.init) return b.init - a.init;
-        
-        // 액터가 없으면 뒤로
-        if (!a.actor || !b.actor) return 0;
-        
-        // 2순위: 액터 타입 우선순위 (PlayerCharacter > Enemy > Ally > Troop > NPC)
-        const actorTypePriority = {
-          'PlayerCharacter': 1,
-          'Enemy': 2,
-          'Ally': 3,
-          'Troop': 4,
-          'NPC': 5
-        };
-        const aPriority = actorTypePriority[a.actor.system?.actorType] ?? 99;
-        const bPriority = actorTypePriority[b.actor.system?.actorType] ?? 99;
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        
-        // 3순위: EXTRA TURN 없는 쪽 우선
-        const aExtraTurn = a.actor.system?.conditions?.['extra-turn']?.active ?? false;
-        const bExtraTurn = b.actor.system?.conditions?.['extra-turn']?.active ?? false;
-        if (aExtraTurn !== bExtraTurn) return aExtraTurn ? 1 : -1;
-        
-        // 4순위: sense.total (높은 순)
-        const aSense = a.actor.system?.attributes?.sense?.total ?? 0;
-        const bSense = b.actor.system?.attributes?.sense?.total ?? 0;
-        if (aSense !== bSense) return bSense - aSense;
-        
-        // 5순위: mind.total (높은 순)
-        const aMind = a.actor.system?.attributes?.mind?.total ?? 0;
-        const bMind = b.actor.system?.attributes?.mind?.total ?? 0;
-        if (aMind !== bMind) return bMind - aMind;
-        
-        // 6순위: 이름 (알파벳/가나다/숫자 순)
-        return a.combatant.name.localeCompare(b.combatant.name);
-      });
-      
-      // 정렬된 candidates에서 첫 번째 선택
-      const nextCombatant = candidates.length > 0 ? candidates[0].combatant : null;
-      
-      // 3. 다음 컴배턴트로 턴 설정
-      if (nextCombatant !== null) {
-        // combat.turns 배열에서 해당 컴배턴트의 인덱스 찾기
-        const turnIndex = combat.turns.findIndex(t => t.id === nextCombatant.id);
-        await combat.update({ turn: turnIndex });
-        
-        // 메인 프로세스 플래그 설정
-        await combat.setFlag('dx3rd-emanim', 'currentProcess', {
-          type: 'main',
-          actorId: nextCombatant.actor?.id ?? null,
-          combatantId: nextCombatant.id
-        });
-        
-        // 메인 프로세스 시작 메시지 출력 (해당 액터가 말하도록)
-        const mainProcessMsg = game.i18n.localize('DX3rd.MainProcess');
-        const speaker = nextCombatant.actor 
-          ? ChatMessage.getSpeaker({ actor: nextCombatant.actor, token: null })
-          : { alias: nextCombatant.name };
-        
-        await ChatMessage.create({
-          content: `<h3 class="dx3rd-combat-msg">${mainProcessMsg}</h3>`,
-          speaker: speaker,
-        });
-        
-        // 메인 프로세스 액터 표시 애니메이션 (모든 유저에게)
-        // GM에게 직접 표시
-        showTurnActor(nextCombatant.actor?.img ?? "", nextCombatant.name);
-        
-        // 다른 유저들에게 소켓으로 전송
-        game.socket.emit('system.dx3rd-emanim', {
-          type: 'showTurnActor',
-          imgSrc: nextCombatant.actor?.img ?? "",
-          actorName: nextCombatant.name
-        });
-        
-        // 메인 프로세스 매크로 실행
-        await executeMacrosByPrefix('main-process-macro-');
-      } else {
-        // 모든 액터가 행동 완료 → 클린업으로 이동
-        const cleanupCombatant = combat.combatants.find(c => 
-          c.getFlag('dx3rd-emanim', 'processType') === 'cleanup'
-        );
-        if (cleanupCombatant) {
-          const cleanupIndex = combat.turns.findIndex(t => t.id === cleanupCombatant.id);
-          if (cleanupIndex >= 0) {
-            await combat.update({ turn: cleanupIndex });
-          }
-        }
-      }
-      
-      resolve();
-    };
-    
-    const dialog = document.createElement("div");
-    dialog.id = "dx3rd-initiative-dialog";
-    dialog.style.position = "fixed";
-    dialog.style.top = "50%";
-    dialog.style.left = "50%";
-    dialog.style.transform = "translate(-50%, -50%)";
-    dialog.style.background = "rgba(0, 0, 0, 0.85)";
-    dialog.style.color = "white";
-    dialog.style.padding = "20px 30px";
-    dialog.style.border = "none";
-    dialog.style.borderRadius = "8px";
-    dialog.style.zIndex = "9999";
-    dialog.style.textAlign = "center";
-    dialog.style.fontSize = "16px";
-    dialog.style.boxShadow = "0 0 10px black";
-    dialog.style.minWidth = "350px";
-    dialog.innerHTML = `
-      <div style="margin-bottom: 20px; font-size: 1.1em; font-weight: bold;">
-        ${game.i18n.localize('DX3rd.InitiativeProcess')}
-      </div>
-      <button 
-        id="dx3rd-main-start-button" 
-        style="
-          width: 100%;
-          height: 36px;
-          background: white;
-          color: black;
-          border-radius: 4px;
-          border: none;
-          opacity: 0.5;
-          font-weight: bold;
-          font-size: 0.9em;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        "
-      >
-        ${game.i18n.localize("DX3rd.Confirm")}
-      </button>
-    `;
-    // 중복 다이얼로그 방지: 이전 개시 창이 남아있으면 제거
-    document.getElementById("dx3rd-initiative-dialog")?.remove();
-    document.body.appendChild(dialog);
-
-    dialog.querySelector("#dx3rd-main-start-button").addEventListener("click", onStart);
-  });
+  // 이니셔티브 단계 자체는 여기서 멈춘다. 메인 시작은 전투 진행 표시줄에서 명시적으로 선택한다.
+  document.getElementById("dx3rd-initiative-dialog")?.remove();
 }
+
+async function moveCombatCursor(combat, combatant) {
+  const turn = combat.turns.findIndex(entry => entry.id === combatant?.id);
+  if (turn >= 0 && combat.turn !== turn) await combat.update({turn});
+}
+
+async function enterPreviousMainProcess(combat, combatant) {
+  if (!combatant?.actor) return;
+  await moveCombatCursor(combat, combatant);
+  await combat.setFlag('dx3rd-emanim', 'currentProcess', {
+    type: 'main', actorId: combatant.actor.id, combatantId: combatant.id
+  });
+  await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
+}
+
+async function advanceCombatState(combat, direction = 'forward') {
+  if (!combat || !game.user.isGM) return;
+  const process = combat.getFlag('dx3rd-emanim', 'currentProcess') || {type: 'setup'};
+  const turns = combat.turns.filter(combatant => !combatant.getFlag('dx3rd-emanim', 'isProcessCombatant'));
+
+  if (direction === 'backward') {
+    if (process.type === 'main') {
+      await executeInitiativeProcess(combat, process.combatantId || combat.combatant?.id);
+      return;
+    }
+    if (process.type === 'initiative') {
+      const currentIndex = turns.findIndex(combatant => combatant.id === process.pendingCombatantId);
+      if (currentIndex > 0) await enterPreviousMainProcess(combat, turns[currentIndex - 1]);
+      return;
+    }
+    if (process.type === 'cleanup' && turns.length) {
+      await enterPreviousMainProcess(combat, turns[turns.length - 1]);
+    }
+    return;
+  }
+
+  if (process.type === 'setup') {
+    await executeInitiativeProcess(combat);
+    return;
+  }
+  if (process.type === 'initiative') {
+    await startMainProcessFromInitiative(combat);
+    return;
+  }
+  if (process.type === 'cleanup') {
+    await advanceToSetupProcess(combat);
+    return;
+  }
+
+  const currentIndex = turns.findIndex(combatant => combatant.id === process.combatantId);
+  if (currentIndex >= 0 && currentIndex < turns.length - 1) {
+    const nextCombatant = turns[currentIndex + 1];
+    await moveCombatCursor(combat, nextCombatant);
+    await executeInitiativeProcess(combat, nextCombatant.id);
+    return;
+  }
+  await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
+}
+
+window.DX3rdCombatFlow = window.DX3rdCombatFlow || {};
+window.DX3rdCombatFlow.advance = advanceCombatState;
+window.DX3rdCombatFlow.enterInitiative = executeInitiativeProcess;
+window.DX3rdCombatFlow.startMainProcessFromInitiative = startMainProcessFromInitiative;
 
 
 // 컴배턴트 생성 시 자동으로 이니셔티브 설정
@@ -1094,73 +1048,28 @@ Hooks.on('createCombatant', async (combatant, options, userId) => {
   
   // 프로세스 컴배턴트 확인
   const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-  const processType = combatant.getFlag('dx3rd-emanim', 'processType');
-  
-  let initValue;
-  
   if (isProcessCombatant) {
-    // 프로세스 컴배턴트에 고정 이니셔티브 할당
-    if (processType === 'setup') {
-      initValue = 9999; // 셋업이 가장 먼저
-    } else if (processType === 'cleanup') {
-      initValue = -9999; // 클린업이 가장 나중
-    } else {
-      initValue = 0;
-    }
-  } else {
-    // 일반 액터
-    const actor = combatant.actor;
-    if (!actor) return;
-    
-    // 액터의 행동치 값 가져오기
-    initValue = Number(actor.system?.attributes?.init?.value ?? 0);
-    
-    // 전투가 이미 진행 중인 경우 (round >= 1) action_end 체크
-    const combat = combatant.combat;
-    if (combat && combat.round >= 1 && combat.started) {
-      // action_end를 true로 설정
-      await actor.update({
-        'system.conditions.action_end.active': true
-      });
-    }
+    // 셋업/클린업은 턴을 표시하는 가상 항목일 뿐 이니셔티브를 가지지 않는다.
+    return;
+  }
+
+  const actor = combatant.actor;
+  if (!actor) return;
+
+  // 액터의 행동치 값 가져오기
+  const initValue = Number(actor.system?.attributes?.init?.value ?? 0);
+
+  // 전투가 이미 진행 중인 경우 (round >= 1) action_end 체크
+  const combat = combatant.combat;
+  if (combat && combat.round >= 1 && combat.started) {
+    // action_end를 true로 설정
+    await actor.update({
+      'system.conditions.action_end.active': true
+    });
   }
   
   // 이니셔티브 설정
   await combatant.update({ initiative: initValue });
-});
-
-// 전투 시작 시 셋업/클린업 프로세스 컴배턴트 추가
-Hooks.on('createCombat', async (combat, options, userId) => {
-  // GM만 생성
-  if (!game.user.isGM) return;
-  
-  const setupName = game.i18n.localize('DX3rd.SetupProcess');
-  const cleanupName = game.i18n.localize('DX3rd.CleanupProcess');
-  
-  await combat.createEmbeddedDocuments("Combatant", [
-    {
-      name: setupName,
-      initiative: 999,
-      img: "icons/svg/clockwork.svg",
-      flags: {
-        'dx3rd-emanim': {
-          isProcessCombatant: true,
-          processType: 'setup'
-        }
-      }
-    },
-    {
-      name: cleanupName,
-      initiative: -999,
-      img: "icons/svg/clockwork.svg",
-      flags: {
-        'dx3rd-emanim': {
-          isProcessCombatant: true,
-          processType: 'cleanup'
-        }
-      }
-    }
-  ]);
 });
 
 // 전투 시작 버튼을 눌렀을 때 채팅 메시지 출력
@@ -1170,6 +1079,7 @@ Hooks.on('combatStart', async (combat, updateData) => {
   
   // 전투 시작 시 프로세스 플래그 초기화
   await combat.unsetFlag('dx3rd-emanim', 'currentProcess');
+  await clearProcessInitiatives(combat);
   
   const combatStartMsg = game.i18n.localize('DX3rd.CombatStart');
   await ChatMessage.create({
@@ -1179,12 +1089,42 @@ Hooks.on('combatStart', async (combat, updateData) => {
   
   // 전투 시작 매크로 실행
   await executeMacrosByPrefix('combat-start-macro-');
+  await runCombatProcess(combat, 'setup');
 });
 
+async function resetRoundActorStates() {
+  const currentScene = game.scenes.active;
+  if (!currentScene) return;
+  const tokensWithActors = currentScene.tokens.filter(token => token.actor
+    && (token.actor.type === 'character' || token.actor.type === 'enemy'));
+  for (const tokenDoc of tokensWithActors) {
+    const actor = tokenDoc.actor;
+    const updates = {
+      'system.conditions.action_end.active': false,
+      'system.conditions.action_delay.active': false,
+      'system.conditions.action_delay.value': 0
+    };
+    const extraTurnMax = actor.system?.conditions?.['extra-turn']?.max ?? 0;
+    if (extraTurnMax > 0) updates['system.conditions.extra-turn.value'] = extraTurnMax;
+    await actor.update(updates);
+  }
+}
+
 // 턴 변경 시 셋업/클린업 프로세스 메시지 출력 및 라운드 변경 시 상태 초기화
-Hooks.on('updateCombat', async (combat, changes, options, userId) => {
+async function handleCombatUpdate(combat, changes, options, userId) {
   // GM만 실행
   if (!game.user.isGM) return;
+
+  // 프로세스 전환은 advanceCombatState/runCombatProcess만 담당한다.
+  // 일반 Combat 문서 갱신은 UI 갱신 외의 상태 전환을 유발하지 않는다.
+  if (!combat._dx3rdRequestedProcess) return;
+
+  // FVTT가 마지막 전투원 다음에 라운드를 올린 경우, 다음 액터 이니셔티브보다 클린업을 먼저 실행한다.
+  if ('round' in changes && !combat._dx3rdRequestedProcess
+    && combat.getFlag('dx3rd-emanim', 'currentProcess')?.type === 'main') {
+    await runCombatProcess(combat, 'cleanup');
+    return;
+  }
   
   // 라운드가 변경되었을 때 현재 캔버스의 토큰 액터들의 행동 상태 초기화 (캐릭터 + 에너미)
   if ('round' in changes) {
@@ -1222,20 +1162,31 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
   // turn이 변경되었을 때만 실행
   if (!('turn' in changes)) return;
   
+  const requestedProcess = combat._dx3rdRequestedProcess;
   const currentCombatant = combat.combatant;
-  if (!currentCombatant) return;
+  if (!requestedProcess && !currentCombatant) return;
+
+  if (!requestedProcess) {
+    // 이전/다음 턴처럼 전투원 포인터가 직접 이동한 경우에도 메인으로 건너뛰지 않는다.
+    // 메인 시작 함수가 이동시킨 경우만 예외로 둔다.
+    if (combat._dx3rdSelectingMainProcess || combat._dx3rdAdvancingNativeTurn
+      || combat._dx3rdRewindingNativeTurn || !currentCombatant.actor) return;
+    const currentProcess = combat.getFlag('dx3rd-emanim', 'currentProcess');
+    // 전투 시작·라운드 전환에서 Foundry가 첫 전투원을 가리키더라도,
+    // 셋업/클린업은 진행 표시줄에서 명시적으로 다음 단계로 넘긴다.
+    if (currentProcess?.type === 'setup' || currentProcess?.type === 'cleanup') return;
+    if (currentProcess?.type === 'main' && currentProcess?.combatantId === currentCombatant.id) return;
+    await executeInitiativeProcess(combat, currentCombatant.id);
+    return;
+  }
   
-  // 프로세스 컴배턴트인지 확인
-  const isProcessCombatant = currentCombatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-  if (!isProcessCombatant) return;
-  
-  const processType = currentCombatant.getFlag('dx3rd-emanim', 'processType');
+  const processType = requestedProcess.type;
   
   // 셋업 프로세스인 경우
   if (processType === 'setup') {
     const roundText = game.i18n.localize('DX3rd.Round');
-    const setupText = game.i18n.localize('DX3rd.SetupProcess');
     const currentRound = combat.round || 1;
+    await resetRoundActorStates();
     
     // 셋업 프로세스 플래그 설정
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
@@ -1250,30 +1201,18 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
       speaker: getGMSpeaker(),
     });
     
-    // 셋업 프로세스 메시지
-    await ChatMessage.create({
-      content: `<h3 class="dx3rd-combat-msg">${setupText}</h3>`,
-      speaker: getGMSpeaker(),
-    });
-    
     // 셋업 프로세스 매크로 실행
     await executeMacrosByPrefix('setup-process-macro-');
   }
   
   // 클린업 프로세스인 경우
   if (processType === 'cleanup') {
-    const cleanupText = game.i18n.localize('DX3rd.CleanupProcess');
-    
     // 클린업 프로세스 플래그 설정
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'cleanup',
       actorId: null,
-      combatantId: null
-    });
-    
-    await ChatMessage.create({
-      content: `<h3 class="dx3rd-combat-msg">${cleanupText}</h3>`,
-      speaker: getGMSpeaker(),
+      combatantId: null,
+      needsRoundAdvance: requestedProcess.needsRoundAdvance
     });
     
     // 클린업 프로세스 매크로 실행
@@ -1495,7 +1434,19 @@ Hooks.on('updateCombat', async (combat, changes, options, userId) => {
       }
     }, 500);
   }
-});
+}
+
+async function runCombatProcess(combat, type, {needsRoundAdvance = false} = {}) {
+  if (!combat || !game.user.isGM) return;
+  combat._dx3rdRequestedProcess = {type, needsRoundAdvance};
+  try {
+    await handleCombatUpdate(combat, {turn: combat.turn}, {}, game.user.id);
+  } finally {
+    delete combat._dx3rdRequestedProcess;
+  }
+}
+
+Hooks.on('updateCombat', handleCombatUpdate);
 
 // 전투 종료 시 채팅 메시지 출력
 Hooks.on('deleteCombat', async (combat, options, userId) => {

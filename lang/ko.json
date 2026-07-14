@@ -633,7 +633,17 @@
   "DX3rd.MadnessText16": "",
   "DX3rd.MadnessText17": "",
 
-  "DX3rd.ActionUI": "액션 UI",
+  "DX3rd.ActionUI": "전투 진행 표시",
+  "DX3rd.CombatProcessTracker": "전투 프로세스 진행 표시",
+  "DX3rd.AdvanceCombatProcess": "다음 전투 프로세스로 진행",
+  "DX3rd.MarkActionUsed": "행동 사용으로 표시",
+  "DX3rd.MarkActionUnused": "행동 사용 표시 해제",
+  "DX3rd.ReturnToInitiative": "이니셔티브 프로세스로 되돌리기",
+  "DX3rd.InitiativeProcessUnavailable": "이니셔티브 프로세스 기능을 찾을 수 없습니다.",
+  "DX3rd.CurrentTurn": "현재 턴",
+  "DX3rd.WaitingTurn": "다른 액터의 턴",
+  "DX3rd.CombatProcess": "전투 프로세스",
+  "DX3rd.CombatProcessActive": "프로세스 진행 중",
   
   "DX3rd.Stock": "재산점",
   "DX3rd.StockUseText": "사용할 재산점을 입력하세요",
@@ -894,5 +904,15 @@
   "DX3rd.SheetV2": "DX3rd 시트 (AppV2)",
   "DX3rd.AutomationMaxEncroachment": "침식률이 {limit}% 이상이면 사용할 수 없습니다.",
   "DX3rd.AutomationNoCombo": "{name}은(는) 콤보에 포함할 수 없습니다.",
-  "DX3rd.HealTargetOtherOnly": "자신은 회복 대상으로 선택할 수 없습니다."
+  "DX3rd.HealTargetOtherOnly": "자신은 회복 대상으로 선택할 수 없습니다.",
+  "DX3rd.Or": "또는",
+  "DX3rd.FormulaCircularReference": "순환 참조 방지: {references}을(를) 참조할 수 없습니다.",
+  "DX3rd.MacroOwnedItemOnly": "액터가 소유한 아이템만 핫바에 추가할 수 있습니다.",
+  "DX3rd.ActorNotFoundNamed": "액터를 찾을 수 없습니다: {name}",
+  "DX3rd.ItemNotFoundNamed": "아이템을 찾을 수 없습니다: {name}",
+  "DX3rd.ItemChatFailed": "아이템을 채팅으로 출력할 수 없습니다.",
+  "DX3rd.RunTimingSaveFailed": "실행 타이밍 저장에 실패했습니다.",
+  "DX3rd.NoActiveScene": "활성화된 장면이 없습니다.",
+  "DX3rd.NoOtherToken": "선택할 수 있는 다른 토큰이 없습니다.",
+  "DX3rd.InvalidItemParameter": "아이템 매개변수가 올바르지 않습니다."
 }

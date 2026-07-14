@@ -81,14 +81,14 @@ window.DX3rdEffectHandler = {
     async handle(actorId, itemId, getTarget, options = {}) {
         const actor = game.actors.get(actorId);
         if (!actor) { 
-            ui.notifications.warn("Actor not found"); 
+            ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound'));
             return; 
         }
         
         // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
         const item = actor.items.get(itemId) || game.items.get(itemId);
         if (!item) { 
-            ui.notifications.warn("Item not found"); 
+            ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
             return; 
         }
 

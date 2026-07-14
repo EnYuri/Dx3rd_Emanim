@@ -10,6 +10,26 @@
     // 수식 평가 함수 (안전한 계산)
     window.DX3rdFormulaEvaluator = {
         /**
+         * 수식 입력의 검증 상태를 입력 칸 자체에 남긴다.
+         * 알림은 금방 사라지고 어느 칸이 문제였는지 알기 어려우므로, 오류는 hover/focus
+         * 시에도 확인할 수 있게 한다.
+         */
+        setInputValidationState: function(input, validation) {
+            if (!input) return;
+            const message = validation?.valid === false ? validation.message : '';
+            input.classList.toggle('dx3rd-formula-invalid', Boolean(message));
+            if (message) input.setAttribute('aria-invalid', 'true');
+            else input.removeAttribute('aria-invalid');
+            // setCustomValidity는 AppV2 form submit 자체를 막으므로 사용하지 않는다.
+            input.title = message;
+            if (message) input.dataset.tooltip = message;
+            else delete input.dataset.tooltip;
+        },
+
+        getValidationMessage: function(key, data = {}) {
+            return game.i18n.format(key, data);
+        },
+        /**
          * 저장 단계 검증. 다이스 수식은 Foundry Roll 문법의 정상적인 일부이므로
          * 여기서는 변환하거나 거부하지 않는다. 실제 굴림은 evaluateRoll()을 호출한
          * 행동 경로에서만 일어난다.
@@ -81,7 +101,9 @@
                     if (keyPattern.test(formulaStr) || namePattern.test(formulaStr)) {
                         return { 
                             valid: false, 
-                            message: `순환 참조 방지: [${key}] 또는 [${localizedName}]을(를) 참조할 수 없습니다.`
+                            message: this.getValidationMessage('DX3rd.FormulaCircularReference', {
+                                references: `[${key}] ${game.i18n.localize('DX3rd.Or')} [${localizedName}]`
+                            })
                         };
                     }
                 }
@@ -109,7 +131,9 @@
                     if (keyPattern.test(formulaStr) || namePattern.test(formulaStr)) {
                         return { 
                             valid: false, 
-                            message: `순환 참조 방지: [${key}] 또는 [${localizedName}]을(를) 참조할 수 없습니다.`
+                            message: this.getValidationMessage('DX3rd.FormulaCircularReference', {
+                                references: `[${key}] ${game.i18n.localize('DX3rd.Or')} [${localizedName}]`
+                            })
                         };
                     }
                 }
@@ -126,7 +150,7 @@
                     if (keyPattern.test(formulaStr)) {
                         return { 
                             valid: false, 
-                            message: `순환 참조 방지: [${label}]을(를) 참조할 수 없습니다.`
+                            message: this.getValidationMessage('DX3rd.FormulaCircularReference', {references: `[${label}]`})
                         };
                     }
                     
@@ -140,7 +164,7 @@
                         if (namePattern.test(formulaStr)) {
                             return { 
                                 valid: false, 
-                                message: `순환 참조 방지: [${skillName}]을(를) 참조할 수 없습니다.`
+                                message: this.getValidationMessage('DX3rd.FormulaCircularReference', {references: `[${skillName}]`})
                             };
                         }
                     }

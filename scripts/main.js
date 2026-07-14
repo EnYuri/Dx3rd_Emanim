@@ -1333,21 +1333,6 @@ Hooks.on('getSceneControlButtons', (controls) => {
             }
         });
 
-        // 액션 UI 버튼 추가 (등장 버튼 아래)
-        if (window.DX3rdActionUI) {
-            const state = window.DX3rdActionUI.getSceneActionUIState();
-
-            addTool(controls.tokens.tools, 'action-ui', {
-                name: 'action-ui',
-                title: 'DX3rd.ActionUI',
-                icon: 'fa-solid fa-gamepad',
-                toggle: true,
-                active: state,
-                onChange: () => {
-                    window.DX3rdActionUI.toggleActionUIEnabled();
-                }
-            });
-        }
     }
 });
 
@@ -1624,6 +1609,11 @@ Hooks.once('ready', function() {
             if (data.userId === game.user.id) {
                 showSceneEnterDialogOnly();
             }
+            return;
+        }
+
+        if (data.type === 'actionTrackerConsume') {
+            if (game.user.isGM) await window.DX3rdActionUI?.updateSharedActionUsage?.(data.payload);
             return;
         }
 

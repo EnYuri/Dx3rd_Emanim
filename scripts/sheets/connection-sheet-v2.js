@@ -60,36 +60,33 @@
     async _onRender(context, options) {
       await super._onRender(context, options);
       await attributes.initializeAttributeLabels(this.element, this.item);
+      compat.on(this.element, 'input', '.attribute-value', (event, target) => this._validateFormulaInput(target));
+      this._refreshFormulaValidation();
+    }
+
+    _validateFormulaInput(input) {
+      const row = compat.closest(input, '.attribute', this.element);
+      const label = compat.query(row, '.attribute-label')?.value;
+      const key = compat.query(row, '.attribute-key')?.value;
+      let result = window.DX3rdFormulaEvaluator.validateDeterministicFormula(input.value, key);
+      if (result.valid && label && input.name.startsWith('system.attributes.')) {
+        result = window.DX3rdFormulaEvaluator.validateCircularReference(input.value, label, this.item.actor, key);
+      }
+      window.DX3rdFormulaEvaluator.setInputValidationState(input, result);
+      return result;
+    }
+
+    _refreshFormulaValidation() {
+      compat.queryAll(this.element, '.attribute-value').forEach(input => this._validateFormulaInput(input));
     }
 
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
-      let clearChangedValue = false;
       if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
-        const row = compat.closest(changed, '.attribute', this.element);
-        const label = compat.query(row, '.attribute-label')?.value;
-        const key = compat.query(row, '.attribute-key')?.value;
-        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(changed.value, key);
-        if (!formulaValidation.valid) {
-          ui.notifications.warn(formulaValidation.message);
-        }
-        if (formulaValidation.valid && label && changed.name.startsWith('system.attributes.')) {
-          const validation = window.DX3rdFormulaEvaluator.validateCircularReference(
-            changed.value,
-            label,
-            this.item.actor,
-            key
-          );
-          if (!validation.valid) {
-            changed.value = '';
-            clearChangedValue = true;
-            ui.notifications.warn(validation.message);
-          }
-        }
+        this._validateFormulaInput(changed);
       }
 
       const submitData = super._prepareSubmitData(event, form, formData, updateData);
-      if (clearChangedValue) foundry.utils.setProperty(submitData, changed.name, '');
       if (submitData.system.used?.disable === 'notCheck') {
         submitData.system.used.state = 0;
         submitData.system.used.max = 0;

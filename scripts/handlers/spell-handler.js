@@ -65,10 +65,10 @@ async function promptRoisSelection({ title, content }) {
 window.DX3rdSpellHandler = {
     async handle(actorId, itemId, getTarget) {
         const actor = game.actors.get(actorId);
-        if (!actor) { ui.notifications.warn("Actor not found"); return; }
+        if (!actor) { ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound')); return; }
         // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
         const item = actor.items.get(itemId) || game.items.get(itemId);
-        if (!item) { ui.notifications.warn("Item not found"); return; }
+        if (!item) { ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound')); return; }
 
         // 스펠 롤 타입 분기: '-'는 기존 로직, 'CastingRoll'은 별도 처리
         const rollType = item.system?.roll ?? '-';

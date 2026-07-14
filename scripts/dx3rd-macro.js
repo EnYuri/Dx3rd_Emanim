@@ -7,7 +7,7 @@ async function createItemChatMacro(item) {
     // 액터 정보 확인
     const actor = item.actor;
     if (!actor) {
-        ui.notifications.warn("액터가 소유한 아이템만 핫바에 추가할 수 있습니다.");
+        ui.notifications.warn(game.i18n.localize('DX3rd.MacroOwnedItemOnly'));
         return null;
     }
     
@@ -18,12 +18,12 @@ const actor = game.actors.get("${actor.id}");
 const item = actor?.items.get("${item.id}");
 
 if (!actor) {
-    ui.notifications.error("액터를 찾을 수 없습니다: ${actor.name}");
+    ui.notifications.error(game.i18n.format('DX3rd.ActorNotFoundNamed', {name: actor.name}));
     return;
 }
 
 if (!item) {
-    ui.notifications.error("아이템을 찾을 수 없습니다: ${item.name}");
+    ui.notifications.error(game.i18n.format('DX3rd.ItemNotFoundNamed', {name: item.name}));
     return;
 }
 
@@ -32,7 +32,7 @@ const sheet = actor.sheet;
 if (sheet && typeof sheet._sendItemToChat === 'function') {
     await sheet._sendItemToChat(item);
 } else {
-    ui.notifications.error("아이템을 채팅으로 출력할 수 없습니다.");
+    ui.notifications.error(game.i18n.localize('DX3rd.ItemChatFailed'));
 }`;
     
     // 기존 매크로 찾기 (같은 이름과 액터/아이템 ID가 일치하는 경우)
@@ -173,7 +173,7 @@ Hooks.once('ready', () => {
                     ui.notifications.info(`실행 타이밍이 "${game.i18n.localize('DX3rd.' + newTiming.charAt(0).toUpperCase() + newTiming.slice(1))}"로 변경되었습니다.`);
                 } catch (e) {
                     console.error('DX3rd | [' + macro.name + '] Failed to save run timing:', e);
-                    ui.notifications.error('실행 타이밍 저장에 실패했습니다.');
+                    ui.notifications.error(game.i18n.localize('DX3rd.RunTimingSaveFailed'));
                 }
             });
         }

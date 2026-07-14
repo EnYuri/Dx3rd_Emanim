@@ -180,7 +180,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
       // 현재 장면의 다른 토큰들 가져오기
       const currentScene = game.scenes.active;
       if (!currentScene) {
-        ui.notifications.warn("활성화된 장면이 없습니다.");
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoActiveScene'));
         const effect = actor.effects.find(e => e.statuses.has("hatred"));
         if (effect) await effect.delete();
         return;
@@ -596,7 +596,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
       // 현재 장면의 다른 토큰들 가져오기
       const currentScene = game.scenes.active;
       if (!currentScene) {
-        ui.notifications.warn("활성화된 장면이 없습니다.");
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoActiveScene'));
         const effect = actor.effects.find(e => e.statuses.has("fear"));
         if (effect) await effect.delete();
         return;
@@ -609,7 +609,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
       
       if (otherTokens.length === 0) {
-        ui.notifications.warn("선택할 수 있는 다른 토큰이 없습니다.");
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoOtherToken'));
         const effect = actor.effects.find(e => e.statuses.has("fear"));
         if (effect) await effect.delete();
         return;

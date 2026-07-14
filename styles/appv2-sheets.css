@@ -633,3 +633,8 @@
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .items-list .item h4 {
     margin: 0;
 }
+/* 잘못된 수식은 알림이 사라진 뒤에도 hover/focus 로 원인을 확인할 수 있다. */
+.dx3rd-emanim .dx3rd-formula-invalid {
+  border-color: #c62828 !important;
+  box-shadow: 0 0 0 1px rgba(198, 40, 40, .45);
+}

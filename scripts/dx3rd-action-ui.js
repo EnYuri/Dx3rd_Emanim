@@ -16,6 +16,8 @@
     let actionUIVisible = false;
     let lastWheelClickTime = 0; // 마지막 휠 클릭 시간
     let wheelClickHandler = null; // 마우스 휠 클릭 핸들러 (중복 등록 방지용)
+    // 전투 공용 카운트 바의 사용 상태는 Combat flag에 보관한다.
+    // 마이너 행동 처리가 추가되면 consumeMinorAction(actor)를 호출하면 된다.
     
     // 장면별 액션 UI 활성화 상태 저장
     const sceneActionUIStates = {};
@@ -64,45 +66,11 @@
         }
     }
 
-    /**
-     * 토큰 선택 시 처리
-     */
+    /** 토큰 선택은 카운트 바의 기준을 바꾸지 않는다. 전투의 현재 컴배턴트가 유일한 기준이다. */
     Hooks.on('controlToken', (token, controlled) => {
-        
-        if (controlled) {
-            // 토큰이 선택되었을 때
-            // 다른 토큰이 선택되면 이전 액션 UI 제거
-            if (currentToken && currentToken.id !== token.id) {
-                removeActionUI();
-                actionUIVisible = false;
-            }
-            
-            currentToken = token;
-            actionUIVisible = false; // 액션 UI는 숨김 상태로 시작
-            
-            // 액션 UI 활성화 상태 확인 후 표시
-            const isEnabled = getSceneActionUIState();
-            if (isEnabled) {
-                // scene-navigation 숨기기
-                hideSceneNavigation();
-                
-                setTimeout(() => {
-                    // 토큰이 여전히 선택되어 있는지 확인
-                    if (currentToken && currentToken.id === token.id) {
-                        openActionUI();
-                    }
-                }, 100);
-            }
-        } else {
-            // 토큰 선택이 해제되었을 때
-            if (currentToken?.id === token.id) {
-                removeActionUI();
-                currentToken = null;
-                actionUIVisible = false;
-                // scene-navigation 복원
-                restoreSceneNavigation();
-            }
-        }
+        if (!game.combat) return;
+        currentToken = controlled ? token : currentToken;
+        openActionUI();
     });
 
     /**
@@ -250,8 +218,177 @@
         return html;
     }
 
+    function getCombatProcess() {
+        const combat = game.combat;
+        const process = combat?.getFlag?.(MODULE_ID, 'currentProcess') || null;
+        const type = process?.type || null;
+        // 프로세스 중에는 이전 턴 액터를 계속 보여 주지 않는다.
+        const actor = process?.actorId ? game.actors.get(process.actorId) : null;
+        return {combat, process, type, actor};
+    }
+
+    function getUsageKey(combat = game.combat) {
+        const process = combat?.getFlag?.(MODULE_ID, 'currentProcess');
+        return `${combat?.round || 0}:${process?.combatantId || 'none'}`;
+    }
+
+    function getActionUsage(combat = game.combat) {
+        const key = getUsageKey(combat);
+        return combat?.getFlag?.(MODULE_ID, 'actionTrackerUsage')?.[key] || {major: false, minor: false};
+    }
+
+    function getActorOwnerColor(actor) {
+        if (!actor) return '#b7c6d7';
+        const ownerLevel = CONST.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+        const owner = game.users.find(user => !user.isGM && (actor.ownership?.[user.id] ?? 0) >= ownerLevel)
+            || game.users.find(user => (actor.ownership?.[user.id] ?? 0) >= ownerLevel);
+        return owner?.color || '#b7c6d7';
+    }
+
+    function canUseCurrentActorAction(actor) {
+        return Boolean(actor && (game.user.isGM || actor.isOwner));
+    }
+
+    async function consumeAction(actor, action) {
+        const {combat, process} = getCombatProcess();
+        if (!combat || !actor || !['major', 'minor'].includes(action)) return;
+        // 현재 메인 프로세스 액터의 행동만 카운트한다.
+        if (process?.type !== 'main' || process.actorId !== actor.id) return;
+        const payload = {combatId: combat.id, actorId: actor.id, action, used: true, usageKey: getUsageKey(combat)};
+        if (game.user.isGM) await updateSharedActionUsage(payload);
+        else game.socket.emit(`system.${MODULE_ID}`, {type: 'actionTrackerConsume', payload});
+    }
+
+    async function toggleAction(actor, action) {
+        const current = getActionUsage()[action] === true;
+        const {combat, process} = getCombatProcess();
+        if (!combat || !actor || process?.type !== 'main' || process.actorId !== actor.id) return;
+        const payload = {combatId: combat.id, actorId: actor.id, action, used: !current, usageKey: getUsageKey(combat)};
+        if (game.user.isGM) await updateSharedActionUsage(payload);
+        else game.socket.emit(`system.${MODULE_ID}`, {type: 'actionTrackerConsume', payload});
+    }
+
+    async function updateSharedActionUsage({combatId, actorId, action, used, usageKey}) {
+        const combat = game.combats.get(combatId);
+        const process = combat?.getFlag?.(MODULE_ID, 'currentProcess');
+        if (!combat || process?.type !== 'main' || process.actorId !== actorId || getUsageKey(combat) !== usageKey) return;
+        const usages = foundry.utils.deepClone(combat.getFlag(MODULE_ID, 'actionTrackerUsage') || {});
+        usages[usageKey] = {...(usages[usageKey] || {}), [action]: Boolean(used)};
+        await combat.setFlag(MODULE_ID, 'actionTrackerUsage', usages);
+    }
+
+    function getTrackerSteps() {
+        const {type} = getCombatProcess();
+        const usage = getActionUsage();
+        return [
+            {id: 'setup', label: game.i18n.localize('DX3rd.SetupProcess'), active: type === 'setup'},
+            {id: 'initiative', label: game.i18n.localize('DX3rd.InitiativeProcess'), active: type === 'initiative'},
+            {id: 'major', label: game.i18n.localize('DX3rd.Major'), active: type === 'main', spent: type === 'main' && usage.major},
+            {id: 'minor', label: game.i18n.localize('DX3rd.Minor'), active: type === 'main', spent: type === 'main' && usage.minor},
+            {id: 'cleanup', label: game.i18n.localize('DX3rd.CleanupProcess'), active: type === 'cleanup'}
+        ];
+    }
+
+    function renderActionTracker() {
+        if (!actionUIContainer) return;
+        const {combat, type, actor} = getCombatProcess();
+        const steps = getTrackerSteps();
+        const status = !combat ? game.i18n.localize('DX3rd.NoActiveCombat')
+            : (type === 'main' ? game.i18n.localize('DX3rd.CurrentTurn') : game.i18n.localize('DX3rd.CombatProcessActive'));
+        actionUIContainer.style.setProperty('--dx3rd-tracker-owner', getActorOwnerColor(actor));
+        actionUIContainer.innerHTML = `
+            <div class="dx3rd-action-tracker-header">
+                <span class="dx3rd-action-tracker-actor">${foundry.utils.escapeHTML(actor?.name || game.i18n.localize('DX3rd.CombatProcess'))}</span>
+                <span class="dx3rd-action-tracker-status">${status}</span>
+            </div>
+            <div class="dx3rd-action-tracker-lights" role="list" aria-label="${game.i18n.localize('DX3rd.CombatProcessTracker')}">
+                ${steps.map(step => {
+                    const isAction = ['major', 'minor'].includes(step.id);
+                    const canAdvance = Boolean(combat && step.active && !step.spent && !isAction);
+                    const canToggle = Boolean(combat && step.active && isAction && canUseCurrentActorAction(actor));
+                    const canRewind = Boolean(combat && type === 'main' && step.id === 'initiative' && game.user.isGM);
+                    const canClick = canAdvance || canToggle || canRewind;
+                    const state = step.spent ? 'spent' : (step.active ? 'active' : 'idle');
+                    const title = canToggle ? game.i18n.localize(step.spent ? 'DX3rd.MarkActionUnused' : 'DX3rd.MarkActionUsed')
+                        : (canRewind ? game.i18n.localize('DX3rd.ReturnToInitiative') : (canAdvance ? game.i18n.localize('DX3rd.AdvanceCombatProcess') : step.label));
+                    return `<button type="button" class="dx3rd-action-tracker-step is-${state}" data-process="${step.id}" data-tracker-action="${canRewind ? 'rewind' : (isAction ? 'toggle' : 'advance')}" ${canClick ? '' : 'disabled'} title="${title}">
+                        <span class="dx3rd-action-tracker-light" aria-hidden="true"></span><span>${step.label}</span>
+                    </button>`;
+                }).join('')}
+            </div>
+            ${type === 'main' && actor ? `<div class="dx3rd-action-tracker-turn-controls">
+                <button type="button" data-turn-action="end" ${canUseCurrentActorAction(actor) ? '' : 'disabled'}>${game.i18n.localize('DX3rd.ActionEnd')}</button>
+                <button type="button" data-turn-action="delay" ${canUseCurrentActorAction(actor) && !actor.system?.conditions?.action_delay?.active ? '' : 'disabled'}>${game.i18n.localize('DX3rd.ActionDelay')}</button>
+            </div>` : ''}`;
+    }
+
+    async function advanceCombatProcess() {
+        const combat = game.combat;
+        if (!combat) return;
+        if (!game.user.isGM) {
+            ui.notifications.warn(game.i18n.localize('DX3rd.GMOnly'));
+            return;
+        }
+        const {type} = getCombatProcess();
+        if (type === 'initiative') {
+            if (typeof window.DX3rdCombatFlow?.startMainProcessFromInitiative !== 'function') {
+                ui.notifications.error(game.i18n.localize('DX3rd.InitiativeProcessUnavailable'));
+                return;
+            }
+            await window.DX3rdCombatFlow.startMainProcessFromInitiative(combat);
+            return;
+        }
+        await combat.nextTurn();
+    }
+
+    async function returnToInitiativeProcess() {
+        const combat = game.combat;
+        if (!combat || !game.user.isGM) return;
+        // 메인에서 이니셔티브로 되돌아갈 때도 전투 상태 기계를 통해 대상 액터를 보존한다.
+        document.getElementById('dx3rd-initiative-dialog')?.remove();
+        await window.DX3rdCombatFlow?.enterInitiative?.(combat, combat.combatant?.id);
+    }
+
+    async function chooseTurnAction(choice) {
+        const combat = game.combat;
+        if (!combat) return;
+        const actor = getCombatProcess().actor;
+        if (!canUseCurrentActorAction(actor)) return;
+        // 기존 nextTurn의 종료/대기 처리와 동일하되, 선택 다이얼로그만 생략한다.
+        combat._dx3rdForcedTurnChoice = choice;
+        await combat.nextTurn();
+    }
+
+    function setupActionTrackerEvents() {
+        actionUIContainer?.querySelectorAll('.dx3rd-action-tracker-step:not(:disabled)').forEach(button => {
+            button.addEventListener('click', async () => {
+                playUISound('click');
+                const process = button.dataset.process;
+                if (button.dataset.trackerAction === 'toggle') {
+                    await toggleAction(getCombatProcess().actor, process);
+                } else if (button.dataset.trackerAction === 'rewind') {
+                    await returnToInitiativeProcess();
+                } else {
+                    await advanceCombatProcess();
+                }
+            });
+        });
+        actionUIContainer?.querySelectorAll('[data-turn-action]:not(:disabled)').forEach(button => {
+            button.addEventListener('click', async () => {
+                playUISound('click');
+                await chooseTurnAction(button.dataset.turnAction);
+            });
+        });
+    }
+
+    function refreshActionTracker() {
+        if (!actionUIVisible || !actionUIContainer) return;
+        renderActionTracker();
+        setupActionTrackerEvents();
+    }
+
     /**
-     * 액션 UI 생성
+     * 기존 액션 선택 패널 자리에 전투 프로세스·행동 사용 상태를 표시한다.
      */
     function createActionUI(token) {
         
@@ -265,6 +402,15 @@
             console.warn('DX3rd | interface not found');
             return;
         }
+        // 공용 카운트 바로만 렌더한다. 토큰 선택 및 시트 행동은 이 UI와 무관하다.
+        actionUIContainer = document.createElement('div');
+        actionUIContainer.className = 'dx3rd-action-ui dx3rd-action-tracker';
+        interfaceElement.appendChild(actionUIContainer);
+        renderActionTracker();
+        setupActionTrackerEvents();
+        setTimeout(() => actionUIContainer?.classList.add('dx3rd-action-ui-open'), 10);
+        actionUIVisible = true;
+        return;
         
         // UI 버튼 폰트 설정 가져오기 (설정이 등록되지 않았을 수 있으므로 안전하게 처리)
         let uiButtonFont = '';
@@ -276,6 +422,8 @@
         }
         const fontStyle = uiButtonFont ? `font-family: "${uiButtonFont}" !important;` : '';
         
+        // 레거시 액션 선택 데이터. 과거 패널 관련 함수의 호환성을 위해 계산은 남겨 둔다.
+        // 실제 렌더링은 아래의 전투 프로세스 트래커만 사용한다.
         // 액터 타입 확인
         const actorType = token.actor?.system?.actorType || 'NPC';
         const isPlayerCharacter = actorType === 'PlayerCharacter';
@@ -340,69 +488,34 @@
         
         // 메인 액션 UI 컨테이너 생성
         actionUIContainer = document.createElement('div');
-        actionUIContainer.className = 'dx3rd-action-ui';
-        actionUIContainer.innerHTML = `
-            <div class="dx3rd-action-ui-header">
-                <h3 class="dx3rd-action-ui-title" style="${fontStyle}">${token.actor?.name || 'Unknown Actor'}</h3>
-            </div>
-            <div class="dx3rd-action-ui-buttons">
-                <button class="dx3rd-action-ui-btn" data-action="test" style="${fontStyle}">
-                    ${game.i18n.localize('DX3rd.Test')}
-                </button>
-                ${comboButtonHTML}
-                ${effectButtonHTML}
-                ${psionicButtonHTML}
-                ${spellButtonHTML}
-                ${itemButtonHTML}
-                <button class="dx3rd-action-ui-btn" data-action="condition" style="${fontStyle}">
-                    ${game.i18n.localize('DX3rd.Condition')}
-                </button>
-                ${roisButtonHTML}
-                ${backtrackButtonHTML}
-            </div>
-        `;
+        actionUIContainer.className = 'dx3rd-action-ui dx3rd-action-tracker';
         
         // 액터 데이터 가져오기
         const actorData = getActorSkills(token.actor);
         const { abilities, skills, customSkills } = actorData;
         
-        // 서브 액션 UI 컨테이너 생성 (빈 상태로 시작)
-        subActionUIContainer = document.createElement('div');
-        subActionUIContainer.className = 'dx3rd-sub-action-ui';
-        subActionUIContainer.innerHTML = ''; // 빈 상태로 시작
-        
         // interface 영역에 추가
         interfaceElement.appendChild(actionUIContainer);
-        interfaceElement.appendChild(subActionUIContainer);
-        
-        // 이벤트 설정
-        setupActionUIEvents(actionUIContainer);
+        renderActionTracker();
+        setupActionTrackerEvents();
         
         // 폰트 직접 적용 (인라인 스타일이 작동하지 않을 경우를 대비)
         if (uiButtonFont) {
             // 메인 버튼들에 폰트 적용
-            const buttons = actionUIContainer.querySelectorAll('.dx3rd-action-ui-btn');
+            const buttons = actionUIContainer.querySelectorAll('.dx3rd-action-tracker-step');
             buttons.forEach(button => {
                 button.style.setProperty('font-family', `"${uiButtonFont}"`, 'important');
             });
             
             // 서브 액션 스킬 버튼들에 폰트 적용
-            const subSkillButtons = subActionUIContainer.querySelectorAll('.dx3rd-sub-action-ui-skill-btn');
-            subSkillButtons.forEach(button => {
-                button.style.setProperty('font-family', `"${uiButtonFont}"`, 'important');
+            actionUIContainer.querySelectorAll('.dx3rd-action-tracker-actor, .dx3rd-action-tracker-status').forEach(el => {
+                el.style.setProperty('font-family', `"${uiButtonFont}"`, 'important');
             });
-            
-            // 제목에도 폰트 적용
-            const title = actionUIContainer.querySelector('.dx3rd-action-ui-title');
-            if (title) {
-                title.style.setProperty('font-family', `"${uiButtonFont}"`, 'important');
-            }
         }
         
         // 애니메이션
         setTimeout(() => {
             actionUIContainer.classList.add('dx3rd-action-ui-open');
-            subActionUIContainer.classList.add('dx3rd-action-ui-open');
         }, 10);
         
         actionUIVisible = true;
@@ -2628,7 +2741,7 @@
      * 액션 UI 열기
      */
     function openActionUI() {
-        if (!currentToken || actionUIVisible) {
+        if (!game.combat || actionUIVisible) {
             return;
         }
         
@@ -2638,7 +2751,7 @@
             hideSceneNavigation();
         }
         
-        createActionUI(currentToken);
+        createActionUI();
     }
 
     /**
@@ -2685,7 +2798,7 @@
      * 액션 UI 토글
      */
     function toggleActionUI() {
-        if (!currentToken) return;
+        if (!game.combat) return;
 
         if (actionUIVisible) {
             closeActionUI();
@@ -2803,12 +2916,49 @@
         toggleActionUI: toggleActionUI,
         getSceneActionUIState: getSceneActionUIState,
         toggleActionUIEnabled: toggleActionUIEnabled,
-        updateActionUIButtonState: updateActionUIButtonState
+        updateActionUIButtonState: updateActionUIButtonState,
+        consumeMinorAction: (actor) => consumeAction(actor, 'minor'),
+        updateSharedActionUsage
     };
+
+    // 기존의 메이저 종료 훅을 행동 사용 신호로 재사용한다. 훅의 본래 동작은 바꾸지 않는다.
+    Hooks.once('ready', () => {
+        const disableHooks = window.DX3rdDisableHooks;
+        if (!disableHooks?.executeDisableHook || disableHooks.executeDisableHook._dx3rdActionTracker) return;
+        const original = disableHooks.executeDisableHook;
+        const wrapped = async function(timing, targetActors, ...args) {
+            const result = await original.call(this, timing, targetActors, ...args);
+            if (timing === 'major') {
+                const actors = Array.isArray(targetActors) ? targetActors : (targetActors ? [targetActors] : []);
+                actors.forEach(actor => void consumeAction(actor, 'major'));
+            }
+            return result;
+        };
+        wrapped._dx3rdActionTracker = true;
+        disableHooks.executeDisableHook = wrapped;
+    });
+
+    Hooks.on('updateCombat', combat => {
+        if (combat?.id !== game.combat?.id) return;
+        if (!actionUIVisible) openActionUI();
+        refreshActionTracker();
+    });
+
+    // 전투가 끝나면 공용 진행 표시줄도 즉시 제거한다. GM 여부와 무관하게 모든 클라이언트에서 닫아야 한다.
+    Hooks.on('deleteCombat', combat => {
+        if (!actionUIVisible) return;
+        if (!game.combat || combat?.id === game.combat.id) {
+            closeActionUI();
+            currentToken = null;
+        }
+    });
 
     // Ready 훅에서 초기화 확인
     Hooks.once('ready', () => {
         setupCanvasEvents(); // 캔버스 이벤트 등록
+        setTimeout(() => {
+            if (game.combat) openActionUI();
+        }, 200);
     });
 
     // 캔버스가 다시 준비될 때마다 이벤트 재등록 및 액션 UI 제거
@@ -2823,6 +2973,7 @@
         // 버튼 상태 업데이트
         setTimeout(() => {
             updateActionUIButtonState();
+            if (game.combat) openActionUI();
         }, 100);
         
         // 이미 선택된 토큰이 있으면 초기화

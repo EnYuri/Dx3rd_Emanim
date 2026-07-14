@@ -127,7 +127,7 @@ window.DX3rdComboHandler = {
         
         const actor = game.actors.get(actorId);
         if (!actor) { 
-            ui.notifications.warn("Actor not found"); 
+            ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound'));
             return; 
         }
         
@@ -137,7 +137,7 @@ window.DX3rdComboHandler = {
             // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
             item = actor.items.get(itemIdOrObject) || game.items.get(itemIdOrObject);
             if (!item) { 
-                ui.notifications.warn("Item not found"); 
+                ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
                 return; 
             }
         } else if (typeof itemIdOrObject === 'object') {
@@ -145,7 +145,7 @@ window.DX3rdComboHandler = {
             item = itemIdOrObject;
             console.log("DX3rd | ComboHandler - Using temporary combo item", item);
         } else {
-            ui.notifications.warn("Invalid item parameter");
+            ui.notifications.warn(game.i18n.localize('DX3rd.InvalidItemParameter'));
             return;
         }
 
