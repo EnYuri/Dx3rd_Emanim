@@ -1,6 +1,11 @@
 {
   "틈을 막는 연성": {
-    "used": { "state": 0, "max": 1, "level": false, "disable": "round" },
+    "used": {
+      "state": 0,
+      "max": 1,
+      "level": false,
+      "disable": "round"
+    },
     "itemExtend": {
       "heal": {
         "formulaDice": "0",
@@ -16,62 +21,190 @@
   },
   "리페어 운즈": {
     "itemExtend": {
-      "heal": { "formulaDice": "0", "formulaAdd": "([level]+1)d10+[body]", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true }
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "([level]+1)d10+[body]",
+        "timing": "instant",
+        "target": "self",
+        "encroachFixed": "",
+        "resurrect": false,
+        "rivival": false,
+        "activate": true
+      }
     }
   },
   "무한의 혈육": {
-    "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+    "used": {
+      "state": 0,
+      "max": 1,
+      "level": false,
+      "disable": "session"
+    },
     "itemExtend": {
-      "heal": { "formulaDice": "0", "formulaAdd": "[level]d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": true, "activate": true }
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "[level]d10",
+        "timing": "instant",
+        "target": "self",
+        "encroachFixed": "",
+        "resurrect": false,
+        "rivival": true,
+        "activate": true
+      }
     }
   },
   "스피드 힐": {
     "getTarget": true,
-    "used": { "state": 0, "max": 0, "level": true, "disable": "session" },
+    "used": {
+      "state": 0,
+      "max": 0,
+      "level": true,
+      "disable": "session"
+    },
     "itemExtend": {
-      "automation": { "noCombo": true },
-      "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "targetToken", "excludeSelf": true, "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true },
-      "damage": { "activate": false, "hpCost": "5", "hpCostActivate": true }
+      "automation": {
+        "noCombo": true
+      },
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "5d10",
+        "timing": "instant",
+        "target": "targetToken",
+        "excludeSelf": true,
+        "encroachFixed": "",
+        "resurrect": false,
+        "rivival": false,
+        "activate": true
+      },
+      "damage": {
+        "activate": false,
+        "hpCost": "5",
+        "hpCostActivate": true
+      }
     }
   },
   "맥시멈 스트랭스": {
-    "attributes": [{ "key": "stat_bonus", "label": "body", "value": "+[level]" }],
-    "active": { "state": false, "disable": "-", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "stat_bonus",
+        "label": "body",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant"
+    }
   },
   "맥시마이즈": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "6" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "6"
+      }
     ],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "진공파동구": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "6" },
-      { "key": "dice", "label": "dice", "value": "-(3)" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "6"
+      },
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "-(3)"
+      }
     ],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "멜트 어웨이": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "+[level]*3" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "+[level]*3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "하늘을 가르는 빛": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "+5" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "+5"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "희생의 피": {
-    "attributes": [{ "key": "armor", "label": "armor", "value": "+10" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "armor",
+        "label": "armor",
+        "value": "+10"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "피하기 어려운 팔": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+2" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" },
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    },
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "reaction_critical", "label": "reaction_critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "reaction_critical",
+          "label": "reaction_critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -79,7 +212,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "afterDamage",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -87,7 +226,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "afterDamage",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -95,7 +240,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -103,7 +254,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -111,7 +268,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -119,7 +282,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -127,7 +296,13 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "dodge_critical", "label": "dodge_critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "dodge_critical",
+          "label": "dodge_critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
@@ -135,362 +310,1331 @@
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "guard", "label": "guard", "value": "-5" }]
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "-5"
+        }
+      ]
     },
     "getTarget": true
   },
   "격정의 격종": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "6" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "6"
+      }
     ],
-    "active": { "state": false, "disable": "main", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "main",
+      "runTiming": "instant"
+    }
   },
   "병든 탐구심": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "5" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "5"
+      }
     ],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "다빈치의 조화": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "6" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "6"
+      }
     ],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "나선격": {
     "effect": {
       "disable": "major",
       "runTiming": "instant",
-      "attributes": [{ "key": "reaction_critical", "label": "reaction_critical", "value": "+1" }]
+      "attributes": [
+        {
+          "key": "reaction_critical",
+          "label": "reaction_critical",
+          "value": "+1"
+        }
+      ]
     },
     "getTarget": true
   },
   "리바이브 셀": {
     "getTarget": false,
     "itemExtend": {
-      "heal": { "formulaDice": "0", "formulaAdd": "[level]*10", "healTo": "", "encroachFixed": "", "timing": "instant", "target": "self", "rivival": true, "resurrect": false, "activate": true }
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "[level]*10",
+        "healTo": "",
+        "encroachFixed": "",
+        "timing": "instant",
+        "target": "self",
+        "rivival": true,
+        "resurrect": false,
+        "activate": true
+      }
     }
   },
   "적시 운영": {
     "getTarget": false,
     "itemExtend": {
-      "heal": { "formulaDice": "0", "formulaAdd": "0", "healTo": "1", "encroachFixed": "", "timing": "instant", "target": "targetToken", "rivival": true, "resurrect": false, "activate": true },
-      "condition": { "conditions": [{ "timing": "instant", "target": "self", "type": "berserk", "poisonedRank": null, "activate": true }] }
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "0",
+        "healTo": "1",
+        "encroachFixed": "",
+        "timing": "instant",
+        "target": "targetToken",
+        "rivival": true,
+        "resurrect": false,
+        "activate": true
+      },
+      "condition": {
+        "conditions": [
+          {
+            "timing": "instant",
+            "target": "self",
+            "type": "berserk",
+            "poisonedRank": null,
+            "activate": true
+          }
+        ]
+      }
     }
   },
   "타임 리오퍼레이션": {
     "getTarget": false,
     "itemExtend": {
-      "heal": { "formulaDice": "0", "formulaAdd": "0", "healTo": "1", "encroachFixed": "", "timing": "instant", "target": "targetToken", "rivival": true, "resurrect": false, "activate": true },
-      "condition": { "conditions": [{ "timing": "instant", "target": "self", "type": "berserk", "poisonedRank": null, "activate": true }] }
+      "heal": {
+        "formulaDice": "0",
+        "formulaAdd": "0",
+        "healTo": "1",
+        "encroachFixed": "",
+        "timing": "instant",
+        "target": "targetToken",
+        "rivival": true,
+        "resurrect": false,
+        "activate": true
+      },
+      "condition": {
+        "conditions": [
+          {
+            "timing": "instant",
+            "target": "self",
+            "type": "berserk",
+            "poisonedRank": null,
+            "activate": true
+          }
+        ]
+      }
     }
   },
   "습격미채": {
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"stealth\", { active: true });" }]
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"stealth\", { active: true });"
+      }
+    ]
   },
   "리버설 샷": {
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [{ "key": "add", "label": "add", "value": "+10" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "+10"
+        }
+      ]
+    }
   },
   "파이어 드라이브": {
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [{ "key": "attack", "label": "attack", "value": "+[level]*2" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+[level]*2"
+        }
+      ]
+    }
   },
   "얼어붙은 칼날": {
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [
-      { "key": "damage_roll", "label": "damage_roll", "value": "+1" },
-      { "key": "attack", "label": "attack", "value": "+[level]*3" }
-    ] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "+1"
+        },
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "+[level]*3"
+        }
+      ]
+    }
   },
   "선혈의 연주자": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "attack", "label": "attack", "value": "[소비HP*3]" }] },
-    "itemExtend": { "damage": { "runtimePrompt": true, "runtimeConsumeHP": true, "runtimeLabel": "소비 HP", "runtimeDefault": "0" } }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "[소비HP*3]"
+        }
+      ]
+    },
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeLabel": "소비 HP",
+        "runtimeDefault": "0"
+      }
+    }
   },
   "생명의 순풍": {
     "getTarget": true,
-    "effect": { "disable": "scene", "runTiming": "instant", "attributes": [{ "key": "init", "label": "init", "value": "[소비HP]" }] },
-    "itemExtend": { "damage": { "runtimePrompt": true, "runtimeConsumeHP": true, "runtimeLabel": "소비 HP", "runtimeDefault": "0" } }
+    "effect": {
+      "disable": "scene",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "[소비HP]"
+        }
+      ]
+    },
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeLabel": "소비 HP",
+        "runtimeDefault": "0"
+      }
+    }
   },
   "업드래프트": {
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });" }]
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+      }
+    ]
   },
   "오거 배틀": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "[level]+2" }],
-    "active": { "state": false, "disable": "main", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[level]+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "main",
+      "runTiming": "instant"
+    }
   },
   "딕타토르": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "+10" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" },
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"dazed\", { active: true });" }]
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "+10"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"dazed\", { active: true });"
+      }
+    ]
   },
   "살육의 송곳니": {
-    "attributes": [{ "key": "damage_roll", "label": "melee", "value": "[level]+2" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "melee",
+        "value": "[level]+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "프라이멀 레이지": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "[level]*3" }],
-    "active": { "state": false, "disable": "main", "runTiming": "instant" },
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });" }]
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[level]*3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "main",
+      "runTiming": "instant"
+    },
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });"
+      }
+    ]
   },
   "대식가": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+3" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "럼블링 섀도우": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "[level]+3" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "[level]+3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "해방의 진혼곡": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "+5" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" },
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });" }]
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+5"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"fly\", { active: true });"
+      }
+    ]
   },
   "로큰롤 비트": {
-    "attributes": [{ "key": "add", "label": "add", "value": "[level]*2" }],
-    "active": { "state": false, "disable": "-", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "add",
+        "label": "add",
+        "value": "[level]*2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant"
+    }
   },
   "오스드 웨폰": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "[level]+1" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "[level]+1"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "오버워치": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "+3" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+3"
+        }
+      ]
+    }
   },
   "무형의 손톱": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "무형의 손톱", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+2", "guard": "1", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "무형의 손톱",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+2",
+        "guard": "1",
+        "range": "지근"
+      }
+    }
   },
   "사이버 암": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "사이버 암", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+3", "guard": "5", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "사이버 암",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+3",
+        "guard": "5",
+        "range": "지근"
+      }
+    }
   },
   "백열": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "백열", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+5", "guard": "4", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "백열",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+5",
+        "guard": "4",
+        "range": "지근"
+      }
+    }
   },
   "일각귀": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "일각귀", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+5", "guard": "2", "range": "5m" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "일각귀",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+5",
+        "guard": "2",
+        "range": "5m"
+      }
+    }
   },
   "뼈의 검": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "뼈의 검", "type": "melee", "skill": "melee", "amount": 1, "add": "-1", "attack": "[level]+5", "guard": "6", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "뼈의 검",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "-1",
+        "attack": "[level]+5",
+        "guard": "6",
+        "range": "지근"
+      }
+    }
   },
   "에어로 드라이브": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "에어로 드라이브", "type": "melee", "skill": "melee", "amount": 1, "add": "-2", "attack": "[level]+5", "guard": "0", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "에어로 드라이브",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "-2",
+        "attack": "[level]+5",
+        "guard": "0",
+        "range": "지근"
+      }
+    }
   },
   "멸망의 손톱": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "멸망의 손톱", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+7", "guard": "4", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "멸망의 손톱",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+7",
+        "guard": "4",
+        "range": "지근"
+      }
+    }
   },
   "파괴의 손톱": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "파괴의 손톱", "type": "melee", "skill": "melee", "amount": 1, "add": "0", "attack": "[level]+8", "guard": "1", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "파괴의 손톱",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[level]+8",
+        "guard": "1",
+        "range": "지근"
+      }
+    }
   },
   "독사": {
-    "itemExtend": { "weapon": { "activate": true, "fist": false, "name": "독사", "type": "melee", "skill": "melee", "amount": 1, "add": "-1", "attack": "2", "guard": "0", "range": "지근" } }
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": false,
+        "name": "독사",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "-1",
+        "attack": "2",
+        "guard": "0",
+        "range": "지근"
+      }
+    }
   },
   "페트리파이": {
     "getTarget": true,
-    "effect": { "disable": "scene", "runTiming": "afterDamage", "attributes": [{ "key": "init", "label": "init", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "아로새기는 목소리": {
     "getTarget": true,
-    "effect": { "disable": "scene", "runTiming": "afterDamage", "attributes": [{ "key": "init", "label": "init", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "init",
+          "label": "init",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "모래의 쐐기": {
     "getTarget": true,
-    "effect": { "disable": "scene", "runTiming": "afterDamage", "attributes": [{ "key": "guard", "label": "guard", "value": "-[level]*3" }] }
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "guard",
+          "label": "guard",
+          "value": "-[level]*3"
+        }
+      ]
+    }
   },
   "마왕의 패기": {
     "getTarget": true,
-    "effect": { "disable": "scene", "runTiming": "afterDamage", "attributes": [{ "key": "attack", "label": "attack", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "피의 쐐기": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "afterDamage", "attributes": [{ "key": "battleMove", "label": "battleMove", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "얼음의 성새": {
-    "attributes": [{ "key": "armor", "label": "armor", "value": "[level]*3" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "armor",
+        "label": "armor",
+        "value": "[level]*3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "충격상쇄": {
-    "attributes": [{ "key": "armor", "label": "armor", "value": "[level]*5" }],
-    "active": { "state": false, "disable": "main", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "armor",
+        "label": "armor",
+        "value": "[level]*5"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "main",
+      "runTiming": "instant"
+    }
   },
   "전자반응장갑": {
-    "attributes": [{ "key": "armor", "label": "armor", "value": "+20" }],
-    "active": { "state": false, "disable": "reaction", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "armor",
+        "label": "armor",
+        "value": "+20"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "reaction",
+      "runTiming": "instant"
+    }
   },
   "붉은 강의 종복": {
     "attributes": [
-      { "key": "stat_bonus", "label": "body", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "sense", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "mind", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "social", "value": "+[level]" }
+      {
+        "key": "stat_bonus",
+        "label": "body",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "sense",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "mind",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "social",
+        "value": "+[level]"
+      }
     ],
-    "active": { "state": false, "disable": "-", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant"
+    }
   },
   "적하의 종복": {
     "attributes": [
-      { "key": "stat_bonus", "label": "body", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "sense", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "mind", "value": "+[level]" },
-      { "key": "stat_bonus", "label": "social", "value": "+[level]" }
+      {
+        "key": "stat_bonus",
+        "label": "body",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "sense",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "mind",
+        "value": "+[level]"
+      },
+      {
+        "key": "stat_bonus",
+        "label": "social",
+        "value": "+[level]"
+      }
     ],
-    "active": { "state": false, "disable": "-", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant"
+    }
   },
   "거짓된 생명": {
-    "attributes": [{ "key": "hp", "label": "hp", "value": "+[level]*10" }],
-    "active": { "state": false, "disable": "session", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "hp",
+        "label": "hp",
+        "value": "+[level]*10"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "session",
+      "runTiming": "instant"
+    }
   },
   "종자흡수": {
-    "attributes": [{ "key": "hp", "label": "hp", "value": "+[level]*10" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "hp",
+        "label": "hp",
+        "value": "+[level]*10"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "고독": {
     "attributes": [
-      { "key": "hp", "label": "hp", "value": "+[level]*5" },
-      { "key": "dice", "label": "dice", "value": "+5" }
+      {
+        "key": "hp",
+        "label": "hp",
+        "value": "+[level]*5"
+      },
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+5"
+      }
     ],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "중력의 족쇄": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "afterDamage", "attributes": [{ "key": "battleMove", "label": "battleMove", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "피를 태우는 마탄": {
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "afterDamage", "attributes": [{ "key": "critical", "label": "critical", "value": "+1" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
+    }
   },
   "왕자의 소리": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "[level]+2" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "[level]+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "자아내는 마안": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "+[level]" }],
-    "active": { "state": false, "disable": "roll", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "roll",
+      "runTiming": "instant"
+    }
   },
   "천상의 초대": {
-    "attributes": [{ "key": "add", "label": "add", "value": "[level]*5" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "add",
+        "label": "add",
+        "value": "[level]*5"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "수왕의 헌신": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+[level]" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "환상의 수왕": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+[level]" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "증가생산": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "+[level]" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    }
   },
   "비트 시프트": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "7" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "7"
+      }
     ],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "병들어버린 탐구": {
     "attributes": [
-      { "key": "critical", "label": "critical", "value": "-1" },
-      { "key": "critical_min", "label": "critical_min", "value": "5" }
+      {
+        "key": "critical",
+        "label": "critical",
+        "value": "-1"
+      },
+      {
+        "key": "critical_min",
+        "label": "critical_min",
+        "value": "5"
+      }
     ],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" },
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });" }]
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    },
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });"
+      }
+    ]
   },
   "클리어 마인드": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "+[level]" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+[level]"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "두려움 아는 짐승의 포효": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "[level]*2" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "[level]*2"
+        }
+      ]
+    }
   },
   "소드마스터": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "add", "label": "add", "value": "[level]*3" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "[level]*3"
+        }
+      ]
+    }
   },
   "모래먼지의 유령": {
     "getTarget": true,
-    "effect": { "disable": "main", "runTiming": "instant", "attributes": [{ "key": "attack", "label": "attack", "value": "[level]*4" }] }
+    "effect": {
+      "disable": "main",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "attack",
+          "value": "[level]*4"
+        }
+      ]
+    }
   },
   "명장의 지휘": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "+[level]" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "+[level]"
+        }
+      ]
+    }
   },
   "댄싱 라이트": {
     "getTarget": true,
-    "effect": { "disable": "roll", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "[level]+1" }] }
+    "effect": {
+      "disable": "roll",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "[level]+1"
+        }
+      ]
+    }
   },
   "배격의 술책": {
     "getTarget": true,
-    "effect": { "disable": "roll", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "-[level]*2" }] }
+    "effect": {
+      "disable": "roll",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-[level]*2"
+        }
+      ]
+    }
   },
   "부비 트랩": {
     "getTarget": true,
-    "effect": { "disable": "round", "runTiming": "instant", "attributes": [{ "key": "dice", "label": "dice", "value": "-[level]-2" }] }
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-[level]-2"
+        }
+      ]
+    }
   },
   "지배자의 저주": {
     "getTarget": true,
-    "effect": { "disable": "roll", "runTiming": "instant", "attributes": [{ "key": "add", "label": "add", "value": "-[level]*5" }] }
+    "effect": {
+      "disable": "roll",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "-[level]*5"
+        }
+      ]
+    }
   },
   "트랩 볼트": {
     "getTarget": true,
-    "effect": { "disable": "roll", "runTiming": "instant", "attributes": [{ "key": "add", "label": "add", "value": "-[level]*3" }] }
+    "effect": {
+      "disable": "roll",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "add",
+          "label": "add",
+          "value": "-[level]*3"
+        }
+      ]
+    }
   },
   "바쥬라": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "[level]*3" }],
-    "active": { "state": false, "disable": "scene", "runTiming": "instant" },
-    "macros": [{ "timing": "instant", "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });" }]
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[level]*3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "scene",
+      "runTiming": "instant"
+    },
+    "macros": [
+      {
+        "timing": "instant",
+        "command": "await actor?.toggleStatusEffect(\"berserk\", { active: true });"
+      }
+    ]
   },
   "싱 인 더 레인": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "[level]*4" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[level]*4"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "트윈 버스트": {
-    "attributes": [{ "key": "attack", "label": "attack", "value": "[level]*3" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[level]*3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "에너지 블레이드": {
     "attributes": [
-      { "key": "damage_roll", "label": "damage_roll", "value": "+2" },
-      { "key": "dice", "label": "dice", "value": "-1" }
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+2"
+      },
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "-1"
+      }
     ],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "거칠게 먹는 것": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+2" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "썬더스톰": {
-    "attributes": [{ "key": "damage_roll", "label": "damage_roll", "value": "+3" }],
-    "active": { "state": false, "disable": "major", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "label": "damage_roll",
+        "value": "+3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
   },
   "목표를 묶는 냉기": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "[level]*2" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "[level]*2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "노려 옭아매는 냉기": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "[level]*2" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" }
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "[level]*2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    }
   },
   "소닉 어썰트": {
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [{ "key": "dodge_dice", "label": "dodge_dice", "value": "-[level]-2" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "dodge_dice",
+          "label": "dodge_dice",
+          "value": "-[level]-2"
+        }
+      ]
+    }
   },
   "먹기 위해 애쓰는 안개": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "-3" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" },
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "-3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [{ "key": "reduce_roll", "label": "reduce_roll", "value": "[level]+3" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "[level]+3"
+        }
+      ]
+    }
   },
   "먹어치우는 안개": {
-    "attributes": [{ "key": "dice", "label": "dice", "value": "-3" }],
-    "active": { "state": false, "disable": "round", "runTiming": "instant" },
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "-3"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
     "getTarget": true,
-    "effect": { "disable": "major", "runTiming": "instant", "attributes": [{ "key": "reduce_roll", "label": "reduce_roll", "value": "[level]+3" }] }
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "label": "reduce_roll",
+          "value": "[level]+3"
+        }
+      ]
+    }
+  },
+  "오픈 페인": {
+    "attributes": [
+      {
+        "key": "damage_roll",
+        "value": "+([level]+1)"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "major",
+      "runTiming": "instant"
+    }
+  },
+  "이형의 포식자": {
+    "attributes": [
+      {
+        "key": "reduce_roll",
+        "value": "[level]+2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "reaction",
+      "runTiming": "instant"
+    }
+  },
+  "불사의 짐승": {
+    "attributes": [
+      {
+        "key": "reduce_roll",
+        "value": "[level]*2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "reaction",
+      "runTiming": "instant"
+    }
+  },
+  "열투의 격려": {
+    "getTarget": true,
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "value": "[level]*2"
+        }
+      ]
+    }
+  },
+  "테러 월": {
+    "getTarget": true,
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "reduce_roll",
+          "value": "[level]*2"
+        }
+      ]
+    }
   }
 }

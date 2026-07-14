@@ -982,8 +982,24 @@
   },
   "armors": {
     "개념외장": {
-      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      },
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "5d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "전개장갑복": {
       "attributes": [
@@ -1829,31 +1845,130 @@
   },
   "items": {
     "자동 복원 기구": {
-      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "3", "resurrect": false, "rivival": false, "activate": true } }
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      },
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "5d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "3",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "고성능치료 팩": {
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "3d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "3d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "의료 트렁크": {
-      "used": { "state": 0, "max": 1, "level": false, "disable": "scene" },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "scene"
+      },
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "2d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "악식의 기호품": {
-      "used": { "state": 0, "max": 3, "level": false, "disable": "session" },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "used": {
+        "state": 0,
+        "max": 3,
+        "level": false,
+        "disable": "session"
+      },
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "2d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "심해도시의 꿈": {
-      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      },
       "itemExtend": {
-        "automation": { "maxEncroachmentExclusive": 110 },
-        "heal": { "formulaDice": "0", "formulaAdd": "3d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": true, "activate": true },
-        "statusClear": { "timing": "instant", "target": "self", "exclude": [], "activate": true }
+        "automation": {
+          "maxEncroachmentExclusive": 110
+        },
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "3d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": true,
+          "activate": true
+        },
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": [],
+          "activate": true
+        }
       }
     },
     "강철의 의지": {
-      "used": { "state": 0, "max": 1, "level": false, "disable": "session" },
-      "itemExtend": { "statusClear": { "timing": "instant", "target": "self", "exclude": ["hatred", "fear", "rigor", "pressure", "dazed", "poisoned"], "activate": true } }
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      },
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": [
+            "hatred",
+            "fear",
+            "rigor",
+            "pressure",
+            "dazed",
+            "poisoned"
+          ],
+          "activate": true
+        }
+      }
     },
     "피지컬 블러드": {
       "attributes": [
@@ -2116,6 +2231,10 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "encroach": {
+        "init": 0,
+        "value": "2d10"
       }
     },
     "스마일리의 대여금고": {
@@ -2173,7 +2292,18 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "1d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "1d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "R 컨트롤러": {
       "attributes": [
@@ -3055,7 +3185,18 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "2d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "맨 이터": {
       "attributes": [
@@ -3268,7 +3409,16 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "statusClear": { "timing": "instant", "target": "self", "exclude": ["berserk"], "activate": true } }
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": [
+            "berserk"
+          ],
+          "activate": true
+        }
+      }
     },
     "피클 웨더": {
       "attributes": [
@@ -3425,6 +3575,10 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "encroach": {
+        "init": 0,
+        "value": "3"
       }
     },
     "조커": {
@@ -3448,7 +3602,18 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "4d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "4d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "메디컬 어시스턴트": {
       "used": {
@@ -3640,7 +3805,18 @@
         "disable": "notCheck"
       },
       "getTarget": true,
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "2d10", "timing": "instant", "target": "targetToken", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "2d10",
+          "timing": "instant",
+          "target": "targetToken",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "워몽거": {
       "attributes": [
@@ -4171,7 +4347,18 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "5d10", "timing": "instant", "target": "self", "encroachFixed": "", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "5d10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "기브&테이크": {
       "attributes": [
@@ -4346,7 +4533,19 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "0", "healTo": "1", "timing": "instant", "target": "self", "encroachFixed": "2d10", "resurrect": false, "rivival": true, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "0",
+          "healTo": "1",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "2d10",
+          "resurrect": false,
+          "rivival": true,
+          "activate": true
+        }
+      }
     },
     "이스케이프": {
       "attributes": [
@@ -4917,7 +5116,18 @@
         "level": false,
         "disable": "notCheck"
       },
-      "itemExtend": { "heal": { "formulaDice": "0", "formulaAdd": "10", "timing": "instant", "target": "self", "encroachFixed": "3", "resurrect": false, "rivival": false, "activate": true } }
+      "itemExtend": {
+        "heal": {
+          "formulaDice": "0",
+          "formulaAdd": "10",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "3",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
     },
     "미제리코드": {
       "attributes": [
@@ -5006,6 +5216,12 @@
         "state": false,
         "disable": "round",
         "runTiming": "instant"
+      }
+    },
+    "심플 기믹": {
+      "encroach": {
+        "init": 0,
+        "value": "3"
       }
     }
   },
