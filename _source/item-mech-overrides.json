@@ -4108,6 +4108,26 @@
         "disable": "session"
       }
     },
+    "S랭크:어택커": {
+      "attributes": [
+        {
+          "key": "damage_roll",
+          "label": "damage_roll",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "major",
+        "runTiming": "instant"
+      },
+      "used": {
+        "state": 0,
+        "max": 1,
+        "level": false,
+        "disable": "session"
+      }
+    },
     "항 레니게이드 탄": {
       "effect": {
         "disable": "round",

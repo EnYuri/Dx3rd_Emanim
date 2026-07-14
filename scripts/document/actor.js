@@ -449,12 +449,14 @@
             // 최소값 보정: guard는 최소 0
             if (attrs.guard.value < 0) attrs.guard.value = 0;
             if (attrs.guard.value < attrs.guard.min) attrs.guard.value = attrs.guard.min;
-            attrs.guard.roll = Math.max(0, guardRoll);   // 방어 다이얼로그가 읽어 Nd10 굴림
+            attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
+            attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
 
             // === DxRoll 계산(달성치에 +[N]D10) — 판정 시 Nd10 굴려 달성치(add)에 가산 ===
             const dxRoll = R.sum('dxroll');
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
-            attrs.dxroll.value = Math.max(0, dxRoll);   // 판정 핸들러(executeStatRoll/executeAttackRoll)가 읽어 Nd10 굴림
+            attrs.dxroll.value = Math.max(0, dxRoll);   // (하위호환 잔존) 순수 개수 합
+            attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
 
             // === Penetrate 계산 ===
             const penetrateBonus = R.sum('penetrate');
@@ -472,7 +474,8 @@
             // 최소값 보정: reduce는 최소 0
             if (attrs.reduce.value < 0) attrs.reduce.value = 0;
             if (attrs.reduce.value < attrs.reduce.min) attrs.reduce.value = attrs.reduce.min;
-            attrs.reduce.roll = Math.max(0, reduceRoll);   // 방어 다이얼로그가 읽어 Nd10 굴림
+            attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
+            attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
 
             // 이니셔티브 계산 (sense.total * 2 + mind.total + 아이템/적용 효과 보너스)
             let initBonus = 0;
@@ -1262,6 +1265,24 @@
                     for (const { val } of (appliedByKey[key] || [])) s += Number(val) || 0;
                     return s;
                 },
+                // 굴림 필드용 다이스식 리스트(reduce_roll/guard_roll 등): 각 소스 값을 참조치환한 뒤,
+                //   다이스식(2d10·[level]d10)이면 그대로 보존, 순수 개수(2·[level]+2)면 Nd10 으로 환산.
+                //   결과를 ' + ' 로 조인 → 소비부가 단일 Roll 로 굴리면 각 항이 개별로 굴려져 합산된다.
+                //   (개수 합산 모델과 하위호환: 순수 개수만 있으면 "Nd10 + Md10 + …" = 총 (N+M+…)d10 와 동일.)
+                rollFormula(key) {
+                    const F = window.DX3rdFormulaEvaluator;
+                    const terms = [];
+                    const push = (v, item) => {
+                        if (v === null || v === undefined || v === '' || v === '-') return;
+                        const resolved = F.prepareRollFormula(String(v), item, actor);
+                        if (F.hasDice(resolved)) { terms.push(resolved); return; }   // 예: "2d10", "[level]d10"→"3d10"
+                        const n = Number(F.evaluate(v, item, actor)) || 0;           // 예: "[level]*2"→6, "2"→2
+                        if (n > 0) terms.push(`${n}d10`);
+                    };
+                    eachOfKey(key, (a, item) => push(a.value, item));
+                    for (const { val } of (appliedByKey[key] || [])) push(val, null);
+                    return terms.join(' + ');
+                },
                 // 정확 라벨 일치 합 (stat_bonus 능력치·스킬, 능력치 stat_dice/stat_add)
                 byLabel(key, want) {
                     let s = 0;
@@ -1569,12 +1590,15 @@
             }
             attrs.armor.value = Math.max(0, (attrs.armor.base || 0) + armorBonus);
             attrs.guard.value = Math.max(0, guardBonus);
-            attrs.guard.roll = Math.max(0, guardRoll);   // 방어 다이얼로그가 읽어 Nd10 굴림
+            attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
+            attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
-            attrs.dxroll.value = Math.max(0, dxRoll);    // 판정 핸들러가 읽어 Nd10 굴림
+            attrs.dxroll.value = Math.max(0, dxRoll);    // (하위호환 잔존) 순수 개수 합
+            attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
             attrs.penetrate.value = Math.max(0, penetrateBonus);
             attrs.reduce.value = Math.max(0, reduceBonus);
-            attrs.reduce.roll = Math.max(0, reduceRoll);   // 방어 다이얼로그가 읽어 Nd10 굴림
+            attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
+            attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
 
             // === 회피치 계산 (base + 보정치) ===
             // 닷지 달성치 보정치 (dodge_add 또는 dodge_achievement) — 활성 아이템 + applied 단일 경로

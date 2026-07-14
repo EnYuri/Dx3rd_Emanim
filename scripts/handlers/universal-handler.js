@@ -2853,30 +2853,34 @@
         });
       let guard = targetActor.system.attributes.guard?.value || 0;
       // 가드 D10 굴림(가드치에 +[N]D10 모델): 방어 시 Nd10을 굴려 가드치에 가산하고 채팅으로 공개.
-      //   prepareData가 active 토글된 guard_roll 합계를 attrs.guard.roll에 적재 → 여기서 1회 굴림.
+      //   prepareData가 guard_roll 소스들을 다이스식으로 조립해 attrs.guard.rollFormula 에 적재
+      //   → 여기서 1회 굴림(리터럴 NdM 지원, 다중 소스는 각 항이 개별로 굴려져 합산). 구버전 데이터 폴백: attrs.guard.roll(개수).
       const guardRollN = Number(targetActor.system.attributes.guard?.roll || 0);
-      if (guardRollN > 0) {
+      const guardRollFormula = targetActor.system.attributes.guard?.rollFormula || (guardRollN > 0 ? `${guardRollN}d10` : '');
+      if (guardRollFormula) {
         try {
-          const gr = await (new Roll(`${guardRollN}d10`)).evaluate();
+          const gr = await (new Roll(guardRollFormula)).evaluate();
           guard += Number(gr.total) || 0;
           await gr.toMessage({
             speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-            flavor: `${game.i18n.localize('DX3rd.GuardRoll')} (${guardRollN}D10) → +${gr.total}`
+            flavor: `${game.i18n.localize('DX3rd.GuardRoll')} (${guardRollFormula}) → +${gr.total}`
           });
         } catch (e) { console.warn('DX3rd | guard roll failed', e); }
       }
       const armor = targetActor.system.attributes.armor?.value || 0;
       let reduce = targetActor.system.attributes.reduce?.value || 0;
       // 데미지 경감 D10 굴림(발동형 reduce_roll 모델): 피격 시 Nd10을 굴려 경감치에 가산하고 채팅으로 공개.
-      //   prepareData가 active 토글된 reduce_roll 합계를 attrs.reduce.roll에 적재 → 여기서 1회 굴림(guard.roll 미러).
+      //   prepareData가 reduce_roll 소스들을 다이스식으로 조립해 attrs.reduce.rollFormula 에 적재
+      //   → 여기서 1회 굴림(리터럴 NdM 지원, 다중 소스는 각 항이 개별로 굴려져 합산). 구버전 데이터 폴백: attrs.reduce.roll(개수).
       const reduceRollN = Number(targetActor.system.attributes.reduce?.roll || 0);
-      if (reduceRollN > 0) {
+      const reduceRollFormula = targetActor.system.attributes.reduce?.rollFormula || (reduceRollN > 0 ? `${reduceRollN}d10` : '');
+      if (reduceRollFormula) {
         try {
-          const rr = await (new Roll(`${reduceRollN}d10`)).evaluate();
+          const rr = await (new Roll(reduceRollFormula)).evaluate();
           reduce += Number(rr.total) || 0;
           await rr.toMessage({
             speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-            flavor: `${game.i18n.localize('DX3rd.ReduceRoll')} (${reduceRollN}D10) → +${rr.total}`
+            flavor: `${game.i18n.localize('DX3rd.ReduceRoll')} (${reduceRollFormula}) → +${rr.total}`
           });
         } catch (e) { console.warn('DX3rd | reduce roll failed', e); }
       }
@@ -4099,13 +4103,14 @@
         // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
         let add2 = add;
         const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        if (dxRollN > 0) {
+        const dxRollFormula = actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : '');
+        if (dxRollFormula) {
           try {
-            const dr = await (new Roll(`${dxRollN}d10`)).evaluate();
+            const dr = await (new Roll(dxRollFormula)).evaluate();
             add2 += Number(dr.total) || 0;
             await dr.toMessage({
               speaker: ChatMessage.getSpeaker({ actor }),
-              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollN}D10) → +${dr.total}`
+              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollFormula}) → +${dr.total}`
             });
           } catch (e) { console.warn('DX3rd | dxroll failed', e); }
         }
@@ -6247,13 +6252,14 @@
         // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
         let add2 = add;
         const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        if (dxRollN > 0) {
+        const dxRollFormula = actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : '');
+        if (dxRollFormula) {
           try {
-            const dr = await (new Roll(`${dxRollN}d10`)).evaluate();
+            const dr = await (new Roll(dxRollFormula)).evaluate();
             add2 += Number(dr.total) || 0;
             await dr.toMessage({
               speaker: ChatMessage.getSpeaker({ actor }),
-              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollN}D10) → +${dr.total}`
+              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollFormula}) → +${dr.total}`
             });
           } catch (e) { console.warn('DX3rd | dxroll failed', e); }
         }

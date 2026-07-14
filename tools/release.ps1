@@ -1,11 +1,15 @@
 <#
-Build a distribution ZIP without private source material.
+Compile _source into LevelDB packs and (optionally) produce a whitelist ZIP.
 
-Usage (run after closing Foundry):
+Two modes (run after closing Foundry):
+  # 프리뷰 zip 만 (dist/, gitignore, CI 릴리스와 무관한 로컬 검증용)
   powershell -ExecutionPolicy Bypass -File tools/release.ps1
+  # _source -> ./packs 갱신(커밋 대상). 이 모드에선 프리뷰 zip 을 만들지 않는다.
+  powershell -ExecutionPolicy Bypass -File tools/release.ps1 -UpdatePacks
 
-The archive is whitelist-based. `_source`, Git metadata, local backups, docs,
-and every other unlisted file can never enter a release by accident.
+Packaging is whitelist-based. `_source`, Git metadata, local backups, docs,
+and every other unlisted file can never enter a release by accident. The public
+release zip itself is built by CI (release.yml) from the committed packs/.
 #>
 [CmdletBinding()]
 param(
@@ -60,8 +64,9 @@ function Test-Dx3rdPackDirectory {
 
 if ($UpdatePacks) {
     # Replacing a package's LevelDB directories while Foundry has them open can
-    # leave the running world with stale handles. The pre-commit path always
-    # uses -UpdatePacks, so fail early rather than making a risky commit.
+    # leave the running world with stale handles. -UpdatePacks is run manually
+    # before committing (the pre-commit hook does not invoke this script), so
+    # fail early rather than writing corrupt packs into a commit.
     $FoundryProcesses = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "foundry" })
     if ($FoundryProcesses.Count -gt 0) {
         $Names = ($FoundryProcesses | ForEach-Object { "$($_.ProcessName) ($($_.Id))" }) -join ", "
@@ -88,8 +93,13 @@ foreach ($Directory in $Directories) {
     if (Test-Path -LiteralPath $Source) { Copy-Item -LiteralPath $Source -Destination $SystemStage -Recurse -Force }
 }
 
-if (Test-Path $Zip) { Remove-Item -LiteralPath $Zip -Force }
-Compress-Archive -Path (Join-Path $SystemStage "*") -DestinationPath $Zip -CompressionLevel Optimal
+# ZIP 은 순수 로컬 프리뷰다(gitignore된 dist/, CI 릴리스와 무관). 실제 공개
+# 릴리스 zip 은 push 시 release.yml 이 커밋된 packs/ 로 다시 만든다. 따라서
+# -UpdatePacks(팩 빌드) 모드에서는 프리뷰 zip 을 만들지 않고 팩 갱신만 한다.
+if (-not $UpdatePacks) {
+    if (Test-Path $Zip) { Remove-Item -LiteralPath $Zip -Force }
+    Compress-Archive -Path (Join-Path $SystemStage "*") -DestinationPath $Zip -CompressionLevel Optimal
+}
 
 if ($UpdatePacks) {
     $LivePacks = Join-Path $Root "packs"
@@ -166,4 +176,8 @@ if ($UpdatePacks) {
 
 Remove-Item -LiteralPath $Stage -Recurse -Force
 
-Write-Host "DX3rd | release created: $Zip"
+if ($UpdatePacks) {
+    Write-Host "DX3rd | packs updated (no preview zip in -UpdatePacks mode)."
+} else {
+    Write-Host "DX3rd | preview archive created: $Zip"
+}

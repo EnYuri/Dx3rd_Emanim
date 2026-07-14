@@ -1636,5 +1636,26 @@
         }
       ]
     }
+  },
+  "애시드 볼": {
+    "getTarget": true,
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterDamage",
+      "attributes": [
+        {
+          "key": "armor",
+          "value": "-[level]*4"
+        }
+      ]
+    }
+  },
+  "플래시 스팅어": {
+    "attributes": [
+      {
+        "key": "penetrate",
+        "value": "[level]*8"
+      }
+    ]
   }
 }
