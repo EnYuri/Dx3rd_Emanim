@@ -36,7 +36,10 @@
 
   // 재진입 방지는 액터 단위. 전역 플래그로 두면 백필/동시 동기화 때 첫 액터가 잡은 사이
   // 나머지 액터의 sync 가 전부 스킵된다(서로 다른 액터는 간섭하면 안 됨).
-  const syncing = new Set();
+  // 액터별 진행 중 동기화 Promise. 같은 액터의 후속 호출은 false로 빠지지 않고
+  // 현재 작업 완료를 대기한다. 콤보가 이펙트를 켠 직후 바로 공격값을 읽는 경로에서
+  // AE 반영 전 수치를 읽지 않도록 보장한다.
+  const syncing = new Map();
 
   /** 이 클라이언트가 해당 액터의 AE 를 쓸 단일 책임자인가(GM 우선, 없으면 최소 id 소유자). */
   function isResponsible(actor) {
@@ -57,7 +60,20 @@
       if (!a || a.key === undefined || a.key === null || a.key === '-') continue;
       let value;
       if (typeof a.value === 'boolean') value = a.value;           // 존재 플래그형(move_half 등)
-      else value = Number(EV?.evaluate(a.value, item, actor)) || 0; // 수식/숫자 → 동결 숫자
+      else {
+        const prepared = EV?.prepareRollFormula?.(a.value, item, actor) ?? String(a.value ?? '0');
+        // 행동 시점에 굴려야 하는 보정은 AE에도 원 수식을 보존한다.
+        value = [
+          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+          'dice', 'add', 'critical',
+          'major_dice', 'major_add', 'major_critical',
+          'reaction_dice', 'reaction_add', 'reaction_critical',
+          'dodge_dice', 'dodge_add', 'dodge_critical',
+          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
+        ].includes(a.key) && EV?.hasDice?.(prepared)
+          ? prepared
+          : (Number(EV?.evaluate(a.value, item, actor)) || 0);
+      }
       out[storeK] = { key: a.key, label: a.label ?? null, value };
     }
     return out;
@@ -147,7 +163,8 @@
 
   /** 액터의 토글 AE 집합을 현재 토글 상태에 맞춰 upsert/remove. */
   async function sync(actor) {
-    if (!actor || syncing.has(actor.id)) return false;
+    if (!actor) return false;
+    if (syncing.has(actor.id)) return syncing.get(actor.id);
     if (actor.type !== 'character' && actor.type !== 'enemy') return false;
     if (!isResponsible(actor)) return false;
     if (!window.DX3rdAppliedEffects?.set) return false;
@@ -156,21 +173,24 @@
 
     if (!toDelete.length && !toSet.length) return false; // no-op → 훅 캐스케이드 방지
 
-    syncing.add(actor.id);
-    try {
-      if (toDelete.length) {
-        await actor.deleteEmbeddedDocuments('ActiveEffect', toDelete, { render: false });
+    const task = (async () => {
+      try {
+        if (toDelete.length) {
+          await actor.deleteEmbeddedDocuments('ActiveEffect', toDelete, { render: false });
+        }
+        for (const [key, payload] of toSet) {
+          await window.DX3rdAppliedEffects.set(actor, key, payload);
+        }
+        return true;
+      } catch (e) {
+        console.error('DX3rd | applied-toggle sync 실패:', actor?.name, e);
+        return false;
+      } finally {
+        syncing.delete(actor.id);
       }
-      for (const [key, payload] of toSet) {
-        await window.DX3rdAppliedEffects.set(actor, key, payload);
-      }
-      return true;
-    } catch (e) {
-      console.error('DX3rd | applied-toggle sync 실패:', actor?.name, e);
-      return false;
-    } finally {
-      syncing.delete(actor.id);
-    }
+    })();
+    syncing.set(actor.id, task);
+    return task;
   }
 
   /**

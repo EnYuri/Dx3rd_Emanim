@@ -638,6 +638,27 @@
     return weaponAddBonus;
   }
 
+  // 콤보 시트는 실행 전 미리보기이므로 다이스를 굴리지 않는다. 선택 무기에 다이스식이
+  // 있으면 고정 보정과 분리해 원문을 보여 준다(실제 굴림은 핸들러가 실행 시점에 처리).
+  function getWeaponDiceFormulaTerms(actor, weaponIds, field) {
+    const formula = window.DX3rdFormulaEvaluator;
+    const terms = [];
+    for (const weaponId of normalizeIdList(weaponIds)) {
+      const weapon = actor?.items.get(weaponId);
+      if (!weapon) continue;
+      const prepared = formula.prepareRollFormula(weapon.system?.[field] ?? '0', weapon, actor);
+      if (formula.hasDice(prepared)) terms.push(prepared);
+    }
+    return terms;
+  }
+
+  function joinPreviewFormula(fixedValue, diceTerms) {
+    const terms = [];
+    if (fixedValue) terms.push(String(fixedValue));
+    terms.push(...diceTerms);
+    return terms.length ? terms.join(' + ') : '0';
+  }
+
   function getEffectiveBaseKey(baseKey, isAbility, skillKey, skillData) {
     return (baseKey && baseKey !== '-') ? baseKey : (isAbility ? skillKey : skillData?.base);
   }
@@ -971,7 +992,7 @@
         + calculateItemAttackBonus(item, actor, currentAttackRoll)
         + calculateRegisteredEffectAttackBonus(actor, data.system.effectIds, currentAttackRoll);
       
-      data.system.attack = { value: totalAttack };
+      data.system.attack = { value: joinPreviewFormula(totalAttack, getWeaponDiceFormulaTerms(actor, registeredWeapons, 'attack')) };
       data.attackLabel = getAttackLabel(currentAttackRoll);
     } else {
       // system.attackRoll이 '-'이거나 설정되지 않은 경우
@@ -1019,7 +1040,7 @@
     }
 
     data.system.dice = { value: dice };
-    data.system.add = { value: add };
+    data.system.add = { value: joinPreviewFormula(add, getWeaponDiceFormulaTerms(actor, getWeaponIds(item, data), 'add')) };
     data.system.critical = { value: critical, min: criticalMin };
   }
 

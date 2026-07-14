@@ -3,7 +3,7 @@
   if (!Base) return;
 
   class DX3rdWeaponSheetV2 extends Base {
-    static DEFAULT_OPTIONS = {classes: ['weapon-sheet-v2']};
+    static DEFAULT_OPTIONS = {...Base.DEFAULT_OPTIONS, classes: ['weapon-sheet-v2']};
     static PARTS = {main: {template: 'systems/dx3rd-emanim/templates/item/active-item-sheet-v2.html', root: true}};
     static TABS = {primary: {tabs: [{id: 'description'}, {id: 'attributes'}, {id: 'target'}], initial: 'description'}};
 

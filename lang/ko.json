@@ -494,6 +494,8 @@
 
   
   "DX3rd.DamageRoll": "데미지 롤",
+  "DX3rd.DamageRollDiceFormula": "피해 다이스 보정",
+  "DX3rd.DamageRollFormulaInvalid": "피해 다이스 수식을 굴릴 수 없습니다",
   "DX3rd.WeaponSelect": "무기 선택?",
 
   "DX3rd.RollType": "판정 타입",

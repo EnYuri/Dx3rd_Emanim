@@ -7,7 +7,7 @@
   if (!Base || !compat || !weaponManager || !itemSheetData) return;
 
   class DX3rdPsionicSheetV2 extends Base {
-    static DEFAULT_OPTIONS = {classes: ['psionic-sheet-v2']};
+    static DEFAULT_OPTIONS = {...Base.DEFAULT_OPTIONS, classes: ['psionic-sheet-v2']};
 
     static PARTS = {
       main: {template: 'systems/dx3rd-emanim/templates/item/psionic-sheet-v2.html', root: true}

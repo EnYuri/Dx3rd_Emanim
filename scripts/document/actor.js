@@ -395,20 +395,24 @@
             // === Attack 계산 === (라벨 버킷: melee/ranged/fist, 무라벨/'-' → 전체 공격 '_')
             // fist = 맨손 한정 공격력(축퇴기관 등) — 데미지 산출 시 무기가 맨손일 때만 가산
             const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);
+            const atkDiceFormula = R.actionDiceFormula('attack', ['melee', 'ranged', 'fist']);
 
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
             attrs.attack.value = atk._;
             attrs.attack.melee = atk.melee;
             attrs.attack.ranged = atk.ranged;
             attrs.attack.fist = atk.fist;
+            attrs.attack.rollFormula = atkDiceFormula;
 
             // === Damage Roll 계산 === (라벨 버킷: melee/ranged, 무라벨/'-' → 전체 '_')
             const dmgr = R.bucket('damage_roll', ['melee', 'ranged']);
+            const dmgrDiceFormula = R.actionDiceFormula('damage_roll', ['melee', 'ranged']);
 
             if (!attrs.damage_roll) attrs.damage_roll = { value: 0, melee: 0, ranged: 0 };
             attrs.damage_roll.value = dmgr._;
             attrs.damage_roll.melee = dmgr.melee;
             attrs.damage_roll.ranged = dmgr.ranged;
+            attrs.damage_roll.rollFormula = dmgrDiceFormula;
 
             // === Armor 계산 ===
             let armorBonus = 0;
@@ -457,6 +461,7 @@
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
             attrs.dxroll.value = Math.max(0, dxRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
+            attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
 
             // === Penetrate 계산 ===
             const penetrateBonus = R.sum('penetrate');
@@ -1103,6 +1108,15 @@
                     critical: Math.max(attrs.critical?.min || defaultCritical, stat.critical + reactionCriticalMod + dodgeCriticalMod),
                     add: stat.add + reactionAddBonus + dodgeAddBonus
                 };
+                // stat_bonus는 능력치 total(=다이스 풀)에, stat_dice/stat_add는 각각
+                // 다이스/가산치에 들어간다. 다이스식은 여기서 굴리지 않고 판정으로 넘긴다.
+                stat.rollFormula = {
+                    dice: [
+                        R.actionDiceFormulaWhere('stat_bonus', label => label === key),
+                        R.actionDiceFormulaWhere('stat_dice', label => label === key)
+                    ].filter(Boolean).join(' + '),
+                    add: R.actionDiceFormulaWhere('stat_add', label => label === key)
+                };
             }
 
             // === 2차 패스: 스킬 dice, add, critical 계산 및 분류 ===
@@ -1183,6 +1197,21 @@
                     add: skill.add + reactionAddBonus + dodgeAddBonus
                 };
 
+                // 기능치 판정은 기반 능력치의 다이스식도 물려받는다. stat_bonus는
+                // 기능치 total에 더해지는 값이므로 가산치로, stat_dice는 다이스 풀로 처리한다.
+                const skillMatches = label => label === key || window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, label);
+                skill.rollFormula = {
+                    dice: [
+                        baseAbility?.rollFormula?.dice,
+                        R.actionDiceFormulaWhere('stat_dice', skillMatches)
+                    ].filter(Boolean).join(' + '),
+                    add: [
+                        baseAbility?.rollFormula?.add,
+                        R.actionDiceFormulaWhere('stat_bonus', skillMatches),
+                        R.actionDiceFormulaWhere('stat_add', skillMatches)
+                    ].filter(Boolean).join(' + ')
+                };
+
                 // base가 올바른 경우만 분류
                 if (skill.base && system.skills[skill.base]) {
                     system.skills[skill.base][key] = skill;
@@ -1214,15 +1243,25 @@
          */
         _indexAppliedEffects(appliedEffects) {
             const byKey = {};
+            const actionFormulaKeys = new Set([
+                'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+                'dice', 'add', 'critical',
+                'major_dice', 'major_add', 'major_critical',
+                'reaction_dice', 'reaction_add', 'reaction_critical',
+                'dodge_dice', 'dodge_add', 'dodge_critical',
+                'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
+            ]);
             for (const eff of Object.values(appliedEffects || {})) {
                 if (!eff || !eff.attributes) continue;
                 for (const [attrName, attrValue] of Object.entries(eff.attributes)) {
                     const isObj = (typeof attrValue === 'object' && attrValue !== null);
                     const key = isObj ? attrValue.key : attrName;
                     const label = isObj ? attrValue.label : null;
-                    const val = (isObj && 'value' in attrValue) ? attrValue.value
-                              : (typeof attrValue === 'boolean') ? 0
-                              : window.DX3rdFormulaEvaluator.evaluate(attrValue);
+                    const raw = (isObj && 'value' in attrValue) ? attrValue.value : attrValue;
+                    const val = (typeof raw === 'boolean') ? 0
+                              : (actionFormulaKeys.has(key) && window.DX3rdFormulaEvaluator.hasDice(String(raw ?? '')))
+                                ? raw
+                                : window.DX3rdFormulaEvaluator.evaluate(raw);
                     (byKey[key] = byKey[key] || []).push({ label, val });
                 }
             }
@@ -1281,6 +1320,38 @@
                     };
                     eachOfKey(key, (a, item) => push(a.value, item));
                     for (const { val } of (appliedByKey[key] || [])) push(val, null);
+                    return terms.join(' + ');
+                },
+                // 수식 결과가 "주사위 개수"가 되는 행동 필드용(현재 damage_roll).
+                // 고정 개수는 기존 sum/bucket에 남기고, 다이스식만 별도로 보존해 소비 시점에
+                // 한 번 굴린 뒤 개수로 더한다. 라벨 버킷을 유지한다.
+                actionDiceFormula(key, labels = []) {
+                    const F = window.DX3rdFormulaEvaluator;
+                    const out = { _: [] };
+                    for (const label of labels) out[label] = [];
+                    const push = (label, v, item) => {
+                        if (v === null || v === undefined || v === '' || v === '-') return;
+                        const resolved = F.prepareRollFormula(String(v), item, actor);
+                        if (!F.hasDice(resolved)) return;
+                        const bucket = labels.includes(label) ? label : '_';
+                        out[bucket].push(`(${resolved})`);
+                    };
+                    eachOfKey(key, (a, item) => push(a.label || '-', a.value, item));
+                    for (const { label, val } of (appliedByKey[key] || [])) push(label || '-', val, null);
+                    return Object.fromEntries(Object.entries(out).map(([label, terms]) => [label, terms.join(' + ')]));
+                },
+                // stat_*은 수치 파생에서는 0으로 흡수될 수 있으므로, 판정 시점용
+                // 다이스식은 라벨 조건에 맞춰 별도로 보존한다.
+                actionDiceFormulaWhere(key, matches) {
+                    const F = window.DX3rdFormulaEvaluator;
+                    const terms = [];
+                    const push = (label, v, item) => {
+                        if (!matches(label) || v === null || v === undefined || v === '' || v === '-') return;
+                        const resolved = F.prepareRollFormula(String(v), item, actor);
+                        if (F.hasDice(resolved)) terms.push(`(${resolved})`);
+                    };
+                    eachOfKey(key, (a, item) => push(a.label || '-', a.value, item));
+                    for (const { label, val } of (appliedByKey[key] || [])) push(label || '-', val, null);
                     return terms.join(' + ');
                 },
                 // 정확 라벨 일치 합 (stat_bonus 능력치·스킬, 능력치 stat_dice/stat_add)
@@ -1407,6 +1478,10 @@
             // 최소값 보정: cast.dice는 최소 1
             if (attrs.cast.dice < 1) attrs.cast.dice = 1;
             attrs.cast.add = castAdd;
+            attrs.cast.rollFormula = {
+                dice: R.actionDiceFormula('cast_dice')._,
+                add: R.actionDiceFormula('cast_add')._
+            };
             attrs.cast.eibon = eibon;
             // 최소값 보정: cast.eibon은 최소 0
             if (attrs.cast.eibon < 0) attrs.cast.eibon = 0;
@@ -1493,6 +1568,13 @@
                     add: stat.add + reactionAddBonus + dodgeAddBonus,
                     critical: Math.max(attrs.critical?.min || defaultCritical, stat.critical + reactionCriticalMod + dodgeCriticalMod)
                 };
+                stat.rollFormula = {
+                    dice: [
+                        R.actionDiceFormulaWhere('stat_bonus', label => label === key),
+                        R.actionDiceFormulaWhere('stat_dice', label => label === key)
+                    ].filter(Boolean).join(' + '),
+                    add: R.actionDiceFormulaWhere('stat_add', label => label === key)
+                };
             }
             // 활성 아이템 + applied 의 hp / hp_max 보너스
             const hpBonus = R.sum('hp') + R.sum('hp_max');
@@ -1562,18 +1644,22 @@
 
             // === Attack, Damage Roll 계산 === (라벨 버킷)
             const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);   // fist = 맨손 한정(축퇴기관 등)
+            const atkDiceFormula = R.actionDiceFormula('attack', ['melee', 'ranged', 'fist']);
             const dmgr = R.bucket('damage_roll', ['melee', 'ranged']);
+            const dmgrDiceFormula = R.actionDiceFormula('damage_roll', ['melee', 'ranged']);
 
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
             attrs.attack.value = atk._;
             attrs.attack.melee = atk.melee;
             attrs.attack.ranged = atk.ranged;
             attrs.attack.fist = atk.fist;
+            attrs.attack.rollFormula = atkDiceFormula;
 
             if (!attrs.damage_roll) attrs.damage_roll = { value: 0, melee: 0, ranged: 0 };
             attrs.damage_roll.value = dmgr._;
             attrs.damage_roll.melee = dmgr.melee;
             attrs.damage_roll.ranged = dmgr.ranged;
+            attrs.damage_roll.rollFormula = dmgrDiceFormula;
 
             // === Armor, Guard, Penetrate, Reduce 계산 === (활성 아이템 + applied 단일 경로)
             const armorBonus = R.sum('armor');
@@ -1595,6 +1681,7 @@
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
             attrs.dxroll.value = Math.max(0, dxRoll);    // (하위호환 잔존) 순수 개수 합
             attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
+            attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
             attrs.penetrate.value = Math.max(0, penetrateBonus);
             attrs.reduce.value = Math.max(0, reduceBonus);
             attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합

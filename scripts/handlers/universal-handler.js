@@ -1939,8 +1939,20 @@
         if (!key || key === '-') continue;
         const rawLabel = (attrData.label && attrData.label !== '-') ? attrData.label : null;
 
-        // 시전자 정보로 평가된 값 저장하되, applied에서는 key/label/value 모두 보존
-        const evaluated = window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, item.actor);
+        // 피해·방어·판정 시점 굴림 필드는 대상 효과(AE)로 옮겨도 원 수식을 보존한다.
+        // prepareData에서 수치 0으로 동결하면 안 되며, 각 소비부가 실제 행동 시 Roll로 한 번 굴린다.
+        const actionRollKeys = new Set([
+          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+          'dice', 'add', 'critical',
+          'major_dice', 'major_add', 'major_critical',
+          'reaction_dice', 'reaction_add', 'reaction_critical',
+          'dodge_dice', 'dodge_add', 'dodge_critical',
+          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
+        ]);
+        const prepared = window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, item, item.actor);
+        const evaluated = actionRollKeys.has(key) && window.DX3rdFormulaEvaluator.hasDice(prepared)
+          ? prepared
+          : window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, item.actor);
         // 동일 key 의 서로 다른 label(fist/melee/ranged, 스킬별 stat_*)이 덮어쓰지 않도록 저장 키를 key:label 조합으로 사용
         const storageKey = rawLabel ? `${key}:${rawLabel}` : key;
         appliedEffect.attributes[storageKey] = {
@@ -2131,10 +2143,23 @@
         const attributeName = needsLabel ? attrData.label : attrData.key;
         if (!attributeName || attributeName === '-') continue;
 
-        // 값 평가 (formula evaluator 사용)
-        const evaluated = window.DX3rdFormulaEvaluator?.evaluate 
-          ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, null, actor)
-          : Number(attrData.value) || 0;
+        // 채팅 카드 등의 직렬화 경로도 발동형 롤 수식은 숫자로 동결하지 않는다.
+        const actionRollKeys = new Set([
+          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+          'dice', 'add', 'critical',
+          'major_dice', 'major_add', 'major_critical',
+          'reaction_dice', 'reaction_add', 'reaction_critical',
+          'dodge_dice', 'dodge_add', 'dodge_critical',
+          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
+        ]);
+        const prepared = window.DX3rdFormulaEvaluator?.prepareRollFormula
+          ? window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, null, actor)
+          : String(attrData.value ?? '0');
+        const evaluated = actionRollKeys.has(attrData.key) && window.DX3rdFormulaEvaluator?.hasDice?.(prepared)
+          ? prepared
+          : (window.DX3rdFormulaEvaluator?.evaluate
+            ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, null, actor)
+            : Number(attrData.value) || 0);
         
         const storageKey = needsLabel ? `${attrData.key}:${attributeName}` : attrData.key;
         appliedEffect.attributes[storageKey] = {
@@ -2274,13 +2299,15 @@
      */
     async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null) {
       
-      let weaponAttack, actorAttack, actorDamageRoll, actorPenetrate;
+      let weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate;
       
       if (preservedValues) {
         // 보존된 값들 사용 (비활성화 훅 실행 전의 값)
         weaponAttack = preservedValues.weaponAttackFormula ?? preservedValues.weaponAttack ?? 0;
         actorAttack = preservedValues.actorAttack || 0;
+        actorAttackFormula = preservedValues.actorAttackFormula || '';
         actorDamageRoll = preservedValues.actorDamageRoll || 0;
+        actorDamageRollFormula = preservedValues.actorDamageRollFormula || '';
         actorPenetrate = preservedValues.actorPenetrate || 0;
       } else {
         // 현재 값들 사용 (비활성화 훅 실행 후의 값)
@@ -2298,27 +2325,35 @@
         
         // 공격 타입에 맞는 attack 보너스 계산
         actorAttack = actor.system.attributes.attack?.value || 0;
+        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
+        actorAttackFormula = attackFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
           actorAttack += actor.system.attributes.attack.melee;
+          actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
           actorAttack += actor.system.attributes.attack.ranged;
+          actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
         }
         // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
         actorAttack += this.getFistAttackBonus(actor, item);
 
         // 공격 타입에 맞는 damage_roll 보너스 계산
         actorDamageRoll = actor.system.attributes.damage_roll?.value || 0;
+        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
+        actorDamageRollFormula = damageRollFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
           actorDamageRoll += actor.system.attributes.damage_roll.melee;
+          actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
           actorDamageRoll += actor.system.attributes.damage_roll.ranged;
+          actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
         }
         
         actorPenetrate = actor.system.attributes.penetrate?.value || 0;
       }
       
       // 데미지 산출 다이얼로그 표시 (롤 결과와 보존된 값들 포함)
-      this.showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorDamageRoll, actorPenetrate, rollResult, comboAfterDamageData);
+      this.showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData);
     },
 
     /**
@@ -2332,7 +2367,7 @@
      * @param {number} rollResult - Attack roll result
      * @param {Object} comboAfterDamageData - Combo afterDamage data (optional)
      */
-    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorDamageRoll, actorPenetrate, rollResult, comboAfterDamageData = null) {
+    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData = null) {
 
       const attackRollResult = rollResult;
       
@@ -2458,12 +2493,13 @@
           : `${formula} + ${term}`;
       };
       const joinFormulaTerms = (...terms) => terms.reduce(appendFormulaTerm, '') || '0';
-      const baseDamageAddFormula = joinFormulaTerms(actorAttack, weaponAttackFormula, fearPenalty);
+      const baseDamageAddFormula = joinFormulaTerms(actorAttack, actorAttackFormula, weaponAttackFormula, fearPenalty);
       const diceCount = Math.floor(attackRollResult / 10) + 1 + actorDamageRoll + madness6Bonus;
       const totalDamageAddFormula = joinFormulaTerms(baseDamageAddFormula, madness7Bonus);
       
       // 템플릿 데이터 준비 (과대망상·트리거 해피 각각 구분 표기)
-      const dicePart = `[${attackRollResult} / 10 + 1 + ${actorDamageRoll}${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
+      const dynamicDicePart = actorDamageRollFormula ? ` + (${actorDamageRollFormula})` : '';
+      const dicePart = `[${attackRollResult} / 10 + 1 + ${actorDamageRoll}${dynamicDicePart}${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
       const addPart = `${baseDamageAddFormula}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
       const templateData = {
         formula: `${dicePart} + ${addPart}`,
@@ -2504,7 +2540,19 @@
               const addDamage = parseInt(form?.querySelector('#add-damage')?.value) || 0;
               
               // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
-              const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + actorDamageRoll + addDamageRoll + madness6Bonus;
+              let dynamicDiceCount = 0;
+              let dynamicDiceRoll = null;
+              if (actorDamageRollFormula) {
+                try {
+                  dynamicDiceRoll = await (new Roll(actorDamageRollFormula)).evaluate();
+                  dynamicDiceCount = Math.max(0, Math.floor(Number(dynamicDiceRoll.total) || 0));
+                } catch (error) {
+                  console.warn(`DX3rd | damage_roll formula failed: ${actorDamageRollFormula}`, error);
+                  ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${actorDamageRollFormula}`);
+                  return;
+                }
+              }
+              const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + actorDamageRoll + dynamicDiceCount + addDamageRoll + madness6Bonus;
               
               // 아이템 공격력의 다이스식은 바로 여기서 한 번만 확정한다.
               const finalDamageAddFormula = joinFormulaTerms(totalDamageAddFormula, addDamage);
@@ -2520,7 +2568,8 @@
                 
                 // 롤 결과를 HTML로 변환
                 const rollHTML = await damageRoll.render();
-                const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
+                const dynamicDiceHTML = dynamicDiceRoll ? await dynamicDiceRoll.render() : '';
+                const rollMessage = `${dynamicDiceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.DamageRollDiceFormula')}: ${actorDamageRollFormula} → +${dynamicDiceCount}D10</div>${dynamicDiceHTML}</div>` : ''}<div class="dice-roll">${rollHTML}</div>`;
                 
                 // 데미지 롤 정보 생성 (장갑 무시가 0이면 표시하지 않음)
                 let damageRollInfo = game.i18n.localize('DX3rd.DamageRoll');
@@ -2851,39 +2900,14 @@
           }
           return 0; // 가드치가 같으면 원래 순서 유지
         });
-      let guard = targetActor.system.attributes.guard?.value || 0;
-      // 가드 D10 굴림(가드치에 +[N]D10 모델): 방어 시 Nd10을 굴려 가드치에 가산하고 채팅으로 공개.
-      //   prepareData가 guard_roll 소스들을 다이스식으로 조립해 attrs.guard.rollFormula 에 적재
-      //   → 여기서 1회 굴림(리터럴 NdM 지원, 다중 소스는 각 항이 개별로 굴려져 합산). 구버전 데이터 폴백: attrs.guard.roll(개수).
+      const guard = targetActor.system.attributes.guard?.value || 0;
+      // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
       const guardRollN = Number(targetActor.system.attributes.guard?.roll || 0);
       const guardRollFormula = targetActor.system.attributes.guard?.rollFormula || (guardRollN > 0 ? `${guardRollN}d10` : '');
-      if (guardRollFormula) {
-        try {
-          const gr = await (new Roll(guardRollFormula)).evaluate();
-          guard += Number(gr.total) || 0;
-          await gr.toMessage({
-            speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-            flavor: `${game.i18n.localize('DX3rd.GuardRoll')} (${guardRollFormula}) → +${gr.total}`
-          });
-        } catch (e) { console.warn('DX3rd | guard roll failed', e); }
-      }
       const armor = targetActor.system.attributes.armor?.value || 0;
-      let reduce = targetActor.system.attributes.reduce?.value || 0;
-      // 데미지 경감 D10 굴림(발동형 reduce_roll 모델): 피격 시 Nd10을 굴려 경감치에 가산하고 채팅으로 공개.
-      //   prepareData가 reduce_roll 소스들을 다이스식으로 조립해 attrs.reduce.rollFormula 에 적재
-      //   → 여기서 1회 굴림(리터럴 NdM 지원, 다중 소스는 각 항이 개별로 굴려져 합산). 구버전 데이터 폴백: attrs.reduce.roll(개수).
+      const reduce = targetActor.system.attributes.reduce?.value || 0;
       const reduceRollN = Number(targetActor.system.attributes.reduce?.roll || 0);
       const reduceRollFormula = targetActor.system.attributes.reduce?.rollFormula || (reduceRollN > 0 ? `${reduceRollN}d10` : '');
-      if (reduceRollFormula) {
-        try {
-          const rr = await (new Roll(reduceRollFormula)).evaluate();
-          reduce += Number(rr.total) || 0;
-          await rr.toMessage({
-            speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-            flavor: `${game.i18n.localize('DX3rd.ReduceRoll')} (${reduceRollFormula}) → +${rr.total}`
-          });
-        } catch (e) { console.warn('DX3rd | reduce roll failed', e); }
-      }
       const currentHP = targetActor.system.attributes.hp?.value || 0;
       const maxHP = targetActor.system.attributes.hp?.max || 0;
       
@@ -2903,11 +2927,13 @@
         life: currentHP,
         recovery: false,
         guard: guard,
+        guardRollFormula,
         guardCheck: '',
         weaponList: weaponList,
         armor: armor,
         penetrate: penetrate,
         reduce: reduce,
+        reduceRollFormula,
         attackResult: attackResultValue,
         reactionItems: reactionItems
       };
@@ -2935,7 +2961,23 @@
             default: true,
             callback: async (event, button) => {
               const form = button.form;
-              const finalDamage = parseInt(form?.querySelector('#realDamage')?.textContent) || 0;
+              const displayedDamage = parseInt(form?.querySelector('#realDamage')?.textContent) || 0;
+              let guardRoll = null;
+              let reduceRoll = null;
+              let dynamicDefense = 0;
+              try {
+                if (guardRollFormula) {
+                  guardRoll = await (new Roll(guardRollFormula)).evaluate();
+                  dynamicDefense += Number(guardRoll.total) || 0;
+                }
+                if (reduceRollFormula) {
+                  reduceRoll = await (new Roll(reduceRollFormula)).evaluate();
+                  dynamicDefense += Number(reduceRoll.total) || 0;
+                }
+              } catch (error) {
+                console.warn('DX3rd | Deferred defense roll failed', error);
+              }
+              const finalDamage = Math.max(0, displayedDamage - dynamicDefense);
               const newHP = Math.max(0, currentHP - finalDamage);
               const hpChange = currentHP - newHP; // 실제 HP 변동량
               
@@ -2952,9 +2994,12 @@
               }
               
               // 채팅 메시지 출력 (스피커는 대상 액터)
+              const guardRollHTML = guardRoll ? await guardRoll.render() : '';
+              const reduceRollHTML = reduceRoll ? await reduceRoll.render() : '';
+              const defenseRollContent = `${guardRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.GuardRoll')}: ${guardRollFormula} → +${guardRoll.total}</div>${guardRollHTML}</div>` : ''}${reduceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.ReduceRoll')}: ${reduceRollFormula} → +${reduceRoll.total}</div>${reduceRollHTML}</div>` : ''}`;
               await ChatMessage.create({
                 speaker: ChatMessage.getSpeaker({ actor: targetActor }),
-                content: `<div class="dx3rd-item-chat"><div>${chatMessage}</div></div>`,
+                content: `<div class="dx3rd-item-chat"><div>${chatMessage}</div>${defenseRollContent}</div>`,
                 style: CONST.CHAT_MESSAGE_STYLES.OTHER
               });
               
@@ -3978,12 +4023,20 @@
         //   공격력(system.attack)은 데미지 단계(executeAttackRoll)에서 별도 평가되므로 여기서는
         //   플레이버 표시용일 뿐 이중계산되지 않음(executeAttackRoll은 weaponBonus를 받지 않음).
         let weaponBonus = null;
-        const selfAdd = window.DX3rdFormulaEvaluator.evaluate(item.system.add, item, actor) || 0;
-        const selfAttack = window.DX3rdFormulaEvaluator.evaluate(item.system.attack, item, actor) || 0;
-        if (selfAdd !== 0 || selfAttack !== 0) {
+        const preparedWeaponAdd = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.add, item, actor);
+        const preparedWeaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
+        // 다이스 수정치는 시트/다이얼로그를 열 때 굴리지 않는다. 판정 버튼을 누르는
+        // 순간 executeAttackRoll/executeStatRoll이 원 수식을 같은 Roll에 포함한다.
+        const weaponAddIsDice = window.DX3rdFormulaEvaluator.hasDice(preparedWeaponAdd);
+        const selfAdd = weaponAddIsDice ? 0 : (window.DX3rdFormulaEvaluator.evaluate(preparedWeaponAdd) || 0);
+        const selfAttack = window.DX3rdFormulaEvaluator.hasDice(preparedWeaponAttack)
+          ? preparedWeaponAttack
+          : (window.DX3rdFormulaEvaluator.evaluate(preparedWeaponAttack) || 0);
+        if (selfAdd !== 0 || selfAttack !== 0 || weaponAddIsDice) {
           weaponBonus = {
             attack: selfAttack,
             add: selfAdd,
+            addFormula: weaponAddIsDice ? preparedWeaponAdd : null,
             weaponName: (item.name || '').replace(/\|\|.+$/, '').trim(),
             weaponIds: [item.id]
           };
@@ -4041,7 +4094,7 @@
      * @param {number} critical - 크리티컬 값
      * @param {number} add - 가산치
      */
-    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add) {
+    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null) {
       try {
         // 대상 확인 (다시 가져오기)
         const targets = Array.from(game.user.targets);
@@ -4062,25 +4115,35 @@
         
         // 공격 타입에 맞는 attack 보너스 계산
         let attackBonus = actor.system.attributes.attack?.value || 0;
+        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
+        let actorAttackFormula = attackFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
           attackBonus += actor.system.attributes.attack.melee;
+          actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
           attackBonus += actor.system.attributes.attack.ranged;
+          actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
         }
         // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
         attackBonus += this.getFistAttackBonus(actor, item);
 
         // 공격 타입에 맞는 damage_roll 보너스 계산
         let damageRollBonus = actor.system.attributes.damage_roll?.value || 0;
+        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
+        let damageRollFormula = damageRollFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
           damageRollBonus += actor.system.attributes.damage_roll.melee;
+          damageRollFormula = [damageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
           damageRollBonus += actor.system.attributes.damage_roll.ranged;
+          damageRollFormula = [damageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
         }
         
         const preservedValues = {
           actorAttack: attackBonus,
+          actorAttackFormula: actorAttackFormula,
           actorDamageRoll: damageRollBonus,
+          actorDamageRollFormula: damageRollFormula,
           actorPenetrate: actor.system.attributes.penetrate?.value || 0
         };
         
@@ -4097,11 +4160,34 @@
         // 공포 패널티는 이미 다이얼로그에서 반영되었으므로 여기서는 적용하지 않음
         // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
         // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
-        const autoFailByPool = dice <= 0;
-        const finalDice = Math.max(1, dice);
+        // 행동 시점 판정 수식: prepareData에서 원문만 보존하고, 여기서 정확히 한 번 굴린다.
+        const actionProfile = actor.system.attributes.actionRollFormula || {};
+        const typedProfile = actionProfile[rollType] || {};
+        const rollActionFormula = async (kind) => {
+          const formula = [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
+          if (!formula) return { total: 0, text: '' };
+          try {
+            const result = await (new Roll(formula)).evaluate();
+            return { total: Number(result.total) || 0, text: `${kind}: ${formula} → ${result.total}` };
+          } catch (error) {
+            console.warn(`DX3rd | action roll formula failed (${kind}): ${formula}`, error);
+            ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${formula}`);
+            return { total: 0, text: `${kind}: ${formula} → 0` };
+          }
+        };
+        const [formulaDice, formulaAdd, formulaCritical] = await Promise.all([
+          rollActionFormula('dice'), rollActionFormula('add'), rollActionFormula('critical')
+        ]);
+        const rolledDice = dice + formulaDice.total;
+        const rolledCritical = critical + formulaCritical.total;
+        const rolledAdd = add + formulaAdd.total;
+        // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
+        // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
+        const autoFailByPool = rolledDice <= 0;
+        const finalDice = Math.max(1, rolledDice);
 
         // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
-        let add2 = add;
+        let add2 = rolledAdd;
         const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
         const dxRollFormula = actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : '');
         if (dxRollFormula) {
@@ -4114,7 +4200,13 @@
             });
           } catch (e) { console.warn('DX3rd | dxroll failed', e); }
         }
-        const roll = await (new Roll(`${finalDice}dx${critical} + ${add2}`)).roll();
+        // 무기 명중 수정치의 다이스는 판정 버튼을 누른 지금 한 번만 같은 Roll에 포함한다.
+        // 결과는 사전 다이얼로그가 아니라 명중 롤 카드의 Foundry 항별 결과로 공개된다.
+        const weaponAddFormula = weaponBonus?.addFormula;
+        const rollFormula = weaponAddFormula
+          ? `${finalDice}dx${Math.max(2, rolledCritical)} + ${add2} + ${weaponAddFormula}`
+          : `${finalDice}dx${Math.max(2, rolledCritical)} + ${add2}`;
+        const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
         // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
@@ -4172,7 +4264,9 @@
                     data-item-id="${item.id}"
                     data-roll-result="${rollResult}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
+                    data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
                     data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
+                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
         // 아이템 타입별 공격력 데이터 속성 추가
@@ -6093,7 +6187,7 @@
             
             // 무기/비클 공격인 경우 별도 처리 (난이도 없음)
             if (item && (item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null) {
-              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd);
+              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula);
             } else if (isAttackRoll) {
               // attackRoll이 melee/ranged인 경우 공격 판정으로 처리 (난이도 없음)
               // 무기 아이템에서 시작한 임시 콤보인지 확인
@@ -6105,7 +6199,7 @@
                 if (weaponToken) {
                   weaponToken.control({ releaseOthers: true });
                   dlg.close();
-                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd);
+                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula);
                   return;
                 }
               }
@@ -6113,7 +6207,7 @@
               // 공격 판정이지만 executeAttackRoll로 가지 않는 경우 (콤보/이펙트 등)
               // 난이도 없이 executeStatRoll 호출
               const difficultyData = { type: 'none', value: 0 };
-              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData);
+              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, false, null, false, effectiveStat.rollFormula);
             } else {
               // 일반 판정: 난이도 처리
               const difficultyInput = root.querySelector('.dx-difficulty')?.value.trim() || '';
@@ -6144,7 +6238,7 @@
                 return;
               }
               
-              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, isUrgeTest, afterRollCallback, isPanicTest);
+              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, isUrgeTest, afterRollCallback, isPanicTest, effectiveStat.rollFormula);
             }
             dlg.close();
         });
@@ -6164,7 +6258,7 @@
      * @param {Token} previousToken - 이전에 선택된 토큰 (선택사항)
      * @param {Object} comboAfterSuccessData - 콤보의 afterSuccess 데이터 (선택사항)
      */
-    async executeStatRoll(actor, dice, critical, add, label, rollType, difficultyData = { type: 'none', value: 0 }, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, isUrgeTest = false, afterRollCallback = null, isPanicTest = false) {
+    async executeStatRoll(actor, dice, critical, add, label, rollType, difficultyData = { type: 'none', value: 0 }, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, statRollFormula = null) {
       const typeLabelMap = {
         major: game.i18n.localize('DX3rd.Major'),
         reaction: game.i18n.localize('DX3rd.Reaction'),
@@ -6215,10 +6309,14 @@
           
           // 공격 타입에 맞는 attack 보너스 계산
           let attackBonus = actor.system.attributes.attack?.value || 0;
+          const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
+          let actorAttackFormula = attackFormulas._ || '';
           if (attackRollType === 'melee' && actor.system.attributes.attack?.melee) {
             attackBonus += actor.system.attributes.attack.melee;
+            actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
           } else if (attackRollType === 'ranged' && actor.system.attributes.attack?.ranged) {
             attackBonus += actor.system.attributes.attack.ranged;
+            actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
           }
           // 맨손 한정 공격력(축퇴기관 등): weapon-for-attack로 맨손을 선택한 경우만 가산
           const fistNameForAtk = game.i18n.localize('DX3rd.Fist');
@@ -6229,21 +6327,52 @@
 
           // 공격 타입에 맞는 damage_roll 보너스 계산
           let damageRollBonus = actor.system.attributes.damage_roll?.value || 0;
+          const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
+          let damageRollFormula = damageRollFormulas._ || '';
           if (attackRollType === 'melee' && actor.system.attributes.damage_roll?.melee) {
             damageRollBonus += actor.system.attributes.damage_roll.melee;
+            damageRollFormula = [damageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
           } else if (attackRollType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
             damageRollBonus += actor.system.attributes.damage_roll.ranged;
+            damageRollFormula = [damageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
           }
           
           preservedValues = {
             actorAttack: attackBonus,
+            actorAttackFormula: actorAttackFormula,
             actorDamageRoll: damageRollBonus,
+            actorDamageRollFormula: damageRollFormula,
             actorPenetrate: actor.system.attributes.penetrate?.value || 0,
-            // 이 경로의 무기 보너스는 기존에 이미 숫자로 계산된 값이다.
-            weaponAttackFormula: String(effectiveWeaponBonus.attack || 0)
+            // 무기 공격력 다이스식은 데미지 확정 시점까지 보존한다.
+            weaponAttackFormula: effectiveWeaponBonus.attackFormula || String(effectiveWeaponBonus.attack || 0)
           };
         }
         
+        // 수치 파생 단계에서는 보류한 다이스식을 실제 판정 버튼을 누른 지금 한 번만 굴린다.
+        // [육체]/[백병]/[레벨] 참조는 prepareData 단계에서 이미 현재 액터 값으로 치환되어 있다.
+        const actionProfile = actor.system.attributes.actionRollFormula || {};
+        const typedProfile = actionProfile[rollType] || {};
+        const rollActionFormula = async (kind) => {
+          const formula = [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
+          if (!formula) return { total: 0, text: '' };
+          try {
+            const result = await (new Roll(formula)).evaluate();
+            return { total: Number(result.total) || 0, text: `${kind}: ${formula} → ${result.total}` };
+          } catch (error) {
+            console.warn(`DX3rd | stat roll formula failed (${kind}): ${formula}`, error);
+            ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${formula}`);
+            return { total: 0, text: `${kind}: ${formula} → 0` };
+          }
+        };
+        const [formulaDice, formulaAdd, formulaCritical] = await Promise.all([
+          rollActionFormula('dice'), rollActionFormula('add'), rollActionFormula('critical')
+        ]);
+        dice += formulaDice.total;
+        add += formulaAdd.total;
+        critical = Math.max(2, critical + formulaCritical.total);
+        // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
+        // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
+
         // 주사위 굴림 (침식률 증가는 이미 EffectHandler에서 처리됨)
         // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
         // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
@@ -6263,7 +6392,12 @@
             });
           } catch (e) { console.warn('DX3rd | dxroll failed', e); }
         }
-        const roll = await (new Roll(`${finalDice}dx${critical} + ${add2}`)).roll();
+        // 콤보/이펙트 공격도 무기에서 넘겨 받은 다이스 명중 수정치를 동일한 판정 롤에 보존한다.
+        const weaponAddFormula = weaponBonus?.addFormula;
+        const rollFormula = weaponAddFormula
+          ? `${finalDice}dx${critical} + ${add2} + ${weaponAddFormula}`
+          : `${finalDice}dx${critical} + ${add2}`;
+        const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
         // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
@@ -6329,7 +6463,9 @@
                       data-item-id="${item ? item.id : ''}"
                       data-roll-result="${rollResult}"
                       data-preserved-actor-attack="${preservedValues.actorAttack}"
+                      data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
                       data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
+                      data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                       data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
                       data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"
                       data-weapon-ids="${weaponIdsStr}">
@@ -9208,17 +9344,24 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
   console.log('DX3rd | handleConditionRequestBulk - Initial poisonedRank:', poisonedRank, 'conditionTypes:', conditionTypes);
   try {
     if (conditionTypes.includes('poisoned') && poisonedRank !== undefined && poisonedRank !== null) {
-      // 이미 숫자면 그대로 사용, 문자열이면 평가
+      // 이미 숫자면 그대로 사용, 문자열은 승인 직후 한 번만 평가한다.
       if (typeof poisonedRank === 'number') {
         console.log('DX3rd | Poisoned rank already evaluated:', poisonedRank);
       } else if (typeof poisonedRank === 'string' && poisonedRank.trim() !== '') {
         console.log('DX3rd | Poisoned rank detected, checking if formula:', poisonedRank);
-        if (typeof window.DX3rdFormulaEvaluator?.evaluate === 'function' && /\[/.test(poisonedRank)) {
+        if (typeof window.DX3rdFormulaEvaluator?.evaluateRoll === 'function') {
           const actor = game.actors.get(actorId);
           const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
           const itemLevel = item?.system?.level?.value ?? 1;
           const itemForFormula = item ? item : { type: 'effect', system: { level: { value: itemLevel } } };
-          const evaluated = window.DX3rdFormulaEvaluator.evaluate(poisonedRank, itemForFormula, actor);
+          const resolved = await window.DX3rdFormulaEvaluator.evaluateRoll(poisonedRank, itemForFormula, actor);
+          const evaluated = resolved.total;
+          if (resolved.roll) {
+            await resolved.roll.toMessage({
+              speaker: ChatMessage.getSpeaker({ actor }),
+              flavor: `사독 랭크 (${resolved.formula}) → ${evaluated}`
+            });
+          }
           const num = Number(evaluated);
           console.log('DX3rd | Evaluated poisonedRank formula:', poisonedRank, '→', evaluated, '→', num);
           if (!Number.isNaN(num) && Number.isFinite(num) && num > 0) poisonedRank = num;
@@ -9617,16 +9760,23 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
   const { userId, actorId, actorName, targets, conditionType, triggerItemName } = requestData;
   let { poisonedRank } = requestData;
 
-  // 사독 랭크가 포뮬러 문자열인 경우 여기서 숫자로 평가해 다이얼로그 우회가 가능하도록 한다
+  // 사독 랭크는 승인 직후에만 해석한다. 다이스식이라면 Roll 결과도 함께 남긴다.
   try {
     if (conditionType === 'poisoned' && poisonedRank !== undefined && poisonedRank !== null && `${poisonedRank}`.trim() !== '') {
-      if (typeof window.DX3rdFormulaEvaluator?.evaluate === 'function' && typeof poisonedRank === 'string' && /\[/.test(poisonedRank)) {
+      if (typeof window.DX3rdFormulaEvaluator?.evaluateRoll === 'function' && typeof poisonedRank === 'string') {
         const actor = game.actors.get(actorId);
         // 아이템 컨텍스트가 있다면 사용 (요청 데이터에 itemId가 있을 수도 있음)
         const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
         const itemLevel = item?.system?.level?.value ?? 1;
         const itemForFormula = item ? item : { type: 'effect', system: { level: { value: itemLevel } } };
-        const evaluated = window.DX3rdFormulaEvaluator.evaluate(poisonedRank, itemForFormula, actor);
+        const resolved = await window.DX3rdFormulaEvaluator.evaluateRoll(poisonedRank, itemForFormula, actor);
+        const evaluated = resolved.total;
+        if (resolved.roll) {
+          await resolved.roll.toMessage({
+            speaker: ChatMessage.getSpeaker({ actor }),
+            flavor: `사독 랭크 (${resolved.formula}) → ${evaluated}`
+          });
+        }
         const num = Number(evaluated);
         if (!Number.isNaN(num) && Number.isFinite(num) && num > 0) poisonedRank = num;
       }

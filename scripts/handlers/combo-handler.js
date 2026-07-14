@@ -362,6 +362,10 @@ window.DX3rdComboHandler = {
             effectItems.push(effectItem);
         }
 
+        // updateItem 훅의 AE 동기화는 비동기다. 즉시 활성화 이펙트(예: 굶주린 그림자)의
+        // 공격력 보정이 공격 판정 전에 actor 파생값에 반영되도록, 진행 중인 동기화까지 완료를 대기한다.
+        await window.DX3rdAppliedToggle?.sync?.(actor);
+
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트)
         const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true });
 
@@ -792,7 +796,7 @@ window.DX3rdComboHandler = {
             
             if (hasAvailableWeapons) {
                 // 사용 가능한 무기가 있으면 보너스 적용
-                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0) 
+                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0 || registeredWeaponBonus.attackFormula || registeredWeaponBonus.addFormula)
                     ? registeredWeaponBonus 
                     : null;
                 
@@ -866,7 +870,7 @@ window.DX3rdComboHandler = {
      * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만)
      */
     calculateRegisteredWeaponBonus(actor, item) {
-        const weaponBonus = { attack: 0, add: 0, weaponName: '', weaponIds: [] };
+        const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
         
         // 무기 탭에 등록된 무기들 가져오기
         const registeredWeapons = item.system?.weapon || [];
@@ -891,13 +895,15 @@ window.DX3rdComboHandler = {
                         continue;
                     }
                     
-                    // 공격력 합산 (문자열로 저장됨)
-                    const attackValue = Number(weaponItem.system?.attack) || 0;
-                    weaponBonus.attack += attackValue;
-                    
-                    // 수정치 합산 (문자열로 저장됨)
-                    const addValue = Number(weaponItem.system?.add) || 0;
-                    weaponBonus.add += addValue;
+                    // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
+                    const formula = window.DX3rdFormulaEvaluator;
+                    const addFormulaTerm = (target, raw) => {
+                        const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
+                        if (formula.hasDice(prepared)) weaponBonus[target] = [weaponBonus[target], prepared].filter(Boolean).join(' + ');
+                        else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
+                    };
+                    addFormulaTerm('attackFormula', weaponItem.system?.attack);
+                    addFormulaTerm('addFormula', weaponItem.system?.add);
                     
                     // 무기 이름 추가 (루비 텍스트 제거)
                     const cleanWeaponName = weaponItem.name.split('||')[0].trim();
@@ -910,7 +916,12 @@ window.DX3rdComboHandler = {
                     // 무기 ID 추가
                     weaponBonus.weaponIds.push(weaponId);
                     
-                    console.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name}: attack=${attackValue}, add=${addValue}`);
+                    console.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name}:`, {
+                        attack: weaponBonus.attack,
+                        attackFormula: weaponBonus.attackFormula,
+                        add: weaponBonus.add,
+                        addFormula: weaponBonus.addFormula
+                    });
                 } else if (weaponItem) {
                     console.log(`DX3rd | ComboHandler - Item ${weaponItem.name} is not a weapon, skipping`);
                 } else {
@@ -1094,25 +1105,35 @@ window.DX3rdComboHandler = {
         
         // 공격 타입에 맞는 attack 보너스 계산
         let actorAttack = actor.system.attributes.attack?.value || 0;
+        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
+        let actorAttackFormula = attackFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
             actorAttack += actor.system.attributes.attack.melee;
+            actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
             actorAttack += actor.system.attributes.attack.ranged;
+            actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
         }
         // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
         actorAttack += window.DX3rdUniversalHandler?.getFistAttackBonus?.(actor, item) || 0;
 
         // 공격 타입에 맞는 damage_roll 보너스 계산
         let actorDamageRoll = actor.system.attributes.damage_roll?.value || 0;
+        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
+        let actorDamageRollFormula = damageRollFormulas._ || '';
         if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
             actorDamageRoll += actor.system.attributes.damage_roll.melee;
+            actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
         } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
             actorDamageRoll += actor.system.attributes.damage_roll.ranged;
+            actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
         }
         
         const preservedValues = {
             actorAttack: actorAttack,
+            actorAttackFormula: actorAttackFormula,
             actorDamageRoll: actorDamageRoll,
+            actorDamageRollFormula: actorDamageRollFormula,
             actorPenetrate: actor.system.attributes.penetrate?.value || 0
         };
         
@@ -1172,7 +1193,9 @@ window.DX3rdComboHandler = {
                     data-item-id="${item.id}"
                     data-roll-result="${achievementValue}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
+                    data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
                     data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
+                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
         // 아이템 타입별 공격력 데이터 속성 추가

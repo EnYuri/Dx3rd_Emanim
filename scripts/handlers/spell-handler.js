@@ -156,6 +156,7 @@ window.DX3rdSpellHandler = {
 
         const castDice = Number(actor.system?.attributes?.cast?.dice ?? 0);
         const castAdd = Number(actor.system?.attributes?.cast?.add ?? 0);
+        const castRollFormula = actor.system?.attributes?.cast?.rollFormula || {};
         const eibonDice = Number(actor.system?.attributes?.cast?.eibon ?? 0);
 
         const content = `
@@ -210,6 +211,7 @@ window.DX3rdSpellHandler = {
                         await this.performCastingRoll(actor, item, {
                             castDice,
                             castAdd,
+                            castRollFormula,
                             eibonDice,
                             difficulty,
                             useEibon,
@@ -251,10 +253,27 @@ window.DX3rdSpellHandler = {
     }
     ,
     async performCastingRoll(actor, item, options) {
-        const { castDice, castAdd, eibonDice, difficulty, useEibon, useAngel, getTarget } = options;
+        const { castDice, castAdd, castRollFormula = {}, eibonDice, difficulty, useEibon, useAngel, getTarget } = options;
+
+        // cast_* 다이스식은 마술 굴림 버튼을 누른 지금 한 번만 굴린다.
+        const rollFormulaBonus = async (kind) => {
+            const formula = castRollFormula?.[kind];
+            if (!formula) return { total: 0, text: '' };
+            try {
+                const result = await (new Roll(formula)).evaluate();
+                return { total: Number(result.total) || 0, text: `${kind}: ${formula} → ${result.total}` };
+            } catch (error) {
+                console.warn(`DX3rd | casting formula failed (${kind}): ${formula}`, error);
+                ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${formula}`);
+                return { total: 0, text: `${kind}: ${formula} → 0` };
+            }
+        };
+        const [formulaDice, formulaAdd] = await Promise.all([
+            rollFormulaBonus('dice'), rollFormulaBonus('add')
+        ]);
 
         // 주사위 개수 계산
-        let totalDice = castDice;
+        let totalDice = castDice + formulaDice.total;
         if (useEibon) {
             totalDice += eibonDice;
         }
@@ -273,8 +292,9 @@ window.DX3rdSpellHandler = {
         if (dsOptions.length > 0) {
             formula += `[${dsOptions.join(', ')}]`;
         }
-        if (castAdd !== 0) {
-            formula += castAdd >= 0 ? `+${castAdd}` : `${castAdd}`;
+        const totalAdd = castAdd + formulaAdd.total;
+        if (totalAdd !== 0) {
+            formula += totalAdd >= 0 ? `+${totalAdd}` : `${totalAdd}`;
         }
 
         // 주사위 굴림 실행

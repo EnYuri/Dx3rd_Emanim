@@ -7,8 +7,10 @@
 
   class DX3rdComboSheetV2 extends Base {
     static DEFAULT_OPTIONS = {
+      ...Base.DEFAULT_OPTIONS,
       classes: ['combo-sheet-v2'],
       actions: {
+        ...Base.DEFAULT_OPTIONS.actions,
         runInstantCombo: DX3rdComboSheetV2._onRunInstantCombo,
         saveInstantCombo: DX3rdComboSheetV2._onSaveInstantCombo,
         cancelInstantCombo: DX3rdComboSheetV2._onCancelInstantCombo

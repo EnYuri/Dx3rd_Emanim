@@ -1013,17 +1013,19 @@
 }
 
 /* 임시 콤보: 콤보 시트의 검정 바탕·회색 탭·얇은 검정 테두리를 그대로 따른다. */
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions {
     display: flex;
     align-items: stretch;
     gap: 4px;
-    margin: 4px 10px 0;
-    padding: 0 0 2px;
+    margin: 0 10px;
+    padding: 2px 0;
     border: 0;
     background: transparent;
 }
 
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button {
     min-height: 26px;
     margin: 0;
     padding: 2px 8px;
@@ -1036,23 +1038,28 @@
     line-height: 1.1;
 }
 
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-run {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-run,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-run {
     flex: 1 1 auto;
     background: #2a2a2a;
     font-weight: 700;
 }
 
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-save {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-save,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-save {
     flex: 0 0 34px;
     padding: 2px 0;
 }
 
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-cancel {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-cancel,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-cancel {
     flex: 0 0 auto;
 }
 
 .window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:hover,
-.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:focus-visible {
+.window-app.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:focus-visible,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:hover,
+.application.dx3rd-emanim.combo-sheet-v2 .instant-combo-actions button:focus-visible {
     background: #5a5a5a;
     border-color: #909090;
     color: #fff;

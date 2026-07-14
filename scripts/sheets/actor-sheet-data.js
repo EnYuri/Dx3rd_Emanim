@@ -227,6 +227,10 @@
         if (!item) return null;
 
         await item.update({ "system.active.state": !!checked });
+        // effect/spell/psionic/combo의 지속 보정은 AppliedToggle이 AE로 변환한다.
+        // 아이템 갱신 훅만 기다리면 다음 판정이 AE 생성 전의 파생치를 읽을 수 있으므로,
+        // 사용자가 토글 직후 판정해도 같은 상태를 보도록 진행 중인 동기화까지 대기한다.
+        await window.DX3rdAppliedToggle?.sync?.(actor);
         return item;
     }
 

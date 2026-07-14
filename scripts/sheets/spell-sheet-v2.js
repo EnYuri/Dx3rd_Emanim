@@ -6,7 +6,7 @@
   if (!Base || !compat || !itemSheetData) return;
 
   class DX3rdSpellSheetV2 extends Base {
-    static DEFAULT_OPTIONS = {classes: ['spell-sheet-v2']};
+    static DEFAULT_OPTIONS = {...Base.DEFAULT_OPTIONS, classes: ['spell-sheet-v2']};
 
     static PARTS = {
       main: {template: 'systems/dx3rd-emanim/templates/item/spell-sheet-v2.html', root: true}

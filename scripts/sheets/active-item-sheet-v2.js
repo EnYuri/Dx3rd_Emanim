@@ -7,12 +7,18 @@
   if (!ItemSheetV2 || !compat || !manager || !itemSheetData) return;
 
   class DX3rdActiveItemSheetV2 extends ItemSheetV2 {
-    static DEFAULT_OPTIONS = {actions: {
-      createAttribute: DX3rdActiveItemSheetV2._onCreateAttribute,
-      deleteAttribute: DX3rdActiveItemSheetV2._onDeleteAttribute,
-      macroAdd: DX3rdActiveItemSheetV2._onMacroAdd,
-      macroDelete: DX3rdActiveItemSheetV2._onMacroDelete
-    }};
+    static DEFAULT_OPTIONS = {
+      form: {
+        closeOnSubmit: false,
+        submitOnChange: true
+      },
+      actions: {
+        createAttribute: DX3rdActiveItemSheetV2._onCreateAttribute,
+        deleteAttribute: DX3rdActiveItemSheetV2._onDeleteAttribute,
+        macroAdd: DX3rdActiveItemSheetV2._onMacroAdd,
+        macroDelete: DX3rdActiveItemSheetV2._onMacroDelete
+      }
+    };
 
     async _prepareContext(options) {
       const context = await super._prepareContext(options);

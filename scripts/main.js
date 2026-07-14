@@ -3025,17 +3025,35 @@ window.DX3rdChatToggleManager = {
 
             // 개별 보존된 값들 읽기
             const preservedActorAttack = dx3rdReadData(button, 'preserved-actor-attack');
+            const preservedActorAttackFormulaEncoded = dx3rdReadData(button, 'preserved-actor-attack-formula');
             const preservedActorDamageRoll = dx3rdReadData(button, 'preserved-actor-damage-roll');
+            const preservedActorDamageRollFormulaEncoded = dx3rdReadData(button, 'preserved-actor-damage-roll-formula');
             const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
             const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
             const preservedAttackFormulaEncoded = dx3rdReadData(button, 'preserved-attack-formula');
             const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
             let preservedAttackFormula = null;
+            let preservedActorAttackFormula = '';
+            let preservedActorDamageRollFormula = '';
             if (typeof preservedAttackFormulaEncoded === 'string' && preservedAttackFormulaEncoded !== '') {
                 try {
                     preservedAttackFormula = decodeURIComponent(preservedAttackFormulaEncoded);
                 } catch (e) {
                     console.warn('DX3rd | Could not read preserved attack formula', e);
+                }
+            }
+            if (typeof preservedActorAttackFormulaEncoded === 'string' && preservedActorAttackFormulaEncoded !== '') {
+                try {
+                    preservedActorAttackFormula = decodeURIComponent(preservedActorAttackFormulaEncoded);
+                } catch (e) {
+                    console.warn('DX3rd | Could not read preserved actor attack formula', e);
+                }
+            }
+            if (typeof preservedActorDamageRollFormulaEncoded === 'string' && preservedActorDamageRollFormulaEncoded !== '') {
+                try {
+                    preservedActorDamageRollFormula = decodeURIComponent(preservedActorDamageRollFormulaEncoded);
+                } catch (e) {
+                    console.warn('DX3rd | Could not read preserved damage-roll formula', e);
                 }
             }
             
@@ -3079,7 +3097,9 @@ window.DX3rdChatToggleManager = {
             // 보존된 값들 객체 생성
             const preservedValues = {
                 actorAttack: preservedActorAttack || 0,
+                actorAttackFormula: preservedActorAttackFormula,
                 actorDamageRoll: preservedActorDamageRoll || 0,
+                actorDamageRollFormula: preservedActorDamageRollFormula,
                 actorPenetrate: preservedActorPenetrate || 0,
                 // 이전 채팅 카드는 숫자 보존값을 계속 지원한다.
                 weaponAttack: preservedWeaponAttack || 0,

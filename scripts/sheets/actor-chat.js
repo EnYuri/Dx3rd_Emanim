@@ -25,6 +25,17 @@
             return window.DX3rdActorSheetData.getSkillDisplay(this.actor, skillKey);
         }
 
+        // 채팅 미리보기는 행동을 실행하는 곳이 아니므로 다이스를 굴리지 않는다.
+        // 수식에 다이스가 있으면 참조만 현재 값으로 치환한 원문을 표시하고,
+        // 고정 수식만 기존처럼 계산된 숫자로 표시한다.
+        _getDisplayFormula(value, item) {
+            const formula = window.DX3rdFormulaEvaluator;
+            const prepared = formula.prepareRollFormula(value, item, this.actor);
+            return formula.hasDice(prepared)
+                ? prepared
+                : formula.evaluate(value, item, this.actor);
+        }
+
         async _sendItemToChat(item) {
             try {
                 // 액터 데이터 최신화 (침식률 변경 등 반영)
@@ -94,25 +105,25 @@
                         itemData.weaponType = currentItem.system.type || '-';
                         itemData.skill = currentItem.system.skill || '-';
                         itemData.range = currentItem.system.range || '-';
-                        itemData.add = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.add, currentItem, this.actor);
-                        itemData.attack = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.attack, currentItem, this.actor);
-                        itemData.guard = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.guard, currentItem, this.actor);
+                        itemData.add = this._getDisplayFormula(currentItem.system.add, currentItem);
+                        itemData.attack = this._getDisplayFormula(currentItem.system.attack, currentItem);
+                        itemData.guard = this._getDisplayFormula(currentItem.system.guard, currentItem);
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         itemData['attack-used'] = currentItem.system['attack-used'] || { disable: 'notCheck', state: 0, max: 0 };
                         break;
                     case 'protect':
-                        itemData.dodge = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.dodge, currentItem, this.actor);
-                        itemData.init = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.init, currentItem, this.actor);
-                        itemData.armor = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.armor, currentItem, this.actor);
+                        itemData.dodge = this._getDisplayFormula(currentItem.system.dodge, currentItem);
+                        itemData.init = this._getDisplayFormula(currentItem.system.init, currentItem);
+                        itemData.armor = this._getDisplayFormula(currentItem.system.armor, currentItem);
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         break;
                     case 'vehicle':
                         itemData.vehicleType = currentItem.system.type || '-';
                         itemData.skill = currentItem.system.skill || '-';
-                        itemData.attack = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.attack, currentItem, this.actor);
-                        itemData.init = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.init, currentItem, this.actor);
-                        itemData.armor = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.armor, currentItem, this.actor);
-                        itemData.move = window.DX3rdFormulaEvaluator.evaluate(currentItem.system.move, currentItem, this.actor);
+                        itemData.attack = this._getDisplayFormula(currentItem.system.attack, currentItem);
+                        itemData.init = this._getDisplayFormula(currentItem.system.init, currentItem);
+                        itemData.armor = this._getDisplayFormula(currentItem.system.armor, currentItem);
+                        itemData.move = this._getDisplayFormula(currentItem.system.move, currentItem);
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         break;
                     case 'connection':

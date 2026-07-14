@@ -18,7 +18,7 @@
     <table>
       <tr>
         <th>{{localize "DX3rd.Guard"}}</th>
-        <td colspan="3"><input type="text" id="guard" value="{{guard}}" ></td>
+        <td colspan="3"><input type="text" id="guard" value="{{guard}}" >{{#if guardRollFormula}}<div class="dx3rd-formula-preview">+ {{guardRollFormula}}</div>{{/if}}</td>
         <td><input type="checkbox" id="guard-check" {{guardCheck}} ></td>
       </tr>
       <tr>
@@ -61,7 +61,7 @@
       </tr>
       <tr>
         <th>{{localize "DX3rd.ReduceDamage"}}</th>
-        <td colspan="4"><input type="text" id="reduce" value="{{reduce}}" ></td>
+        <td colspan="4"><input type="text" id="reduce" value="{{reduce}}" >{{#if reduceRollFormula}}<div class="dx3rd-formula-preview">+ {{reduceRollFormula}}</div>{{/if}}</td>
       </tr>
       {{#if attackResult}}
       <tr>

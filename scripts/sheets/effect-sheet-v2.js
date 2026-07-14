@@ -8,6 +8,7 @@
 
   class DX3rdEffectSheetV2 extends Base {
     static DEFAULT_OPTIONS = {
+      ...Base.DEFAULT_OPTIONS,
       classes: ['effect-sheet-v2'],
       actions: {
         ...Base.DEFAULT_OPTIONS.actions,
@@ -76,7 +77,6 @@
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
       listen('change', '.macro-kind', event => this._updateMacro(event, 'kind'));
       listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
-
       // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
       itemSheetData.migrateLegacyMacroField(this.item);
 

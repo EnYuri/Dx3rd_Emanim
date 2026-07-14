@@ -61,7 +61,7 @@ window.DX3rdPsionicHandler = {
             
             if (hasAvailableWeapons) {
                 // 사용 가능한 무기가 있으면 보너스 적용
-                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0) 
+                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0 || registeredWeaponBonus.attackFormula || registeredWeaponBonus.addFormula)
                     ? registeredWeaponBonus 
                     : null;
                 
@@ -152,7 +152,7 @@ window.DX3rdPsionicHandler = {
      * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만)
      */
     calculateRegisteredWeaponBonus(actor, item) {
-        const weaponBonus = { attack: 0, add: 0, weaponName: '', weaponIds: [] };
+        const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
         
         // 무기 탭에 등록된 무기들 가져오기
         const registeredWeapons = item.system?.weapon || [];
@@ -174,13 +174,15 @@ window.DX3rdPsionicHandler = {
                         continue;
                     }
                     
-                    // 공격력 합산 (문자열로 저장됨)
-                    const attackValue = Number(weaponItem.system?.attack) || 0;
-                    weaponBonus.attack += attackValue;
-                    
-                    // 수정치 합산 (문자열로 저장됨)
-                    const addValue = Number(weaponItem.system?.add) || 0;
-                    weaponBonus.add += addValue;
+                    // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
+                    const formula = window.DX3rdFormulaEvaluator;
+                    const addFormulaTerm = (target, raw) => {
+                        const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
+                        if (formula.hasDice(prepared)) weaponBonus[target] = [weaponBonus[target], prepared].filter(Boolean).join(' + ');
+                        else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
+                    };
+                    addFormulaTerm('attackFormula', weaponItem.system?.attack);
+                    addFormulaTerm('addFormula', weaponItem.system?.add);
                     
                     // 무기 이름 추가
                     if (!weaponBonus.weaponName) {

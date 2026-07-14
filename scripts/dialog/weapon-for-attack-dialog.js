@@ -170,19 +170,32 @@
 
             let totalAttack = 0;
             let totalAdd = 0;
+            let attackFormula = '';
+            let addFormula = '';
             const weaponNames = [];
 
             for (const weaponId of selectedWeaponIds) {
                 const weapon = this.weapons.find(w => w.id === weaponId);
                 if (!weapon) continue;
-                totalAttack += parseInt(weapon.system.attack) || 0;
-                totalAdd += parseInt(weapon.system.add) || 0;
+                const formula = window.DX3rdFormulaEvaluator;
+                const addFormulaTerm = (raw, formulaKey, totalKey) => {
+                    const prepared = formula.prepareRollFormula(String(raw ?? '0'), weapon, this.actor);
+                    if (formula.hasDice(prepared)) {
+                        if (formulaKey === 'attackFormula') attackFormula = [attackFormula, prepared].filter(Boolean).join(' + ');
+                        else addFormula = [addFormula, prepared].filter(Boolean).join(' + ');
+                    } else if (totalKey === 'attack') totalAttack += Number(formula.evaluate(raw, weapon, this.actor)) || 0;
+                    else totalAdd += Number(formula.evaluate(raw, weapon, this.actor)) || 0;
+                };
+                addFormulaTerm(weapon.system.attack, 'attackFormula', 'attack');
+                addFormulaTerm(weapon.system.add, 'addFormula', 'add');
                 weaponNames.push(this.cleanItemName(weapon.name));
             }
 
             await this.callback({
                 attack: totalAttack,
                 add: totalAdd,
+                attackFormula,
+                addFormula,
                 weaponName: weaponNames.join(', '),
                 weaponIds: selectedWeaponIds
             });
