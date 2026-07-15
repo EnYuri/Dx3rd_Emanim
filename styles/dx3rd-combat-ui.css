@@ -1,4 +1,4 @@
-/* DX3rd Combat UI - 전투 버튼 스타일 */
+/* DX3rd turn process UI styles */
 
 /* 버튼 컨테이너 */
 .dx3rd-combat-buttons {
@@ -387,4 +387,3 @@
         transform: skewX(-20deg) translateX(0);
     }
 }
-

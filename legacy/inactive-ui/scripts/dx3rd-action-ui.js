@@ -1,4 +1,7 @@
 // DX3rd Action UI - 전투 유무와 상관없이 토큰 선택 시 액션 버튼 표시
+//
+// 레거시 보관본: system.json에서 제외되어 Foundry 런타임에 로드되지 않는다.
+// 턴 진행은 scripts/combat/combat.js의 턴 프로세스 UI를 기준으로 한다.
 (function () {
 
     const MODULE_ID = 'dx3rd-emanim';

@@ -758,7 +758,17 @@ Hooks.once('ready', () => {
       }
       
       // 종료/대기 뒤에도 같은 상태 기계로 다음 단계로 진행한다.
-      await advanceCombatState(this, 'forward');
+      // 플레이어는 자신의 액터 상태는 갱신할 수 있어도 Combat 문서를 전환할
+      // 권한은 없으므로, GM에게 현재 메인 프로세스의 진행을 요청한다.
+      if (game.user.isGM) {
+        await advanceCombatState(this, 'forward');
+      } else {
+        game.socket.emit('system.dx3rd-emanim', {
+          type: 'advanceCombatProcess',
+          combatId: this.id,
+          actorId: currentCombatant.actor?.id
+        });
+      }
       
       // nextTurn은 메인 프로세스 개시 버튼에서 실행하므로 여기서는 실행 안 함
       return;
@@ -1589,10 +1599,30 @@ Hooks.once('ready', () => {
         await executeInitiativeProcess(combat);
       }
     }
+
+    // 현재 이니셔티브 대상의 소유자는 메인 프로세스 시작을 요청할 수 있다.
+    // Combat 문서 변경은 대표 GM만 수행한다.
+    if (data.type === 'startMainProcessFromInitiative') {
+      const combat = game.combats.get(data.combatId);
+      const process = combat?.getFlag('dx3rd-emanim', 'currentProcess');
+      if (process?.type === 'initiative' && process.actorId === data.actorId) {
+        await startMainProcessFromInitiative(combat);
+      }
+    }
     
     if (data.type === 'executeDisableHook') {
       if (typeof DX3rdDisableHooks !== 'undefined' && data.timing) {
         await DX3rdDisableHooks.executeDisableHook(data.timing, null);
+      }
+    }
+
+    // 플레이어가 자신의 메인 프로세스에서 행동 종료/대기를 선택한 경우,
+    // Combat 문서 전환은 권한을 가진 GM이 상태 기계를 통해 수행한다.
+    if (data.type === 'advanceCombatProcess') {
+      const combat = game.combats.get(data.combatId);
+      const process = combat?.getFlag('dx3rd-emanim', 'currentProcess');
+      if (process?.type === 'main' && process.actorId === data.actorId) {
+        await advanceCombatState(combat, 'forward');
       }
     }
     

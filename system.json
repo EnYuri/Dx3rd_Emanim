@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.7.8",
+  "version": "1.7.9",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/virtual-weapons.js",
@@ -32,9 +32,10 @@
     "scripts/dialog/equipment-selection-dialog.js",
     "scripts/dialog/weapon-for-attack-dialog.js",
     "scripts/combo-range-target.js",
+    "scripts/handlers/universal-dialogs.js",
     "scripts/handlers/universal-handler.js",
     "scripts/combat/dx3rd-combat-ui.js",
-    "scripts/dx3rd-action-ui.js",
+    "scripts/combat/turn-process-ui.js",
     "scripts/dx3rd-condition-hud.js",
     "scripts/handlers/book-handler.js",
     "scripts/handlers/combo-handler.js",
@@ -94,7 +95,7 @@
     "styles/skills-settings-dialog.css",
     "styles/combo-dialog.css",
     "styles/dx3rd-combat-ui.css",
-    "styles/dx3rd-action-ui.css",
+    "styles/turn-process-ui.css",
     "styles/dx3rd-condition-hud.css",
     "styles/appv2-sheets.css"
   ],

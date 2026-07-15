@@ -1,4 +1,4 @@
-// DX3rd Combat UI - 전투 중 토큰 주변 버튼 표시
+// DX3rd turn process UI - 전투 중 토큰 주변 버튼 및 턴 프로세스 제어
 (function () {
     const MODULE_ID = 'dx3rd-emanim';
 
@@ -28,6 +28,8 @@
     let buttonsVisible = false; // 버튼 표시 여부
     let lastWheelClickTime = 0; // 마지막 휠 클릭 시간
     let currentSideControlActionType = null; // 현재 사이드 컨트롤에 표시된 액션 타입 (null이면 기본 버튼)
+    // 토큰 주변 전투 HUD는 레거시 기능으로 비활성화한다. 턴 프로세스 UI는 계속 사용한다.
+    const TOKEN_COMBAT_HUD_ENABLED = false;
 
     /**
      * UI 사운드 재생
@@ -60,14 +62,11 @@
             buttonsVisible = false; // 버튼은 숨김 상태로 시작
             
             // 사이드 컨트롤 업데이트
-            const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-            if (sideControlEnabled) {
-                // 하위 버튼 상태 초기화
-                currentSideControlActionType = null;
-                setTimeout(() => {
-                    updateSideControlButtons();
-                }, 100);
-            }
+            // 하위 버튼 상태 초기화
+            currentSideControlActionType = null;
+            setTimeout(() => {
+                updateSideControlButtons();
+            }, 100);
         } else {
             // 토큰 선택이 해제되었을 때
             if (currentToken?.id === token.id) {
@@ -76,12 +75,9 @@
                 buttonsVisible = false;
                 
                 // 사이드 컨트롤 버튼 초기화
-                const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-                if (sideControlEnabled) {
-                    // 하위 버튼 상태 초기화
-                    currentSideControlActionType = null;
-                    updateSideControlButtons();
-                }
+                // 하위 버튼 상태 초기화
+                currentSideControlActionType = null;
+                updateSideControlButtons();
             }
         }
     });
@@ -385,11 +381,8 @@
     function getButtonsConfig(actor) {
         const process = getCombatProcess();
         
-        // 사이드 컨트롤 설정이 켜져있으면 전투 중에도 비전투 모드처럼 동작
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-        
-        if (!process || sideControlEnabled) {
-            // 전투 없음 또는 사이드 컨트롤 활성화: R1~R4를 L1~L4로 대체, 기존 L1~L4는 숨김
+        if (!process) {
+            // 비전투 상태에서는 R1~R4를 L1~L4로 대체하고 기존 L1~L4는 숨긴다.
             return {
                 leftButtons: [], // 기존 L1~L4 숨김
                 rightButtons: [
@@ -1537,11 +1530,8 @@
                 }
 
                 // 아이템 사용 후 사이드 컨트롤을 기본 상태로 되돌림
-                const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-                if (sideControlEnabled) {
-                    currentSideControlActionType = null;
-                    updateSideControlButtons();
-                }
+                currentSideControlActionType = null;
+                updateSideControlButtons();
             });
             btn.addEventListener('mouseenter', () => playUISound('hover'));
         }
@@ -1979,6 +1969,8 @@
      * 캔버스 이벤트 등록
      */
     function setupCanvasEvents() {
+        if (!TOKEN_COMBAT_HUD_ENABLED) return;
+
         if (!canvas || !canvas.stage) {
             console.warn('DX3rd | Canvas not ready, retrying...');
             return;
@@ -2600,6 +2592,15 @@
         let container = document.getElementById('dx3rd-combat-side-control');
         
         if (!container) {
+            // v13부터 제공되는 전용 우측 컬럼을 우선 사용한다. 테마/호환 UI가 이를 바꾼 경우에는
+            // 상위 우측 영역으로 안전하게 폴백한다.
+            const uiRightColumn = document.getElementById('ui-right-column-1')
+                || document.getElementById('ui-right');
+            if (!uiRightColumn) {
+                console.warn('DX3rd | turn process UI mount point was not found');
+                return;
+            }
+
             // 컨테이너가 없으면 생성
             container = document.createElement('div');
             container.id = 'dx3rd-combat-side-control';
@@ -2613,11 +2614,8 @@
                 </div>
             `;
             
-            const uiRightColumn = document.getElementById('ui-right-column-1');
-            if (uiRightColumn) {
-                // 마지막 자식 요소로 추가 (아래쪽에 배치)
-                uiRightColumn.appendChild(container);
-            }
+            // 마지막 자식 요소로 추가 (아래쪽에 배치)
+            uiRightColumn.appendChild(container);
         }
 
         // 사이드 컨트롤 위치 업데이트
@@ -2637,10 +2635,9 @@
         const container = document.getElementById('dx3rd-combat-side-control');
         if (!container) return;
 
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
         const hasCombat = !!game.combat;
 
-        if (sideControlEnabled && hasCombat) {
+        if (hasCombat) {
             container.classList.remove('hidden');
         } else {
             container.classList.add('hidden');
@@ -3136,12 +3133,8 @@
     Hooks.once('ready', () => {
         setupCanvasEvents(); // 캔버스 이벤트 등록
         
-        // 사이드 컨트롤 설정이 활성화되어 있으면 생성
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-        if (sideControlEnabled) {
-            createCombatSideControl();
-            observeSidebarChanges();
-        }
+        createCombatSideControl();
+        observeSidebarChanges();
         
         // 이미 선택된 토큰이 있으면 초기화 (캔버스가 준비된 경우)
         if (canvas.tokens) {
@@ -3162,12 +3155,8 @@
         currentSideControlActionType = null;
         setupCanvasEvents();
         
-        // 사이드 컨트롤 설정이 활성화되어 있으면 재생성
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-        if (sideControlEnabled) {
-            createCombatSideControl();
-            observeSidebarChanges();
-        }
+        createCombatSideControl();
+        observeSidebarChanges();
         
         // 이미 선택된 토큰이 있으면 초기화
         const controlledTokens = canvas.tokens?.controlled || [];
@@ -3189,24 +3178,18 @@
             }
             
             // 사이드 컨트롤 업데이트
-            const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-            if (sideControlEnabled) {
-                // 하위 버튼 상태 초기화 (프로세스 변경 시 기본 버튼으로 돌아감)
-                currentSideControlActionType = null;
-                updateSideControlVisibility();
-                updateSideControlButtons();
-            }
+            // 하위 버튼 상태 초기화 (프로세스 변경 시 기본 버튼으로 돌아감)
+            currentSideControlActionType = null;
+            updateSideControlVisibility();
+            updateSideControlButtons();
         }
     });
 
     // 전투 생성 시 사이드 컨트롤 표시
     Hooks.on('createCombat', (combat, options, userId) => {
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-        if (sideControlEnabled) {
-            currentSideControlActionType = null;
-            updateSideControlVisibility();
-            updateSideControlButtons();
-        }
+        currentSideControlActionType = null;
+        updateSideControlVisibility();
+        updateSideControlButtons();
     });
 
     // 전투 삭제 시 사이드 컨트롤 숨김
@@ -3215,11 +3198,8 @@
         removeCombatButtons();
         buttonsVisible = false;
 
-        const sideControlEnabled = game.settings.get('dx3rd-emanim', 'combatSideControlEnabled');
-        if (sideControlEnabled) {
-            currentSideControlActionType = null;
-            updateSideControlVisibility();
-            updateSideControlButtons();
-        }
+        currentSideControlActionType = null;
+        updateSideControlVisibility();
+        updateSideControlButtons();
     });
 })();

@@ -1,0 +1,28 @@
+name: Verify runtime
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - 'system.json'
+      - 'template.json'
+      - 'lang/ko.json'
+      - 'scripts/**'
+      - 'styles/**'
+      - 'tools/verify-runtime.mjs'
+      - '.github/workflows/verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify public runtime structure (read-only)
+        run: node tools/verify-runtime.mjs

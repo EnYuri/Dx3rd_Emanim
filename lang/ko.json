@@ -6,6 +6,7 @@
   "DX3rd.EntryEncroachment": "등장 침식치 조정",
   
   "DX3rd.NoSpells": "등록된 술식이 없습니다",
+  "DX3rd.HandlerNotFound": "아이템 처리 기능을 찾을 수 없습니다",
   "DX3rd.DragSpellHere": "술식을 여기로 드래그하세요",
 
   "DX3rd.DefaultCriticalValue": "기본 크리티컬 값",
@@ -73,13 +74,8 @@
   "DX3rd.RangeHighlight": "사정거리 시각화 설정",
   "DX3rd.RangeHighlightColor": "사정거리 사용자 색상 사용",
 
-  "DX3rd.CombatSideControlEnabled": "전투 시 사이드 컨트롤 활성화",
-  "DX3rd.CombatSideControlEnabledHint": "전투 중 화면 좌측에 사이드 컨트롤 버튼을 활성화 합니다.",
-
   "DX3rd.RangeOffCheck": "사정거리 표시 해제",
   "DX3rd.RangeOffCheckText": "사정거리 표시를 해제합니까?",
-
-  "DX3rd.UIButtonFont": "UI 버튼 폰트",
 
   "DX3rd.PressureExceptionItems": "중압 예외 아이템 목록",
   "DX3rd.PressureExceptionItemsHint": "중압 상태이상 중에도 사용할 수 있는 아이템 이름 목록 (쉼표로 구분)",

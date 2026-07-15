@@ -2,9 +2,6 @@
  * Double Cross 3rd 시스템의 메인 스크립트
  */
 
-// 폰트 설정 등록 완료 플래그 (중복 실행 방지)
-let _fontSettingsRegistered = false;
-
 // ── jQuery 제거 지원 헬퍼 ────────────────────────────────────────────────
 // jQuery `$(document).off('type.ns').on('type.ns', ...)` 멱등 재등록을 네이티브로 대체.
 // key(구 네임스페이스)별로 이전 리스너를 removeEventListener 후 재등록한다.
@@ -97,175 +94,6 @@ function dx3rdSlideToggle(el, expand, duration = 250) {
     }
 }
 
-// 월드 폰트 목록을 가져와서 채팅 폰트 설정을 등록하는 함수
-function registerChatFontSettings() {
-    // 폰트가 로드될 때까지 기다린 후 폰트 목록 업데이트
-    waitForFontsAndRegister();
-}
-
-// 폰트 로드 완료를 기다린 후 폰트 목록 업데이트 및 설정 등록
-function waitForFontsAndRegister() {
-    // document.fonts.ready를 사용하여 폰트 로드 완료 대기
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => {
-            // 폰트 로드 완료 후 약간의 딜레이를 두고 등록 (CONFIG.fontDefinitions 준비 대기)
-            setTimeout(() => {
-                registerFontSettings();
-            }, 500);
-        }).catch(() => {
-            // 폰트 API 실패 시 폴백으로 일정 시간 후 등록
-            setTimeout(() => {
-                registerFontSettings();
-            }, 1000);
-        });
-    } else {
-        // 폰트 API가 없는 경우 폴백
-        setTimeout(() => {
-            registerFontSettings();
-        }, 1000);
-    }
-    
-    // 최대 대기 시간 설정 (5초 후에는 강제로 등록)
-    setTimeout(() => {
-        registerFontSettings();
-    }, 5000);
-}
-
-// 실제 폰트 설정 등록 함수
-function registerFontSettings() {
-    // 이미 등록된 경우 스킵 (중복 실행 방지)
-    if (_fontSettingsRegistered) {
-        return;
-    }
-    try {
-        // Foundry VTT에서 사용 가능한 폰트 목록 가져오기
-        let loadedFonts = [];
-        
-        // 방법 1: CONFIG.fontDefinitions.keys에서 폰트 가져오기
-        try {
-            const configFonts = Object.keys(CONFIG.fontDefinitions || {});
-            loadedFonts = [...loadedFonts, ...configFonts];
-        } catch (e) {
-            console.warn('DX3rd | CONFIG.fontDefinitions 접근 실패:', e);
-        }
-        
-        // 방법 2: document.fonts API 사용
-        try {
-            if (document.fonts && document.fonts.forEach) {
-                document.fonts.forEach(font => {
-                    const family = font.family;
-                    if (family && typeof family === 'string') {
-                        loadedFonts.push(family);
-                    }
-                });
-            }
-        } catch (e) {
-            console.warn('DX3rd | document.fonts 접근 실패:', e);
-        }
-        
-        // 제외할 폰트들 (패턴 매칭)
-        const excludePatterns = [
-            'modesto condensed',
-            'modesto',
-            'amiri',
-            'signika',
-            'bruno ace',
-            'font awesome',
-            'fontawesome',
-            'fallback'
-        ];
-        
-        // 필터링 및 중복 제거
-        const filteredFonts = loadedFonts.filter(font => {
-            if (!font || typeof font !== 'string') return false;
-            const lowerFont = font.toLowerCase().replace(/['"]/g, '').trim();
-            return !excludePatterns.some(pattern => lowerFont.includes(pattern));
-        });
-        
-        const uniqueFonts = [...new Set(filteredFonts)];
-        
-        // 기본 폰트와 결합 (빈 문자열은 항상 포함)
-        const allFonts = ['', ...uniqueFonts.filter(f => f && f.trim() !== '')];
-        
-        // 폰트 정렬: 빈 문자열을 제외하고 한글, 영어, 숫자 순으로 정렬
-        const sortedFonts = allFonts.sort((a, b) => {
-            // 빈 문자열은 항상 맨 앞
-            if (a === '') return -1;
-            if (b === '') return 1;
-            
-            // 나머지는 localeCompare로 정렬 (한글, 영어, 숫자 순)
-            return a.localeCompare(b, ['ko', 'en'], { numeric: true, sensitivity: 'base' });
-        });
-        
-        // 폰트 선택 옵션 객체 생성
-        const fontChoices = {};
-        sortedFonts.forEach(font => {
-            if (font === '') {
-                fontChoices[font] = '기본';
-            } else {
-                fontChoices[font] = font;
-            }
-        });
-        
-        // UI 버튼 폰트 설정
-        game.settings.register('dx3rd-emanim', 'uiButtonFont', {
-            name: 'DX3rd.UIButtonFont',
-            hint: '전투 UI 버튼의 폰트를 설정합니다.',
-            scope: 'world',
-            config: true,
-            type: String,
-            choices: fontChoices,
-            default: '',
-            onChange: (value) => {
-                // 전투 버튼 폰트 즉시 적용
-                if (window.DX3rdCombatUI && window.DX3rdCombatUI.applyButtonFont) {
-                    window.DX3rdCombatUI.applyButtonFont(value);
-                }
-            }
-        });
-        
-        // UI 버튼 호버 사운드 설정
-        game.settings.register('dx3rd-emanim', 'uiButtonHoverSound', {
-            name: 'UI 버튼 호버 사운드',
-            hint: '전투 UI 버튼에 마우스를 올렸을 때 재생되는 사운드를 설정합니다.',
-            scope: 'world',
-            config: true,
-            type: String,
-            filePicker: 'audio',
-            default: 'sounds/notify.wav'
-        });
-        
-        // UI 버튼 클릭 사운드 설정
-        game.settings.register('dx3rd-emanim', 'uiButtonClickSound', {
-            name: 'UI 버튼 클릭 사운드',
-            hint: '전투 UI 버튼을 클릭했을 때 재생되는 사운드를 설정합니다.',
-            scope: 'world',
-            config: true,
-            type: String,
-            filePicker: 'audio',
-            default: 'sounds/doors/sliding/test.ogg'
-        });
-        
-        // UI 버튼 사운드 볼륨 설정
-        game.settings.register('dx3rd-emanim', 'uiButtonSoundVolume', {
-            name: 'UI 버튼 사운드 볼륨',
-            hint: '전투 UI 버튼의 호버 및 클릭 사운드 볼륨을 설정합니다. (0.0 ~ 2.0)',
-            scope: 'world',
-            config: true,
-            type: Number,
-            range: {
-                min: 0,
-                max: 2,
-                step: 0.1
-            },
-            default: 1.0
-        });
-        
-        _fontSettingsRegistered = true;
-    } catch (e) {
-        console.warn('DX3rd | Failed to register chat font settings:', e);
-    }
-}
 
 // 시스템 설정 샘플
 Hooks.once('init', async function() {
@@ -661,15 +489,6 @@ Hooks.once('init', async function() {
     game.settings.register('dx3rd-emanim', 'rangeHighlightColor', {
         name: 'DX3rd.RangeHighlightColor',
         hint: '기본 색상(녹색) 대신 사용자 색상을 사용합니다.',
-        scope: 'world',
-        config: true,
-        type: Boolean,
-        default: false
-    });
-
-    game.settings.register('dx3rd-emanim', 'combatSideControlEnabled', {
-        name: 'DX3rd.CombatSideControlEnabled',
-        hint: 'DX3rd.CombatSideControlEnabledHint',
         scope: 'world',
         config: true,
         type: Boolean,
@@ -1421,10 +1240,6 @@ Hooks.once('ready', function() {
     // 전역 채팅 토글 리스너 등록
     DX3rdChatToggleManager.initialize();
     
-    // 월드 폰트 목록 가져오기 및 채팅 폰트 설정 등록
-    registerChatFontSettings();
-    
-    
     // Disable Hooks 채팅 명령어 등록
     
     // 범위 하이라이트 관련 Combat Hooks 등록
@@ -1613,7 +1428,7 @@ Hooks.once('ready', function() {
         }
 
         if (data.type === 'actionTrackerConsume') {
-            if (game.user.isGM) await window.DX3rdActionUI?.updateSharedActionUsage?.(data.payload);
+            if (game.user.isGM) await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
             return;
         }
 
