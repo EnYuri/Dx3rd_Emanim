@@ -125,6 +125,16 @@
                     }
                 }
 
+                // 익스텐션으로 부여한 코어 상태 AE는 출처별 수명만 종료한다.
+                try {
+                    const clearedConditions = await window.DX3rdConditionSources?.clearByTiming?.(actor, timing) || 0;
+                    if (clearedConditions) {
+                        console.log(`DX3rd | DisableHooks - Cleared ${clearedConditions} condition source(s) from actor ${actor.name}`);
+                    }
+                } catch (error) {
+                    console.error(`DX3rd | DisableHooks - Failed to clear condition sources on actor ${actor.name}:`, error);
+                }
+
                 // 사용 횟수 리셋
                 for (const item of itemsToResetUsage) {
                     try {
@@ -202,4 +212,3 @@
 
     console.log("DX3rd | DisableHooks script loaded");
 })();
-

@@ -227,6 +227,7 @@
                     target: this._value(`select[name="cond${idx}Target"]`, section),
                     type: type || '',
                     poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${idx}PoisonedRank"]`, section) : null,
+                    disable: this._value(`select[name="cond${idx}Disable"]`, section) || null,
                     activate: this._checked(`input[name="cond${idx}Activate"]`, section)
                 };
                 return;
@@ -554,6 +555,7 @@
                         target: this._value(`select[name="cond${i}Target"]`, root),
                         type: type || '',
                         poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${i}PoisonedRank"]`, root) : null,
+                        disable: this._value(`select[name="cond${i}Disable"]`, root) || null,
                         activate: this._checked(`input[name="cond${i}Activate"]`, root)
                     });
                 }
@@ -613,12 +615,13 @@
                         target: this._value(`select[name="cond${n}Target"]`, section),
                         type: type || '',
                         poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${n}PoisonedRank"]`, section) : null,
+                        disable: this._value(`select[name="cond${n}Disable"]`, section) || null,
                         activate: this._checked(`input[name="cond${n}Activate"]`, section)
                     };
                     const conditions = Array.isArray(existing.condition?.conditions)
                         ? foundry.utils.deepClone(existing.condition.conditions)
                         : [];
-                    while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, activate: false});
+                    while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, disable: null, activate: false});
                     conditions[n - 1] = cData;
                     existing.condition = {conditions};
                 } else {

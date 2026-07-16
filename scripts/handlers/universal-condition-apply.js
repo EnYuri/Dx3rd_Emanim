@@ -1,5 +1,59 @@
 // ========== 상태이상 시스템 ========== //
 /**
+ * 코어 상태 AE에 익스텐션의 출처를 기록한다. 상태 자체는 Foundry의 상태 효과로
+ * 유지하되, 각 출처의 disable 수명이 끝날 때만 안전하게 해제한다.
+ */
+window.DX3rdConditionSources = window.DX3rdConditionSources || {
+  validDurations: new Set(['roll', 'major', 'main', 'reaction', 'guard', 'round', 'scene', 'session']),
+
+  async track(actor, statusId, { duration, itemId, sourceActorId, preExisting = false } = {}) {
+    if (!this.validDurations.has(duration) || !itemId) return;
+    const effect = actor.effects.find(e => e.statuses?.has(statusId));
+    if (!effect) return;
+
+    const sources = foundry.utils.deepClone(effect.getFlag('dx3rd-emanim', 'conditionSources') || {});
+    const meta = foundry.utils.deepClone(effect.getFlag('dx3rd-emanim', 'conditionSourceMeta') || {});
+    const sourceKey = `${sourceActorId || actor.id}:${itemId}:${statusId}`;
+    if (!Object.keys(sources).length && preExisting) meta.external = true;
+    sources[sourceKey] = { duration, itemId, sourceActorId: sourceActorId || actor.id };
+    await effect.update({
+      'flags.dx3rd-emanim.conditionSources': sources,
+      'flags.dx3rd-emanim.conditionSourceMeta': meta
+    });
+  },
+
+  async clearByTiming(actor, timing) {
+    if (!this.validDurations.has(timing)) return 0;
+    let cleared = 0;
+    for (const effect of actor.effects) {
+      const sources = foundry.utils.deepClone(effect.getFlag('dx3rd-emanim', 'conditionSources') || {});
+      const expired = Object.entries(sources).filter(([, source]) => source?.duration === timing);
+      if (!expired.length) continue;
+      for (const [key] of expired) delete sources[key];
+
+      if (Object.keys(sources).length) {
+        await effect.update({ 'flags.dx3rd-emanim.conditionSources': sources });
+        cleared += expired.length;
+        continue;
+      }
+
+      const meta = effect.getFlag('dx3rd-emanim', 'conditionSourceMeta') || {};
+      if (meta.external) {
+        await effect.update({
+          'flags.dx3rd-emanim.conditionSources': {},
+          'flags.dx3rd-emanim.conditionSourceMeta': {}
+        });
+      } else {
+        const statusId = Array.from(effect.statuses || [])[0];
+        if (statusId) await actor.toggleStatusEffect(statusId, { active: false });
+      }
+      cleared += expired.length;
+    }
+    return cleared;
+  }
+};
+
+/**
  * itemExtend.condition에서 활성화된 조건 항목 배열 반환 (conditions 배열 또는 기존 단일 형식)
  * @param {Object} condData - itemExtend.condition
  * @returns {Array<{timing, target, type, poisonedRank, activate}>}
@@ -16,6 +70,7 @@ window.DX3rdUniversalHandler._getConditionEntries = function(condData) {
       target: condData.target || 'self',
       type: t,
       poisonedRank: t === 'poisoned' ? (condData.poisonedRank ?? null) : null,
+      disable: condData.disable || null,
       activate: true
     }));
   }
@@ -63,7 +118,9 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
       selectedTargetIds: selectedTargetIds || [],
       triggerItemName: triggerItemName || item?.name || null,
       poisonedRank: poisonedRank || null,
-      itemId: item?.id || null
+      itemId: item?.id || null,
+      duration: conditionData.disable || null,
+      sourceActorId: actor.id
     };
     await this.executeConditionExtensionsNowBulk(actor, bulkData);
     return;
@@ -87,7 +144,9 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
     selectedTargetIds: selectedTargetIds || [],
     triggerItemName: triggerItemName || item?.name || null,
     poisonedRank: poisonedRank || null,
-    itemId: item?.id || null
+    itemId: item?.id || null,
+    duration: conditionData.disable || null,
+    sourceActorId: actor.id
   });
 };
 
@@ -97,7 +156,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
  * @param {Object} bulkData - { conditionTypes: string[], target, selectedTargetIds, triggerItemName, poisonedRank }
  */
 window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(actor, bulkData) {
-  const { conditionTypes = [], target, selectedTargetIds, triggerItemName, poisonedRank, itemId } = bulkData || {};
+  const { conditionTypes = [], target, selectedTargetIds, triggerItemName, poisonedRank, itemId, duration, sourceActorId } = bulkData || {};
   if (!Array.isArray(conditionTypes) || conditionTypes.length === 0) return;
   // 대상 수집(단 한 번)
   const targets = [];
@@ -125,7 +184,9 @@ window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(
     conditionTypes,
     triggerItemName: triggerItemName || null,
     poisonedRank: poisonedRank || null,
-    itemId: itemId || null
+    itemId: itemId || null,
+    duration: duration || null,
+    sourceActorId: sourceActorId || actor.id
   };
   // 특수 상태 선택과 사독 굴림은 적용 권한을 중계하기 전에 발동자가 확정한다.
   // 이후 소유자/대표 GM은 확정된 값만 적용한다.
@@ -471,6 +532,12 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
           window.DX3rdConditionTriggerMap.set(key, { trigger: (triggerItemName||null), poisonedRank: rankToPass, specialTarget: specialTarget });
           await targetActor.toggleStatusEffect(ct, { active: true });
         }
+        await window.DX3rdConditionSources.track(targetActor, ct, {
+          duration: requestData.duration,
+          itemId: requestData.itemId,
+          sourceActorId: requestData.sourceActorId || actorId,
+          preExisting: Boolean(already)
+        });
       } catch (e) { console.error('DX3rd | Failed to apply condition', ct, 'to', targetActor?.name, e); }
     }
     // 채팅은 condtions 훅에서 기본 메시지로 일원화 (여기서는 출력 안 함)

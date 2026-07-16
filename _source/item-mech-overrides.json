@@ -978,9 +978,110 @@
         "disable": "scene",
         "runTiming": "instant"
       }
+    },
+    "굶주린 칼날": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "poisoned", "poisonedRank": "3", "activate": true }
+          ]
+        }
+      }
+    },
+    "라이트 머신 건": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterSuccess", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "마안창": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "베넘 그레네이드": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterSuccess", "target": "targetToken", "type": "poisoned", "poisonedRank": "3", "activate": true }
+          ]
+        }
+      }
+    },
+    "베놈 스피너": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "poisoned", "poisonedRank": "2", "activate": true }
+          ]
+        }
+      }
+    },
+    "블레이드 불릿": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "사출식 스턴 건": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "스턴 건": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "스턴 그레네이드": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterSuccess", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true },
+            { "timing": "afterSuccess", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
+    },
+    "암 벙커": {
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+          ]
+        }
+      }
     }
   },
   "armors": {
+    "각오의 사라시": {
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": ["berserk", "hatred", "fear", "poisoned", "rigor", "dazed"],
+          "activate": true
+        }
+      }
+    },
     "개념외장": {
       "used": {
         "state": 0,
@@ -990,7 +1091,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "5d10",
           "timing": "instant",
           "target": "self",
@@ -1853,7 +1953,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "5d10",
           "timing": "instant",
           "target": "self",
@@ -1867,7 +1966,6 @@
     "고성능치료 팩": {
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "3d10",
           "timing": "instant",
           "target": "self",
@@ -1887,7 +1985,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "2d10",
           "timing": "instant",
           "target": "self",
@@ -1907,7 +2004,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "2d10",
           "timing": "instant",
           "target": "self",
@@ -1930,7 +2026,6 @@
           "maxEncroachmentExclusive": 110
         },
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "3d10",
           "timing": "instant",
           "target": "self",
@@ -2294,7 +2389,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "1d10",
           "timing": "instant",
           "target": "self",
@@ -3187,7 +3281,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "2d10",
           "timing": "instant",
           "target": "self",
@@ -3604,7 +3697,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "4d10",
           "timing": "instant",
           "target": "self",
@@ -3807,7 +3899,6 @@
       "getTarget": true,
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "2d10",
           "timing": "instant",
           "target": "targetToken",
@@ -4369,7 +4460,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "5d10",
           "timing": "instant",
           "target": "self",
@@ -4555,7 +4645,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "0",
           "healTo": "1",
           "timing": "instant",
@@ -5138,7 +5227,6 @@
       },
       "itemExtend": {
         "heal": {
-          "formulaDice": "0",
           "formulaAdd": "10",
           "timing": "instant",
           "target": "self",
@@ -5242,6 +5330,126 @@
       "encroach": {
         "init": 0,
         "value": "3"
+      }
+    },
+    "길티": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "max",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": true,
+          "activate": true
+        }
+      }
+    },
+    "메디컬 어시스턴트": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "max",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
+    },
+    "보건실이용 허가증": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "30",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
+    },
+    "암의사": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "max",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
+    },
+    "어닐딩 윌": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "1",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": true,
+          "activate": true
+        }
+      }
+    },
+    "장미의 관": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "max",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
+      }
+    },
+    "해독제": {
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": ["berserk", "hatred", "fear", "rigor", "pressure", "dazed"],
+          "activate": true
+        }
+      }
+    },
+    "화이트 페노미나": {
+      "encroach": {
+        "init": 0,
+        "value": "5"
+      },
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": ["berserk", "fear", "poisoned", "rigor", "pressure", "dazed"],
+          "activate": true
+        }
+      }
+    },
+    "히로익 스톤": {
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "30",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "5",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
       }
     }
   },

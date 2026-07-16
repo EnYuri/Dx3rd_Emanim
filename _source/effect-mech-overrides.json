@@ -8,7 +8,6 @@
     },
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "([level]+1)d10",
         "timing": "instant",
         "target": "self",
@@ -22,7 +21,6 @@
   "리페어 운즈": {
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "([level]+1)d10+[body]",
         "timing": "instant",
         "target": "self",
@@ -42,7 +40,6 @@
     },
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "[level]d10",
         "timing": "instant",
         "target": "self",
@@ -66,7 +63,6 @@
         "noCombo": true
       },
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "5d10",
         "timing": "instant",
         "target": "targetToken",
@@ -396,7 +392,6 @@
     "getTarget": false,
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "[level]*10",
         "healTo": "",
         "encroachFixed": "",
@@ -412,7 +407,6 @@
     "getTarget": false,
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "0",
         "healTo": "1",
         "encroachFixed": "",
@@ -439,7 +433,6 @@
     "getTarget": false,
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "0",
         "healTo": "1",
         "encroachFixed": "",
@@ -1668,8 +1661,7 @@
     },
     "itemExtend": {
       "damage": {
-        "formulaDice": "3",
-        "formulaAdd": "0",
+        "formulaAdd": "3d10",
         "target": "self",
         "timing": "afterMain",
         "ignoreReduce": true,
@@ -1684,7 +1676,6 @@
     "getTarget": true,
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "[level]d10",
         "healTo": "",
         "encroachFixed": "",
@@ -1700,7 +1691,6 @@
     "getTarget": true,
     "itemExtend": {
       "heal": {
-        "formulaDice": "0",
         "formulaAdd": "[level]d10",
         "healTo": "",
         "encroachFixed": "",
@@ -1717,5 +1707,110 @@
   },
   "결합해제": {
     "attackRoll": "ranged"
+  },
+  "해방의 연회": {
+    "attributes": [
+      {
+        "key": "dice",
+        "label": "dice",
+        "value": "+5"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
+    "itemExtend": {
+      "condition": {
+        "conditions": [
+          { "timing": "instant", "target": "self", "type": "fly", "poisonedRank": null, "disable": "round", "activate": true }
+        ]
+      }
+    }
+  },
+  "위협의 가루": {
+    "getTarget": true,
+    "effect": {
+      "disable": "reaction",
+      "runTiming": "afterSuccess",
+      "attributes": [
+        {
+          "key": "reaction_add",
+          "label": "reaction_add",
+          "value": "-[level]*4"
+        }
+      ]
+    }
+  },
+  "위협의 인분": {
+    "getTarget": true,
+    "effect": {
+      "disable": "major",
+      "runTiming": "afterSuccess",
+      "attributes": [
+        {
+          "key": "major_add",
+          "label": "major_add",
+          "value": "-[level]*4"
+        }
+      ]
+    }
+  },
+  "구속하는 대지": {
+    "getTarget": true,
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterSuccess",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-([level]+2)"
+        }
+      ]
+    }
+  },
+  "옭아매는 얼음": {
+    "getTarget": true,
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterSuccess",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-([level]+1)"
+        }
+      ]
+    }
+  },
+  "절대적인 고독": {
+    "getTarget": true,
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterSuccess",
+      "attributes": [
+        {
+          "key": "dice",
+          "label": "dice",
+          "value": "-([level]+1)"
+        }
+      ]
+    }
+  },
+  "나락의 법칙": {
+    "getTarget": true,
+    "effect": {
+      "disable": "round",
+      "runTiming": "instant",
+      "attributes": [
+        {
+          "key": "critical",
+          "label": "critical",
+          "value": "+1"
+        }
+      ]
+    }
   }
 }
