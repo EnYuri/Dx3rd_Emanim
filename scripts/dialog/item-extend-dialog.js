@@ -10,6 +10,8 @@
     }
 
     const BaseApplication = api.HandlebarsApplicationMixin(api.ApplicationV2);
+    const attributeManager = window.DX3rdAttributeManager;
+    const effectAdapter = window.DX3rdItemEffectAdapter;
 
     class DX3rdItemExtendDialog extends BaseApplication {
         static DEFAULT_OPTIONS = {
@@ -41,10 +43,15 @@
 
             this.actorId = dialogData.actorId;
             this.itemId = dialogData.itemId;
+            this.initialEditor = dialogData.initialEditor || null;
+            this.effectId = dialogData.effectId || null;
+            // 신규 상태효과 카드는 슬롯 번호와 무관하게 하나의 전용 폼을 재사용한다.
+            if (this.initialEditor === 'condition') this.initialEditor = 'condition1';
             this.currentTopTab = 'affectCharacter';
             this.currentSubTab = 'heal';
             this.tempFormData = {};
             this.savedItemExtend = {};
+            this.savedCardData = null;
         }
 
         async _prepareContext(options) {
@@ -79,13 +86,24 @@
                 data.item = item;
                 data.itemType = item.type;
                 this.savedItemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
+                if (this.effectId?.startsWith('card.')) {
+                    const cardId = this.effectId.slice('card.'.length);
+                    const card = (this.savedItemExtend.cards || []).find(entry => entry?.id === cardId);
+                    this.savedCardData = card?.data || null;
+                }
                 data.actorSkills = skills;
                 data.weaponSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('weapon', skills);
                 data.vehicleSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('vehicle', skills);
                 if (item.type === 'effect') {
                     data.effectSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', skills);
                 }
+                data.effectView = effectAdapter?.prepareSheetContext?.(item);
+                if (data.effectView && ['main', 'sub'].includes(this._modifierConfigScope)) {
+                    data.effectView.modifierOverview.initialScope = this._modifierConfigScope;
+                }
             }
+
+            data.focusedEditor = this.initialEditor;
 
             return data;
         }
@@ -132,13 +150,73 @@
             // 토글 핸들러(무기 맨손/힐 부활/데미지 조건식/상태이상 종류)들이 값을 프로그램으로
             // 채운 뒤 실행되도록 이 리스너를 가장 마지막에 등록한다(같은 change 이벤트에서 뒤에 실행).
             root.addEventListener('change', event => {
-                if (event.target.matches('input, select, textarea')) this._saveCurrentTab();
+                if (!event.target.matches('input, select, textarea')) return;
+                if (this.currentSubTab === 'modifiers') this._saveModifierInput(event.target);
+                else this._saveCurrentTab();
+            });
+
+            this._on(root, '[data-action="createModifierAttribute"]', 'click', async (event, target) => {
+                event.preventDefault();
+                const item = this._resolveItem();
+                if (!item) return;
+                await attributeManager?.createAttribute?.(item, target.dataset.pos || 'main');
+                this.render(false);
+            });
+            this._on(root, '[data-action="deleteModifierAttribute"]', 'click', async (event, target) => {
+                event.preventDefault();
+                const row = target.closest('.attribute');
+                const item = this._resolveItem();
+                if (!item || !row?.dataset.attribute) return;
+                await attributeManager?.deleteAttribute?.(item, row.dataset.attribute, row.dataset.pos || 'main');
+                this.render(false);
+            });
+            this._on(root, '.modifier-scope-select', 'change', async (event, target) => {
+                const row = target.closest('.attribute');
+                const item = this._resolveItem();
+                if (!item || !row?.dataset.attribute || row.dataset.pos === target.value) return;
+                this._modifierConfigScope = target.value;
+                await effectAdapter?.moveModifier?.(item, row.dataset.attribute, row.dataset.pos, target.value);
+                this.render(false);
+            });
+            this._on(root, '.modifier-config-scope', 'change', (event, target) => {
+                this._modifierConfigScope = target.value;
+                this._queryAll('.dx3rd-modifier-config-pane').forEach(pane => { pane.hidden = pane.dataset.scope !== target.value; });
+            });
+            this._on(root, '.modifier-action-binding', 'change', async (event, target) => {
+                const item = this._resolveItem();
+                if (!item) return;
+                await effectAdapter?.updateAction?.(item, target.dataset.effectId, target.value);
             });
 
             this.initializeTabs();
             this.setupWeaponFistToggle();
             this.setupHealResurrectToggle();
             this.setupDamageConditionalFormulaToggle();
+            if (this.currentSubTab === 'modifiers') {
+                await attributeManager?.initializeAttributeLabels?.(root, this._resolveItem());
+            }
+        }
+
+        _resolveItem() {
+            return this.actorId
+                ? game.actors.get(this.actorId)?.items?.get(this.itemId)
+                : game.items.get(this.itemId);
+        }
+
+        async _saveModifierInput(input) {
+            const item = this._resolveItem();
+            if (!item || !input?.name) return;
+            const value = input.type === 'checkbox' ? input.checked : input.value;
+            if (input.name === 'system.active.state' && item.type === 'effect' && item.actor
+                && window.DX3rdActorSheetData?.updateOwnedItemActiveState) {
+                await window.DX3rdActorSheetData.updateOwnedItemActiveState(item.actor, item.id, value);
+            } else {
+                await item.update({[input.name]: value});
+            }
+            if (input.classList.contains('attribute-key')) {
+                const row = input.closest('.attribute');
+                await attributeManager?.updateAttributeLabel?.(row, item, row?.dataset.pos || 'main');
+            }
         }
 
         get _root() {
@@ -169,6 +247,12 @@
             return Boolean(this._query(selector, root)?.checked);
         }
 
+        _conditionActivation(index) {
+            if (this.savedCardData && index === 1) return this.savedCardData.activate !== false;
+            const conditions = effectAdapter?.conditionEntries?.(this.savedItemExtend || {}) || [];
+            return !!conditions[index - 1]?.activate;
+        }
+
         _setDisabled(element, disabled) {
             if (!element) return;
             element.disabled = disabled;
@@ -176,9 +260,14 @@
         }
 
         initializeTabs() {
-            this.switchTopTab('affectCharacter');
-            this.switchSubTab('heal');
-            this.applySavedToForm('heal');
+            const editor = this.initialEditor;
+            const topTab = ['weapon', 'protect', 'vehicle'].includes(editor)
+                ? 'createItem'
+                : (editor === 'effectSettings' ? 'other' : 'affectCharacter');
+            const subTab = editor || 'heal';
+            this.switchTopTab(topTab);
+            this.switchSubTab(subTab);
+            this.applySavedToForm(subTab);
         }
 
         switchTopTab(topTab) {
@@ -207,7 +296,7 @@
             if (subTab === 'weapon') this.setupWeaponFistToggle();
             if (subTab === 'heal') this.setupHealResurrectToggle();
             if (subTab === 'damage') this.setupDamageConditionalFormulaToggle();
-            if (['heal', 'damage', 'condition1', 'condition2', 'condition3'].includes(subTab)) {
+            if (['heal', 'damage', 'statusClear', 'condition1', 'condition2', 'condition3'].includes(subTab)) {
                 this.setupTimingLockForRestrictedItems(subTab);
             }
             if (['condition1', 'condition2', 'condition3'].includes(subTab)) {
@@ -228,7 +317,7 @@
                     type: type || '',
                     poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${idx}PoisonedRank"]`, section) : null,
                     disable: this._value(`select[name="cond${idx}Disable"]`, section) || null,
-                    activate: this._checked(`input[name="cond${idx}Activate"]`, section)
+                    activate: this._conditionActivation(idx)
                 };
                 return;
             }
@@ -351,9 +440,9 @@
 
         applySavedToForm(subTab) {
             try {
-                const saved = ['condition1', 'condition2', 'condition3'].includes(subTab)
+                const saved = this.savedCardData || (['condition1', 'condition2', 'condition3'].includes(subTab)
                     ? this.savedItemExtend?.condition || null
-                    : this.savedItemExtend?.[subTab] || null;
+                    : this.savedItemExtend?.[subTab] || null);
                 if (saved) this.applyDataToForm(subTab, saved);
             } catch (e) {
                 console.warn('DX3rd | applySavedToForm failed', e);
@@ -367,6 +456,7 @@
                 const prefixMap = {
                     heal: 'heal',
                     damage: 'damage',
+                    statusClear: 'statusClear',
                     weapon: 'weapon',
                     protect: 'protect',
                     vehicle: 'vehicle',
@@ -386,7 +476,7 @@
                     const diceTerm = dice && dice !== '0'
                         ? (window.DX3rdFormulaEvaluator.hasDice(dice) ? dice : `${dice}d10`)
                         : '';
-                    const formula = [diceTerm, add && add !== '0' ? `(${add})` : ''].filter(Boolean).join(' + ') || '0';
+                    const formula = [diceTerm, add && add !== '0' ? `(${add})` : ''].filter(Boolean).join(' + ');
                     const input = this._query(`input[name="${prefix}Formula"]`, section);
                     if (input) input.value = formula;
                 }
@@ -409,7 +499,16 @@
                     this._query(`select[name="cond${n}Target"]`, section).value = c.target || 'self';
                     this._query(`select[name="cond${n}Type"]`, section).value = c.type || '';
                     this._query(`input[name="cond${n}PoisonedRank"]`, section).value = c.poisonedRank ?? '';
-                    this._query(`input[name="cond${n}Activate"]`, section).checked = !!c.activate;
+                    const activateInput = this._query(`input[name="cond${n}Activate"]`, section);
+                    if (activateInput) activateInput.checked = !!c.activate;
+                }
+
+                if (subTab === 'statusClear' && section) {
+                    this._query('select[name="statusClearTiming"]', section).value = data.timing || 'instant';
+                    this._query('select[name="statusClearTarget"]', section).value = data.target || 'self';
+                    this._query('input[name="statusClearActivate"]', section).checked = !!data.activate;
+                    const excluded = new Set(Array.isArray(data.exclude) ? data.exclude : []);
+                    this._queryAll('.status-clear-exclude', section).forEach(input => { input.checked = excluded.has(input.value); });
                 }
 
                 for (const [key, value] of Object.entries(data)) {
@@ -509,6 +608,15 @@
                 };
             }
 
+            if (this._query('#statusClear-content', root)) {
+                formData.statusClear = {
+                    timing: this._value('select[name="statusClearTiming"]', root),
+                    target: this._value('select[name="statusClearTarget"]', root),
+                    exclude: this._queryAll('.status-clear-exclude:checked', root).map(input => input.value),
+                    activate: this._checked('input[name="statusClearActivate"]', root)
+                };
+            }
+
             if (this._query('#weapon-content', root)) {
                 formData.weapon = {
                     name: this._value('input[name="weaponName"]', root),
@@ -556,7 +664,7 @@
                         type: type || '',
                         poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${i}PoisonedRank"]`, root) : null,
                         disable: this._value(`select[name="cond${i}Disable"]`, root) || null,
-                        activate: this._checked(`input[name="cond${i}Activate"]`, root)
+                        activate: this._conditionActivation(i)
                     });
                 }
                 formData.condition = {conditions};
@@ -606,27 +714,54 @@
 
                 const existing = foundry.utils.deepClone(item.getFlag('dx3rd-emanim', 'itemExtend') || {});
 
+                if (this.effectId?.startsWith('card.')) {
+                    const cardId = this.effectId.slice('card.'.length);
+                    const cards = Array.isArray(existing.cards) ? existing.cards : [];
+                    const card = cards.find(entry => entry?.id === cardId);
+                    if (!card) return;
+                    const form = this.getFormData();
+                    const formKey = card.type === 'condition' ? 'condition1' : card.type;
+                    const nextData = form[formKey];
+                    if (!nextData) return;
+                    card.data = {
+                        ...nextData,
+                        configured: true,
+                        ...(card.data?.action ? {action: card.data.action} : {})
+                    };
+                    existing.cards = cards;
+                    await item.setFlag('dx3rd-emanim', 'itemExtend', existing);
+                    this.savedItemExtend = existing;
+                    this.savedCardData = card.data;
+                    return;
+                }
+
                 if (['condition1', 'condition2', 'condition3'].includes(sub)) {
                     const n = sub === 'condition1' ? 1 : (sub === 'condition2' ? 2 : 3);
                     const section = this._query(`#${sub}-content`);
                     const type = this._value(`select[name="cond${n}Type"]`, section);
+                    const conditions = Array.isArray(existing.condition?.conditions)
+                        ? foundry.utils.deepClone(existing.condition.conditions)
+                        : [];
+                    while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, disable: null, activate: false});
                     const cData = {
+                        action: conditions[n - 1]?.action || null,
                         timing: this._value(`select[name="cond${n}Timing"]`, section),
                         target: this._value(`select[name="cond${n}Target"]`, section),
                         type: type || '',
                         poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${n}PoisonedRank"]`, section) : null,
                         disable: this._value(`select[name="cond${n}Disable"]`, section) || null,
-                        activate: this._checked(`input[name="cond${n}Activate"]`, section)
+                        activate: conditions[n - 1]?.activate !== false
                     };
-                    const conditions = Array.isArray(existing.condition?.conditions)
-                        ? foundry.utils.deepClone(existing.condition.conditions)
-                        : [];
-                    while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, disable: null, activate: false});
                     conditions[n - 1] = cData;
                     existing.condition = {conditions};
                 } else {
                     const form = this.getFormData();
-                    if (form[sub] && Object.keys(form[sub]).length) existing[sub] = form[sub];
+                    if (form[sub] && Object.keys(form[sub]).length) {
+                        existing[sub] = {
+                            ...form[sub],
+                            ...(existing[sub]?.action ? {action: existing[sub].action} : {})
+                        };
+                    }
                 }
 
                 await item.setFlag('dx3rd-emanim', 'itemExtend', existing);

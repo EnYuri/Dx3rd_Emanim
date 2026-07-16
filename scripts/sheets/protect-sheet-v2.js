@@ -5,7 +5,7 @@
   class DX3rdProtectSheetV2 extends Base {
     static DEFAULT_OPTIONS = {...Base.DEFAULT_OPTIONS, classes: ['protect-sheet-v2']};
     static PARTS = {main: {template: 'systems/dx3rd-emanim/templates/item/active-item-sheet-v2.html', root: true}};
-    static TABS = {primary: {tabs: [{id: 'description'}, {id: 'attributes'}, {id: 'target'}], initial: 'description'}};
+    static TABS = {primary: {tabs: [{id: 'description'}, {id: 'immediate'}, {id: 'persistent'}], initial: 'description'}};
 
     async _prepareContext(options) {
       const context = await super._prepareContext(options);

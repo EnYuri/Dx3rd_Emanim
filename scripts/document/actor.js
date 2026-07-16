@@ -1750,6 +1750,11 @@
             }
             return super._preUpdate(changed, options, user);
         }
+
+        // 코어 버전이 다른 월드에서 내보낸 JSON도 가져올 수 있도록 _stats.coreVersion을 보정한다.
+        importFromJSON(json) {
+            return super.importFromJSON(window.DX3rdImportCompat?.sanitizeImportJSON(json) ?? json);
+        }
     }
 
     // Foundry에 커스텀 Actor 등록

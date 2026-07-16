@@ -12,11 +12,13 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.8.4",
+  "version": "1.8.5",
   "scripts": [
     "scripts/application-compat.js",
+    "scripts/import-compat.js",
     "scripts/virtual-weapons.js",
     "scripts/helpers.js",
+    "scripts/item-effect-adapter.js",
     "scripts/condtions.js",
     "scripts/dx3rd-applied-effects.js",
     "scripts/socket-router.js",

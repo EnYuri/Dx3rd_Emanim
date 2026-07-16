@@ -34,7 +34,7 @@
     });
   };
 
-  handler.registerAfterMainExtensions = function(actor, item, itemExtend) {
+  handler.registerAfterMainExtensions = function(actor, item, itemExtend, action = null) {
     if (!itemExtend) return;
     const selectedTargetIds = Array.from(game.user.targets).map(target => target.id);
     const queue = (type, data) => {
@@ -54,20 +54,17 @@
       }
     };
 
-    if (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterMain') {
-      queue('heal', itemExtend.heal);
-      console.log(`DX3rd | Registered afterMain heal extension for ${actor.name}`);
-    }
-    if (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterMain') {
-      queue('damage', itemExtend.damage);
-      console.log(`DX3rd | Registered afterMain damage extension for ${actor.name}`);
-    }
+    const matches = (type, data) => !window.DX3rdItemEffectAdapter
+      || window.DX3rdItemEffectAdapter.extensionActionMatches(item, type, data, action, 'afterMain');
 
-    const afterMainConditions = this._getConditionEntries(itemExtend.condition || {})
-      .filter(condition => condition.timing === 'afterMain');
-    for (const condition of afterMainConditions) queue('condition', condition);
-    if (afterMainConditions.length > 0) {
-      console.log(`DX3rd | Registered afterMain condition extension for ${actor.name} (${afterMainConditions.length} entries)`);
+    const entries = window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [];
+    const afterMain = entries.filter(entry => entry.data?.activate
+      && entry.data?.timing === 'afterMain'
+      && (entry.type !== 'condition' || entry.data?.type)
+      && matches(entry.type, entry.data));
+    for (const entry of afterMain) queue(entry.type, entry.data);
+    if (afterMain.length > 0) {
+      console.log(`DX3rd | Registered afterMain extensions for ${actor.name} (${afterMain.length} entries)`);
     }
   };
 
@@ -111,6 +108,9 @@
         } else {
           await this.executeConditionExtensionNow(validActor, data, validItem);
         }
+      } else if (type === 'statusClear') {
+        console.log(`DX3rd | Processing status clear from queue: ${validActor.name}`);
+        await this.executeStatusClearExtension(validActor, data, validItem);
       } else {
         console.warn(`DX3rd | Unknown queue item type: ${type}`);
       }

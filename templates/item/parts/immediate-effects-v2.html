@@ -1,0 +1,76 @@
+<div class="sheet-wrapper margin-top-10 dx3rd-effect-workspace">
+  <section class="dx3rd-action-settings">
+    <header class="dx3rd-effect-section-header">
+      <div><i class="fas fa-bolt"></i> {{localize "DX3rd.EffectExecutionSettings"}}</div>
+      <span>{{localize "DX3rd.EffectExecutionHint"}}</span>
+    </header>
+    <table>
+      {{#if isEffect}}
+      <tr><th>{{localize "DX3rd.Encroach"}}</th><td colspan="6"><div class="flex"><input name="system.encroach.value" value="{{system.encroach.value}}"><span class="slash"> / </span><input name="system.encroach.init" value="{{system.encroach.init}}"></div></td></tr>
+      {{/if}}
+      <tr>
+        <th>{{localize "DX3rd.UsedCount"}}</th>
+        <td colspan="2"><input type="number" class="checkbox-input" name="system.used.state" value="{{system.used.state}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}> / <input type="number" class="checkbox-input" name="system.used.max" value="{{system.used.max}}" {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}></td>
+        {{#if isEffect}}<th>+ {{localize "DX3rd.UsedLevel"}}</th><td><input type="checkbox" name="system.used.level" {{checked system.used.level}} {{#ifEquals system.used.disable "notCheck"}}disabled{{/ifEquals}}></td>{{/if}}
+        <th>{{localize "DX3rd.ResetTiming"}}</th>
+        <td colspan="2"><select name="system.used.disable">{{#select system.used.disable}}<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td>
+      </tr>
+      {{#if isWeapon}}
+      <tr><th>{{localize "DX3rd.AttackCount"}}</th><td colspan="2"><input type="number" class="checkbox-input" name="system.attack-used.state" value="{{system.attack-used.state}}" {{#ifEquals system.attack-used.disable "notCheck"}}disabled{{/ifEquals}}> / <input type="number" class="checkbox-input" name="system.attack-used.max" value="{{system.attack-used.max}}" {{#ifEquals system.attack-used.disable "notCheck"}}disabled{{/ifEquals}}></td><th>{{localize "DX3rd.AttackResetTiming"}}</th><td colspan="3"><select name="system.attack-used.disable">{{#select system.attack-used.disable}}<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></td></tr>
+      {{/if}}
+    </table>
+  </section>
+
+  <section class="dx3rd-effect-section">
+    <header class="dx3rd-effect-section-header">
+      <div><i class="fas fa-wand-magic-sparkles"></i> {{localize "DX3rd.ImmediateEffects"}}</div>
+      <div class="dx3rd-effect-add-control">
+        <select class="effect-kind-select" data-family="immediate" aria-label="{{localize 'DX3rd.EffectKind'}}">
+          {{#each effectView.immediateAddOptions as |option|}}<option value="{{option.value}}">{{option.label}}</option>{{/each}}
+        </select>
+        <button type="button" data-action="addEffectCard" data-family="immediate" title="{{localize 'DX3rd.AddEffect'}}"><i class="fas fa-plus"></i></button>
+      </div>
+    </header>
+    <div class="dx3rd-effect-card-grid">
+      {{#each effectView.immediate as |effect|}}
+      <article class="dx3rd-effect-card {{#unless effect.active}}is-inactive{{/unless}}" data-effect-id="{{effect.id}}">
+        <div class="dx3rd-effect-card-main">
+          <label class="dx3rd-effect-switch" title="{{localize 'DX3rd.Active'}}"><input type="checkbox" class="effect-enabled-toggle" data-effect-id="{{effect.id}}" {{checked effect.active}}><span></span></label>
+          <div class="dx3rd-effect-card-copy">
+            <strong>{{effect.title}}</strong>
+            <small>{{effect.summary}}</small>
+          </div>
+          <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="{{effect.editor}}" data-effect-id="{{effect.id}}" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
+          {{#unless (startsWith effect.id "macro.")}}<button type="button" class="dx3rd-effect-delete" data-action="deleteEffectCard" data-effect-id="{{effect.id}}" title="{{localize 'DX3rd.RemoveEffect'}}"><i class="fas fa-trash"></i></button>{{/unless}}
+        </div>
+        <div class="dx3rd-effect-card-meta">
+          <select class="effect-action-binding" data-effect-id="{{effect.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">
+            {{#each ../effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value effect.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}
+          </select>
+          <span class="dx3rd-effect-badge trigger">{{effect.triggerLabel}}</span>
+          <span class="dx3rd-effect-badge target">{{effect.targetLabel}}</span>
+        </div>
+      </article>
+      {{/each}}
+      {{#unless effectView.immediate.length}}<p class="dx3rd-effect-empty">{{localize "DX3rd.NoImmediateEffects"}}</p>{{/unless}}
+    </div>
+  </section>
+
+  <section class="dx3rd-effect-section dx3rd-macro-workspace" id="dx3rd-macro-workspace">
+    <header class="dx3rd-effect-section-header">
+      <div><i class="fas fa-code"></i> {{localize "DX3rd.Macro"}}</div>
+      <a class="macro-control" data-action="macroAdd"><i class="fas fa-plus"></i></a>
+    </header>
+    {{#each system.macros as |m i|}}
+    <div class="embed-macro-row flexcol" data-index="{{i}}">
+      <div class="flexrow dx3rd-macro-toolbar">
+        <select class="macro-timing" data-index="{{i}}">{{#each ../macroTimings as |tm|}}<option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>{{/each}}</select>
+        <select class="macro-kind" data-index="{{i}}"><option value="code" {{#unless (eq m.kind "macro")}}selected{{/unless}}>{{localize "DX3rd.MacroKindCode"}}</option><option value="macro" {{#if (eq m.kind "macro")}}selected{{/if}}>{{localize "DX3rd.MacroKindWorld"}}</option></select>
+        <label><input type="checkbox" class="macro-disabled" data-index="{{i}}" {{checked m.disabled}}> off</label>
+        <a class="macro-control" data-action="macroDelete" data-index="{{i}}"><i class="fas fa-trash"></i></a>
+      </div>
+      {{#if (eq m.kind "macro")}}<select class="macro-name" data-index="{{i}}"><option value="">- {{localize "DX3rd.MacroSelect"}} -</option>{{#each ../worldMacros as |wm|}}<option value="{{wm.name}}" {{#if (eq wm.name m.macroName)}}selected{{/if}}>{{wm.name}}</option>{{/each}}</select>{{else}}<textarea class="macro-command" data-index="{{i}}" rows="2" placeholder="actor, item, token, scope 사용 가능">{{m.command}}</textarea>{{/if}}
+    </div>
+    {{else}}<p class="dx3rd-effect-empty">{{localize "DX3rd.NoMacrosConfigured"}}</p>{{/each}}
+  </section>
+</div>

@@ -18,11 +18,11 @@
     };
 
     static PARTS = {
-      main: {template: 'systems/dx3rd-emanim/templates/item/effect-sheet-v2.html', root: true}
+      main: {template: 'systems/dx3rd-emanim/templates/item/effect-workspace-sheet-v2.html', root: true}
     };
 
     static TABS = {primary: {
-      tabs: [{id: 'description'}, {id: 'attributes'}, {id: 'target'}, {id: 'weapon'}],
+      tabs: [{id: 'description'}, {id: 'immediate'}, {id: 'persistent'}, {id: 'weapon'}],
       initial: 'description'
     }};
 
@@ -32,6 +32,7 @@
       const actor = this.item.actor;
 
       context.actor = actor ? {id: actor.id, type: actor.type, system: actor.system} : null;
+      context.isEffect = true;
       system.actorSkills = actor?.system?.attributes?.skills || {};
       system.skillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', system.actorSkills, actor?.type);
 

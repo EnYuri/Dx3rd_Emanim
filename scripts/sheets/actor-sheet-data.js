@@ -529,7 +529,9 @@
         if (attackRoll && attackRoll !== "-") return false;
         const hasSelfEffect = hasUsableEffectAttributes(item.system?.attributes);
         const hasTargetEffect = hasUsableEffectAttributes(item.system?.effect?.attributes);
-        return hasSelfEffect && !hasTargetEffect;
+        if (!hasSelfEffect || hasTargetEffect) return false;
+        return !window.DX3rdItemEffectAdapter
+            || window.DX3rdItemEffectAdapter.extensionActionMatches(item, "selfModifiers", item.system?.active || {}, "activation", item.system?.active?.runTiming || "instant");
     }
 
     function prepareItemDisplayDefaults(item, actor) {

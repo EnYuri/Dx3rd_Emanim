@@ -18,6 +18,10 @@
      */
     async processItemUsageCost(actor, item, options = {}) {
       const { skipMessage = false } = options;
+      const requestedAction = window.DX3rdItemEffectAdapter?.invocationAction(item, options)
+        || options.action || null;
+      const effectMatches = (kind, data, timing = data?.timing || 'instant') => !window.DX3rdItemEffectAdapter
+        || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, requestedAction, timing);
       try {
         // 컴펜디움 자동화 항목의 명시적 사용 제한. 플래그가 없는 기존 아이템에는 영향을 주지 않는다.
         const automationExtend = item.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
@@ -219,7 +223,10 @@
         
         // 2. 리저렉트 체크 - HP가 0보다 많으면 사용 불가, 침식률이 100 이상이면 사용 불가
         const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
-        if (itemExtend.heal?.resurrect) {
+        const itemExtensionEntries = window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [];
+        const hasResurrect = itemExtensionEntries.some(entry => entry.type === 'heal' && entry.data?.resurrect
+          && effectMatches('heal', entry.data));
+        if (hasResurrect) {
           const currentHP = Number(actor.system?.attributes?.hp?.value ?? 0);
           const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
           
@@ -264,8 +271,7 @@
           const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
           
           // 리저렉트 체크가 되어 있으면 limit 조건을 무시하고 무조건 침식률 100 미만일 때만 사용 가능
-          const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
-          if (itemExtend.heal?.resurrect) {
+          if (hasResurrect) {
             if (currentEncroachment >= 100) {
               // 아이템 이름에서 || 패턴 제거
               let itemName = item.name;
@@ -334,12 +340,19 @@
         actor._dx3rdRuntimeInput = 0;
         let runtimeConsumeAmount = 0;
         {
-          let runtimeCfg = itemExtend.damage?.runtimePrompt ? itemExtend.damage : null;
+          let runtimeCfg = itemExtensionEntries
+            .filter(entry => entry.type === 'damage')
+            .map(entry => entry.data)
+            .find(data => data?.runtimePrompt && effectMatches('damage', data)) || null;
           if (!runtimeCfg && item.type === 'combo') {
             for (const effectId of this.normalizeEffectIds(item)) {
               const eff = actor.items.get(effectId);
-              const ex = eff?.getFlag?.('dx3rd-emanim', 'itemExtend');
-              if (ex?.damage?.runtimePrompt) { runtimeCfg = ex.damage; break; }
+              const ex = eff?.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
+              runtimeCfg = (window.DX3rdItemEffectAdapter?.extensionEntries?.(ex) || [])
+                .filter(entry => entry.type === 'damage')
+                .map(entry => entry.data)
+                .find(data => data?.runtimePrompt) || null;
+              if (runtimeCfg) break;
             }
           }
           if (runtimeCfg) {
@@ -371,15 +384,16 @@
         const itemHpCostRaw = String(item.system?.hp?.value ?? '0').trim();
         
         // 1-B. 익스텐드 HP 코스트 (itemExtend는 위에서 이미 선언됨)
-        const extendHpCostRaw = (itemExtend.damage?.hpCostActivate && itemExtend.damage?.hpCost) 
-          ? String(itemExtend.damage.hpCost).trim() 
-          : '0';
-        
         // 1-C. HP 코스트 목록
         const hpCostList = [
-          { raw: itemHpCostRaw, source: 'item' },
-          { raw: extendHpCostRaw, source: 'extend' }
+          { raw: itemHpCostRaw, source: 'item' }
         ];
+        for (const entry of itemExtensionEntries.filter(entry => entry.type === 'damage')) {
+          const data = entry.data || {};
+          if (data.hpCostActivate && data.hpCost && effectMatches('damage', data)) {
+            hpCostList.push({raw: String(data.hpCost).trim(), source: `extend:${entry.id}`});
+          }
+        }
 
         // 1-C-2. 변동형 런타임 입력이 HP 소모형이면 입력값을 코스트에 합류
         if (runtimeConsumeAmount > 0) {
@@ -395,12 +409,11 @@
             if (!effectItem) continue;
             
             const effectExtend = effectItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
-            const effectHpCostRaw = (effectExtend.damage?.hpCostActivate && effectExtend.damage?.hpCost) 
-              ? String(effectExtend.damage.hpCost).trim() 
-              : '0';
-            
-            if (effectHpCostRaw !== '0' && effectHpCostRaw !== '') {
-              hpCostList.push({ raw: effectHpCostRaw, source: `effect:${effectItem.name}` });
+            for (const entry of (window.DX3rdItemEffectAdapter?.extensionEntries?.(effectExtend) || []).filter(entry => entry.type === 'damage')) {
+              const data = entry.data || {};
+              const matches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'damage', data, 'attack', data.timing || 'instant');
+              const raw = data.hpCostActivate && data.hpCost && matches ? String(data.hpCost).trim() : '0';
+              if (raw !== '0' && raw !== '') hpCostList.push({raw, source: `effect:${effectItem.name}:${entry.id}`});
             }
           }
         }
@@ -677,8 +690,8 @@
         const bucket = buckets.get(key);
         bucket.custom = bucket.custom || isCustom;
         
-        // 아이템 생성 타입은 extensionData를 직접 보존
-        if (type === 'weapon' || type === 'protect' || type === 'vehicle') {
+        // 아이템 생성 및 비병합 타입은 extensionData를 직접 보존
+        if (type === 'weapon' || type === 'protect' || type === 'vehicle' || type === 'statusClear') {
           bucket.sources.push({
             itemId: ext.itemId,
             itemName: ext.itemName,
@@ -847,8 +860,8 @@
             poisonedRank: maxPoisonedRank > 0 ? maxPoisonedRank : null,
             sources: bucket.sources
           });
-        } else if (type === 'weapon' || type === 'protect' || type === 'vehicle') {
-          // 아이템 생성 타입: 병합하지 않고 소스 그대로 반환 (각각 생성해야 함)
+        } else if (type === 'weapon' || type === 'protect' || type === 'vehicle' || type === 'statusClear') {
+          // 아이템 생성/상태 해제 타입: 병합하지 않고 소스 그대로 반환 (각각 실행해야 함)
           results.push({
             type, timing, target, custom: false,
             parentRunTiming,
@@ -869,7 +882,7 @@
      * @param {Item} item
      * @param {string} timing - 'instant' | 'success' | 'damage' | null (null이면 모든 타이밍)
      */
-    async processItemExtensions(actor, item, timing = null) {
+    async processItemExtensions(actor, item, timing = null, action = null) {
       try {
         // 아이템의 익스텐션 설정 가져오기
         const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend');
@@ -898,8 +911,12 @@
         }
 
 
-        // 각 익스텐션 타입별 처리
-        for (const [extensionType, extensionData] of Object.entries(itemExtend)) {
+        // 기존 종류별 슬롯과 신규 무제한 카드 배열을 동일한 실행 목록으로 처리한다.
+        const extensionEntries = window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend)
+          || Object.entries(itemExtend).map(([type, data]) => ({type, data}));
+        for (const entry of extensionEntries) {
+          const extensionType = entry.type;
+          const extensionData = entry.data;
           console.log(`DX3rd | Extension ${extensionType}:`, {
             activate: extensionData?.activate,
             parentTiming: parentItemTiming,
@@ -907,19 +924,17 @@
             extensionTiming: extensionData?.timing
           });
           
-          // condition: conditions 배열 또는 기존 단일 형식
           if (extensionType === 'condition' && extensionData) {
-            const condEntries = this._getConditionEntries(extensionData);
-            for (const c of condEntries) {
-              if (c.activate && c.type && c.timing === timing) {
-                console.log(`DX3rd | Executing condition extension - timing match: ${c.timing}, type: ${c.type}`);
-                await this.executeItemExtension(actor, 'condition', c, item);
-              }
+            if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'condition', extensionData, action, timing)) continue;
+            if (extensionData.activate && extensionData.type && extensionData.timing === timing) {
+              console.log(`DX3rd | Executing condition extension - timing match: ${extensionData.timing}, type: ${extensionData.type}`);
+              await this.executeItemExtension(actor, 'condition', extensionData, item);
             }
             continue;
           }
           
           if (extensionData && extensionData.activate) {
+            if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(item, extensionType, extensionData, action, timing)) continue;
             // heal, damage, statusClear, encroach 익스텐션은 자체 타이밍을 따름 (부모 타이밍 무관)
             if (extensionType === 'heal' || extensionType === 'damage' || extensionType === 'statusClear' || extensionType === 'encroach') {
               const extensionTiming = extensionData.timing || 'instant';
@@ -1390,7 +1405,7 @@
      * @param {Item} item
      * @param {string} timing - 실행 타이밍 ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
      */
-    async executeMacros(item, timing = 'instant') {
+    async executeMacros(item, timing = 'instant', action = null) {
       try {
         const macroField = item.system?.macro;
         const macroMatches = (macroField && typeof macroField === 'string') ? (macroField.match(/\[([^\]]+)\]/g) || []) : [];
@@ -1401,6 +1416,7 @@
         const embeddedHits = embedded.filter(m => {
           if (!m || m.disabled) return false;
           if ((m.timing || 'instant') !== timing) return false;
+          if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.macroActionMatches(item, m, action, timing)) return false;
           return (m.kind === 'macro') ? !!m.macroName : !!m.command;
         });
         if (macroMatches.length === 0 && embeddedHits.length === 0) return;
@@ -1703,8 +1719,9 @@
      * @param {string} timing - 실행 타이밍 ('instant', 'afterSuccess', 'afterDamage')
      * @param {Array} forcedTargets - 강제 타겟 배열 (선택적, Actor 객체 배열)
      */
-    async applyToTargets(actor, item, timing = 'instant', forcedTargets = null) {
+    async applyToTargets(actor, item, timing = 'instant', forcedTargets = null, action = null) {
       try {
+        if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.targetActionMatches(item, action, timing)) return;
         
         // getTarget 또는 scene 중 하나라도 체크되어 있는지 확인
         const getTarget = item.system?.getTarget || false;
@@ -2585,22 +2602,32 @@
       // 콤보는 processComboAfterDamage에서 병합하여 처리하므로 제외
       if (item && item.type !== 'combo') {
         const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
+        const attackMatches = (kind, data) => !window.DX3rdItemEffectAdapter
+          || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, 'attack', 'afterDamage');
         // afterDamage 타이밍 체크
         const condEntries = window.DX3rdUniversalHandler?._getConditionEntries(itemExtend.condition || {}) || [];
-        const hasCondAfterDamage = condEntries.some(c => c.timing === 'afterDamage');
-        const hasCondAfterMain = condEntries.some(c => c.timing === 'afterMain');
+        const condEntriesForAttack = condEntries.filter(c => attackMatches('condition', c));
+        const cardEntriesForAttack = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
+          .filter(entry => !entry.legacy && entry.data?.activate && attackMatches(entry.type, entry.data));
+        const queuedCards = cardEntriesForAttack.filter(entry =>
+          entry.data?.timing === 'afterDamage' ||
+          (item.system.active?.runTiming === 'afterDamage' && entry.data?.timing === 'afterMain'));
+        const hasCondAfterDamage = condEntriesForAttack.some(c => c.timing === 'afterDamage');
+        const hasCondAfterMain = condEntriesForAttack.some(c => c.timing === 'afterMain');
         const hasAfterDamageExtension = 
-          (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterDamage') ||
-          (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterDamage') ||
-          hasCondAfterDamage;
+          (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterDamage' && attackMatches('heal', itemExtend.heal)) ||
+          (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterDamage' && attackMatches('damage', itemExtend.damage)) ||
+          (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterDamage' && attackMatches('statusClear', itemExtend.statusClear)) ||
+          hasCondAfterDamage || queuedCards.some(entry => entry.data?.timing === 'afterDamage');
         
         // 아이템의 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우도 체크
         const itemRunTiming = item.system.active?.runTiming;
         const hasAfterMainExtensionForAfterDamage = 
           itemRunTiming === 'afterDamage' && (
-            (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterMain') ||
-            (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterMain') ||
-            hasCondAfterMain
+            (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterMain' && attackMatches('heal', itemExtend.heal)) ||
+            (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterMain' && attackMatches('damage', itemExtend.damage)) ||
+            (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterMain' && attackMatches('statusClear', itemExtend.statusClear)) ||
+            hasCondAfterMain || queuedCards.some(entry => entry.data?.timing === 'afterMain')
           );
         
         if (hasAfterDamageExtension || hasAfterMainExtensionForAfterDamage) {
@@ -2626,18 +2653,23 @@
                 heal: itemExtend.heal?.activate && (
                   itemExtend.heal?.timing === 'afterDamage' || 
                   (itemRunTiming === 'afterDamage' && itemExtend.heal?.timing === 'afterMain')
-                ) ? itemExtend.heal : null,
+                ) && attackMatches('heal', itemExtend.heal) ? itemExtend.heal : null,
                 damage: itemExtend.damage?.activate && (
                   itemExtend.damage?.timing === 'afterDamage' || 
                   (itemRunTiming === 'afterDamage' && itemExtend.damage?.timing === 'afterMain')
-                ) ? itemExtend.damage : null,
+                ) && attackMatches('damage', itemExtend.damage) ? itemExtend.damage : null,
+                statusClear: itemExtend.statusClear?.activate && (
+                  itemExtend.statusClear?.timing === 'afterDamage' ||
+                  (itemRunTiming === 'afterDamage' && itemExtend.statusClear?.timing === 'afterMain')
+                ) && attackMatches('statusClear', itemExtend.statusClear) ? itemExtend.statusClear : null,
                 condition: (() => {
-                  const match = condEntries.filter(c =>
+                  const match = condEntriesForAttack.filter(c =>
                     c.timing === 'afterDamage' ||
                     (itemRunTiming === 'afterDamage' && c.timing === 'afterMain')
                   );
                   return match.length > 0 ? match : null;
-                })()
+                })(),
+                cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
               },
               triggerItemName: item.name,
               itemRunTiming: itemRunTiming  // 아이템의 runTiming 저장
@@ -2664,19 +2696,24 @@
                   heal: itemExtend.heal?.activate && (
                     itemExtend.heal?.timing === 'afterDamage' || 
                     (item.system.active?.runTiming === 'afterDamage' && itemExtend.heal?.timing === 'afterMain')
-                  ) ? itemExtend.heal : null,
+                  ) && attackMatches('heal', itemExtend.heal) ? itemExtend.heal : null,
                   damage: itemExtend.damage?.activate && (
                     itemExtend.damage?.timing === 'afterDamage' || 
                     (item.system.active?.runTiming === 'afterDamage' && itemExtend.damage?.timing === 'afterMain')
-                  ) ? itemExtend.damage : null,
+                  ) && attackMatches('damage', itemExtend.damage) ? itemExtend.damage : null,
+                  statusClear: itemExtend.statusClear?.activate && (
+                    itemExtend.statusClear?.timing === 'afterDamage' ||
+                    (item.system.active?.runTiming === 'afterDamage' && itemExtend.statusClear?.timing === 'afterMain')
+                  ) && attackMatches('statusClear', itemExtend.statusClear) ? itemExtend.statusClear : null,
                   condition: (() => {
                     const ce = window.DX3rdUniversalHandler?._getConditionEntries(itemExtend.condition || {}) || [];
-                    const match = ce.filter(c =>
+                    const match = ce.filter(c => attackMatches('condition', c) && (
                       c.timing === 'afterDamage' ||
                       (item.system.active?.runTiming === 'afterDamage' && c.timing === 'afterMain')
-                    );
+                    ));
                     return match.length > 0 ? match : null;
-                  })()
+                  })(),
+                  cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
                 },
                 triggerItemName: item.name
               }
@@ -2693,9 +2730,15 @@
         
         // 콤보는 comboAfterDamageData만 등록, 단일 아이템은 기존 로직
         const activeDisable = item.system?.active?.disable ?? '-';
-        const shouldActivate = !isCombo && (item.system.active?.runTiming === 'afterDamage' && !item.system.active?.state && activeDisable !== 'notCheck');
-        const shouldApplyToTargets = !isCombo && (item.system.effect?.runTiming === 'afterDamage');
-        const shouldExecuteMacro = !isCombo && (item.system?.macro ? true : false);
+        const activeActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterDamage');
+        const targetActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterDamage');
+        const shouldActivate = !isCombo && activeActionMatches && (item.system.active?.runTiming === 'afterDamage' && !item.system.active?.state && activeDisable !== 'notCheck');
+        const shouldApplyToTargets = !isCombo && targetActionMatches && (item.system.effect?.runTiming === 'afterDamage');
+        const hasAfterDamageEmbeddedMacro = (item.system?.macros || []).some(macro =>
+          !macro.disabled && macro.timing === 'afterDamage' &&
+          (!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.macroActionMatches(item, macro, 'attack', 'afterDamage'))
+        );
+        const shouldExecuteMacro = !isCombo && (!!item.system?.macro || hasAfterDamageEmbeddedMacro);
 
         // 콤보이거나, 활성화/대상 적용/매크로 중 하나라도 필요한 경우 등록
         if (isCombo || shouldActivate || shouldApplyToTargets || shouldExecuteMacro) {
@@ -2974,13 +3017,17 @@
                     // targetAll/self 포함 여부 확인
                     const healTarget = extensionRequest.extensions.heal?.target;
                     const damageTarget = extensionRequest.extensions.damage?.target;
+                    const statusClearTarget = extensionRequest.extensions.statusClear?.target;
                     const condList = Array.isArray(extensionRequest.extensions.condition)
                       ? extensionRequest.extensions.condition
                       : (extensionRequest.extensions.condition ? [extensionRequest.extensions.condition] : []);
                     const conditionTarget = condList[0]?.target;
+                    const cardList = Array.isArray(extensionRequest.extensions.cards) ? extensionRequest.extensions.cards : [];
                     const includesSelf = healTarget === 'self' || healTarget === 'targetAll' ||
                                         damageTarget === 'self' || damageTarget === 'targetAll' ||
-                                        conditionTarget === 'self' || conditionTarget === 'targetAll';
+                                        statusClearTarget === 'self' || statusClearTarget === 'targetAll' ||
+                                        conditionTarget === 'self' || conditionTarget === 'targetAll' ||
+                                        cardList.some(card => card.data?.target === 'self' || card.data?.target === 'targetAll');
                     
                     // 데미지를 받은 타겟이 있거나, self를 포함하는 경우 처리
                     if (damagedTargets.length > 0 || includesSelf) {
@@ -3086,6 +3133,30 @@
                           }
                         }
                       }
+
+                      // 상태이상 해제 익스텐션 처리
+                      if (extensionRequest.extensions.statusClear) {
+                        const statusClearTiming = extensionRequest.extensions.statusClear.timing;
+                        const originalTarget = extensionRequest.extensions.statusClear.target;
+                        const statusClearDataWithTargets = {
+                          ...extensionRequest.extensions.statusClear,
+                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
+                          selectedTargetIds: damagedTargets.map(actorId => {
+                            const token = canvas.tokens.placeables.find(t => t.actor?.id === actorId);
+                            return token?.id;
+                          }).filter(id => id),
+                          triggerItemName: extensionRequest.triggerItemName,
+                          triggerItemId: itemId
+                        };
+                        if (statusClearTiming === 'afterMain') {
+                          const itemRunTiming = triggerItem?.system.active?.runTiming;
+                          if (itemRunTiming === 'afterDamage') {
+                            window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, statusClearDataWithTargets, triggerItem, 'statusClear');
+                          }
+                        } else {
+                          await window.DX3rdUniversalHandler.executeStatusClearExtension(attacker, statusClearDataWithTargets, triggerItem);
+                        }
+                      }
                       
                       // condition 익스텐션 처리
                       for (const condCfg of condList) {
@@ -3133,6 +3204,24 @@
                             // afterDamage 타이밍만 즉시 실행
                             await window.DX3rdUniversalHandler.executeConditionExtensionNow(attacker, conditionDataWithTargets, triggerItem);
                           }
+                        }
+                      }
+
+                      // 신규 무제한 카드도 각각 독립적으로 실행한다. 같은 종류의 카드가
+                      // 여러 장이어도 합쳐 덮어쓰지 않고 카드 수만큼 순서대로 처리한다.
+                      for (const card of cardList) {
+                        const originalTarget = card.data?.target || 'self';
+                        const dataWithTargets = {
+                          ...(card.data || {}),
+                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
+                          selectedTargetIds: damagedTargets.map(actorId => canvas.tokens.placeables.find(t => t.actor?.id === actorId)?.id).filter(Boolean),
+                          triggerItemName: extensionRequest.triggerItemName,
+                          triggerItemId: itemId
+                        };
+                        if (dataWithTargets.timing === 'afterMain') {
+                          window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, dataWithTargets, triggerItem, card.type);
+                        } else {
+                          await window.DX3rdUniversalHandler.executeItemExtension(attacker, card.type, dataWithTargets, triggerItem);
                         }
                       }
                     } else {
@@ -7175,6 +7264,16 @@
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
             poisonedRank: bucket.poisonedRank || null
           });
+        } else if (bucket.type === 'statusClear') {
+          for (const source of bucket.sources || []) {
+            const sourceItem = actor.items.get(source.itemId);
+            await this.executeStatusClearExtension(actor, {
+              ...(source.raw?.extensionData || {}),
+              target: bucket.target,
+              selectedTargetIds: bucket.selectedTargetIds || [],
+              triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
+            }, sourceItem || null);
+          }
         } else if (bucket.type === 'weapon' || bucket.type === 'protect' || bucket.type === 'vehicle') {
           // 아이템 생성은 afterSuccess에서 하지 않음 (instant만)
         }
@@ -7212,6 +7311,16 @@
             poisonedRank: bucket.poisonedRank || null
           };
           this.addToAfterMainQueue(actor, conditionData, null, 'condition');
+        } else if (bucket.type === 'statusClear') {
+          for (const source of bucket.sources || []) {
+            const sourceItem = actor.items.get(source.itemId);
+            this.addToAfterMainQueue(actor, {
+              ...(source.raw?.extensionData || {}),
+              target: bucket.target,
+              selectedTargetIds: bucket.selectedTargetIds || [],
+              triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
+            }, sourceItem || null, 'statusClear');
+          }
         }
       }
       
@@ -7227,6 +7336,10 @@
       const { actorId, comboItemId, activations = [], macros = [], applies = [], extensions = [], afterMainExtensions = [] } = comboData;
       const actor = game.actors.get(actorId);
       if (!actor) return;
+      const damagedTokenIds = (damagedActors || []).map(damagedActor => {
+        const token = canvas.tokens.placeables.find(t => t.actor?.id === damagedActor.id);
+        return token?.id;
+      }).filter(Boolean);
       
       // 1. 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
       for (const { itemId, itemName } of activations) {
@@ -7322,6 +7435,17 @@
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
             poisonedRank: bucket.poisonedRank || null
           });
+        } else if (bucket.type === 'statusClear') {
+          for (const source of bucket.sources || []) {
+            const sourceItem = actor.items.get(source.itemId);
+            const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
+            await this.executeStatusClearExtension(actor, {
+              ...(source.raw?.extensionData || {}),
+              target: originalTarget === 'self' ? 'self' : (damagedTokenIds.length ? 'targetToken' : originalTarget),
+              selectedTargetIds: damagedTokenIds.length ? damagedTokenIds : (bucket.selectedTargetIds || []),
+              triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
+            }, sourceItem || null);
+          }
         } else if (bucket.type === 'weapon' || bucket.type === 'protect' || bucket.type === 'vehicle') {
           // 아이템 생성은 afterDamage에서 하지 않음 (instant만)
           console.log(`DX3rd | Combo afterDamage - Skipping item creation (${bucket.type})`);
@@ -7362,6 +7486,17 @@
             poisonedRank: bucket.poisonedRank || null
           };
           this.addToAfterMainQueue(actor, conditionData, null, 'condition');
+        } else if (bucket.type === 'statusClear') {
+          for (const source of bucket.sources || []) {
+            const sourceItem = actor.items.get(source.itemId);
+            const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
+            this.addToAfterMainQueue(actor, {
+              ...(source.raw?.extensionData || {}),
+              target: originalTarget === 'self' ? 'self' : (damagedTokenIds.length ? 'targetToken' : originalTarget),
+              selectedTargetIds: damagedTokenIds.length ? damagedTokenIds : (bucket.selectedTargetIds || []),
+              triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
+            }, sourceItem || null, 'statusClear');
+          }
         }
       }
       
@@ -7404,24 +7539,28 @@
         if (itemId) {
           const item = actor.items.get(itemId);
           if (item) {
+            const successAction = window.DX3rdItemEffectAdapter?.eventAction(item, 'afterSuccess')
+              || (item.system?.attackRoll && item.system.attackRoll !== '-' ? 'attack' : 'use');
+            const actionMatches = (kind, data) => !window.DX3rdItemEffectAdapter
+              || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, successAction, 'afterSuccess');
             // 0. 'afterSuccess' 매크로 실행
-            await this.executeMacros(item, 'afterSuccess');
+            await this.executeMacros(item, 'afterSuccess', successAction);
             
             // 1. active.runTiming이 'afterSuccess'인 경우 활성화 (disable이 'notCheck'가 아닌 경우에만)
             const activeDisable = item.system?.active?.disable ?? '-';
-            if (item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck') {
+            if (actionMatches('selfModifiers', item.system?.active || {}) && item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck') {
               await item.update({ 'system.active.state': true });
             }
             
             // 2. 'afterSuccess' 타겟 효과 적용 (effect.runTiming === 'afterSuccess')
-            await this.applyToTargets(actor, item, 'afterSuccess');
+            await this.applyToTargets(actor, item, 'afterSuccess', null, successAction);
             
             // 3. afterSuccess 타이밍 heal/damage/condition 익스텐션을 GM을 통해 처리
             const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
             const selectedTargetIds = Array.from(game.user.targets).map(t => t.id);
             
             // heal afterSuccess
-            if (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterSuccess') {
+            if (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterSuccess' && actionMatches('heal', itemExtend.heal)) {
               
               const healDataWithTargets = {
                 ...itemExtend.heal,
@@ -7451,7 +7590,7 @@
             }
             
             // damage afterSuccess
-            if (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterSuccess') {
+            if (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterSuccess' && actionMatches('damage', itemExtend.damage)) {
               
               let damageDataWithTargets = {
                 ...itemExtend.damage,
@@ -7504,7 +7643,7 @@
             
             // condition afterSuccess (conditions 배열 또는 기존 단일 형식)
             const condEntries = this._getConditionEntries(itemExtend.condition || {});
-            const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess');
+            const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess' && actionMatches('condition', c));
             for (const c of afterSuccessConds) {
               const conditionDataWithTargets = {
                 ...c,
@@ -7515,10 +7654,29 @@
               
               await this.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
             }
+
+            // 상태이상 해제 afterSuccess
+            if (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterSuccess' && actionMatches('statusClear', itemExtend.statusClear)) {
+              await this.executeStatusClearExtension(actor, {
+                ...itemExtend.statusClear,
+                selectedTargetIds,
+                triggerItemName: item.name,
+                triggerItemId: item.id
+              }, item);
+            }
+
+            const cardEntries = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
+              .filter(entry => !entry.legacy && entry.data?.activate && entry.data?.timing === 'afterSuccess'
+                && actionMatches(entry.type, entry.data));
+            for (const entry of cardEntries) {
+              await this.executeItemExtension(actor, entry.type, {
+                ...entry.data, selectedTargetIds, triggerItemName: item.name, triggerItemId: item.id
+              }, item);
+            }
             
             // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
             if (item.system.active?.runTiming === 'afterSuccess') {
-              this.registerAfterMainExtensions(actor, item, itemExtend);
+              this.registerAfterMainExtensions(actor, item, itemExtend, successAction);
             }
           }
         }
@@ -7576,7 +7734,6 @@
       if (!item) {
         return false;
       }
-
       // 무기/비클은 비용·사용 채팅카드보다 먼저 판정 방식을 고른다.
       // 콤보를 고르면 개별 장비 사용으로 간주하지 않고, 즉석 콤보만 연다.
       if (itemType === 'weapon' || itemType === 'vehicle') {
@@ -7596,7 +7753,7 @@
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
           return false;
         }
-        const mode = await window.DX3rdChooseItemMode(options.menuAnchor);
+        const mode = await window.DX3rdChooseItemMode(options.menuAnchor, item);
         if (mode === null) return false;
         if (mode === 'combo') {
           const skillKey = item.system?.skill;
@@ -7610,17 +7767,22 @@
         if (mode === 'apply') {
           return this.applyChosenItemEffect(actor, item, options);
         }
-        options = {...options, comboMode: 'normal'};
+        options = {...options, comboMode: 'normal', action: mode === 'use' ? 'use' : 'attack'};
         }
       }
+      const action = window.DX3rdItemEffectAdapter?.invocationAction(item, options)
+        || ((itemType === 'weapon' || itemType === 'vehicle') ? 'attack' : 'use');
       
       // 대상 필요 시: 타겟이 없으면 중단 (하이라이트 유지)
-      const requiresTarget = getTarget !== undefined ? getTarget : !!item.system?.getTarget;
+      const requiresTarget = getTarget !== undefined
+        ? getTarget
+        : (window.DX3rdItemEffectAdapter?.requiresTarget(item, action) ?? !!item.system?.getTarget);
       
       console.log('DX3rd | handleItemUse target check:', {
         itemName: item.name,
         getTargetParam: getTarget,
         itemGetTarget: item.system?.getTarget,
+        action,
         requiresTarget: requiresTarget,
         targetsCount: game.user.targets?.size || 0
       });
@@ -7715,7 +7877,7 @@
       // 변동형 런타임 입력 스냅샷(재진입 대비): 사용 종료 시 복원해 잔류값이 다음 이펙트에 새지 않게 한다.
       const _prevRuntimeInput = actor._dx3rdRuntimeInput;
       try {
-      const usageAllowed = await this.processItemUsageCost(actor, item);
+      const usageAllowed = await this.processItemUsageCost(actor, item, {action});
       if (!usageAllowed) {
         console.log('DX3rd | handleItemUse - Usage blocked by cost');
         return false;
@@ -7734,7 +7896,9 @@
       const activeDisable = item.system?.active?.disable ?? '-';
       const skipToggle = item.type === 'once' && activeDisable === '-';
       const applyMode = item.system?.active?.applyMode || 'onUse';
-      if (item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
+      const selfActionMatches = !window.DX3rdItemEffectAdapter
+        || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant');
+      if (selfActionMatches && item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         if (applyMode === 'onUse') {
           // 사용 시 self 동결버프: active.state는 켜지 않고, 런타임 입력이 반영된 동결 버프를 자신에게 적용.
           await this.applySelfFrozenBuff(actor, item);
@@ -7749,11 +7913,11 @@
       await this.processResourceCost(actor, item);
 
       // 3. instant 타이밍 매크로/어플라이드/익스텐션 실행
-      await this.executeMacros(item, 'instant');
-      await this.applyToTargets(actor, item, 'instant');
+      await this.executeMacros(item, 'instant', action);
+      await this.applyToTargets(actor, item, 'instant', null, action);
       // 콤보는 익스텐션을 콤보 핸들러에서 이펙트와 병합 처리하므로 여기서는 건너뜀 (롤 타입 무관)
       if (item.type !== 'combo') {
-        await this.processItemExtensions(actor, item, 'instant');
+        await this.processItemExtensions(actor, item, 'instant', action);
       } else {
         console.log('DX3rd | handleItemUse - Skipping combo instant extensions here (will be merged and executed in ComboHandler)');
       }
@@ -7765,7 +7929,7 @@
           const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend');
           if (itemExtend) {
             console.log('DX3rd | handleItemUse - Registering afterMain extensions for non-combo item:', item.name);
-            this.registerAfterMainExtensions(actor, item, itemExtend);
+            this.registerAfterMainExtensions(actor, item, itemExtend, action);
           }
         } else {
           console.log('DX3rd | handleItemUse - Skipping afterMain registration for combo (will be handled by ComboHandler)');
@@ -7789,7 +7953,10 @@
       };
       
       const handler = handlerMap[itemType];
-      if (handler) {
+      // 공격 가능한 아이템의 별도 '사용' 액션은 연결된 효과만 발현한다. 여기서 타입
+      // 핸들러까지 부르면 무기/공격 이펙트가 다시 공격 굴림으로 진입해 액션 분리가 무너진다.
+      const effectOnlyUse = action === 'use' && window.DX3rdItemEffectAdapter?.isAttackItem(item);
+      if (handler && !effectOnlyUse) {
         // 핸들러 내부 예외가 조용히 삼켜져 "오류도 없이 실행 안 됨"이 되지 않도록 표면화한다.
         try {
           // 로이스 아이템의 경우 roisAction에 따라 분기
@@ -7809,7 +7976,7 @@
           ui.notifications.error(`${item.name}: ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')} (${e?.message || e})`);
           return false;
         }
-      } else {
+      } else if (!effectOnlyUse) {
         console.warn(`DX3rd | handleItemUse - No handler registered for itemType: ${itemType}`);
       }
 

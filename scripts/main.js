@@ -2697,6 +2697,15 @@ window.DX3rdChatToggleManager = {
                     };
                     await handler.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
                 }
+
+                const cardEntries = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
+                    .filter(entry => !entry.legacy && entry.data?.activate && entry.data?.timing === 'afterSuccess'
+                        && window.DX3rdItemEffectAdapter.extensionActionMatches(item, entry.type, entry.data, null, 'afterSuccess'));
+                for (const entry of cardEntries) {
+                    await handler.executeItemExtension(actor, entry.type, {
+                        ...entry.data, selectedTargetIds, triggerItemName: item.name, triggerItemId: item.id
+                    }, item);
+                }
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
                 if (item.system.active?.runTiming === 'afterSuccess') {
@@ -3070,6 +3079,15 @@ window.DX3rdChatToggleManager = {
                     if (window.DX3rdUniversalHandler) {
                         await window.DX3rdUniversalHandler.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
                     }
+                }
+
+                const cardEntries = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
+                    .filter(entry => !entry.legacy && entry.data?.activate && entry.data?.timing === 'afterSuccess'
+                        && window.DX3rdItemEffectAdapter.extensionActionMatches(item, entry.type, entry.data, null, 'afterSuccess'));
+                for (const entry of cardEntries) {
+                    await window.DX3rdUniversalHandler.executeItemExtension(actor, entry.type, {
+                        ...entry.data, selectedTargetIds, triggerItemName: item.name, triggerItemId: item.id
+                    }, item);
                 }
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록

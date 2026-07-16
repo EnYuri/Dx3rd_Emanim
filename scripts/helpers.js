@@ -1667,12 +1667,20 @@
         ]);
     };
 
-    window.DX3rdChooseItemMode = function(anchor = document.activeElement) {
-        return chooseMode(anchor, [
-            {value: 'normal', icon: 'fa-solid fa-dice-d20', label: game.i18n.localize('DX3rd.Normal')},
+    window.DX3rdChooseItemMode = function(anchor = document.activeElement, item = null) {
+        const isAttack = window.DX3rdItemEffectAdapter?.isAttackItem?.(item)
+            || ['weapon', 'vehicle'].includes(item?.type);
+        const entries = [
+            {value: 'normal', icon: 'fa-solid fa-dice-d20', label: isAttack ? game.i18n.localize('DX3rd.EffectActionAttack') : game.i18n.localize('DX3rd.Normal')}
+        ];
+        if (isAttack && window.DX3rdItemEffectAdapter?.hasActionEffects?.(item, 'use')) {
+            entries.push({value: 'use', icon: 'fa-solid fa-bolt', label: game.i18n.localize('DX3rd.EffectActionUse')});
+        }
+        entries.push(
             {value: 'combo', icon: 'fa-solid fa-link', label: game.i18n.localize('DX3rd.Combo')},
             {value: 'apply', icon: 'fa-solid fa-hand-sparkles', label: game.i18n.localize('DX3rd.ApplyEffect')}
-        ]);
+        );
+        return chooseMode(anchor, entries);
     };
 
     window.DX3rdChooseEffectApplySource = function(anchor = document.activeElement) {

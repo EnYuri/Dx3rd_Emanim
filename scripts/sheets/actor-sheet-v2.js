@@ -452,7 +452,7 @@
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
           return;
         }
-        const mode = await window.DX3rdChooseItemMode(target || event.currentTarget);
+        const mode = await window.DX3rdChooseItemMode(target || event.currentTarget, item);
         if (mode === null) return;
         if (mode === 'apply') {
           if (!(game.user.targets?.size > 0)) {
@@ -474,7 +474,8 @@
         }
         await this._useItemFromTarget(target, undefined, {
           menuAnchor: target || event.currentTarget,
-          comboMode: mode
+          comboMode: mode === 'use' ? 'normal' : mode,
+          action: mode === 'use' ? 'use' : undefined
         });
         return;
       }

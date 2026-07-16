@@ -154,7 +154,7 @@ window.DX3rdComboHandler = {
         //    정산 내용: 침식치 합계(룰 807-809)·HP 코스트·사용 게이트·통합 사용 메시지.
         //    이펙트 사용횟수 증가는 processInstantExtensions가 담당하므로 코스트 정산과 이중으로 겹치지 않는다.
         if (typeof itemIdOrObject === 'object') {
-            const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item);
+            const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item, {action: 'attack'});
             if (!usageAllowed) {
                 console.log("DX3rd | ComboHandler - Temp combo usage blocked by cost gate");
                 return;
@@ -186,7 +186,7 @@ window.DX3rdComboHandler = {
      * @param {boolean} [opts.includeItemCreation=true] - weapon/protect/vehicle 생성 익스텐션 포함 여부 (afterDamage는 instant 전용이라 false)
      * @returns {Array} 수집된 익스텐션 정의 배열
      */
-    collectExtensions(actor, srcItems, { includeItemCreation = true } = {}) {
+    collectExtensions(actor, srcItems, { includeItemCreation = true, action = 'attack' } = {}) {
         const collected = [];
         for (const srcItem of srcItems) {
             if (!srcItem) continue;
@@ -200,52 +200,36 @@ window.DX3rdComboHandler = {
                 parentRunTiming
             };
 
-            const pushIf = (typeKey) => {
-                const d = ext[typeKey];
-                if (!d) return;
-
-                // 상태이상의 경우 conditions 배열 형식이면 상위 activate 체크 건너뛰기
-                const isConditionArray = typeKey === 'condition' && Array.isArray(d.conditions) && d.conditions.length > 0;
-                if (!isConditionArray && !d.activate) return;
+            const pushIf = (typeKey, d) => {
+                if (!d || !d.activate) return;
 
                 if (typeKey === 'heal' || typeKey === 'damage' || typeKey === 'condition') {
-                    if (isConditionArray) {
-                        // conditions 배열 형식: 각 조건을 개별 extension으로 추가
-                        for (const c of d.conditions) {
-                            if (!c.activate || !c.type) continue;
-                            collected.push({
-                                type: typeKey, ...baseData,
-                                timing: c.timing || 'instant',
-                                target: c.target || 'self',
-                                formulaDice: 0,
-                                formulaAdd: 0,
-                                ignoreReduce: false,
-                                resurrect: false,
-                                rivival: false,
-                                conditionType: c.type,
-                                poisonedRank: c.poisonedRank || null,
-                                conditionalFormula: false
-                            });
-                        }
-                    } else {
-                        // 기존 단일 형식 또는 heal/damage
-                        collected.push({
-                            type: typeKey, ...baseData,
-                            timing: d.timing || 'instant',
-                            target: d.target || 'self',
-                            formulaDice: d.formulaDice ?? d.dice ?? 0,
-                            formulaAdd: d.formulaAdd ?? d.add ?? 0,
-                            ignoreReduce: !!d.ignoreReduce,
-                            resurrect: !!d.resurrect,
-                            rivival: !!d.rivival,
-                            conditionType: d.type,
-                            poisonedRank: d.poisonedRank || null,
-                            conditionalFormula: !!d.conditionalFormula
-                        });
-                    }
+                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
+                    collected.push({
+                        type: typeKey, ...baseData,
+                        timing: d.timing || 'instant',
+                        target: d.target || 'self',
+                        formulaDice: d.formulaDice ?? d.dice ?? 0,
+                        formulaAdd: d.formulaAdd ?? d.add ?? 0,
+                        ignoreReduce: !!d.ignoreReduce,
+                        resurrect: !!d.resurrect,
+                        rivival: !!d.rivival,
+                        conditionType: d.type,
+                        poisonedRank: d.poisonedRank || null,
+                        conditionalFormula: !!d.conditionalFormula
+                    });
+                } else if (typeKey === 'statusClear') {
+                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
+                    collected.push({
+                        type: typeKey, ...baseData,
+                        timing: d.timing || 'instant',
+                        target: d.target || 'self',
+                        extensionData: d
+                    });
                 } else if (typeKey === 'weapon' || typeKey === 'protect' || typeKey === 'vehicle') {
                     // 아이템 생성 익스텐션은 instant만 지원 (afterDamage 수집에서는 제외)
                     if (!includeItemCreation) return;
+                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, 'instant')) return;
                     collected.push({
                         type: typeKey, ...baseData,
                         timing: 'instant',
@@ -253,12 +237,9 @@ window.DX3rdComboHandler = {
                     });
                 }
             };
-            pushIf('heal');
-            pushIf('damage');
-            pushIf('condition');
-            pushIf('weapon');
-            pushIf('protect');
-            pushIf('vehicle');
+            const entries = window.DX3rdItemEffectAdapter?.extensionEntries?.(ext)
+                || Object.entries(ext).map(([type, data]) => ({type, data}));
+            for (const entry of entries) pushIf(entry.type, entry.data);
         }
         return collected;
     },
@@ -340,7 +321,8 @@ window.DX3rdComboHandler = {
 
             // 이펙트 즉시 처리
             try {
-                if (effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
+                const selfMatchesAttack = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'instant');
+                if (selfMatchesAttack && effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
                     // applyMode='onUse'인 멤버(노도의 선풍 등)는 active.state를 켜지 않고, 콤보 사용 시점의
                     // 런타임 입력([소비HP])이 반영된 동결 버프를 자신에게 적용한다. processItemUsageCost가
                     // 콤보 멤버를 스캔해 이미 _dx3rdRuntimeInput을 세팅했으므로 여기서 동결 평가가 잡힌다.
@@ -353,8 +335,8 @@ window.DX3rdComboHandler = {
                         console.log('DX3rd | ComboHandler - Effect activated (instant):', effectItem.name);
                     }
                 }
-                await handler.executeMacros(effectItem, 'instant');
-                await handler.applyToTargets(actor, effectItem, 'instant');
+                await handler.executeMacros(effectItem, 'instant', 'attack');
+                await handler.applyToTargets(actor, effectItem, 'instant', null, 'attack');
             } catch (e) {
                 console.warn('DX3rd | ComboHandler - effect instant process skipped:', effectItem?.name, e);
             }
@@ -425,6 +407,16 @@ window.DX3rdComboHandler = {
                         triggerItemName: item.name,
                         poisonedRank: b.poisonedRank || null
                     });
+                } else if (b.type === 'statusClear') {
+                    for (const src of b.sources) {
+                        const srcItem = actor.items.get(src.itemId);
+                        await handler.executeStatusClearExtension(actor, {
+                            ...(src.raw.extensionData || {}),
+                            target: b.target,
+                            selectedTargetIds,
+                            triggerItemName: item.name
+                        }, srcItem || null);
+                    }
                 } else if (b.type === 'weapon' || b.type === 'protect' || b.type === 'vehicle') {
                     // 아이템 생성은 병합하지 않고 각 소스별로 개별 생성
                     for (const src of b.sources) {
@@ -479,6 +471,16 @@ window.DX3rdComboHandler = {
                         };
                         console.log('DX3rd | ComboHandler - AfterMain condition data:', conditionData);
                         handler.addToAfterMainQueue(actor, conditionData, null, 'condition');
+                    } else if (b.type === 'statusClear') {
+                        for (const src of b.sources) {
+                            const srcItem = actor.items.get(src.itemId);
+                            handler.addToAfterMainQueue(actor, {
+                                ...(src.raw.extensionData || {}),
+                                target: b.target,
+                                selectedTargetIds,
+                                triggerItemName: item.name
+                            }, srcItem || null, 'statusClear');
+                        }
                     }
                 } else {
                     // instant, afterMain이 아닌 타이밍은 건너뜀 (afterSuccess, afterDamage는 별도 처리)
@@ -522,7 +524,8 @@ window.DX3rdComboHandler = {
         
         // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
         const activeDisable = item.system?.active?.disable ?? '-';
-        if (item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state && activeDisable !== 'notCheck') {
+        const comboSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterSuccess');
+        if (comboSelfMatches && item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state && activeDisable !== 'notCheck') {
             result.activations.push({ itemId: item.id, itemName: item.name });
             console.log('DX3rd | ComboHandler - Added combo activation:', item.name);
         }
@@ -543,7 +546,7 @@ window.DX3rdComboHandler = {
             }
         }
         // 3) 어플라이드 (콤보는 어플라이드가 있는지 확인 필요)
-        if (item.system?.getTarget && item.system?.effect?.runTiming === 'afterSuccess') {
+        if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterSuccess')) && item.system?.getTarget && item.system?.effect?.runTiming === 'afterSuccess') {
             result.applies.push({ itemId: item.id, itemName: item.name });
             console.log('DX3rd | ComboHandler - Added combo apply:', item.name);
         }
@@ -566,7 +569,8 @@ window.DX3rdComboHandler = {
 
             // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
             const effectActiveDisable = effectItem.system?.active?.disable ?? '-';
-            if (effectItem.system?.active?.runTiming === 'afterSuccess' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
+            const effectSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'afterSuccess');
+            if (effectSelfMatches && effectItem.system?.active?.runTiming === 'afterSuccess' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
                 result.activations.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect activation:', effectItem.name);
             }
@@ -587,7 +591,7 @@ window.DX3rdComboHandler = {
                 }
             }
             // 3) 어플라이드
-            if (effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
+            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, 'attack', 'afterSuccess')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
                 result.applies.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect apply:', effectItem.name);
             }
@@ -657,7 +661,8 @@ window.DX3rdComboHandler = {
         // 콤보 본체 수집
         // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
         const activeDisable = item.system?.active?.disable ?? '-';
-        if (item.system?.active?.runTiming === 'afterDamage' && !item.system?.active?.state && activeDisable !== 'notCheck') {
+        const comboSelfMatchesDamage = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterDamage');
+        if (comboSelfMatchesDamage && item.system?.active?.runTiming === 'afterDamage' && !item.system?.active?.state && activeDisable !== 'notCheck') {
             result.activations.push({ itemId: item.id, itemName: item.name });
         }
         // 2) 매크로 (문자열 파싱)
@@ -677,7 +682,7 @@ window.DX3rdComboHandler = {
             }
         }
         // 3) 어플라이드
-        if (item.system?.getTarget && item.system?.effect?.runTiming === 'afterDamage') {
+        if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterDamage')) && item.system?.getTarget && item.system?.effect?.runTiming === 'afterDamage') {
             result.applies.push({ itemId: item.id, itemName: item.name });
         }
         // 4) 익스텐션은 아래에서 일괄 수집
@@ -691,7 +696,8 @@ window.DX3rdComboHandler = {
 
             // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
             const effectActiveDisable = effectItem.system?.active?.disable ?? '-';
-            if (effectItem.system?.active?.runTiming === 'afterDamage' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
+            const effectSelfMatchesDamage = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'afterDamage');
+            if (effectSelfMatchesDamage && effectItem.system?.active?.runTiming === 'afterDamage' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
                 result.activations.push({ itemId: effectItem.id, itemName: effectItem.name });
             }
             // 2) 매크로 (문자열 파싱)
@@ -711,7 +717,7 @@ window.DX3rdComboHandler = {
                 }
             }
             // 3) 어플라이드
-            if (effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterDamage') {
+            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, 'attack', 'afterDamage')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterDamage') {
                 result.applies.push({ itemId: effectItem.id, itemName: effectItem.name });
             }
             // 4) 익스텐션은 아래에서 일괄 수집

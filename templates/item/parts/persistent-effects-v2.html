@@ -1,0 +1,47 @@
+<div class="sheet-wrapper margin-top-10 dx3rd-effect-workspace">
+  <section class="dx3rd-effect-section">
+    <header class="dx3rd-effect-section-header">
+      <div><i class="fas fa-layer-group"></i> {{localize "DX3rd.PersistentEffects"}}</div>
+      <div class="dx3rd-effect-add-control">
+        <select class="effect-kind-select" data-family="persistent" aria-label="{{localize 'DX3rd.EffectKind'}}">
+          {{#each effectView.persistentAddOptions as |option|}}<option value="{{option.value}}">{{option.label}}</option>{{/each}}
+        </select>
+        <button type="button" data-action="addEffectCard" data-family="persistent" title="{{localize 'DX3rd.AddEffect'}}"><i class="fas fa-plus"></i></button>
+      </div>
+    </header>
+
+    <div class="dx3rd-effect-card-grid">
+      {{#if effectView.modifierOverview.totalCount}}
+      <article class="dx3rd-effect-card {{#unless effectView.modifierOverview.active}}is-inactive{{/unless}}" data-effect-id="modifiers">
+        <div class="dx3rd-effect-card-main">
+          {{#if effectView.modifierOverview.toggleable}}<label class="dx3rd-effect-presence" title="{{localize 'DX3rd.Active'}}"><input type="checkbox" class="effect-enabled-toggle" data-effect-id="modifiers" {{checked effectView.modifierOverview.selfActive}}><i class="fas fa-circle"></i></label>{{/if}}
+          <div class="dx3rd-effect-card-copy"><strong>{{localize "DX3rd.PersistentModifiers"}}</strong><small>{{effectView.modifierOverview.summary}}</small></div>
+          <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="modifiers" data-effect-id="modifiers" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
+        </div>
+        <div class="dx3rd-effect-card-meta"><span class="dx3rd-effect-badge target">{{localize "DX3rd.ModifierScopeHint"}}</span></div>
+      </article>
+      {{/if}}
+
+      {{#each effectView.persistent as |effect|}}
+      {{#if (eq effect.kind "condition")}}
+      <article class="dx3rd-effect-card {{#unless effect.active}}is-inactive{{/unless}}" data-effect-id="{{effect.id}}">
+        <div class="dx3rd-effect-card-main">
+          {{#if effect.toggleable}}<label class="dx3rd-effect-presence" title="{{localize 'DX3rd.Active'}}"><input type="checkbox" class="effect-enabled-toggle" data-effect-id="{{effect.id}}" {{checked effect.active}}><i class="fas fa-circle"></i></label>{{/if}}
+          <div class="dx3rd-effect-card-copy"><strong>{{effect.title}}</strong><small>{{effect.summary}}</small></div>
+          <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="{{effect.editor}}" data-effect-id="{{effect.id}}" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
+          <button type="button" class="dx3rd-effect-delete" data-action="deleteEffectCard" data-effect-id="{{effect.id}}" title="{{localize 'DX3rd.RemoveEffect'}}"><i class="fas fa-trash"></i></button>
+        </div>
+        <div class="dx3rd-effect-card-meta">
+          <select class="effect-action-binding" data-effect-id="{{effect.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">{{#each ../effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value effect.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select>
+          <span class="dx3rd-effect-badge trigger">{{effect.triggerLabel}}</span><span class="dx3rd-effect-badge target">{{effect.targetLabel}}</span>
+        </div>
+      </article>
+      {{/if}}
+      {{/each}}
+
+      {{#unless effectView.modifierOverview.totalCount}}
+        {{#unless effectView.persistentConditionCount}}<p class="dx3rd-effect-empty">{{localize "DX3rd.NoPersistentEffects"}}</p>{{/unless}}
+      {{/unless}}
+    </div>
+  </section>
+</div>

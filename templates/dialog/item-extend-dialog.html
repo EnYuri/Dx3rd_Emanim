@@ -1,4 +1,5 @@
-<div class="item-extend-dialog-content">
+<div class="item-extend-dialog-content {{#if focusedEditor}}is-focused{{/if}}">
+{{#unless focusedEditor}}
 <!-- Top Navigation -->
 <div class="top-tabs">
     <button type="button" class="top-tab" data-tab="affectCharacter">{{localize "DX3rd.AffectCharacter"}}</button>
@@ -12,6 +13,7 @@
     <div class="sub-tabs" id="affectCharacter-sub-tabs">
         <button type="button" class="sub-tab" data-tab="heal">{{localize "DX3rd.Heal"}}</button>
         <button type="button" class="sub-tab" data-tab="damage">{{localize "DX3rd.DamageToHP"}}</button>
+        <button type="button" class="sub-tab" data-tab="statusClear">{{localize "DX3rd.StatusClear"}}</button>
         <button type="button" class="sub-tab" data-tab="condition1">{{localize "DX3rd.Condition"}} 1</button>
         <button type="button" class="sub-tab" data-tab="condition2">{{localize "DX3rd.Condition"}} 2</button>
         <button type="button" class="sub-tab" data-tab="condition3">{{localize "DX3rd.Condition"}} 3</button>
@@ -30,6 +32,7 @@
     </div>
     {{/ifEquals}}
 </div>
+{{/unless}}
 
 <!-- Content Area -->
 <div class="sub-tab-content">
@@ -244,6 +247,28 @@
         </div>
     </section>
 
+    <!-- 상태이상 해제 탭 -->
+    <section class="content-section" id="statusClear-content">
+        <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.Timing"}}</div>
+            <div><select name="statusClearTiming"><option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option><option value="afterMain">{{localize "DX3rd.AfterMain"}}</option></select></div>
+            <div class="form-label">{{localize "DX3rd.Target"}}</div>
+            <div><select name="statusClearTarget"><option value="self">{{localize "DX3rd.Self"}}</option><option value="targetToken">{{localize "DX3rd.Target"}}</option><option value="targetAll">{{localize "DX3rd.TargetAll"}}</option></select></div>
+            <div class="form-label">{{localize "DX3rd.StatusClearExclude"}}</div>
+            <div style="grid-column: span 3; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px;">
+                <label><input type="checkbox" class="status-clear-exclude" value="berserk">{{localize "DX3rd.Berserk"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="hatred">{{localize "DX3rd.Hatred"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="fear">{{localize "DX3rd.Fear"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="rigor">{{localize "DX3rd.Rigor"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="pressure">{{localize "DX3rd.Pressure"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="dazed">{{localize "DX3rd.Dazed"}}</label>
+                <label><input type="checkbox" class="status-clear-exclude" value="poisoned">{{localize "DX3rd.Poisoned"}}</label>
+            </div>
+            <div></div><div></div><div></div>
+            <div style="display:flex;align-items:center;"><input type="checkbox" name="statusClearActivate" id="statusClearActivate"><label for="statusClearActivate">{{localize "DX3rd.Activate"}}</label></div>
+        </div>
+    </section>
+
     <!-- 상태이상 1 탭 -->
     <section class="content-section" id="condition1-content">
         <div class="form-grid">
@@ -278,11 +303,6 @@
             <div><input type="text" name="cond1PoisonedRank"></div>
             <div class="form-label">{{localize "DX3rd.DisableTiming"}}</div>
             <div><select name="cond1Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
-            <div></div>
-            <div style="display: flex; align-items: center; justify-content: flex-end;">
-                <input type="checkbox" name="cond1Activate" id="cond1Activate">
-                <label for="cond1Activate">{{localize "DX3rd.Activate"}}</label>
-            </div>
         </div>
     </section>
 
@@ -320,11 +340,6 @@
             <div><input type="text" name="cond2PoisonedRank"></div>
             <div class="form-label">{{localize "DX3rd.DisableTiming"}}</div>
             <div><select name="cond2Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
-            <div></div>
-            <div style="display: flex; align-items: center; justify-content: flex-end;">
-                <input type="checkbox" name="cond2Activate" id="cond2Activate">
-                <label for="cond2Activate">{{localize "DX3rd.Activate"}}</label>
-            </div>
         </div>
     </section>
 
@@ -362,11 +377,6 @@
             <div><input type="text" name="cond3PoisonedRank"></div>
             <div class="form-label">{{localize "DX3rd.DisableTiming"}}</div>
             <div><select name="cond3Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
-            <div></div>
-            <div style="display: flex; align-items: center; justify-content: flex-end;">
-                <input type="checkbox" name="cond3Activate" id="cond3Activate">
-                <label for="cond3Activate">{{localize "DX3rd.Activate"}}</label>
-            </div>
         </div>
     </section>
 
@@ -487,6 +497,45 @@
                 <input type="checkbox" name="vehicleActivate" id="vehicleActivate">
                 <label for="vehicleActivate">{{localize "DX3rd.Activate"}}</label>
             </div>
+        </div>
+    </section>
+
+    <section class="content-section dx3rd-modifier-editor" id="modifiers-content">
+        <article class="dx3rd-modifier-config">
+            <header class="dx3rd-modifier-config-header">
+                <span><i class="fas fa-sliders"></i> {{localize "DX3rd.ModifierSettings"}}</span>
+                <label>{{localize "DX3rd.ModifierScope"}}
+                    <select class="modifier-config-scope">
+                        <option value="main" {{#if (eq effectView.modifierOverview.initialScope "main")}}selected{{/if}}>{{localize "DX3rd.Self"}}</option>
+                        <option value="sub" {{#if (eq effectView.modifierOverview.initialScope "sub")}}selected{{/if}}>{{localize "DX3rd.Target"}}</option>
+                    </select>
+                </label>
+            </header>
+            <div class="dx3rd-modifier-config-pane" data-scope="main" {{#unless (eq effectView.modifierOverview.initialScope "main")}}hidden{{/unless}}>
+                <div class="dx3rd-modifier-channel-controls">
+                    <label>{{localize "DX3rd.EffectAction"}} <select class="modifier-action-binding" data-effect-id="modifiers.self">{{#each effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.modifierOverview.selfAction)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select></label>
+                    <label>{{localize "DX3rd.RunTiming"}} <select name="system.active.runTiming">{{#select item.system.active.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
+                    <label>{{localize "DX3rd.DisableTiming"}} <select name="system.active.disable">{{#select item.system.active.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+                </div>
+            </div>
+            <div class="dx3rd-modifier-config-pane" data-scope="sub" {{#unless (eq effectView.modifierOverview.initialScope "sub")}}hidden{{/unless}}>
+                <div class="dx3rd-modifier-channel-controls">
+                    <label>{{localize "DX3rd.Target"}} <input type="checkbox" name="system.getTarget" {{checked item.system.getTarget}}></label>
+                    <label>{{localize "DX3rd.Scene"}} <input type="checkbox" name="system.scene" {{checked item.system.scene}}></label>
+                    <label>{{localize "DX3rd.EffectAction"}} <select class="modifier-action-binding" data-effect-id="modifiers.target">{{#each effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.modifierOverview.targetAction)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select></label>
+                    <label>{{localize "DX3rd.RunTiming"}} <select name="system.effect.runTiming">{{#select item.system.effect.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
+                    <label>{{localize "DX3rd.DisableTiming"}} <select name="system.effect.disable">{{#select item.system.effect.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+                </div>
+            </div>
+        </article>
+        <div class="attributes dx3rd-unified-modifiers">
+            <header class="attributes-header flexrow"><span class="modifier-scope">{{localize "DX3rd.ModifierScope"}}</span><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><button type="button" data-action="createModifierAttribute" data-pos="main"><i class="fas fa-plus"></i></button></header>
+            <ol class="attributes-list" data-pos="main">
+                {{#each item.system.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}" data-pos="main"><select class="modifier-scope modifier-scope-select"><option value="main" selected>{{localize "DX3rd.Self"}}</option><option value="sub">{{localize "DX3rd.Target"}}</option></select><select class="attribute-key" name="system.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled><input class="attribute-value" name="system.attributes.{{key}}.value" value="{{attr.value}}"><button type="button" data-action="deleteModifierAttribute"><i class="fas fa-trash"></i></button></li>{{/each}}
+            </ol>
+            <ol class="attributes-list" data-pos="sub">
+                {{#each item.system.effect.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}" data-pos="sub"><select class="modifier-scope modifier-scope-select"><option value="main">{{localize "DX3rd.Self"}}</option><option value="sub" selected>{{localize "DX3rd.Target"}}</option></select><select class="attribute-key" name="system.effect.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.effect.attributes.{{key}}.label" value="{{attr.label}}" disabled><input class="attribute-value" name="system.effect.attributes.{{key}}.value" value="{{attr.value}}"><button type="button" data-action="deleteModifierAttribute"><i class="fas fa-trash"></i></button></li>{{/each}}
+            </ol>
         </div>
     </section>
 

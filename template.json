@@ -213,12 +213,14 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "active": {
         "state": false,
         "disable": "-",
         "runTiming": "instant",
+        "action": "",
         "applyMode": "onUse"
       },
       "used": {
@@ -379,7 +381,9 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "action": "",
+        "applyMode": "toggle"
       },
       "used": {
         "state": 0,
@@ -395,6 +399,7 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "attributes": {},
@@ -415,7 +420,9 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "action": "",
+        "applyMode": "toggle"
       },
       "used": {
         "state": 0,
@@ -426,6 +433,7 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "attributes": {},
@@ -448,7 +456,9 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "action": "",
+        "applyMode": "toggle"
       },
       "used": {
         "state": 0,
@@ -459,6 +469,7 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "attributes": {},
@@ -515,7 +526,9 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "action": "",
+        "applyMode": "onUse"
       },
       "used": {
         "state": false,
@@ -526,6 +539,7 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "attributes": {},
@@ -544,7 +558,9 @@
       "active": {
         "state": false,
         "disable": "-",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "action": "",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -555,6 +571,7 @@
       "effect": {
         "disable": "notCheck",
         "runTiming": "instant",
+        "action": "",
         "attributes": {}
       },
       "attributes": {},

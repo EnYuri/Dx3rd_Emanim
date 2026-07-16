@@ -122,6 +122,22 @@
     margin: 0 8px 8px 8px;
 }
 
+.item-extend-dialog .item-extend-dialog-content.is-focused .sub-tab-content {
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.item-extend-dialog .dx3rd-modifier-editor .attributes {
+    margin-top: 10px;
+}
+
+.item-extend-dialog .dx3rd-modifier-editor .attributes-header button,
+.item-extend-dialog .dx3rd-modifier-editor .attribute button {
+    flex: 0 0 28px;
+    height: 26px;
+    padding: 0;
+}
+
 .item-extend-dialog .sub-tab-content section {
     display: none;
 }
