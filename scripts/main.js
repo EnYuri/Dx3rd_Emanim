@@ -668,7 +668,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                         checkedUserIds.push(el.getAttribute("data-user-id"));
                                     });
                                     for (const userId of checkedUserIds) {
-                                        game.socket.emit("system.dx3rd-emanim", { type: "showSceneEnterDialog", userId });
+                                        window.DX3rdSocketRouter.emit({ type: "showSceneEnterDialog", userId });
                                     }
                                 }
                             },
@@ -1286,7 +1286,7 @@ Hooks.once('ready', function() {
             window.DX3rdUniversalHandler.clearRangeHighlightQueue();
                     
                     // 다른 유저들에게도 소켓으로 전송
-                    game.socket.emit('system.dx3rd-emanim', {
+                    window.DX3rdSocketRouter.emit({
                         type: 'clearRangeHighlight'
                     });
                     
@@ -1323,31 +1323,24 @@ Hooks.once('ready', function() {
             // 현재 클라이언트에서 생성하는 메시지에만 적용
             if (data.author && data.author !== game.user.id) return;
             
-            // 상태이상 메시지 감지: ActionEnd, ActionDelay, Apply, Clear가 포함된 메시지
             const content = data.content || '';
-            const isConditionMessage = content.includes(game.i18n.localize("DX3rd.ActionEnd")) || 
-                                       content.includes(game.i18n.localize("DX3rd.ActionDelay")) ||
-                                       (content.includes(game.i18n.localize("DX3rd.Apply")) || 
-                                        content.includes(game.i18n.localize("DX3rd.Clear")));
-            
-            // HP 회복/데미지 메시지 감지
-            const isHpMessage = content.includes('HP') && (content.includes(game.i18n.localize('DX3rd.Healing')) || content.includes(game.i18n.localize('DX3rd.DamageToHP')));
-            
-            // 사독 체크 메시지 감지
-            const isPoisonCheckMessage = content.includes(game.i18n.localize('DX3rd.PoisonedCheck'));
-            
-            if (isConditionMessage || isHpMessage || isPoisonCheckMessage) {
+            // flags 우선. 기존/외부 메시지는 콘텐츠 판별 후 신규 문서에 구조화 flag를 백필한다.
+            const messageTypes = window.DX3rdChatMessageTypes;
+            const messageType = messageTypes.ensureFlag(doc, data);
+            if ([
+                messageTypes.TYPES.CONDITION,
+                messageTypes.TYPES.HEALING,
+                messageTypes.TYPES.DAMAGE,
+                messageTypes.TYPES.POISON_CHECK
+            ].includes(messageType)) {
                 return;
             }
 
             // 롤 타입 메시지 또는 시스템 버튼이 포함된 메시지이고 
             // 이미 액터가 스피커로 명시적으로 설정된 경우 변경 무시
             // (어택 롤, 스탯 롤, 데미지 롤, 데미지 롤 버튼, 데미지 적용 버튼 등)
-            const isRollMessage = data.rolls?.length > 0;
-            const hasSystemButton = content.includes('damage-roll-btn') || 
-                                    content.includes('damage-apply-btn') || 
-                                    content.includes('attack-roll-btn') ||
-                                    content.includes('dx3rd-win-check-btn');
+            const isRollMessage = messageType === messageTypes.TYPES.ROLL || data.rolls?.length > 0;
+            const hasSystemButton = messageType === messageTypes.TYPES.SYSTEM_ACTION;
             
             if ((isRollMessage || hasSystemButton) && data.speaker && data.speaker.actor) {
                 const speakerActor = game.actors.get(data.speaker.actor);
@@ -1396,9 +1389,10 @@ Hooks.once('ready', function() {
                 const currentEncroachment = Number(character.system.attributes.encroachment.value) || 0;
                 const newEncroachment = currentEncroachment + rollValue;
                 await character.update({ "system.attributes.encroachment.value": newEncroachment });
+                const safeCharacterName = window.DX3rdRuntimeUtils.escapeHTML(character.name);
                 const messageContent = `
                     <div class="dx3rd-item-chat">
-                        <div style="font-weight: bold;">${character.name} ${game.i18n.localize("DX3rd.EnterScene")}</div>
+                        <div style="font-weight: bold;">${safeCharacterName} ${game.i18n.localize("DX3rd.EnterScene")}</div>
                         <div>${game.i18n.localize("DX3rd.Encroachment")} +${rollValue} ( ${currentEncroachment} → ${newEncroachment} )</div>
                     </div>`;
                 await ChatMessage.create({ content: messageContent, speaker: enterSceneSpeaker });
@@ -1408,9 +1402,10 @@ Hooks.once('ready', function() {
                 const currentEncroachment = Number(character.system.attributes.encroachment.value) || 0;
                 const newEncroachment = currentEncroachment + encroachmentIncrease;
                 await character.update({ "system.attributes.encroachment.value": newEncroachment });
+                const safeCharacterName = window.DX3rdRuntimeUtils.escapeHTML(character.name);
                 const messageContent = `
                     <div class="dx3rd-item-chat">
-                        <div style="font-weight: bold;">${character.name} ${game.i18n.localize("DX3rd.EnterScene")}</div>
+                        <div style="font-weight: bold;">${safeCharacterName} ${game.i18n.localize("DX3rd.EnterScene")}</div>
                         <div>${game.i18n.localize("DX3rd.Encroachment")} +${encroachmentIncrease} ( ${currentEncroachment} → ${newEncroachment} )</div>
                     </div>`;
                 await ChatMessage.create({ content: messageContent, speaker: enterSceneSpeaker });
@@ -1430,6 +1425,16 @@ Hooks.once('ready', function() {
         console.error('DX3rd | Socket router is unavailable.');
         return;
     }
+    const findSocketActor = actorId => game.actors.get(actorId)
+        || canvas.tokens?.placeables?.find(token => token.actor?.id === actorId)?.actor
+        || null;
+    const isAuthorizedActorRequest = (data, actorId) => {
+        if (!data.senderId) return true; // 구버전 클라이언트 호환
+        const actor = findSocketActor(actorId);
+        const authorized = Boolean(actor && socketRouter.canUserControlActor(data.senderId, actor));
+        if (!authorized) console.warn(`DX3rd | Unauthorized socket request ignored: ${data.type} (${data.senderId} → ${actorId})`);
+        return authorized;
+    };
     socketRouter.register(async (data) => {
 
         if (data.type === 'showSceneEnterDialog') {
@@ -1440,13 +1445,20 @@ Hooks.once('ready', function() {
         }
 
         if (data.type === 'actionTrackerConsume') {
-            if (socketRouter.isResponsibleGM()) await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
+            if (socketRouter.isResponsibleGM()
+                && data.payload
+                && isAuthorizedActorRequest(data, data.payload.actorId)) {
+                await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
+            }
             return;
         }
 
         if (data.type === 'healRequest' || data.type === 'healApply') {
             // HP 회복: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleHealRequest) {
+            if (socketRouter.isResponsibleGM()
+                && data.requestData
+                && isAuthorizedActorRequest(data, data.requestData.actorId)
+                && window.DX3rdUniversalHandler?.handleHealRequest) {
                 await window.DX3rdUniversalHandler.handleHealRequest(data.requestData);
             }
             return;
@@ -1454,7 +1466,10 @@ Hooks.once('ready', function() {
 
         if (data.type === 'statusClearRequest' || data.type === 'statusClearApply') {
             // 상태이상 소거: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleStatusClearRequest) {
+            if (socketRouter.isResponsibleGM()
+                && data.requestData
+                && isAuthorizedActorRequest(data, data.requestData.actorId)
+                && window.DX3rdUniversalHandler?.handleStatusClearRequest) {
                 await window.DX3rdUniversalHandler.handleStatusClearRequest(data.requestData);
             }
             return;
@@ -1462,7 +1477,10 @@ Hooks.once('ready', function() {
 
         if (data.type === 'encroachRequest') {
             // 침식률 조정(대상 침식 감소) 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleEncroachRequest) {
+            if (socketRouter.isResponsibleGM()
+                && data.requestData
+                && isAuthorizedActorRequest(data, data.requestData.actorId)
+                && window.DX3rdUniversalHandler?.handleEncroachRequest) {
                 await window.DX3rdUniversalHandler.handleEncroachRequest(data.requestData);
             }
             return;
@@ -1472,20 +1490,6 @@ Hooks.once('ready', function() {
             // HP 회복 거부 알림 (요청자만 처리)
             if (data.data.userId === game.user.id) {
                 ui.notifications.warn('GM이 HP 회복 요청을 거부했습니다.');
-            }
-            return;
-        }
-        
-        if (data.type === 'addToAfterMainQueue') {
-            // AfterMain 큐 추가 요청 (GM만 처리)
-            if (!game.user.isGM) return;
-            
-            const { extensionType, actorId, extensionData, itemId } = data.data;
-            const actor = game.actors.get(actorId);
-            const item = itemId ? actor?.items.get(itemId) : null;
-            
-            if (actor && window.DX3rdUniversalHandler?.addToAfterMainQueue) {
-                window.DX3rdUniversalHandler.addToAfterMainQueue(actor, extensionData, item, extensionType);
             }
             return;
         }
@@ -1552,7 +1556,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'damageRequest' || data.type === 'damageApply') {
             // HP 데미지: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageRequest) {
+            if (socketRouter.isResponsibleGM()
+                && data.requestData
+                && isAuthorizedActorRequest(data, data.requestData.actorId)
+                && window.DX3rdUniversalHandler?.handleDamageRequest) {
                 await window.DX3rdUniversalHandler.handleDamageRequest(data.requestData);
             }
             return;
@@ -1568,9 +1575,13 @@ Hooks.once('ready', function() {
         
         if (data.type === 'spellRoisSelectRequest') {
             // 로이스 선택 요청 (GM만 처리)
-            if (!game.user.isGM || !window.DX3rdSpellHandler) return;
+            if (!socketRouter.isResponsibleGM()
+                || !window.DX3rdSpellHandler
+                || !data.requestData
+                || !isAuthorizedActorRequest(data, data.requestData.actorId)) return;
             
             const { actorId, textKey, title, requestType, itemId, availableRois } = data.requestData;
+            if (!['spellDisaster4', 'spellCalamity8', 'spellCatastrophe9'].includes(requestType)) return;
             const actor = game.actors.get(actorId);
             if (!actor) {
                 console.error('DX3rd | Actor not found for rois select request:', actorId);
@@ -1580,8 +1591,15 @@ Hooks.once('ready', function() {
             const item = itemId ? actor.items.get(itemId) : null;
             
             // GM이 다이얼로그 표시
-            const options = availableRois.map(rois => 
-                `<option value="${rois.id}">${rois.name}</option>`
+            const roisItems = (Array.isArray(availableRois) ? availableRois : [])
+                .map(reference => actor.items.get(reference?.id))
+                .filter(rois => {
+                    if (rois?.type !== 'rois' || ['M', 'D', 'E'].includes(rois.system?.type)) return false;
+                    const sublimation = rois.system?.sublimation;
+                    return ![true, 'true', 1, '1'].includes(sublimation);
+                });
+            const options = roisItems.map(rois =>
+                `<option value="${window.DX3rdRuntimeUtils.escapeHTML(rois.id)}">${window.DX3rdRuntimeUtils.escapeHTML(rois.name)}</option>`
             ).join('');
 
             const template = `
@@ -1672,7 +1690,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'spellCatastrophe7Request') {
             // SpellCatastrophe 7 요청 (GM만 처리)
-            if (!game.user.isGM || !window.DX3rdSpellHandler) return;
+            if (!socketRouter.isResponsibleGM()
+                || !window.DX3rdSpellHandler
+                || !data.requestData
+                || !isAuthorizedActorRequest(data, data.requestData.actorId)) return;
             
             const { actorId } = data.requestData;
             const actor = game.actors.get(actorId);
@@ -1688,7 +1709,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'spellCatastrophe8Request') {
             // SpellCatastrophe 8 요청 (GM만 처리)
-            if (!game.user.isGM || !window.DX3rdSpellHandler) return;
+            if (!socketRouter.isResponsibleGM()
+                || !window.DX3rdSpellHandler
+                || !data.requestData
+                || !isAuthorizedActorRequest(data, data.requestData.actorId)) return;
             
             const { actorId, itemId } = data.requestData;
             const actor = game.actors.get(actorId);
@@ -1706,7 +1730,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'conditionRequest' || data.type === 'conditionApply') {
             // 상태이상 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequest) {
+            if (socketRouter.isResponsibleGM()
+                && data.requestData
+                && isAuthorizedActorRequest(data, data.requestData.actorId)
+                && window.DX3rdUniversalHandler?.handleConditionRequest) {
                 await window.DX3rdUniversalHandler.handleConditionRequest(data.requestData);
             }
             return;
@@ -1722,7 +1749,7 @@ Hooks.once('ready', function() {
 
         if (data.type === 'removeConditionRequest') {
             // 대상측 배드 스테이터스 소거 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler?.handleRemoveConditionRequest) {
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler?.handleRemoveConditionRequest) {
                 await window.DX3rdUniversalHandler.handleRemoveConditionRequest(data.data);
             }
             return;
@@ -1730,7 +1757,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'conditionRequestBulk' || data.type === 'conditionApplyBulk') {
             // 상태이상 다건 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequestBulk) {
+            if (socketRouter.isResponsibleGM()
+                && data.data
+                && isAuthorizedActorRequest(data, data.data.actorId)
+                && window.DX3rdUniversalHandler?.handleConditionRequestBulk) {
                 await window.DX3rdUniversalHandler.handleConditionRequestBulk(data.data);
             }
             return;
@@ -1738,7 +1768,10 @@ Hooks.once('ready', function() {
         
         if (data.type === 'registerAfterDamageExtension') {
             // AfterDamage 익스텐드 큐 등록 요청 (GM만 처리)
-            if (!game.user.isGM) return;
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.attackerId)
+                || !Array.isArray(data.payload.targetActorIds)) return;
             
             const { attackerId, itemId, targetActorIds, extensions, triggerItemName } = data.payload;
             const queueKey = `${attackerId}_${itemId}`;
@@ -1770,6 +1803,7 @@ Hooks.once('ready', function() {
             
             // GM이 아닌 접속 중인 소유자가 있으면 GM은 건너뛰기
             if (game.user.isGM) {
+                if (!socketRouter.isResponsibleGM()) return;
                 const nonGMOwners = game.users.filter(u => 
                     !u.isGM && 
                     u.active && 
@@ -1830,7 +1864,7 @@ Hooks.once('ready', function() {
             );
             
             // GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && nonGMOwners.length > 0) {
+            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
                 return;
             }
             
@@ -1863,7 +1897,7 @@ Hooks.once('ready', function() {
             );
             
             // 접속 중인 GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && nonGMOwners.length > 0) {
+            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
                 return;
             }
             
@@ -1873,7 +1907,10 @@ Hooks.once('ready', function() {
             }
         } else if (data.type === 'registerAfterDamageActivation') {
             // GM 전용: afterDamage 활성화 요청 등록
-            if (!game.user.isGM) {
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.attackerId)
+                || !Array.isArray(data.payload.targetActorIds)) {
                 return;
             }
             
@@ -1899,26 +1936,11 @@ Hooks.once('ready', function() {
                 timestamp: Date.now()
             };
             
-            // 플레이어가 보낸 익스텐드 큐의 queueIndices를 가져와서 디펜스 다이얼로그에 포함
-            const storedQueueIndices = window.DX3rdTempQueueIndices?.[queueKey];
-            
-            if (storedQueueIndices) {
-                // payload에 queueIndices 추가해서 다시 디펜스 다이얼로그 전송 요청
-                game.socket.emit('system.dx3rd-emanim', {
-                    type: 'updateDefenseDialogWithQueue',
-                    updateData: {
-                        attackerId,
-                        itemId,
-                        queueIndices: storedQueueIndices
-                    }
-                });
-                
-                // 임시 저장소에서 제거
-                delete window.DX3rdTempQueueIndices[queueKey];
-            }
         } else if (data.type === 'reportDamageForActivation') {
             // GM 전용: 타겟의 HP 변화 보고 수집
-            if (!game.user.isGM) {
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
                 return;
             }
             
@@ -1958,7 +1980,7 @@ Hooks.once('ready', function() {
                     
                     // 1️⃣ 매크로 실행 (한 명이라도 HP 데미지 받았으면)
                     if (request.shouldExecuteMacro && damagedTargets.length > 0) {
-                        game.socket.emit('system.dx3rd-emanim', {
+                        window.DX3rdSocketRouter.emit({
                             type: 'executeAfterDamageMacro',
                             payload: {
                                 attackerId: attackerId,
@@ -1971,7 +1993,7 @@ Hooks.once('ready', function() {
                     // 2️⃣ 활성화/효과 적용 처리
                     if (damagedTargets.length === 0) {
                         // 아무도 데미지 안 받음: NoDamage 알림
-                        game.socket.emit('system.dx3rd-emanim', {
+                        window.DX3rdSocketRouter.emit({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
                         });
@@ -1983,7 +2005,7 @@ Hooks.once('ready', function() {
                         
                         if (needsConfirmation) {
                             // 무기/비클 + 횟수 제한 있음: 다이얼로그
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'showAfterDamageDialog',
                                 payload: {
                                     attackerId: attackerId,
@@ -1995,7 +2017,7 @@ Hooks.once('ready', function() {
                             });
                         } else {
                             // 나머지 (무기/비클 notCheck 포함): 자동 활성화
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'executeAfterDamageActivation',
                                 payload: {
                                     actorId: attackerId,
@@ -2012,40 +2034,12 @@ Hooks.once('ready', function() {
                     delete window.DX3rdAfterDamageActivationQueue[queueKey];
                 }
             }
-        } else if (data.type === 'executeAfterDamageMacro') {
-            // 공격자: GM으로부터 매크로 실행 명령 받음
-            const { attackerId, itemId, hpChange } = data.payload;
-            
-            const attacker = game.actors.get(attackerId);
-            if (!attacker) {
-                console.warn('DX3rd | Attacker not found:', attackerId);
-                return;
-            }
-            
-            // 현재 유저가 공격자의 소유자인지 확인
-            if (!attacker.isOwner) {
-                return;
-            }
-            
-            // 접속 중인 GM이 아닌 소유자가 있는지 확인
-            const nonGMOwners = game.users.filter(user => 
-                !user.isGM && 
-                user.active &&  // 접속 중인 유저만
-                attacker.testUserPermission(user, 'OWNER')
-            );
-            
-            // 접속 중인 GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && nonGMOwners.length > 0) {
-                return;
-            }
-            
-            const item = attacker.items.get(itemId);
-            if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
-                await window.DX3rdUniversalHandler.executeMacros(item, 'afterDamage');
-            }
         } else if (data.type === 'registerTargetApply') {
             // GM 전용: afterDamage 타이밍의 타겟 효과 적용 요청 등록
-            if (!game.user.isGM) {
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.sourceActorId)
+                || !data.payload.targetActorId) {
                 return;
             }
             
@@ -2061,7 +2055,9 @@ Hooks.once('ready', function() {
             };
         } else if (data.type === 'reportDamageForApply') {
             // GM 전용: 타겟의 데미지 처리 결과 보고받음 (효과 적용용)
-            if (!game.user.isGM) {
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
                 return;
             }
             
@@ -2073,7 +2069,7 @@ Hooks.once('ready', function() {
             if (applyRequest) {
                 if (hpChange >= 1) {
                     // HP 감소했으면 타겟에게 효과 적용 지시
-                    game.socket.emit('system.dx3rd-emanim', {
+                    window.DX3rdSocketRouter.emit({
                         type: 'applyEffectToTarget',
                         payload: {
                             sourceActorId: applyRequest.sourceActorId,
@@ -2151,12 +2147,13 @@ Hooks.once('ready', function() {
                     if (targetActor) {
                         const targetAttributes = item.system.effect?.attributes || {};
                         
+                        if (game.user.isGM && !socketRouter.isResponsibleGM()) return;
                         if (game.user.isGM) {
                             // GM이면 직접 적용
                             await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
                         } else {
                             // 일반 유저는 소켓 전송
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'applyItemAttributes',
                                 payload: {
                                     sourceActorId: actor.id,
@@ -2219,7 +2216,7 @@ Hooks.once('ready', function() {
             );
             
             // 접속 중인 GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && nonGMOwners.length > 0) {
+            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
                 return;
             }
             
@@ -2647,7 +2644,7 @@ window.DX3rdChatToggleManager = {
                         });
                     } else {
                         // 플레이어면 소켓 전송만
-                        game.socket.emit('system.dx3rd-emanim', {
+                        window.DX3rdSocketRouter.emit({
                             type: 'healRequest',
                             requestData: {
                                 actorId: actor.id,
@@ -2687,7 +2684,7 @@ window.DX3rdChatToggleManager = {
                                     formulaAdd: customFormula.add,
                                     conditionalFormula: false
                                 };
-                                game.socket.emit('system.dx3rd-emanim', {
+                                window.DX3rdSocketRouter.emit({
                                     type: 'damageRequest',
                                     requestData: {
                                         actorId: actor.id,
@@ -2697,7 +2694,7 @@ window.DX3rdChatToggleManager = {
                                 });
                             }
                         } else {
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'damageRequest',
                                 requestData: {
                                     actorId: actor.id,
@@ -2733,7 +2730,7 @@ window.DX3rdChatToggleManager = {
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
                 if (item.system.active?.runTiming === 'afterSuccess') {
-                    handler.registerAfterMainExtensions(actor, item, itemExtend);
+                    await handler.registerAfterMainExtensions(actor, item, itemExtend);
                 }
                 
                 console.log('DX3rd | Spell invoke - processed afterSuccess timing extensions');
@@ -3027,7 +3024,7 @@ window.DX3rdChatToggleManager = {
                         });
                     } else {
                         // 플레이어면 소켓 전송만
-                        game.socket.emit('system.dx3rd-emanim', {
+                        window.DX3rdSocketRouter.emit({
                             type: 'healRequest',
                             requestData: {
                                 actorId: actor.id,
@@ -3068,7 +3065,7 @@ window.DX3rdChatToggleManager = {
                                     formulaAdd: customFormula.add,
                                     conditionalFormula: false
                                 };
-                                game.socket.emit('system.dx3rd-emanim', {
+                                window.DX3rdSocketRouter.emit({
                                     type: 'damageRequest',
                                     requestData: {
                                         actorId: actor.id,
@@ -3078,7 +3075,7 @@ window.DX3rdChatToggleManager = {
                                 });
                             }
                         } else {
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'damageRequest',
                                 requestData: {
                                     actorId: actor.id,
@@ -3116,7 +3113,7 @@ window.DX3rdChatToggleManager = {
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
                 if (item.system.active?.runTiming === 'afterSuccess' && window.DX3rdUniversalHandler) {
-                    window.DX3rdUniversalHandler.registerAfterMainExtensions(actor, item, itemExtend);
+                    await window.DX3rdUniversalHandler.registerAfterMainExtensions(actor, item, itemExtend);
                 }
             }
             
@@ -3976,7 +3973,7 @@ window.DX3rdChatHandlers = {
                             await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
                         } else {
                             // 일반 유저는 소켓 전송
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                                 type: 'applyItemAttributes',
                                 payload: {
                                     sourceActorId: actor.id,

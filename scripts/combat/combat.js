@@ -540,9 +540,11 @@ Hooks.once('ready', () => {
           }
         } else {
           // 플레이어면 GM에게 소켓으로 전달
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'executeDisableHook',
-            timing: 'main'
+            timing: 'main',
+            combatId: this.id,
+            actorId: currentCombatant.actor?.id
           });
         }
       } else if (choice === 'delay') {
@@ -579,9 +581,11 @@ Hooks.once('ready', () => {
           }
         } else {
           // 플레이어면 GM에게 소켓으로 전달
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'executeDisableHook',
-            timing: 'main'
+            timing: 'main',
+            combatId: this.id,
+            actorId: currentCombatant.actor?.id
           });
         }
       }
@@ -592,7 +596,7 @@ Hooks.once('ready', () => {
       if (game.user.isGM) {
         await advanceCombatState(this, 'forward');
       } else {
-        game.socket.emit('system.dx3rd-emanim', {
+        window.DX3rdSocketRouter.emit({
           type: 'advanceCombatProcess',
           combatId: this.id,
           actorId: currentCombatant.actor?.id
@@ -757,7 +761,7 @@ async function startMainProcessFromInitiative(combat) {
     await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
 
     showTurnActor(nextCombatant.actor?.img ?? "", nextCombatant.name);
-    game.socket.emit('system.dx3rd-emanim', {type: 'showTurnActor', imgSrc: nextCombatant.actor?.img ?? "", actorName: nextCombatant.name});
+    window.DX3rdSocketRouter.emit({type: 'showTurnActor', imgSrc: nextCombatant.actor?.img ?? "", actorName: nextCombatant.name});
     await executeMacrosByPrefix('main-process-macro-');
   } else {
     await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
@@ -766,6 +770,9 @@ async function startMainProcessFromInitiative(combat) {
 
 window.DX3rdCombatFlow = window.DX3rdCombatFlow || {};
 window.DX3rdCombatFlow.startMainProcessFromInitiative = startMainProcessFromInitiative;
+window.DX3rdCombatFlow.showTurnActor = showTurnActor;
+window.DX3rdCombatFlow.executeInitiativeProcess = executeInitiativeProcess;
+window.DX3rdCombatFlow.advanceCombatState = advanceCombatState;
 
 // 이니셔티브 프로세스 실행
 async function executeInitiativeProcess(combat, pendingCombatantId = null) {
@@ -804,7 +811,7 @@ async function executeInitiativeProcess(combat, pendingCombatantId = null) {
     window.DX3rdUniversalHandler.clearRangeHighlightQueue();
     
     // 다른 유저들에게도 소켓으로 전송
-    game.socket.emit('system.dx3rd-emanim', {
+    window.DX3rdSocketRouter.emit({
       type: 'clearRangeHighlight'
     });
   }
@@ -1402,62 +1409,6 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
       }
     }
   }
-});
-
-// 소켓 리스너 설정 (이니셔티브 프로세스 요청 수신)
-Hooks.once('ready', () => {
-  const socketRouter = window.DX3rdSocketRouter;
-  if (!socketRouter) {
-    console.error('DX3rd | Socket router is unavailable.');
-    return;
-  }
-  socketRouter.register(async (data) => {
-    // showTurnActor는 모든 유저가 처리
-    if (data.type === 'showTurnActor') {
-      showTurnActor(data.imgSrc, data.actorName);
-      return;
-    }
-    
-    // GM만 처리하되, 접속한 GM이 여러 명이면 대표 GM 한 명만 처리한다.
-    // (모두 처리하면 이니셔티브 진행/disable hook이 GM 수만큼 중복 실행됨)
-    // game.users.activeGM은 모든 클라이언트에서 동일하게 판정되는 단일 GM.
-    if (!game.user.isGM) return;
-    if (!socketRouter.isResponsibleGM()) return;
-
-    if (data.type === 'executeInitiativeProcess') {
-      const combat = game.combats.get(data.combatId);
-      if (combat) {
-        await executeInitiativeProcess(combat);
-      }
-    }
-
-    // 현재 이니셔티브 대상의 소유자는 메인 프로세스 시작을 요청할 수 있다.
-    // Combat 문서 변경은 대표 GM만 수행한다.
-    if (data.type === 'startMainProcessFromInitiative') {
-      const combat = game.combats.get(data.combatId);
-      const process = combat?.getFlag('dx3rd-emanim', 'currentProcess');
-      if (process?.type === 'initiative' && process.actorId === data.actorId) {
-        await startMainProcessFromInitiative(combat);
-      }
-    }
-    
-    if (data.type === 'executeDisableHook') {
-      if (typeof DX3rdDisableHooks !== 'undefined' && data.timing) {
-        await DX3rdDisableHooks.executeDisableHook(data.timing, null);
-      }
-    }
-
-    // 플레이어가 자신의 메인 프로세스에서 행동 종료/대기를 선택한 경우,
-    // Combat 문서 전환은 권한을 가진 GM이 상태 기계를 통해 수행한다.
-    if (data.type === 'advanceCombatProcess') {
-      const combat = game.combats.get(data.combatId);
-      const process = combat?.getFlag('dx3rd-emanim', 'currentProcess');
-      if (process?.type === 'main' && process.actorId === data.actorId) {
-        await advanceCombatState(combat, 'forward');
-      }
-    }
-    
-  });
 });
 
 // 액터의 action_end/action_delay 상태 변경 감지 (이니셔티브 재계산용)

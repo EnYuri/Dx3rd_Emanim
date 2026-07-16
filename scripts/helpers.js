@@ -1615,10 +1615,21 @@
             const menu = document.createElement('div');
             menu.className = `dx3rd-roll-mode-menu${choices.length === 3 ? ' is-three-options' : ''}`;
             menu.setAttribute('role', 'menu');
-            menu.innerHTML = choices.map(choice => `
-                <button type="button" role="menuitem" class="dx3rd-roll-mode-option" data-mode="${choice.value}">
-                    <i class="${choice.icon}"></i><span>${choice.label}</span>
-                </button>`).join('');
+            for (const choice of choices) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.setAttribute('role', 'menuitem');
+                button.className = 'dx3rd-roll-mode-option';
+                button.dataset.mode = String(choice.value);
+                const icon = document.createElement('i');
+                for (const className of String(choice.icon || '').split(/\s+/).filter(name => /^[\w-]+$/.test(name))) {
+                    icon.classList.add(className);
+                }
+                const label = document.createElement('span');
+                label.textContent = String(choice.label || '');
+                button.append(icon, label);
+                menu.appendChild(button);
+            }
 
             const finish = value => {
                 if (!menu.isConnected) return;

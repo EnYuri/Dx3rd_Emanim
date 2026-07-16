@@ -133,7 +133,7 @@ async function applyConditionCreateSideEffects(actor, conditionId) {
         if (tokenObj) {
           await addDeathMarkToToken(tokenObj);
           tokenObj.refresh();
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'addDeathMark',
             data: { tokenId: tokenDoc.id, sceneId: canvas.scene.id }
           });
@@ -947,7 +947,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             tokenObj.refresh();
             
             // 다른 클라이언트에도 death mark 추가
-            game.socket.emit('system.dx3rd-emanim', {
+            window.DX3rdSocketRouter.emit({
               type: 'addDeathMark',
               data: {
                 tokenId: tokenDoc.id,
@@ -985,7 +985,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
               tokenObj.refresh();
               
               // 다른 클라이언트에도 death mark 제거
-              game.socket.emit('system.dx3rd-emanim', {
+              window.DX3rdSocketRouter.emit({
                 type: 'removeDeathMark',
                 data: {
                   tokenId: tokenDoc.id,
@@ -1532,7 +1532,7 @@ Hooks.once('ready', async function() {
                   tokenObj.refresh();
                   
                   // 다른 클라이언트에도 death mark 제거
-                  game.socket.emit('system.dx3rd-emanim', {
+                  window.DX3rdSocketRouter.emit({
                     type: 'removeDeathMark',
                     data: {
                       tokenId: tokenDoc.id,

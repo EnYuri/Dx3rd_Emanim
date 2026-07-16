@@ -51,6 +51,14 @@ function walkJavaScript(directory) {
   });
 }
 
+function walkFiles(directory, extensions) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return walkFiles(path, extensions);
+    return entry.isFile() && extensions.some(extension => entry.name.endsWith(extension)) ? [path] : [];
+  });
+}
+
 const manifest = readJson(join(root, "system.json"));
 const template = readJson(join(root, "template.json"));
 const locale = readJson(join(root, "lang", "ko.json"));
@@ -70,6 +78,28 @@ for (const field of ["scripts", "styles"]) {
   }
 }
 
+const runtimeScripts = walkJavaScript(join(root, "scripts"));
+const declaredScripts = new Set((manifest.scripts ?? []).map(path => path.replaceAll("\\", "/")));
+for (const path of runtimeScripts) {
+  const runtimePath = relative(root, path).replaceAll("\\", "/");
+  if (!declaredScripts.has(runtimePath)) fail(`Runtime script is not declared in system.json: ${runtimePath}`);
+}
+
+const requiredOrder = [
+  ["scripts/core/runtime-utils.js", "scripts/socket-router.js"],
+  ["scripts/socket-router.js", "scripts/socket-contracts.js"],
+  ["scripts/combat/combat.js", "scripts/combat/combat-socket.js"],
+  ["scripts/socket-router.js", "scripts/handlers/universal-after-main.js"],
+  ["scripts/handlers/universal-after-main.js", "scripts/dialog/after-main-queue-manager.js"],
+  ["scripts/handlers/universal-handler.js", "scripts/socket-document-handlers.js"],
+  ["scripts/chat-message-types.js", "scripts/main.js"]
+];
+for (const [before, after] of requiredOrder) {
+  if ((manifest.scripts?.indexOf(before) ?? -1) >= (manifest.scripts?.indexOf(after) ?? -1)) {
+    fail(`system.json must load ${before} before ${after}`);
+  }
+}
+
 // Foundry loads these classic scripts directly. Syntax checking is the only
 // executable check here; no document class, hook, or global is evaluated.
 for (const script of manifest.scripts ?? []) {
@@ -85,9 +115,24 @@ for (const script of manifest.scripts ?? []) {
 // Report only literal keys: computed keys are intentional runtime behavior and
 // must remain outside this read-only verifier's authority.
 const i18nPattern = /(?:game\.)?i18n\.(?:localize|format)\(\s*["'](DX3rd\.[^"']+)["']/g;
-for (const path of walkJavaScript(join(root, "scripts"))) {
+for (const path of runtimeScripts) {
   const source = readFileSync(path, "utf8");
+  const runtimePath = relative(root, path).replaceAll("\\", "/");
+  if (runtimePath !== "scripts/socket-router.js" && source.includes("game.socket.emit(")) {
+    fail(`Direct game.socket.emit must use DX3rdSocketRouter.emit: ${runtimePath}`);
+  }
   for (const match of source.matchAll(i18nPattern)) {
+    checkedI18nReferences++;
+    if (!Object.hasOwn(locale, match[1])) {
+      fail(`Missing ko.json key ${match[1]} referenced by ${relative(root, path)}`);
+    }
+  }
+}
+
+const templateI18nPattern = /{{\s*localize\s+["'](DX3rd\.[^"']+)["']/g;
+for (const path of walkFiles(join(root, "templates"), [".html", ".hbs"])) {
+  const source = readFileSync(path, "utf8");
+  for (const match of source.matchAll(templateI18nPattern)) {
     checkedI18nReferences++;
     if (!Object.hasOwn(locale, match[1])) {
       fail(`Missing ko.json key ${match[1]} referenced by ${relative(root, path)}`);

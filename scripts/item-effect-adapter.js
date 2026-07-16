@@ -613,7 +613,8 @@
   }
 
   Hooks.once('init', async () => {
-    if (typeof loadTemplates === 'function') await loadTemplates(PARTIALS);
+    const loadTemplatesCompat = foundry.applications?.handlebars?.loadTemplates;
+    if (typeof loadTemplatesCompat === 'function') await loadTemplatesCompat(PARTIALS);
   });
 
   // 장착/활성 토글은 기존 문서 상태가 진실의 원본이다. 그 상태가 false→true로

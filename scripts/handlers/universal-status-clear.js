@@ -36,6 +36,7 @@
     }
     const requestData = {
       userId: game.user.id,
+      actorId: actor.id,
       actorName: actor.name,
       targets: targets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })),
       exclude: Array.isArray(exclude) ? exclude : [],
@@ -47,7 +48,7 @@
       await handler.handleStatusClearRequest({ ...requestData, targets: localTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) });
     }
     if (remoteTargets.length) {
-      game.socket.emit('system.dx3rd-emanim', {
+      window.DX3rdSocketRouter.emit({
         type: 'statusClearApply',
         requestData: { ...requestData, targets: remoteTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) }
       });

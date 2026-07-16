@@ -207,7 +207,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(
     });
   }
   if (remoteTargets.length) {
-    game.socket.emit('system.dx3rd-emanim', {
+    window.DX3rdSocketRouter.emit({
       type: 'conditionApplyBulk',
       data: {
         ...requestData,

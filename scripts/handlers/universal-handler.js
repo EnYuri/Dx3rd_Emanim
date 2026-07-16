@@ -2,14 +2,6 @@
 (function() {
 
   window.DX3rdUniversalHandler = {
-    // AfterMain 큐 (이니셔티브 직전 실행) - 월드 설정에 저장
-    get _afterMainQueue() {
-      return game.settings.get('dx3rd-emanim', 'afterMainQueue') || [];
-    },
-    
-    set _afterMainQueue(value) {
-      game.settings.set('dx3rd-emanim', 'afterMainQueue', value);
-    },
     /**
      * Process item usage cost (encroachment/HP) and send unified chat message.
      * @param {Actor} actor
@@ -327,7 +319,7 @@
           this.clearRangeHighlightQueue();
           
           // 다른 유저들에게도 소켓으로 전송
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'clearRangeHighlight'
           });
         }
@@ -667,71 +659,7 @@
     },
 
     groupExtensionsByKey(extensions) {
-      const buckets = new Map();
-      for (const ext of extensions) {
-        if (!ext || !ext.type) continue;
-        const type = ext.type; // 'heal' | 'damage' | 'condition'
-        const timing = ext.timing || 'instant';
-        const target = ext.target || 'self';
-        const parentRunTiming = ext.parentRunTiming || 'instant';
-        const isCustom = !!(ext.custom || ext.conditionalFormula);
-
-        // 상태이상은 출처 아이템과 해제 시점을 보존해야 한다. 서로 다른 출처를 한 버킷으로
-        // 합치면 DX3rdConditionSources가 어느 아이템의 수명을 추적해야 하는지 알 수 없다.
-        const conditionSourceKey = type === 'condition'
-          ? `${ext.itemId || '-'}|${ext.disable || '-'}`
-          : '-';
-        const key = `${type}|${timing}|${target}|${parentRunTiming}|${isCustom ? '1' : '0'}|${conditionSourceKey}`;
-        if (!buckets.has(key)) {
-          buckets.set(key, {
-            type,
-            timing,
-            target,
-            parentRunTiming,
-            custom: isCustom,
-            sourceItemId: type === 'condition' ? (ext.itemId || null) : null,
-            sourceActorId: type === 'condition' ? (ext.actorId || null) : null,
-            duration: type === 'condition' ? (ext.disable || null) : null,
-            sources: []
-          });
-        }
-        const bucket = buckets.get(key);
-        bucket.custom = bucket.custom || isCustom;
-        
-        // 아이템 생성 및 비병합 타입은 extensionData를 직접 보존
-        if (type === 'weapon' || type === 'protect' || type === 'vehicle' || type === 'statusClear') {
-          bucket.sources.push({
-            itemId: ext.itemId,
-            itemName: ext.itemName,
-            actorId: ext.actorId,
-            raw: {
-              extensionData: ext.extensionData || {}
-            }
-          });
-        } else {
-          // heal/damage/condition 타입
-          bucket.sources.push({
-            itemId: ext.itemId,
-            itemName: ext.itemName,
-            actorId: ext.actorId,
-            raw: {
-              dice: ext.formulaDice ?? ext.dice ?? 0,
-              add: ext.formulaAdd ?? ext.add ?? 0,
-              options: {
-                ignoreReduce: !!ext.ignoreReduce,
-                resurrect: !!ext.resurrect,
-                rivival: !!ext.rivival,
-                conditionType: ext.conditionType,
-                conditionTypes: ext.conditionTypes || (ext.conditionType ? [ext.conditionType] : (ext.type ? [ext.type] : [])),
-                poisonedRank: ext.poisonedRank || null,
-                disable: ext.disable || null,
-                conditionalFormula: !!ext.conditionalFormula
-              }
-            }
-          });
-        }
-      }
-      return Array.from(buckets.values());
+      return window.DX3rdRuntimeUtils.groupExtensionsByKey(extensions);
     },
 
     mergeGroupedExtensionBuckets(actor, buckets) {
@@ -1591,15 +1519,28 @@
         }
         let removed = 0;
         const serialCount = Number.isFinite(count) ? count : null; // Infinity는 직렬화 불가 → null
+        const sourceActor = game.user?.character
+          || canvas.tokens?.controlled?.find(token => token.actor?.isOwner)?.actor
+          || null;
         for (const t of targets) {
           const actor = t.actor;
           if (!actor) continue;
           if (actor.isOwner) {
             removed += await this.removeBadStatuses(actor, { count, exclude });
           } else {
-            game.socket.emit('system.dx3rd-emanim', {
+            if (!sourceActor) {
+              ui.notifications?.warn(game.i18n.localize('DX3rd.NoCharacter') || '담당 캐릭터를 지정하세요.');
+              continue;
+            }
+            window.DX3rdSocketRouter.emit({
               type: 'removeConditionRequest',
-              data: { userId: game.user.id, targetUuid: actor.uuid, count: serialCount, exclude },
+              data: {
+                userId: game.user.id,
+                sourceActorId: sourceActor.id,
+                targetUuid: actor.uuid,
+                count: serialCount,
+                exclude
+              },
             });
           }
         }
@@ -1824,7 +1765,7 @@
               });
             } else {
               // 일반 유저는 GM에게 등록 요청
-              game.socket.emit('system.dx3rd-emanim', {
+              window.DX3rdSocketRouter.emit({
                 type: 'registerTargetApply',
                 payload: {
                   sourceActorId: actor.id,
@@ -1851,7 +1792,7 @@
                 targetAttributes: targetAttributes
               };
               
-              game.socket.emit('system.dx3rd-emanim', {
+              window.DX3rdSocketRouter.emit({
                 type: 'applyItemAttributes',
                 payload: payload
               });
@@ -2710,7 +2651,7 @@
             });
           } else {
             // 플레이어: GM에게 큐 등록 요청
-            game.socket.emit('system.dx3rd-emanim', {
+            window.DX3rdSocketRouter.emit({
               type: 'registerAfterDamageExtension',
               payload: {
                 attackerId: actor.id,
@@ -2803,7 +2744,7 @@
               });
             } else {
               // 일반 유저는 GM에게 등록 요청
-              game.socket.emit('system.dx3rd-emanim', {
+              window.DX3rdSocketRouter.emit({
                 type: 'registerAfterDamageActivation',
                 payload: {
                   attackerId: actor.id,
@@ -2854,7 +2795,7 @@
           
           if (nonGMOwners.length > 0) {
             // 접속 중인 일반 소유자가 있으면 소켓 전송
-            game.socket.emit('system.dx3rd-emanim', {
+            window.DX3rdSocketRouter.emit({
               type: 'showDefenseDialog',
               dialogData: payload  // payload → dialogData로 통일
             });
@@ -2866,7 +2807,7 @@
           }
         } else {
           // 일반 유저: 항상 소켓 전송 (GM 백업 로직이 처리)
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'showDefenseDialog',
             dialogData: payload  // payload → dialogData로 통일
           });
@@ -3084,19 +3025,7 @@
                           const itemRunTiming = triggerItem?.system.active?.runTiming;
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            if (game.user.isGM) {
-                              window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, healDataWithTargets, triggerItem, 'heal');
-                            } else {
-                              game.socket.emit('system.dx3rd-emanim', {
-                                type: 'addToAfterMainQueue',
-                                data: {
-                                  extensionType: 'heal',
-                                  actorId: attacker.id,
-                                  extensionData: healDataWithTargets,
-                                  itemId: triggerItem?.id || null
-                                }
-                              });
-                            }
+                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, healDataWithTargets, triggerItem, 'heal');
                             console.log('DX3rd | Heal extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
                             console.log('DX3rd | Skipping afterMain heal extension in afterDamage (item runTiming is not afterDamage)');
@@ -3134,19 +3063,7 @@
                           const itemRunTiming = triggerItem?.system.active?.runTiming;
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            if (game.user.isGM) {
-                              window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, damageDataWithTargets, triggerItem, 'damage');
-                            } else {
-                              game.socket.emit('system.dx3rd-emanim', {
-                                type: 'addToAfterMainQueue',
-                                data: {
-                                  extensionType: 'damage',
-                                  actorId: attacker.id,
-                                  extensionData: damageDataWithTargets,
-                                  itemId: triggerItem?.id || null
-                                }
-                              });
-                            }
+                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, damageDataWithTargets, triggerItem, 'damage');
                             console.log('DX3rd | Damage extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
                             console.log('DX3rd | Skipping afterMain damage extension in afterDamage (item runTiming is not afterDamage)');
@@ -3176,7 +3093,7 @@
                         if (statusClearTiming === 'afterMain') {
                           const itemRunTiming = triggerItem?.system.active?.runTiming;
                           if (itemRunTiming === 'afterDamage') {
-                            window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, statusClearDataWithTargets, triggerItem, 'statusClear');
+                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, statusClearDataWithTargets, triggerItem, 'statusClear');
                           }
                         } else {
                           await window.DX3rdUniversalHandler.executeStatusClearExtension(attacker, statusClearDataWithTargets, triggerItem);
@@ -3207,19 +3124,7 @@
                           const itemRunTiming = triggerItem?.system.active?.runTiming;
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            if (game.user.isGM) {
-                              window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, conditionDataWithTargets, triggerItem, 'condition');
-                            } else {
-                              game.socket.emit('system.dx3rd-emanim', {
-                                type: 'addToAfterMainQueue',
-                                data: {
-                                  extensionType: 'condition',
-                                  actorId: attacker.id,
-                                  extensionData: conditionDataWithTargets,
-                                  itemId: triggerItem?.id || null
-                                }
-                              });
-                            }
+                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, conditionDataWithTargets, triggerItem, 'condition');
                             console.log('DX3rd | Condition extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
                             console.log('DX3rd | Skipping afterMain condition extension in afterDamage (item runTiming is not afterDamage)');
@@ -3244,7 +3149,7 @@
                           triggerItemId: itemId
                         };
                         if (dataWithTargets.timing === 'afterMain') {
-                          window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, dataWithTargets, triggerItem, card.type);
+                          await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, dataWithTargets, triggerItem, card.type);
                         } else {
                           await window.DX3rdUniversalHandler.executeItemExtension(attacker, card.type, dataWithTargets, triggerItem);
                         }
@@ -3292,7 +3197,7 @@
                         console.log('DX3rd | Target effect applied directly by GM');
                       } else {
                         // 타겟 소유자에게 적용 지시
-                        game.socket.emit('system.dx3rd-emanim', {
+                        window.DX3rdSocketRouter.emit({
                           type: 'applyEffectToTarget',
                           payload: {
                             sourceActorId: applyRequest.sourceActorId,
@@ -3367,7 +3272,7 @@
                           console.log('DX3rd | AfterDamage macro executed directly by GM');
                         } else {
                           // 공격자 소유자에게 실행 지시
-                          game.socket.emit('system.dx3rd-emanim', {
+                          window.DX3rdSocketRouter.emit({
                             type: 'executeAfterDamageMacro',
                             payload: {
                               attackerId: attackerId,
@@ -3414,7 +3319,7 @@
                           console.log('DX3rd | No damage notification shown directly by GM');
                         } else {
                           // 공격자 소유자에게 소켓 전송
-                          game.socket.emit('system.dx3rd-emanim', {
+                          window.DX3rdSocketRouter.emit({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
                           });
@@ -3435,7 +3340,7 @@
                             console.log('DX3rd | AfterDamage dialog shown directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                               type: 'showAfterDamageDialog',
                               payload: {
                                 attackerId: attackerId,
@@ -3455,7 +3360,7 @@
                             console.log('DX3rd | AfterDamage auto-activation executed directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
-                            game.socket.emit('system.dx3rd-emanim', {
+                            window.DX3rdSocketRouter.emit({
                               type: 'executeAfterDamageActivation',
                               payload: {
                                 actorId: attackerId,
@@ -3478,24 +3383,8 @@
                 } else {
                   // 일반 유저는 GM에게 데미지 처리 결과 보고
                   
-                  // 1. 매크로 실행용 보고 (HP 감소 시에만)
-                  if (hpChange >= 1) {
-                    game.socket.emit('system.dx3rd-emanim', {
-                      type: 'reportDamageReceived',
-                      payload: {
-                        attackerId: attackerId,
-                        itemId: itemId,
-                        hpChange: hpChange
-                      }
-                    });
-                    console.log('DX3rd | Damage received report sent to GM (macro):', {
-                      attacker: attackerId,
-                      hpChange: hpChange
-                    });
-                  }
-                  
-                  // 2. 타겟 효과 적용 보고 (항상, HP 변동량 포함)
-                  game.socket.emit('system.dx3rd-emanim', {
+                  // 1. 타겟 효과 적용 보고 (항상, HP 변동량 포함)
+                  window.DX3rdSocketRouter.emit({
                     type: 'reportDamageForApply',
                     payload: {
                       targetActorId: targetActor.id,
@@ -3508,8 +3397,8 @@
                     hpChange: hpChange
                   });
                   
-                  // 3. 활성화 처리용 보고 (항상, HP 변동량 포함)
-                  game.socket.emit('system.dx3rd-emanim', {
+                  // 2. 활성화 처리용 보고 (항상, HP 변동량 포함)
+                  window.DX3rdSocketRouter.emit({
                     type: 'reportDamageForActivation',
                     payload: {
                       attackerId: attackerId,
@@ -3834,7 +3723,7 @@
                 await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
               } else {
                 // 일반 유저는 소켓 전송
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                   type: 'applyItemAttributes',
                   payload: {
                     sourceActorId: actor.id,
@@ -3956,7 +3845,7 @@
               await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
             } else {
               // 일반 유저는 소켓 전송
-              game.socket.emit('system.dx3rd-emanim', {
+              window.DX3rdSocketRouter.emit({
                 type: 'applyItemAttributes',
                 payload: {
                   sourceActorId: actor.id,
@@ -4008,7 +3897,7 @@
       this.clearRangeHighlightQueue();
       
       // 다른 유저들에게도 소켓으로 전송
-      game.socket.emit('system.dx3rd-emanim', {
+      window.DX3rdSocketRouter.emit({
         type: 'clearRangeHighlight'
       });
       
@@ -4550,7 +4439,7 @@
         await this.processRangeHighlightQueue(queueData);
         
         // 다른 사용자들에게도 소켓으로 전송하여 모두에게 하이라이트 표시
-        game.socket.emit('system.dx3rd-emanim', {
+        window.DX3rdSocketRouter.emit({
           type: 'setRangeHighlight',
           data: queueData
         });
@@ -4680,7 +4569,7 @@
         await this.processRangeHighlightQueue(queueData);
         
         // 다른 사용자들에게도 소켓으로 전송하여 모두에게 하이라이트 표시
-        game.socket.emit('system.dx3rd-emanim', {
+        window.DX3rdSocketRouter.emit({
           type: 'setRangeHighlight',
           data: queueData
         });
@@ -4786,7 +4675,7 @@
         
         // 소켓 이벤트로 호출된 경우가 아니면 다른 사용자들에게도 소켓으로 전송
         if (!skipSocket) {
-          game.socket.emit('system.dx3rd-emanim', {
+          window.DX3rdSocketRouter.emit({
             type: 'clearRangeHighlight'
           });
         }
@@ -7328,7 +7217,7 @@
             rivival: bucket.rivival || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
-          this.addToAfterMainQueue(actor, healData, null, 'heal');
+          await this.addToAfterMainQueue(actor, healData, null, 'heal');
         } else if (bucket.type === 'damage') {
           const damageData = {
             formulaDice: bucket.merged?.dice || 0,
@@ -7338,7 +7227,7 @@
             ignoreReduce: bucket.ignoreReduce || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
-          this.addToAfterMainQueue(actor, damageData, null, 'damage');
+          await this.addToAfterMainQueue(actor, damageData, null, 'damage');
         } else if (bucket.type === 'condition') {
           const conditionData = {
             conditionTypes: bucket.merged?.conditions || [],
@@ -7350,11 +7239,11 @@
             duration: bucket.duration || null,
             sourceActorId: bucket.sourceActorId || actor.id
           };
-          this.addToAfterMainQueue(actor, conditionData, null, 'condition');
+          await this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
             const sourceItem = actor.items.get(source.itemId);
-            this.addToAfterMainQueue(actor, {
+            await this.addToAfterMainQueue(actor, {
               ...(source.raw?.extensionData || {}),
               target: bucket.target,
               selectedTargetIds: bucket.selectedTargetIds || [],
@@ -7509,7 +7398,7 @@
             rivival: bucket.rivival || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
-          this.addToAfterMainQueue(actor, healData, null, 'heal');
+          await this.addToAfterMainQueue(actor, healData, null, 'heal');
         } else if (bucket.type === 'damage') {
           const damageData = {
             formulaDice: bucket.merged?.dice || 0,
@@ -7519,7 +7408,7 @@
             ignoreReduce: bucket.ignoreReduce || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
-          this.addToAfterMainQueue(actor, damageData, null, 'damage');
+          await this.addToAfterMainQueue(actor, damageData, null, 'damage');
         } else if (bucket.type === 'condition') {
           const conditionData = {
             conditionTypes: bucket.merged?.conditions || [],
@@ -7531,12 +7420,12 @@
             duration: bucket.duration || null,
             sourceActorId: bucket.sourceActorId || actor.id
           };
-          this.addToAfterMainQueue(actor, conditionData, null, 'condition');
+          await this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
             const sourceItem = actor.items.get(source.itemId);
             const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
-            this.addToAfterMainQueue(actor, {
+            await this.addToAfterMainQueue(actor, {
               ...(source.raw?.extensionData || {}),
               target: originalTarget === 'self' ? 'self' : (damagedTokenIds.length ? 'targetToken' : originalTarget),
               selectedTargetIds: damagedTokenIds.length ? damagedTokenIds : (bucket.selectedTargetIds || []),
@@ -7624,7 +7513,7 @@
                 });
               } else {
                 // 플레이어면 소켓 전송만
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                   type: 'healRequest',
                   requestData: {
                     actorId: actor.id,
@@ -7665,7 +7554,7 @@
                       formulaAdd: customFormula.add,
                       conditionalFormula: false
                     };
-                    game.socket.emit('system.dx3rd-emanim', {
+                    window.DX3rdSocketRouter.emit({
                       type: 'damageRequest',
                       requestData: {
                         actorId: actor.id,
@@ -7675,7 +7564,7 @@
                     });
                   }
                 } else {
-                  game.socket.emit('system.dx3rd-emanim', {
+                  window.DX3rdSocketRouter.emit({
                     type: 'damageRequest',
                     requestData: {
                       actorId: actor.id,
@@ -7722,7 +7611,7 @@
             
             // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
             if (item.system.active?.runTiming === 'afterSuccess') {
-              this.registerAfterMainExtensions(actor, item, itemExtend, successAction);
+              await this.registerAfterMainExtensions(actor, item, itemExtend, successAction);
             }
           }
         }
@@ -7862,7 +7751,7 @@
             console.log('DX3rd | Range highlight cleared by user choice (weapon/vehicle use)');
             
             // 다른 유저들에게도 소켓으로 전송
-            game.socket.emit('system.dx3rd-emanim', {
+            window.DX3rdSocketRouter.emit({
               type: 'clearRangeHighlight'
             });
           } else {
@@ -7975,7 +7864,7 @@
           const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend');
           if (itemExtend) {
             console.log('DX3rd | handleItemUse - Registering afterMain extensions for non-combo item:', item.name);
-            this.registerAfterMainExtensions(actor, item, itemExtend, action);
+            await this.registerAfterMainExtensions(actor, item, itemExtend, action);
           }
         } else {
           console.log('DX3rd | handleItemUse - Skipping afterMain registration for combo (will be handled by ComboHandler)');
@@ -8188,7 +8077,7 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
   if (game.user.isGM) {
     await window.DX3rdUniversalHandler.handleEncroachRequest(requestData);
   } else {
-    game.socket.emit('system.dx3rd-emanim', { type: 'encroachRequest', requestData });
+    window.DX3rdSocketRouter.emit({ type: 'encroachRequest', requestData });
     ui.notifications.info('GM에게 침식률 조정 요청을 보냈습니다.');
   }
 };

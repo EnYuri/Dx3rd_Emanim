@@ -43,7 +43,7 @@
         if (!combat || process?.type !== 'main' || !canUse(actor)) return;
         const payload = { combatId: combat.id, actorId: actor.id, action, used: !actionUsage()[action], key: usageKey(combat) };
         if (game.user.isGM) await updateUsage(payload);
-        else game.socket.emit(`system.${MODULE_ID}`, { type: 'actionTrackerConsume', payload });
+        else window.DX3rdSocketRouter.emit({ type: 'actionTrackerConsume', payload });
     }
 
     async function advance() {
@@ -56,7 +56,7 @@
             if (game.user.isGM) {
                 await window.DX3rdCombatFlow?.startMainProcessFromInitiative?.(combat);
             } else {
-                game.socket.emit(`system.${MODULE_ID}`, {
+                window.DX3rdSocketRouter.emit({
                     type: 'startMainProcessFromInitiative',
                     combatId: combat.id,
                     actorId: actor.id
@@ -146,7 +146,7 @@
                     if (combat && process?.type === 'main' && process.actorId === actor.id) {
                         const payload = { combatId: combat.id, actorId: actor.id, action: 'major', used: true, key: usageKey(combat) };
                         if (game.user.isGM) await updateUsage(payload);
-                        else game.socket.emit(`system.${MODULE_ID}`, { type: 'actionTrackerConsume', payload });
+                        else window.DX3rdSocketRouter.emit({ type: 'actionTrackerConsume', payload });
                     }
                 }
             }

@@ -1246,7 +1246,7 @@ window.DX3rdSpellHandler = {
                 }
 
                 // 소켓으로 GM에게 전송
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                     type: 'spellRoisSelectRequest',
                     requestData: {
                         actorId: actor.id,
@@ -1254,10 +1254,7 @@ window.DX3rdSpellHandler = {
                         title: title,
                         requestType: requestType,
                         itemId: item?.id || null,
-                        availableRois: availableRois.map(rois => ({
-                            id: rois.id,
-                            name: rois.name
-                        }))
+                        availableRois: availableRois.map(rois => ({ id: rois.id }))
                     }
                 });
 
@@ -1475,7 +1472,7 @@ window.DX3rdSpellHandler = {
         try {
             // GM이 아닌 경우 소켓으로 전송
             if (!game.user.isGM) {
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                     type: 'spellCatastrophe8Request',
                     requestData: {
                         actorId: actor.id,
@@ -1628,7 +1625,7 @@ window.DX3rdSpellHandler = {
         try {
             // GM이 아닌 경우 소켓으로 전송
             if (!game.user.isGM) {
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                     type: 'spellCatastrophe7Request',
                     requestData: {
                         actorId: actor.id
@@ -1868,7 +1865,7 @@ window.DX3rdSpellHandler = {
                     await this.drawSpellCalamityHighlight(token, highlightRange, userColorValue, tokenPosition);
                     
                     // 다른 사용자들에게도 소켓으로 전송
-                    game.socket.emit('system.dx3rd-emanim', {
+                    window.DX3rdSocketRouter.emit({
                         type: 'setSpellCalamityHighlight',
                         data: highlightData
                     });
@@ -2138,7 +2135,7 @@ window.DX3rdSpellHandler = {
             
             // 다른 사용자들에게도 소켓으로 전송
             if (tokenId) {
-                game.socket.emit('system.dx3rd-emanim', {
+                window.DX3rdSocketRouter.emit({
                     type: 'clearSpellCalamityHighlight',
                     data: { tokenId: tokenId }
                 });

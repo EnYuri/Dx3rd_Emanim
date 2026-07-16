@@ -26,3 +26,5 @@ jobs:
           node-version: 22
       - name: Verify public runtime structure (read-only)
         run: node tools/verify-runtime.mjs
+      - name: Run runtime core tests
+        run: node --test tools/tests/*.test.mjs

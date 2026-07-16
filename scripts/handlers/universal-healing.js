@@ -190,7 +190,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
     await handler.handleHealRequest({ ...requestData, targets: localTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) });
   }
   if (remoteTargets.length) {
-    game.socket.emit('system.dx3rd-emanim', {
+    window.DX3rdSocketRouter.emit({
       type: 'healApply',
       requestData: { ...requestData, targets: remoteTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) }
     });
@@ -252,7 +252,7 @@ handler.handleHealRequest = async function(requestData) {
         content: `전투 불능 상태로 HP 회복 불가`,
         flags: {
           'dx3rd-emanim': {
-            messageType: 'heal'
+            messageType: 'healing'
           }
         }
       });
@@ -283,7 +283,7 @@ handler.handleHealRequest = async function(requestData) {
         content: `폭주(흡혈) 효과로 HP 회복 불가`,
         flags: {
           'dx3rd-emanim': {
-            messageType: 'heal'
+            messageType: 'healing'
           }
         }
       });
@@ -352,16 +352,17 @@ handler.handleHealRequest = async function(requestData) {
     if (revivedCleared) healText += ` (${game.i18n.localize('DX3rd.Defeated') || '전투불능'} ${game.i18n.localize('DX3rd.Clear') || '소거'})`;
     if (encDelta) healText += ` (${game.i18n.localize('DX3rd.Encroachment') || '침식률'} +${encDelta})`;
     
+    const safeHealText = window.DX3rdRuntimeUtils.escapeHTML(healText);
     const content = rollMessage 
-      ? `<div class="dx3rd-item-chat"><div>${healText}</div>${rollMessage}</div>`
-      : `<div class="dx3rd-item-chat"><div>${healText}</div></div>`;
+      ? `<div class="dx3rd-item-chat"><div>${safeHealText}</div>${rollMessage}</div>`
+      : `<div class="dx3rd-item-chat"><div>${safeHealText}</div></div>`;
     
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: targetActor }),
       content: content,
       flags: {
         'dx3rd-emanim': {
-          messageType: 'heal'
+          messageType: 'healing'
         }
       }
     });

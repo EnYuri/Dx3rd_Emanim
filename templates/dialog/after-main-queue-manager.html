@@ -1,0 +1,73 @@
+<section class="after-main-console">
+  <header class="after-main-console__header">
+    <div>
+      <p class="after-main-console__eyebrow">UGN / AFTERMAIN EXECUTION LEDGER</p>
+      <h2>{{localize "DX3rd.AfterMainManagerTitle"}}</h2>
+      <p>{{localize "DX3rd.AfterMainManagerDescription"}}</p>
+    </div>
+    <button type="button" class="after-main-console__refresh" data-action="refresh">
+      <i class="fas fa-rotate"></i> {{localize "DX3rd.Refresh"}}
+    </button>
+  </header>
+
+  <div class="after-main-console__summary" aria-label="{{localize 'DX3rd.AfterMainSummary'}}">
+    <span><b>{{total}}</b>{{localize "DX3rd.AfterMainTotal"}}</span>
+    <span class="is-pending"><b>{{pending}}</b>{{localize "DX3rd.AfterMainPending"}}</span>
+    <span class="is-blocked"><b>{{blocked}}</b>{{localize "DX3rd.AfterMainBlocked"}}</span>
+  </div>
+
+  {{#unless isResponsibleGM}}
+  <div class="after-main-console__notice">
+    <i class="fas fa-circle-info"></i> {{localize "DX3rd.AfterMainResponsibleGMOnly"}}
+  </div>
+  {{/unless}}
+
+  <div class="after-main-console__list">
+    {{#if hasEntries}}
+      {{#each entries as |entry|}}
+      <article class="after-main-entry {{#if entry.blocked}}is-blocked{{else}}is-pending{{/if}}">
+        <div class="after-main-entry__rail" aria-hidden="true"></div>
+        <div class="after-main-entry__body">
+          <header class="after-main-entry__header">
+            <div>
+              <span class="after-main-entry__status">{{entry.statusLabel}}</span>
+              <strong>{{entry.typeLabel}}</strong>
+            </div>
+            <code>{{entry.queueId}}</code>
+          </header>
+          <dl class="after-main-entry__facts">
+            <div><dt>{{localize "DX3rd.Actor"}}</dt><dd>{{entry.actorName}}</dd></div>
+            <div><dt>{{localize "DX3rd.Item"}}</dt><dd>{{entry.itemName}}</dd></div>
+            <div><dt>{{localize "DX3rd.Target"}}</dt><dd>{{entry.targetLabel}}</dd></div>
+            <div><dt>{{localize "DX3rd.AfterMainAttempts"}}</dt><dd>{{entry.attempts}}</dd></div>
+            <div><dt>{{localize "DX3rd.AfterMainCreatedAt"}}</dt><dd>{{entry.createdLabel}}</dd></div>
+            {{#if entry.failedLabel}}<div><dt>{{localize "DX3rd.AfterMainFailedAt"}}</dt><dd>{{entry.failedLabel}}</dd></div>{{/if}}
+          </dl>
+          {{#if entry.lastError}}
+          <pre class="after-main-entry__error">{{entry.lastError}}</pre>
+          {{/if}}
+          <footer class="after-main-entry__actions">
+            {{#if entry.actorUuid}}<button type="button" data-action="open-document" data-uuid="{{entry.actorUuid}}"><i class="fas fa-user"></i> {{localize "DX3rd.Actor"}}</button>{{/if}}
+            {{#if entry.itemUuid}}<button type="button" data-action="open-document" data-uuid="{{entry.itemUuid}}"><i class="fas fa-suitcase"></i> {{localize "DX3rd.Item"}}</button>{{/if}}
+            {{#if entry.canRetry}}<button type="button" class="is-retry" data-action="retry" data-queue-id="{{entry.queueId}}" {{#unless ../isResponsibleGM}}disabled{{/unless}}><i class="fas fa-rotate-right"></i> {{localize "DX3rd.AfterMainRetry"}}</button>{{/if}}
+            <button type="button" class="is-remove" data-action="remove" data-queue-id="{{entry.queueId}}" {{#unless ../isResponsibleGM}}disabled{{/unless}}><i class="fas fa-trash"></i> {{localize "DX3rd.Remove"}}</button>
+          </footer>
+        </div>
+      </article>
+      {{/each}}
+    {{else}}
+      <div class="after-main-console__empty">
+        <i class="fas fa-check"></i>
+        <strong>{{localize "DX3rd.AfterMainEmpty"}}</strong>
+        <span>{{localize "DX3rd.AfterMainEmptyHint"}}</span>
+      </div>
+    {{/if}}
+  </div>
+
+  <footer class="after-main-console__footer">
+    <span>{{localize "DX3rd.AfterMainSafetyNote"}}</span>
+    <button type="button" class="after-main-console__clear" data-action="clear" {{#unless hasEntries}}disabled{{/unless}} {{#unless isResponsibleGM}}disabled{{/unless}}>
+      <i class="fas fa-ban"></i> {{localize "DX3rd.AfterMainClearAll"}}
+    </button>
+  </footer>
+</section>

@@ -247,7 +247,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     await handler.handleDamageRequest({ ...requestData, targets: localTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) });
   }
   if (remoteTargets.length) {
-    game.socket.emit('system.dx3rd-emanim', {
+    window.DX3rdSocketRouter.emit({
       type: 'damageApply',
       requestData: { ...requestData, targets: remoteTargets.map(targetActor => ({ id: targetActor.id, name: targetActor.name })) }
     });
@@ -325,9 +325,10 @@ handler.handleDamageRequest = async function(requestData) {
       damageText = `HP ${actualHpLoss} 데미지 (${cleanItemName})`;
     }
     
+    const safeDamageText = window.DX3rdRuntimeUtils.escapeHTML(damageText);
     const content = rollMessage 
-      ? `<div class="dx3rd-item-chat"><div>${damageText}</div>${rollMessage}</div>`
-      : `<div class="dx3rd-item-chat"><div>${damageText}</div></div>`;
+      ? `<div class="dx3rd-item-chat"><div>${safeDamageText}</div>${rollMessage}</div>`
+      : `<div class="dx3rd-item-chat"><div>${safeDamageText}</div></div>`;
     
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: targetActor }),

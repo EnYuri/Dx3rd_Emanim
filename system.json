@@ -12,17 +12,21 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.8.8",
+  "version": "1.8.9",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/import-compat.js",
+    "scripts/core/runtime-utils.js",
+    "scripts/chat-message-types.js",
     "scripts/virtual-weapons.js",
     "scripts/helpers.js",
     "scripts/item-effect-adapter.js",
     "scripts/condtions.js",
     "scripts/dx3rd-applied-effects.js",
     "scripts/socket-router.js",
+    "scripts/socket-contracts.js",
     "scripts/combat/combat.js",
+    "scripts/combat/combat-socket.js",
     "scripts/dx3rd-macro.js",
     "scripts/disable-hooks.js",
     "scripts/movement-ruler.js",
@@ -39,6 +43,7 @@
     "scripts/handlers/universal-handler.js",
     "scripts/handlers/universal-condition-apply.js",
     "scripts/handlers/universal-after-main.js",
+    "scripts/dialog/after-main-queue-manager.js",
     "scripts/handlers/universal-healing.js",
     "scripts/handlers/universal-damage.js",
     "scripts/handlers/universal-status-clear.js",
@@ -91,6 +96,7 @@
     "scripts/migrations.js",
     "scripts/migrations-applied-ae.js",
     "scripts/compendium-sync.js",
+    "scripts/socket-document-handlers.js",
     "scripts/main.js"
   ],
   "styles": [
@@ -104,7 +110,8 @@
     "styles/combo-dialog.css",
     "styles/turn-process-ui.css",
     "styles/dx3rd-condition-hud.css",
-    "styles/appv2-sheets.css"
+    "styles/appv2-sheets.css",
+    "styles/after-main-queue-manager.css"
   ],
   "languages": [
     {

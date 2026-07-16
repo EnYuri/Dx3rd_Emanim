@@ -455,7 +455,7 @@ window.DX3rdComboHandler = {
                             triggerItemName: item.name
                         };
                         console.log('DX3rd | ComboHandler - AfterMain heal data:', healData);
-                        handler.addToAfterMainQueue(actor, healData, null, 'heal');
+                        await handler.addToAfterMainQueue(actor, healData, null, 'heal');
                     } else if (b.type === 'damage') {
                         const damageData = {
                             formulaDice: b.merged?.dice || 0,
@@ -466,7 +466,7 @@ window.DX3rdComboHandler = {
                             triggerItemName: item.name
                         };
                         console.log('DX3rd | ComboHandler - AfterMain damage data:', damageData);
-                        handler.addToAfterMainQueue(actor, damageData, null, 'damage');
+                        await handler.addToAfterMainQueue(actor, damageData, null, 'damage');
                     } else if (b.type === 'condition') {
                         const conditionData = {
                             conditionTypes: b.merged?.conditions || [],
@@ -479,11 +479,11 @@ window.DX3rdComboHandler = {
                             sourceActorId: b.sourceActorId || actor.id
                         };
                         console.log('DX3rd | ComboHandler - AfterMain condition data:', conditionData);
-                        handler.addToAfterMainQueue(actor, conditionData, null, 'condition');
+                        await handler.addToAfterMainQueue(actor, conditionData, null, 'condition');
                     } else if (b.type === 'statusClear') {
                         for (const src of b.sources) {
                             const srcItem = actor.items.get(src.itemId);
-                            handler.addToAfterMainQueue(actor, {
+                            await handler.addToAfterMainQueue(actor, {
                                 ...(src.raw.extensionData || {}),
                                 target: b.target,
                                 selectedTargetIds,
