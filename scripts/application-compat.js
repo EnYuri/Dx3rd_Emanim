@@ -2,6 +2,10 @@
  * Shared compatibility helpers for the 이전 시트 to AppV2 migration.
  */
 (function() {
+    // 동일한 문서 변경에서 updateItem/updateActor/명시적 UI 갱신이 연달아 발생할 수 있다.
+    // AppV2 렌더는 비용이 크므로 같은 마이크로태스크 안의 요청은 앱별 한 번으로 합친다.
+    const pendingRenders = new WeakMap();
+
     function unwrapRoot(root) {
         if (!root) return null;
         if (root.jquery) return root[0] || null;
@@ -49,6 +53,19 @@
         return element && globalThis.jQuery ? globalThis.jQuery(element) : null;
     }
 
+    function requestRender(app) {
+        if (!app?.rendered || typeof app.render !== 'function') return Promise.resolve(false);
+        const pending = pendingRenders.get(app);
+        if (pending) return pending;
+
+        const task = Promise.resolve()
+            .then(() => app.render(false))
+            .catch(error => console.error('DX3rd | 시트 갱신 실패:', error))
+            .finally(() => pendingRenders.delete(app));
+        pendingRenders.set(app, task);
+        return task;
+    }
+
     function getCapabilities() {
         const applications = globalThis.foundry?.applications;
         return Object.freeze({
@@ -69,6 +86,7 @@
         closest,
         on,
         toJQuery,
+        requestRender,
         getCapabilities
     });
 })();

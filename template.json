@@ -219,7 +219,7 @@
         "state": false,
         "disable": "-",
         "runTiming": "instant",
-        "applyMode": "toggle"
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,

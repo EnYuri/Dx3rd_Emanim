@@ -129,8 +129,41 @@
     return actor.effects.find(e => e.getFlag?.(SCOPE, 'appliedKey') === appliedKey) || null;
   }
 
+  /** 특정 원본 아이템에서 생성된 applied AE 전부를 찾는다. */
+  function getEffectsByItem(actor, itemId) {
+    if (!actor || !itemId) return [];
+    const onUseKey = `applied_${itemId}`;
+    const toggleKey = `toggle:${itemId}`;
+    const originSuffix = `.Item.${itemId}`;
+    return actor.effects.filter(effect => {
+      const appliedKey = effect.getFlag?.(SCOPE, 'appliedKey');
+      const sourceItemId = effect.getFlag?.(SCOPE, 'applied')?.itemId;
+      // 최신 payload, 과거 appliedKey, 그리고 Foundry origin을 모두 확인한다.
+      // 활성화 → 비활성화 → 재활성화 중 한 필드가 누락된 구형 AE도 남기지 않는다.
+      return sourceItemId === itemId
+        || appliedKey === onUseKey
+        || appliedKey === toggleKey
+        || String(effect.origin || '').endsWith(originSuffix);
+    });
+  }
+
+  /** 전환기 구형 system.attributes.applied 중 특정 아이템 원본의 key를 찾는다. */
+  function getLegacyAppliedKeysByItem(actor, itemId) {
+    if (!actor || !itemId) return [];
+    const legacy = actor.system?.attributes?.applied;
+    if (!legacy || typeof legacy !== 'object') return [];
+    const onUseKey = `applied_${itemId}`;
+    const toggleKey = `toggle:${itemId}`;
+    return Object.entries(legacy)
+      .filter(([key, payload]) => key === onUseKey
+        || key === toggleKey
+        || payload?.itemId === itemId
+        || String(payload?.origin || '').endsWith(`.Item.${itemId}`))
+      .map(([key]) => key);
+  }
+
   /** applied 버프를 생성/갱신(upsert). */
-  async function set(actor, appliedKey, payload) {
+  async function set(actor, appliedKey, payload, {preserveDisabled = false} = {}) {
     if (!actor || !appliedKey) return null;
     const data = buildAEData(actor, appliedKey, payload);
     const existing = getEffect(actor, appliedKey);
@@ -148,7 +181,9 @@
           name: data.name,
           img: data.img,
           description: data.description,
-          disabled: false,
+          // 토글 이펙트의 수식 재평가(sync)는 임시 비활성화 상태를 바꾸지 않는다.
+          // 일반 set 호출은 지금까지와 같이 갱신 시 활성화한다.
+          disabled: preserveDisabled ? existing.disabled : false,
           showIcon: data.showIcon,
           statuses: data.statuses,
           'system.changes': data.system.changes,
@@ -204,15 +239,16 @@
   //    system.active.state 다(applied-toggle sync 가 그것에서 AE 를 파생/삭제). 따라서
   //    체크박스/HUD 는 AE.disabled 가 아니라 아이템 토글을 직접 뒤집는다 → 이중 상태 소멸.
   //    끄면 sync 가 AE 를 삭제하므로 목록/HUD 에서 사라진다(toggle 효과의 정상 동작).
-  //  · 그 외 독립 applied 버프(Panic·매크로 등)는 AE 자체의 disabled 를 토글한다.
+  //  · 원본 아이템이 있는 applied 버프는 모두 그 아이템의 active.state 를 토글한다.
+  //    원본 없는 독립 버프(Panic·매크로 등)만 AE 자체의 disabled 를 토글한다.
   //  · 소스 아이템이 사라진 toggle AE 는 AE.disabled 로 폴백.
   // ---------------------------------------------------------------------------
 
-  /** appliedKey 가 toggle 파생이면 소스 아이템을, 아니면 null 을 반환. */
+  /** appliedKey의 원본 아이템을 반환한다. 토글/사용 시 적용 AE를 모두 처리한다. */
   function getToggleSourceItem(actor, appliedKey) {
     const key = String(appliedKey || '');
-    if (!key.startsWith('toggle:')) return null;
-    const itemId = key.slice('toggle:'.length);
+    let itemId = key.startsWith('toggle:') ? key.slice('toggle:'.length) : null;
+    if (!itemId) itemId = getEffect(actor, key)?.getFlag?.(SCOPE, 'applied')?.itemId;
     return actor?.items?.get(itemId) || null;
   }
 
@@ -256,19 +292,42 @@
   }
 
   /** 특정 아이템에서 유래한 applied 버프 전부 제거. */
-  async function removeByItem(actor, itemId) {
+  async function removeByItem(actor, itemId, {includeToggle = true} = {}) {
     if (!actor || !itemId) return 0;
-    const ids = actor.effects
-      .filter(e => e.getFlag?.(SCOPE, 'applied')?.itemId === itemId)
-      .map(e => e.id);
-    if (!ids.length) return 0;
-    try {
-      await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
-      return ids.length;
-    } catch (e) {
-      console.error('DX3rd | DX3rdAppliedEffects.removeByItem 실패:', itemId, e);
-      return 0;
+    const ids = getEffectsByItem(actor, itemId)
+      .filter(effect => includeToggle || !String(effect.getFlag?.(SCOPE, 'appliedKey') || '').startsWith('toggle:'))
+      .map(effect => effect.id);
+    let removed = 0;
+    // active.state 변경과 AppliedToggle 동기화가 같은 프레임에 일어날 수 있다.
+    // 각 문서를 다시 확인해 개별 삭제하면, 다른 경로가 먼저 지운 AE는 정상적인 no-op가 된다.
+    for (const id of ids) {
+      if (!actor.effects.get(id)) continue;
+      try {
+        await actor.deleteEmbeddedDocuments('ActiveEffect', [id]);
+        removed++;
+      } catch (e) {
+        if (!/does not exist/i.test(String(e?.message || e))) {
+          console.error('DX3rd | DX3rdAppliedEffects.removeByItem 실패:', itemId, e);
+        }
+      }
     }
+
+    // 네이티브 AE로 이행하기 전의 applied 값도 함께 지운다. 이 값을 남기면 AE가
+    // 없어도 prepareData의 전환 브리지가 다시 읽어 HP/능력치 보정이 잔존한다.
+    const legacyKeys = getLegacyAppliedKeysByItem(actor, itemId)
+      .filter(key => includeToggle || key !== `toggle:${itemId}`);
+    if (legacyKeys.length) {
+      const deletions = Object.fromEntries(
+        legacyKeys.map(key => [`system.attributes.applied.-=${key}`, null])
+      );
+      try {
+        await actor.update(deletions);
+        removed += legacyKeys.length;
+      } catch (e) {
+        console.error('DX3rd | DX3rdAppliedEffects.removeByItem 레거시 applied 정리 실패:', itemId, e);
+      }
+    }
+    return removed;
   }
 
   /**
@@ -308,6 +367,7 @@
     buildChanges,
     buildAEData,
     getEffect,
+    getEffectsByItem,
     set,
     setDisabled,
     toggleDisabled,

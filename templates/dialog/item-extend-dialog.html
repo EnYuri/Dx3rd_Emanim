@@ -126,9 +126,9 @@
         <div class="form-grid">
             <!-- Row 1 -->
             <div class="form-label">{{localize "DX3rd.Formula"}}</div>
-            <div><input type="text" name="healFormulaDice" placeholder="Dice"></div>
-            <div style="text-align: center;">D10 +</div>
-            <div><input type="text" name="healFormulaAdd" placeholder="Add"></div>
+            <div class="formula-term formula-term-single">
+                <input type="text" class="formula-input" name="healFormula" placeholder="2d10 + [레벨]">
+            </div>
             
             <!-- Row 2 -->
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>
@@ -177,9 +177,9 @@
         <div class="form-grid">
             <!-- Row 1 -->
             <div class="form-label">{{localize "DX3rd.Formula"}}</div>
-            <div><input type="text" name="damageFormulaDice" placeholder="Dice"></div>
-            <div style="text-align: center;">D10 +</div>
-            <div><input type="text" name="damageFormulaAdd" placeholder="Add"></div>
+            <div class="formula-term formula-term-single">
+                <input type="text" class="formula-input" name="damageFormula" placeholder="2d10 + [레벨]">
+            </div>
             
             <!-- Row 2 -->
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>

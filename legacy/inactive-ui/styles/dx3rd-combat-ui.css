@@ -1,4 +1,5 @@
-/* DX3rd turn process UI styles */
+/* DX3rd legacy combat HUD styles.
+ * system.json에서 제외되어 Foundry 런타임에 로드되지 않는다. */
 
 /* 버튼 컨테이너 */
 .dx3rd-combat-buttons {

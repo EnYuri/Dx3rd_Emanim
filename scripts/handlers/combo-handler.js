@@ -344,7 +344,7 @@ window.DX3rdComboHandler = {
                     // applyMode='onUse'인 멤버(노도의 선풍 등)는 active.state를 켜지 않고, 콤보 사용 시점의
                     // 런타임 입력([소비HP])이 반영된 동결 버프를 자신에게 적용한다. processItemUsageCost가
                     // 콤보 멤버를 스캔해 이미 _dx3rdRuntimeInput을 세팅했으므로 여기서 동결 평가가 잡힌다.
-                    const memApplyMode = effectItem.system?.active?.applyMode || 'toggle';
+                    const memApplyMode = effectItem.system?.active?.applyMode || 'onUse';
                     if (memApplyMode === 'onUse') {
                         await handler.applySelfFrozenBuff(actor, effectItem);
                         console.log('DX3rd | ComboHandler - Effect self frozen buff applied (onUse):', effectItem.name);

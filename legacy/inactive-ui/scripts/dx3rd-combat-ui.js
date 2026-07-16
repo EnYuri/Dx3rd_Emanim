@@ -1,4 +1,7 @@
-// DX3rd turn process UI - 전투 중 토큰 주변 버튼 및 턴 프로세스 제어
+// DX3rd legacy combat HUD - 토큰 주변 버튼 및 우측 사이드 컨트롤
+//
+// 레거시 보관본: system.json에서 제외되어 Foundry 런타임에 로드되지 않는다.
+// 현재 전투 진행은 scripts/combat/turn-process-ui.js를 기준으로 한다.
 (function () {
     const MODULE_ID = 'dx3rd-emanim';
 

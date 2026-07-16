@@ -224,7 +224,11 @@
               </select> 
             </td>
             <th><span>{{localize "DX3rd.Active"}}</span></th>
-            <td><input type="checkbox" name="system.active.state" {{#if system.active.state}} checked {{/if}}></td>
+            <td>
+              {{!-- 활성화는 effect-sheet-v2의 전용 핸들러가 단일 경로로 저장한다.
+                   name을 두면 AppV2 submitOnChange가 동시에 item.update하여 AE 동기화와 경쟁한다. --}}
+              <input type="checkbox" class="effect-active-check" {{#if system.active.state}} checked {{/if}}>
+            </td>
             <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
             <td>
               <select name="system.active.disable" data-dtype="String" style="width: 100%;">

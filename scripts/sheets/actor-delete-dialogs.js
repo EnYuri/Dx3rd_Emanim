@@ -50,6 +50,9 @@
     if (!confirmed) return false;
 
     await actor.deleteEmbeddedDocuments('Item', [item.id]);
+    // deleteItem 훅은 다른 클라이언트/훅 순서에 따라 원본 문서의 parent를 잃을 수 있다.
+    // 효과 탭의 휴지통은 원본 이펙트 삭제 후에도 출처 AE가 남지 않도록 여기서 직접 정리한다.
+    await window.DX3rdAppliedEffects?.removeByItem?.(actor, item.id);
     return true;
   }
 

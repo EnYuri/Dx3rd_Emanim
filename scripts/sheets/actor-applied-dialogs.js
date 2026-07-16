@@ -419,6 +419,14 @@
     }
 
     try {
+      // 원본 아이템이 있는 AE를 제거하면 원본도 비활성화한다. AE만 지우면
+      // updateItem 동기화가 같은 효과를 곧 재생성한다.
+      const sourceItem = window.DX3rdAppliedEffects?.getToggleSourceItem?.(actor, applied.key);
+      if (sourceItem && window.DX3rdAppliedEffects?.setActive) {
+        await window.DX3rdAppliedEffects.setActive(actor, applied.key, false);
+        ui.notifications.info(game.i18n.localize('DX3rd.AppliedRemoved'));
+        return true;
+      }
       // 네이티브 AE 우선 삭제, 없으면 레거시 필드 정리(전환기 대비)
       const removed = window.DX3rdAppliedEffects?.remove
         ? await window.DX3rdAppliedEffects.remove(actor, applied.key)

@@ -758,10 +758,10 @@
 
   "DX3rd.Conditional": "조건부",
   "DX3rd.Formula": "공식",
-  "DX3rd.DiceFormulaGuidance": "주사위 표기 \"{formula}\"은(는) 이 고정값 항목에서 자동 계산되지 않습니다. 굴림 횟수를 뜻한다면 ‘가드 추가 d10’·‘피해 경감 추가 d10’·‘판정 추가 d10’ 항목에 \"{suggestion}\"으로 입력하세요.",
-  "DX3rd.DiceFormulaRollGuidance": "주사위 표기 \"{formula}\" 대신 \"{suggestion}\"으로 입력하세요. 이 키는 d10 개수만 저장하며, 실제 굴림 때 시스템이 d10을 붙여 굴립니다.",
-  "DX3rd.DiceFormulaConverted": "주사위 표기 \"{formula}\"을(를) 굴림 개수 수식 \"{suggestion}\"으로 저장했습니다. 실제 굴림에서는 시스템이 d10을 붙여 처리합니다.",
-  "DX3rd.DiceFormulaNonD10Guidance": "\"{formula}\"에는 d10 이외의 주사위가 포함되어 있습니다. 이 시스템의 추가 굴림은 d10만 지원합니다.",
+  "DX3rd.DiceFormulaGuidance": "주사위 표기 \"{formula}\"은(는) 굴림 수식으로 저장되며, 실제 굴림 시 평가합니다.",
+  "DX3rd.DiceFormulaRollGuidance": "주사위 표기 \"{formula}\"은(는) 굴림 수식으로 그대로 사용할 수 있습니다.",
+  "DX3rd.DiceFormulaConverted": "주사위 표기 \"{formula}\"을(를) 굴림 수식으로 저장했습니다.",
+  "DX3rd.DiceFormulaNonD10Guidance": "\"{formula}\"에는 d10 이외의 주사위가 포함되어 있습니다. Foundry 다이스 수식으로 실제 굴림 시 평가합니다.",
 
   "DX3rd.Self": "자신",
   "DX3rd.TargetAll": "자신/타겟",

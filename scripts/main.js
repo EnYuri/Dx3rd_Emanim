@@ -98,16 +98,6 @@ function dx3rdSlideToggle(el, expand, duration = 250) {
 // 시스템 설정 샘플
 Hooks.once('init', async function() {
     
-    // 설정 등록: 익스텐션 자동 승인
-    game.settings.register('dx3rd-emanim', 'DX3rd.AutoApplyExtensions', {
-        name: 'DX3rd.ExtendConfirmSetting',
-        hint: 'DX3rd.ExtendConfirmSettingHint',
-        scope: 'world',
-        config: true,
-        type: Boolean,
-        default: false
-    });
-    
     // 설정 등록: Pressure 예외 아이템 목록 (타이밍 오토인 아이템도 채팅 메시지 출력 가능)
     game.settings.register('dx3rd-emanim', 'DX3rd.PressureExceptionItems', {
         name: 'DX3rd.PressureExceptionItems',
@@ -1417,8 +1407,13 @@ Hooks.once('ready', function() {
         document.getElementById("dx3rd-scene-enter-cancel").addEventListener("click", () => dialog.remove());
     }
 
-    // 소켓 리스너 등록
-    game.socket.on('system.dx3rd-emanim', async (data) => {
+    // 소켓 처리기 등록: 실제 system socket 수신은 DX3rdSocketRouter가 한 번만 맡는다.
+    const socketRouter = window.DX3rdSocketRouter;
+    if (!socketRouter) {
+        console.error('DX3rd | Socket router is unavailable.');
+        return;
+    }
+    socketRouter.register(async (data) => {
 
         if (data.type === 'showSceneEnterDialog') {
             if (data.userId === game.user.id) {
@@ -1428,21 +1423,21 @@ Hooks.once('ready', function() {
         }
 
         if (data.type === 'actionTrackerConsume') {
-            if (game.user.isGM) await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
+            if (socketRouter.isResponsibleGM()) await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
             return;
         }
 
-        if (data.type === 'healRequest') {
-            // HP 회복 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleHealRequest) {
+        if (data.type === 'healRequest' || data.type === 'healApply') {
+            // HP 회복: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleHealRequest) {
                 await window.DX3rdUniversalHandler.handleHealRequest(data.requestData);
             }
             return;
         }
 
-        if (data.type === 'statusClearRequest') {
-            // 상태이상(배드 스테이터스) 소거 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleStatusClearRequest) {
+        if (data.type === 'statusClearRequest' || data.type === 'statusClearApply') {
+            // 상태이상 소거: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleStatusClearRequest) {
                 await window.DX3rdUniversalHandler.handleStatusClearRequest(data.requestData);
             }
             return;
@@ -1538,9 +1533,9 @@ Hooks.once('ready', function() {
             return;
         }
         
-        if (data.type === 'damageRequest') {
-            // HP 데미지 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageRequest) {
+        if (data.type === 'damageRequest' || data.type === 'damageApply') {
+            // HP 데미지: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageRequest) {
                 await window.DX3rdUniversalHandler.handleDamageRequest(data.requestData);
             }
             return;
@@ -1692,9 +1687,9 @@ Hooks.once('ready', function() {
             return;
         }
         
-        if (data.type === 'conditionRequest') {
-            // 상태이상 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequest) {
+        if (data.type === 'conditionRequest' || data.type === 'conditionApply') {
+            // 상태이상 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequest) {
                 await window.DX3rdUniversalHandler.handleConditionRequest(data.requestData);
             }
             return;
@@ -1716,9 +1711,9 @@ Hooks.once('ready', function() {
             return;
         }
         
-        if (data.type === 'conditionRequestBulk') {
-            // 상태이상 다건 요청 (GM만 처리)
-            if (game.user.isGM && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequestBulk) {
+        if (data.type === 'conditionRequestBulk' || data.type === 'conditionApplyBulk') {
+            // 상태이상 다건 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
+            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleConditionRequestBulk) {
                 await window.DX3rdUniversalHandler.handleConditionRequestBulk(data.data);
             }
             return;
@@ -2700,22 +2695,7 @@ window.DX3rdChatToggleManager = {
                         triggerItemName: item.name,
                         triggerItemId: item.id
                     };
-                    if (game.user.isGM) {
-                        await handler.handleConditionRequest({
-                            actorId: actor.id,
-                            conditionData: conditionDataWithTargets,
-                            itemId: item.id
-                        });
-                    } else {
-                        game.socket.emit('system.dx3rd-emanim', {
-                            type: 'conditionRequest',
-                            requestData: {
-                                actorId: actor.id,
-                                conditionData: conditionDataWithTargets,
-                                itemId: item.id
-                            }
-                        });
-                    }
+                    await handler.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
                 }
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
@@ -3087,21 +3067,8 @@ window.DX3rdChatToggleManager = {
                         triggerItemName: item.name,
                         triggerItemId: item.id
                     };
-                    if (game.user.isGM && window.DX3rdUniversalHandler) {
-                        await window.DX3rdUniversalHandler.handleConditionRequest({
-                            actorId: actor.id,
-                            conditionData: conditionDataWithTargets,
-                            itemId: item.id
-                        });
-                    } else {
-                        game.socket.emit('system.dx3rd-emanim', {
-                            type: 'conditionRequest',
-                            requestData: {
-                                actorId: actor.id,
-                                conditionData: conditionDataWithTargets,
-                                itemId: item.id
-                            }
-                        });
+                    if (window.DX3rdUniversalHandler) {
+                        await window.DX3rdUniversalHandler.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
                     }
                 }
                 

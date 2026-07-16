@@ -184,6 +184,31 @@
     box-shadow: 0 0 3px rgba(255, 255, 255, 0.15);
 }
 
+/* 수식 예시는 공통 시트의 placeholder 명도를 따르되, 역할을 더 분명히 하도록 기울임꼴만
+   추가한다. 색상은 appv2-sheets.css의 모든 아이템 시트 공통 규칙이 담당한다. */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog input.formula-input::placeholder {
+    font-style: italic;
+}
+
+/* 회복/데미지 확장 수식은 단일 Foundry Roll 수식으로 입력한다. */
+.item-extend-dialog .formula-term {
+    display: grid;
+    gap: 3px;
+}
+
+.item-extend-dialog .formula-term-single {
+    /* 첫 열의 '공식' 라벨은 그대로 두고, 기존 다이스 입력·D10 +·가산 입력의
+       3개 열을 하나의 수식 입력으로 정확히 합친다. span은 앞 요소의 자동 배치에
+       영향을 받을 수 있으므로 시작/끝 열을 명시한다. */
+    grid-column: 2 / -1;
+    min-width: 0;
+}
+
+.item-extend-dialog .formula-term-single .formula-input {
+    min-width: 0;
+    width: 100%;
+}
+
 .item-extend-dialog input[type="checkbox"] {
     width: 22px;
     height: 22px;

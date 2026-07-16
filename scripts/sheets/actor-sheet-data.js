@@ -222,15 +222,59 @@
         return item;
     }
 
+    /**
+     * 이펙트의 실제 활성 출처를 반환한다.
+     *
+     * 지속 효과는 이펙트 단독 활성뿐 아니라, 해당 이펙트를 등록한 콤보의 활성으로도
+     * 만들어진다. 따라서 이펙트 행/시트에서 체크를 바꿀 때 이펙트만 독립적으로
+     * 조작하면 콤보가 곧바로 AE를 다시 생성해 상태가 어긋난다.
+     */
+    function getActiveStateSourceItems(actor, item) {
+        if (!actor || !item) return [];
+        const sources = [item];
+        if (item.type !== "effect") return sources;
+
+        const getEffectIds = window.DX3rdComboData?.getEffectIds;
+        for (const combo of actor.items) {
+            if (combo.type !== "combo") continue;
+            const effectIds = getEffectIds
+                ? getEffectIds(combo)
+                : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
+            if (effectIds.includes(item.id)) sources.push(combo);
+        }
+        return [...new Map(sources.map(source => [source.id, source])).values()];
+    }
+
     async function updateOwnedItemActiveState(actor, itemId, checked) {
         const item = getOwnedItem(actor, itemId);
         if (!item) return null;
 
-        await item.update({ "system.active.state": !!checked });
+        const active = !!checked;
+        const updates = getActiveStateSourceItems(actor, item)
+            .filter(source => !!source.system?.active?.state !== active)
+            .map(source => ({ _id: source.id, "system.active.state": active }));
+        if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
+
         // effect/spell/psionic/combo의 지속 보정은 AppliedToggle이 AE로 변환한다.
         // 아이템 갱신 훅만 기다리면 다음 판정이 AE 생성 전의 파생치를 읽을 수 있으므로,
         // 사용자가 토글 직후 판정해도 같은 상태를 보도록 진행 중인 동기화까지 대기한다.
         await window.DX3rdAppliedToggle?.sync?.(actor);
+
+        // 토글 AE는 위 sync가 먼저 정리한다. 그 뒤 사용 시 생성된 AE와 레거시 applied를
+        // 지우면 두 경로가 같은 ActiveEffect를 동시에 삭제하는 경쟁을 피할 수 있다.
+        if (!active) await window.DX3rdAppliedEffects?.removeByItem?.(actor, item.id);
+
+        // 액터 시트의 행과 별도로 열려 있는 이펙트 시트는 item.update만으로 즉시
+        // 재렌더되지 않을 수 있다. 같은 원본 문서를 다시 그려 두 체크박스가 항상
+        // 동일한 active.state/출처 AE 상태를 표시하게 한다.
+        const itemSheet = item.sheet;
+        if (itemSheet?.rendered) {
+            if (window.DX3rdApplicationCompat?.requestRender) {
+                await window.DX3rdApplicationCompat.requestRender(itemSheet);
+            } else {
+                itemSheet.render(false);
+            }
+        }
         return item;
     }
 
@@ -506,7 +550,6 @@
 
         // 렌더 전용 플래그다. Item 문서 데이터에는 저장되지 않는다.
         item.showActiveToggle = usesSelfEffectActiveToggle(item);
-
         if (item.system.used.disable === "notCheck") {
             item.system.used.displayMax = 0;
             if (item.system.used.level !== false) item.system.used.level = false;

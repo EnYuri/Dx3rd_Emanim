@@ -5,7 +5,8 @@
   const api = foundry.applications?.api;
   const ActorSheetV2 = foundry.applications?.sheets?.ActorSheetV2;
   const actorData = window.DX3rdActorSheetData;
-  if (!api?.HandlebarsApplicationMixin || !ActorSheetV2 || !actorData) {
+  const compat = window.DX3rdApplicationCompat;
+  if (!api?.HandlebarsApplicationMixin || !ActorSheetV2 || !actorData || !compat) {
     console.warn('DX3rd | AppV2 actor sheet is unavailable in this Foundry version.');
     return;
   }
@@ -633,21 +634,54 @@
     }
 
     async _onActiveChange(event) {
+      // submitOnChange가 같은 change 이벤트를 폼 제출로 처리하면, 비동기 AE 동기화가
+      // 끝나기 전에 이전 문서 상태로 재렌더되어 사용자가 한 번 더 눌러야 하는 상태가 된다.
+      // 이 체크박스는 공용 토글 서비스가 단독으로 저장한다.
+      event.stopImmediatePropagation();
+      event.stopPropagation();
       if (!this._canEdit()) return;
-      const item = this._getItemFromTarget(event.currentTarget);
+      // DOM Event.currentTarget은 await 뒤 null이 된다. 이후에도 사용할 입력 요소는
+      // 이벤트 처리 중에 별도로 잡아 둔다.
+      const input = event.currentTarget;
+      const item = this._getItemFromTarget(input);
       if (!item) return;
-      await window.DX3rdActorSheetData.updateOwnedItemActiveState(this.document, item.id, event.currentTarget.checked);
+      if (this._activeTogglePending?.has(item.id)) return;
+
+      const checked = input.checked;
+      input.disabled = true;
+      this._activeTogglePending ??= new Set();
+      this._activeTogglePending.add(item.id);
+      try {
+        await window.DX3rdActorSheetData.updateOwnedItemActiveState(this.document, item.id, checked);
+        // 토글 AE는 아이템 갱신 뒤에 비동기로 생성/제거된다. Foundry의 기본 문서 갱신은
+        // 그 시점 이전에 끝나므로, 열린 액터 시트를 명시적으로 다시 그려 HP 등 파생치를
+        // 즉시 갱신한다.
+        await compat.requestRender(this);
+      } finally {
+        this._activeTogglePending.delete(item.id);
+        // 재렌더 전 오류가 난 경우에도 현재 DOM을 다시 조작할 수 있게 복구한다.
+        if (input.isConnected) input.disabled = false;
+      }
     }
 
     // 효과(Applied) 목록의 활성/비활성 토글: 체크 = 활성.
-    // 이 탭은 적용 중인 효과 자체만 제어한다. 토글형 이펙트의 원본 아이템을 끄면
-    // 파생 AE가 제거되어 다시 켤 값이 사라지므로, 여기서는 항상 AE.disabled만 변경한다.
+    // 이 토글은 "일시 비활성화"이므로 원본 이펙트는 유지하고 AE.disabled만 바꾼다.
+    // 휴지통 삭제만 아래 remove 경로에서 원본 이펙트까지 비활성화한다.
     async _onAppliedActiveChange(event) {
+      event.stopImmediatePropagation();
+      event.stopPropagation();
       if (!this._canEdit()) return;
-      const applied = this._getAppliedFromTarget(event.currentTarget);
+      const input = event.currentTarget;
+      const applied = this._getAppliedFromTarget(input);
       if (!applied) return;
       if (window.DX3rdAppliedEffects?.setDisabled) {
-        await window.DX3rdAppliedEffects.setDisabled(this.document, applied.key, !event.currentTarget.checked);
+        input.disabled = true;
+        try {
+          await window.DX3rdAppliedEffects.setDisabled(this.document, applied.key, !input.checked);
+          await compat.requestRender(this);
+        } finally {
+          if (input.isConnected) input.disabled = false;
+        }
         return;
       }
       ui.notifications.error('DX3rdAppliedEffects를 찾을 수 없습니다.');
@@ -712,7 +746,8 @@
       if (!applied) return;
 
       if (window.DX3rdActorAppliedDialogs) {
-        await window.DX3rdActorAppliedDialogs.remove(this.document, applied.key);
+        const removed = await window.DX3rdActorAppliedDialogs.remove(this.document, applied.key);
+        if (removed) await compat.requestRender(this);
         return;
       }
       ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');

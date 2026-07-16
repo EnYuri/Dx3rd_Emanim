@@ -179,7 +179,8 @@
           await actor.deleteEmbeddedDocuments('ActiveEffect', toDelete, { render: false });
         }
         for (const [key, payload] of toSet) {
-          await window.DX3rdAppliedEffects.set(actor, key, payload);
+          // 능력치/레벨 변경에 따른 payload 재평가는 AE의 임시 비활성화를 되돌리지 않는다.
+          await window.DX3rdAppliedEffects.set(actor, key, payload, {preserveDisabled: true});
         }
         return true;
       } catch (e) {

@@ -65,6 +65,14 @@
     color: #f5f5f5;
 }
 
+/* 이전 시트(.sheet-wrapper)의 placeholder 명도와 맞춘다. 실제 입력값(#f5f5f5)보다
+   한 단계 낮춰 예시·미입력 상태를 구분하며, AppV2 아이템 시트 전체에 같은 기준을 쓴다. */
+.application.sheet.dx3rd-emanim.item input::placeholder,
+.application.sheet.dx3rd-emanim.item textarea::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+    opacity: 1;
+}
+
 .application.sheet.dx3rd-emanim.item input:focus,
 .application.sheet.dx3rd-emanim.item select:focus,
 .application.sheet.dx3rd-emanim.item textarea:focus {

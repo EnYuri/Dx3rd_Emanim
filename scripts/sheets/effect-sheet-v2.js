@@ -77,6 +77,36 @@
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
       listen('change', '.macro-kind', event => this._updateMacro(event, 'kind'));
       listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
+      const activeStateInput = this.element.querySelector('input.effect-active-check');
+      if (activeStateInput) {
+        const activeStateChange = async event => {
+          // submitOnChange의 item.update와 AE 동기화가 엇갈리지 않게 한 경로로 처리한다.
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          event.stopPropagation();
+          if (this._activeTogglePending) return;
+          const checked = activeStateInput.checked;
+          activeStateInput.disabled = true;
+          this._activeTogglePending = true;
+          const actor = this.item.actor;
+          try {
+            if (actor && window.DX3rdActorSheetData?.updateOwnedItemActiveState) {
+              await window.DX3rdActorSheetData.updateOwnedItemActiveState(actor, this.item.id, checked);
+              // 액터 시트는 AE 생성/제거 뒤의 파생 수치를 기본 updateItem 렌더보다 늦게
+              // 받는다. 즉시 다시 그려 새로고침 없이 표시를 맞춘다.
+              await compat.requestRender(actor.sheet);
+            } else {
+              await this.item.update({'system.active.state': checked});
+            }
+            await compat.requestRender(this);
+          } finally {
+            this._activeTogglePending = false;
+            if (activeStateInput.isConnected) activeStateInput.disabled = false;
+          }
+        };
+        activeStateInput.addEventListener('change', activeStateChange);
+        this._listenerCleanups.push(() => activeStateInput.removeEventListener('change', activeStateChange));
+      }
       // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
       itemSheetData.migrateLegacyMacroField(this.item);
 

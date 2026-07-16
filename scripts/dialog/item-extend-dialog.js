@@ -119,8 +119,7 @@
                 const damageContent = this._query('#damage-content');
                 this.toggleDamageConditionalFields(
                     target.checked,
-                    this._query('input[name="damageFormulaDice"]', damageContent),
-                    this._query('input[name="damageFormulaAdd"]', damageContent)
+                    this._query('input[name="damageFormula"]', damageContent)
                 );
             });
             this._on(root, 'select[name^="cond"][name$="Type"]', 'change', (event, target) => {
@@ -264,8 +263,7 @@
 
         _healResurrectFields(root) {
             return {
-                dice: this._query('input[name="healFormulaDice"]', root),
-                add: this._query('input[name="healFormulaAdd"]', root),
+                formula: this._query('input[name="healFormula"]', root),
                 timing: this._query('select[name="healTiming"]', root),
                 target: this._query('select[name="healTarget"]', root),
                 rivival: this._query('input[name="healRivival"]', root),
@@ -275,16 +273,14 @@
 
         toggleHealResurrectFields(isResurrectMode, fields) {
             if (isResurrectMode) {
-                fields.dice.value = `[${game.i18n.localize('DX3rd.Level')}]`;
-                fields.add.value = '0';
+                fields.formula.value = `[${game.i18n.localize('DX3rd.Level')}]`;
                 fields.timing.value = 'instant';
                 fields.target.value = 'self';
                 fields.rivival.checked = true;
                 fields.activate.checked = true;
             }
 
-            this._setDisabled(fields.dice, isResurrectMode);
-            this._setDisabled(fields.add, isResurrectMode);
+            this._setDisabled(fields.formula, isResurrectMode);
             this._setDisabled(fields.timing, isResurrectMode);
             this._setDisabled(fields.target, isResurrectMode);
             this._setDisabled(fields.rivival, isResurrectMode);
@@ -296,19 +292,16 @@
             if (!damageContent) return;
 
             const conditionalCheckbox = this._query('input[name="damageConditionalFormula"]', damageContent);
-            const diceField = this._query('input[name="damageFormulaDice"]', damageContent);
-            const addField = this._query('input[name="damageFormulaAdd"]', damageContent);
+            const formulaField = this._query('input[name="damageFormula"]', damageContent);
 
-            this.toggleDamageConditionalFields(Boolean(conditionalCheckbox?.checked), diceField, addField);
+            this.toggleDamageConditionalFields(Boolean(conditionalCheckbox?.checked), formulaField);
         }
 
-        toggleDamageConditionalFields(isConditionalMode, diceField, addField) {
+        toggleDamageConditionalFields(isConditionalMode, formulaField) {
             if (isConditionalMode) {
-                diceField.value = '';
-                addField.value = '';
+                formulaField.value = '';
             }
-            this._setDisabled(diceField, isConditionalMode);
-            this._setDisabled(addField, isConditionalMode);
+            this._setDisabled(formulaField, isConditionalMode);
         }
 
         setupConditionPoisonedToggle(subTab) {
@@ -384,6 +377,19 @@
                 const section = this._query(`#${subTab}-content`);
                 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
+                // 이전의 'd10 개수 + 가산치' 저장값은 단일 Foundry Roll 수식으로 보여 준다.
+                // 숫자만 있던 formulaDice는 기존 의미를 보존해 Nd10으로 변환한다.
+                if (subTab === 'heal' || subTab === 'damage') {
+                    const dice = String(data.formulaDice ?? data.dice ?? '').trim();
+                    const add = String(data.formulaAdd ?? data.add ?? '').trim();
+                    const diceTerm = dice && dice !== '0'
+                        ? (window.DX3rdFormulaEvaluator.hasDice(dice) ? dice : `${dice}d10`)
+                        : '';
+                    const formula = [diceTerm, add && add !== '0' ? `(${add})` : ''].filter(Boolean).join(' + ') || '0';
+                    const input = this._query(`input[name="${prefix}Formula"]`, section);
+                    if (input) input.value = formula;
+                }
+
                 if (['condition1', 'condition2', 'condition3'].includes(subTab) && section) {
                     const idx = subTab === 'condition1' ? 0 : (subTab === 'condition2' ? 1 : 2);
                     let c = {};
@@ -406,6 +412,7 @@
                 }
 
                 for (const [key, value] of Object.entries(data)) {
+                    if ((subTab === 'heal' || subTab === 'damage') && ['formulaDice', 'formulaAdd', 'dice', 'add'].includes(key)) continue;
                     if (['condition1', 'condition2', 'condition3'].includes(subTab) && ['conditions', 'conditionTypes', 'type'].includes(key)) continue;
                     const candidates = [];
                     if (prefix) candidates.push(`${prefix}${cap(key)}`);
@@ -439,8 +446,7 @@
                     const damageContent = this._query('#damage-content');
                     this.toggleDamageConditionalFields(
                         this._checked('input[name="damageConditionalFormula"]', damageContent),
-                        this._query('input[name="damageFormulaDice"]', damageContent),
-                        this._query('input[name="damageFormulaAdd"]', damageContent)
+                        this._query('input[name="damageFormula"]', damageContent)
                     );
                 }
 
@@ -471,8 +477,8 @@
 
             if (this._query('#heal-content', root)) {
                 formData.heal = {
-                    formulaDice: this._value('input[name="healFormulaDice"]', root),
-                    formulaAdd: this._value('input[name="healFormulaAdd"]', root),
+                    formulaDice: 0,
+                    formulaAdd: this._value('input[name="healFormula"]', root),
                     timing: this._value('select[name="healTiming"]', root),
                     target: this._value('select[name="healTarget"]', root),
                     resurrect: this._checked('input[name="healResurrect"]', root),
@@ -485,8 +491,8 @@
 
             if (this._query('#damage-content', root)) {
                 formData.damage = {
-                    formulaDice: this._value('input[name="damageFormulaDice"]', root),
-                    formulaAdd: this._value('input[name="damageFormulaAdd"]', root),
+                    formulaDice: 0,
+                    formulaAdd: this._value('input[name="damageFormula"]', root),
                     timing: this._value('select[name="damageTiming"]', root),
                     target: this._value('select[name="damageTarget"]', root),
                     ignoreReduce: this._checked('input[name="ignoreReduce"]', root),
