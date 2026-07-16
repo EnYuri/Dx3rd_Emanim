@@ -148,13 +148,14 @@ window.DX3rdComboHandler = {
             ui.notifications.warn(game.i18n.localize('DX3rd.InvalidItemParameter'));
             return;
         }
+        const comboAction = window.DX3rdItemEffectAdapter?.invocationAction?.(item) || 'attack';
 
         // 0. 임시 콤보(빌더에서 생성된 객체)는 handleItemUse를 거치지 않으므로 여기서 코스트를 정산한다.
         //    저장된 콤보(문자열 id)는 handleItemUse가 이미 processItemUsageCost를 호출했으므로 중복 정산하지 않는다.
         //    정산 내용: 침식치 합계(룰 807-809)·HP 코스트·사용 게이트·통합 사용 메시지.
         //    이펙트 사용횟수 증가는 processInstantExtensions가 담당하므로 코스트 정산과 이중으로 겹치지 않는다.
         if (typeof itemIdOrObject === 'object') {
-            const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item, {action: 'attack'});
+            const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item, {action: comboAction});
             if (!usageAllowed) {
                 console.log("DX3rd | ComboHandler - Temp combo usage blocked by cost gate");
                 return;
@@ -162,7 +163,7 @@ window.DX3rdComboHandler = {
         }
 
         // 1. instant 익스텐션 병합·실행 (공통 - 롤 타입 무관)
-        await this.processInstantExtensions(actor, item);
+        await this.processInstantExtensions(actor, item, comboAction);
 
         // 2. 콤보 롤 타입 분기
         const rollType = item.system?.roll ?? '-';
@@ -216,6 +217,7 @@ window.DX3rdComboHandler = {
                         rivival: !!d.rivival,
                         conditionType: d.type,
                         poisonedRank: d.poisonedRank || null,
+                        disable: d.disable || null,
                         conditionalFormula: !!d.conditionalFormula
                     });
                 } else if (typeKey === 'statusClear') {
@@ -248,10 +250,11 @@ window.DX3rdComboHandler = {
      * instant 익스텐션 병합 및 실행 (롤 타입 무관 공통 처리)
      * 콤보 + 포함된 이펙트들의 instant 익스텐션을 수집·병합·실행
      */
-    async processInstantExtensions(actor, item) {
+    async processInstantExtensions(actor, item, action = null) {
         console.log("DX3rd | ComboHandler - Processing instant extensions (common for all roll types)");
         const handler = window.DX3rdUniversalHandler;
         if (!handler) return;
+        action ||= window.DX3rdItemEffectAdapter?.invocationAction?.(item) || 'attack';
 
         // 콤보 본체의 instant 매크로/어플라이드는 이미 handleItemUse에서 실행됨 → 중복 방지
         console.log('DX3rd | ComboHandler - Skipping combo item instant macro/apply (already done in handleItemUse)');
@@ -321,7 +324,7 @@ window.DX3rdComboHandler = {
 
             // 이펙트 즉시 처리
             try {
-                const selfMatchesAttack = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'instant');
+                const selfMatchesAttack = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, action, 'instant');
                 if (selfMatchesAttack && effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
                     // applyMode='onUse'인 멤버(노도의 선풍 등)는 active.state를 켜지 않고, 콤보 사용 시점의
                     // 런타임 입력([소비HP])이 반영된 동결 버프를 자신에게 적용한다. processItemUsageCost가
@@ -335,8 +338,8 @@ window.DX3rdComboHandler = {
                         console.log('DX3rd | ComboHandler - Effect activated (instant):', effectItem.name);
                     }
                 }
-                await handler.executeMacros(effectItem, 'instant', 'attack');
-                await handler.applyToTargets(actor, effectItem, 'instant', null, 'attack');
+                await handler.executeMacros(effectItem, 'instant', action);
+                await handler.applyToTargets(actor, effectItem, 'instant', null, action);
             } catch (e) {
                 console.warn('DX3rd | ComboHandler - effect instant process skipped:', effectItem?.name, e);
             }
@@ -349,7 +352,7 @@ window.DX3rdComboHandler = {
         await window.DX3rdAppliedToggle?.sync?.(actor);
 
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트)
-        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true });
+        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action });
 
         console.log('DX3rd | ComboHandler - Total collected extensions before merge:', collectedExtensions.length);
         console.log('DX3rd | ComboHandler - Collected extensions:', collectedExtensions);
@@ -405,7 +408,10 @@ window.DX3rdComboHandler = {
                         target: b.target,
                         selectedTargetIds,
                         triggerItemName: item.name,
-                        poisonedRank: b.poisonedRank || null
+                        poisonedRank: b.poisonedRank || null,
+                        itemId: b.sourceItemId || null,
+                        duration: b.duration || null,
+                        sourceActorId: b.sourceActorId || actor.id
                     });
                 } else if (b.type === 'statusClear') {
                     for (const src of b.sources) {
@@ -467,7 +473,10 @@ window.DX3rdComboHandler = {
                             target: b.target,
                             selectedTargetIds,
                             triggerItemName: item.name,
-                            poisonedRank: b.poisonedRank || null
+                            poisonedRank: b.poisonedRank || null,
+                            itemId: b.sourceItemId || null,
+                            duration: b.duration || null,
+                            sourceActorId: b.sourceActorId || actor.id
                         };
                         console.log('DX3rd | ComboHandler - AfterMain condition data:', conditionData);
                         handler.addToAfterMainQueue(actor, conditionData, null, 'condition');
@@ -501,6 +510,7 @@ window.DX3rdComboHandler = {
         console.log("DX3rd | ComboHandler - Collecting afterSuccess data for combo:", item.name);
         const handler = window.DX3rdUniversalHandler;
         if (!handler) return null;
+        const action = window.DX3rdItemEffectAdapter?.invocationAction?.(item) || 'attack';
 
         const result = {
             activations: [], // { itemId, itemName }
@@ -524,7 +534,7 @@ window.DX3rdComboHandler = {
         
         // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
         const activeDisable = item.system?.active?.disable ?? '-';
-        const comboSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterSuccess');
+        const comboSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'afterSuccess');
         if (comboSelfMatches && item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state && activeDisable !== 'notCheck') {
             result.activations.push({ itemId: item.id, itemName: item.name });
             console.log('DX3rd | ComboHandler - Added combo activation:', item.name);
@@ -546,7 +556,7 @@ window.DX3rdComboHandler = {
             }
         }
         // 3) 어플라이드 (콤보는 어플라이드가 있는지 확인 필요)
-        if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterSuccess')) && item.system?.getTarget && item.system?.effect?.runTiming === 'afterSuccess') {
+        if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, action, 'afterSuccess')) && item.system?.getTarget && item.system?.effect?.runTiming === 'afterSuccess') {
             result.applies.push({ itemId: item.id, itemName: item.name });
             console.log('DX3rd | ComboHandler - Added combo apply:', item.name);
         }
@@ -569,7 +579,7 @@ window.DX3rdComboHandler = {
 
             // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
             const effectActiveDisable = effectItem.system?.active?.disable ?? '-';
-            const effectSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'afterSuccess');
+            const effectSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, action, 'afterSuccess');
             if (effectSelfMatches && effectItem.system?.active?.runTiming === 'afterSuccess' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
                 result.activations.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect activation:', effectItem.name);
@@ -591,7 +601,7 @@ window.DX3rdComboHandler = {
                 }
             }
             // 3) 어플라이드
-            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, 'attack', 'afterSuccess')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
+            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, action, 'afterSuccess')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
                 result.applies.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect apply:', effectItem.name);
             }
@@ -599,7 +609,7 @@ window.DX3rdComboHandler = {
         }
 
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트)
-        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true });
+        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action });
 
         // 익스텐션 병합 (afterSuccess + afterMain)
         console.log('DX3rd | ComboHandler - Collected extensions count:', collectedExtensions.length);
@@ -782,8 +792,11 @@ window.DX3rdComboHandler = {
             item.system?.attackRoll && item.system.attackRoll !== '-') {
             const baseAchievement = Number(item.system.attackAchievement);
             if (!isNaN(baseAchievement) && baseAchievement > 0) {
-                const achievementValue = this.getAchievementWithModifiers(actor, item, baseAchievement);
-                await this.createAttackMessageWithAchievement(actor, item, achievementValue);
+                const registeredWeaponBonus = this.calculateRegisteredWeaponBonus(actor, item);
+                const shortcutAttackBonus = adapter?.mergeAttackBonuses?.(effectAttackBonus, registeredWeaponBonus)
+                    || effectAttackBonus || registeredWeaponBonus;
+                const achievementValue = await this.getAchievementWithModifiers(actor, item, baseAchievement, shortcutAttackBonus);
+                await this.createAttackMessageWithAchievement(actor, item, achievementValue, shortcutAttackBonus);
                 return;
             }
         }
@@ -1018,9 +1031,16 @@ window.DX3rdComboHandler = {
      * @param {number} baseAchievement - 시트의 명중 달성치
      * @returns {number} 보정 반영된 달성치
      */
-    getAchievementWithModifiers(actor, item, baseAchievement) {
+    async getAchievementWithModifiers(actor, item, baseAchievement, attackBonus = null) {
+        const fixedItemAdd = Number(attackBonus?.add) || 0;
+        let formulaItemAdd = 0;
+        if (attackBonus?.addFormula) {
+            const addRoll = await new Roll(attackBonus.addFormula).roll();
+            formulaItemAdd = Number(addRoll.total) || 0;
+        }
+        const itemAdjustedAchievement = baseAchievement + fixedItemAdd + formulaItemAdd;
         const skillKey = item.system?.skill;
-        if (!skillKey || skillKey === '-') return baseAchievement;
+        if (!skillKey || skillKey === '-') return Math.max(1, Math.floor(itemAdjustedAchievement));
         
         const attributes = ['body', 'sense', 'mind', 'social'];
         let stat = null;
@@ -1055,7 +1075,7 @@ window.DX3rdComboHandler = {
             }
         }
         
-        if (!stat) return baseAchievement;
+        if (!stat) return Math.max(1, Math.floor(itemAdjustedAchievement));
         
         // 스킬인데 .major가 없으면 (에너미 등) 해당 능력치의 메이저 보정을 반영
         let majorDice = stat.major?.dice ?? stat.dice ?? 0;
@@ -1083,8 +1103,7 @@ window.DX3rdComboHandler = {
         
         const diceModifier = majorDice - baseDice;
         const addModifier = majorAdd - baseAdd;
-        const directEffectAdd = Number(this.calculateEffectAttackBonus(actor, item)?.add) || 0;
-        const adjusted = baseAchievement + (diceModifier * 2) + addModifier + directEffectAdd;
+        const adjusted = itemAdjustedAchievement + (diceModifier * 2) + addModifier;
         return Math.max(1, Math.floor(adjusted));
     },
     
@@ -1094,7 +1113,7 @@ window.DX3rdComboHandler = {
      * @param {Item} item - 콤보 아이템
      * @param {number} achievementValue - 명중 달성치
      */
-    async createAttackMessageWithAchievement(actor, item, achievementValue) {
+    async createAttackMessageWithAchievement(actor, item, achievementValue, attackBonus = null) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler) {
             console.error("DX3rd | UniversalHandler not found");
@@ -1132,6 +1151,9 @@ window.DX3rdComboHandler = {
         // 참조값만 명중 시점으로 고정하고, 공격력 다이스식은 데미지 굴림 확정까지 보류한다.
         const storedAttack = item.system?.attack?.value ?? item.system?.attack ?? '0';
         const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(storedAttack, item, actor);
+        const preservedItemAttackFormula = [itemAttackFormula, attackBonus?.attackFormula]
+            .filter(formula => formula && formula !== '0')
+            .join(' + ') || '0';
         
         // 공격 타입 확인
         let attackType = null;
@@ -1179,11 +1201,11 @@ window.DX3rdComboHandler = {
         
         // 아이템 타입별 공격력 키 설정
         if (item.type === 'weapon') {
-            preservedValues.weaponAttackFormula = itemAttackFormula;
+            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
         } else if (item.type === 'vehicle') {
-            preservedValues.weaponAttackFormula = itemAttackFormula;
+            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
         } else {
-            preservedValues.weaponAttackFormula = itemAttackFormula;
+            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
         }
         
         // 공격 굴림 메시지 출력 (루비 텍스트 제거)

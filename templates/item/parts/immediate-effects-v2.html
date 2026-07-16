@@ -66,7 +66,7 @@
     {{#each system.macros as |m i|}}
     <div class="embed-macro-row flexcol" data-index="{{i}}">
       <div class="flexrow dx3rd-macro-toolbar">
-        <select class="macro-timing" data-index="{{i}}">{{#each ../macroTimings as |tm|}}<option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>{{/each}}</select>
+        <select class="macro-timing" data-index="{{i}}" {{#if (eq m.action "activation")}}disabled{{/if}}>{{#each ../macroTimings as |tm|}}<option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>{{/each}}</select>
         <select class="macro-kind" data-index="{{i}}"><option value="code" {{#unless (eq m.kind "macro")}}selected{{/unless}}>{{localize "DX3rd.MacroKindCode"}}</option><option value="macro" {{#if (eq m.kind "macro")}}selected{{/if}}>{{localize "DX3rd.MacroKindWorld"}}</option></select>
         <label><input type="checkbox" class="macro-disabled" data-index="{{i}}" {{checked m.disabled}}> off</label>
         <a class="macro-control" data-action="macroDelete" data-index="{{i}}"><i class="fas fa-trash"></i></a>

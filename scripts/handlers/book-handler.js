@@ -142,7 +142,7 @@ window.DX3rdBookHandler = {
         });
     },
     
-    async handle(actorId, itemId) {
+    async handle(actorId, itemId, getTarget, options = {}) {
         const actor = game.actors.get(actorId);
         if (!actor) {
             ui.notifications.warn("Actor not found");
@@ -170,11 +170,14 @@ window.DX3rdBookHandler = {
             actorTokens[0].control({ releaseOthers: true });
         }
         
-        if (typeof window.DX3rdChooseRollMode !== 'function') {
-            ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-            return;
+        let useCombo = false;
+        if (options.comboMode !== 'normal') {
+            if (typeof window.DX3rdChooseRollMode !== 'function') {
+                ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+                return;
+            }
+            useCombo = await window.DX3rdChooseRollMode();
         }
-        const useCombo = await window.DX3rdChooseRollMode();
 
         if (useCombo === null) return;
 

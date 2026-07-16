@@ -676,7 +676,12 @@
         const parentRunTiming = ext.parentRunTiming || 'instant';
         const isCustom = !!(ext.custom || ext.conditionalFormula);
 
-        const key = `${type}|${timing}|${target}|${parentRunTiming}|${isCustom ? '1' : '0'}`;
+        // 상태이상은 출처 아이템과 해제 시점을 보존해야 한다. 서로 다른 출처를 한 버킷으로
+        // 합치면 DX3rdConditionSources가 어느 아이템의 수명을 추적해야 하는지 알 수 없다.
+        const conditionSourceKey = type === 'condition'
+          ? `${ext.itemId || '-'}|${ext.disable || '-'}`
+          : '-';
+        const key = `${type}|${timing}|${target}|${parentRunTiming}|${isCustom ? '1' : '0'}|${conditionSourceKey}`;
         if (!buckets.has(key)) {
           buckets.set(key, {
             type,
@@ -684,6 +689,9 @@
             target,
             parentRunTiming,
             custom: isCustom,
+            sourceItemId: type === 'condition' ? (ext.itemId || null) : null,
+            sourceActorId: type === 'condition' ? (ext.actorId || null) : null,
+            duration: type === 'condition' ? (ext.disable || null) : null,
             sources: []
           });
         }
@@ -716,6 +724,7 @@
                 conditionType: ext.conditionType,
                 conditionTypes: ext.conditionTypes || (ext.conditionType ? [ext.conditionType] : (ext.type ? [ext.type] : [])),
                 poisonedRank: ext.poisonedRank || null,
+                disable: ext.disable || null,
                 conditionalFormula: !!ext.conditionalFormula
               }
             }
@@ -856,6 +865,9 @@
           results.push({
             type, timing, target, custom: false,
             parentRunTiming,
+            sourceItemId: bucket.sourceItemId || null,
+            sourceActorId: bucket.sourceActorId || null,
+            duration: bucket.duration || null,
             merged: { conditions: Array.from(conditionSet) },
             poisonedRank: maxPoisonedRank > 0 ? maxPoisonedRank : null,
             sources: bucket.sources
@@ -926,9 +938,12 @@
           
           if (extensionType === 'condition' && extensionData) {
             if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'condition', extensionData, action, timing)) continue;
-            if (extensionData.activate && extensionData.type && extensionData.timing === timing) {
-              console.log(`DX3rd | Executing condition extension - timing match: ${extensionData.timing}, type: ${extensionData.type}`);
-              await this.executeItemExtension(actor, 'condition', extensionData, item);
+            const extensionTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'condition', extensionData) === 'activation'
+              ? 'instant'
+              : (extensionData.timing || 'instant');
+            if (extensionData.activate && extensionData.type && extensionTiming === timing) {
+              console.log(`DX3rd | Executing condition extension - timing match: ${extensionTiming}, type: ${extensionData.type}`);
+              await this.executeItemExtension(actor, 'condition', {...extensionData, timing: extensionTiming}, item);
             }
             continue;
           }
@@ -937,19 +952,24 @@
             if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(item, extensionType, extensionData, action, timing)) continue;
             // heal, damage, statusClear, encroach 익스텐션은 자체 타이밍을 따름 (부모 타이밍 무관)
             if (extensionType === 'heal' || extensionType === 'damage' || extensionType === 'statusClear' || extensionType === 'encroach') {
-              const extensionTiming = extensionData.timing || 'instant';
+              const extensionTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, extensionType, extensionData) === 'activation'
+                ? 'instant'
+                : (extensionData.timing || 'instant');
               
               // extensionTiming과 요청된 timing이 일치하는지 확인
               if (extensionTiming === timing) {
                 console.log(`DX3rd | Executing ${extensionType} extension - timing match: ${extensionTiming}`);
-                await this.executeItemExtension(actor, extensionType, extensionData, item);
+                await this.executeItemExtension(actor, extensionType, {...extensionData, timing: extensionTiming}, item);
               } else {
                 console.log(`DX3rd | Skipping ${extensionType} extension - timing mismatch: extensionTiming=${extensionTiming}, requestedTiming=${timing}`);
               }
             } else {
               // 일반 익스텐션 (weapon, protect, vehicle 등) - 부모 타이밍을 따름
-              if (parentItemTiming === timing) {
-                await this.executeItemExtension(actor, extensionType, extensionData, item);
+              const effectiveParentTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, extensionType, extensionData) === 'activation'
+                ? 'instant'
+                : parentItemTiming;
+              if (effectiveParentTiming === timing) {
+                await this.executeItemExtension(actor, extensionType, {...extensionData, timing: effectiveParentTiming}, item);
               } else {
               }
             }
@@ -1415,7 +1435,10 @@
         const embedded = Array.isArray(item.system?.macros) ? item.system.macros : [];
         const embeddedHits = embedded.filter(m => {
           if (!m || m.disabled) return false;
-          if ((m.timing || 'instant') !== timing) return false;
+          const macroTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'macro', m) === 'activation'
+            ? 'instant'
+            : (m.timing || 'instant');
+          if (macroTiming !== timing) return false;
           if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.macroActionMatches(item, m, action, timing)) return false;
           return (m.kind === 'macro') ? !!m.macroName : !!m.command;
         });
@@ -1729,7 +1752,9 @@
         if (!getTarget && !scene) return;
 
         // effect.runTiming 확인 (기본값은 '-')
-        const effectRunTiming = item.system?.effect?.runTiming ?? '-';
+        const effectRunTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'targetModifiers', item.system?.effect || {}) === 'activation'
+          ? 'instant'
+          : (item.system?.effect?.runTiming ?? '-');
         
         // runTiming이 '-'가 아닌 경우, 타이밍이 일치하는지 확인
         if (effectRunTiming !== '-' && effectRunTiming !== timing) {
@@ -5602,6 +5627,14 @@
 
       try {
         const [created] = await actor.createEmbeddedDocuments('Item', [comboItemData]);
+        // 마도서 등 호출 아이템이 제공한 일회성 판정 문맥은 임시 콤보가 살아 있는 동안 보존한다.
+        if (created && (options.originalItem || options.predefinedDifficulty || options.isBookDecipher)) {
+          created.meta = {
+            originalItem: options.originalItem || null,
+            predefinedDifficulty: options.predefinedDifficulty || null,
+            isBookDecipher: !!options.isBookDecipher
+          };
+        }
         // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
         if (targetCombo?.selfConflict) {
           ui.notifications.warn(game.i18n.localize('DX3rd.SelfCombineWarning'));
@@ -7263,7 +7296,10 @@
             target: bucket.target,
             selectedTargetIds: bucket.selectedTargetIds || [],
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
-            poisonedRank: bucket.poisonedRank || null
+            poisonedRank: bucket.poisonedRank || null,
+            itemId: bucket.sourceItemId || null,
+            duration: bucket.duration || null,
+            sourceActorId: bucket.sourceActorId || actor.id
           });
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
@@ -7309,7 +7345,10 @@
             target: bucket.target,
             selectedTargetIds: bucket.selectedTargetIds || [],
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
-            poisonedRank: bucket.poisonedRank || null
+            poisonedRank: bucket.poisonedRank || null,
+            itemId: bucket.sourceItemId || null,
+            duration: bucket.duration || null,
+            sourceActorId: bucket.sourceActorId || actor.id
           };
           this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {
@@ -7434,7 +7473,10 @@
             target: (damagedActors && damagedActors.length > 0) ? 'targetToken' : bucket.target,
             selectedTargetIds: targetTokenIds,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
-            poisonedRank: bucket.poisonedRank || null
+            poisonedRank: bucket.poisonedRank || null,
+            itemId: bucket.sourceItemId || null,
+            duration: bucket.duration || null,
+            sourceActorId: bucket.sourceActorId || actor.id
           });
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
@@ -7484,7 +7526,10 @@
             target: bucket.target,
             selectedTargetIds: bucket.selectedTargetIds || [],
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
-            poisonedRank: bucket.poisonedRank || null
+            poisonedRank: bucket.poisonedRank || null,
+            itemId: bucket.sourceItemId || null,
+            duration: bucket.duration || null,
+            sourceActorId: bucket.sourceActorId || actor.id
           };
           this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {

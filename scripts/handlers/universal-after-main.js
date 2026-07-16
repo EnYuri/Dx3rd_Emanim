@@ -58,10 +58,15 @@
       || window.DX3rdItemEffectAdapter.extensionActionMatches(item, type, data, action, 'afterMain');
 
     const entries = window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [];
-    const afterMain = entries.filter(entry => entry.data?.activate
-      && entry.data?.timing === 'afterMain'
-      && (entry.type !== 'condition' || entry.data?.type)
-      && matches(entry.type, entry.data));
+    const afterMain = entries.filter(entry => {
+      const effectiveTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, entry.type, entry.data || {}) === 'activation'
+        ? 'instant'
+        : entry.data?.timing;
+      return entry.data?.activate
+        && effectiveTiming === 'afterMain'
+        && (entry.type !== 'condition' || entry.data?.type)
+        && matches(entry.type, entry.data);
+    });
     for (const entry of afterMain) queue(entry.type, entry.data);
     if (afterMain.length > 0) {
       console.log(`DX3rd | Registered afterMain extensions for ${actor.name} (${afterMain.length} entries)`);

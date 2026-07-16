@@ -1667,18 +1667,22 @@
         ]);
     };
 
-    window.DX3rdChooseItemMode = function(anchor = document.activeElement, item = null) {
+    window.DX3rdChooseItemMode = function(anchor = document.activeElement, item = null, options = {}) {
         const isAttack = window.DX3rdItemEffectAdapter?.isAttackItem?.(item)
             || ['weapon', 'vehicle'].includes(item?.type);
+        const allowCombo = options.allowCombo !== false;
         const entries = [{
             value: isAttack ? 'normal' : 'use',
             icon: isAttack ? 'fa-solid fa-crosshairs' : 'fa-solid fa-bolt',
             label: game.i18n.localize(isAttack ? 'DX3rd.EffectActionAttack' : 'DX3rd.EffectActionUse')
-        }, {
-            value: 'combo',
-            icon: 'fa-solid fa-link',
-            label: game.i18n.localize('DX3rd.Combo')
         }];
+        if (allowCombo) {
+            entries.push({
+                value: 'combo',
+                icon: 'fa-solid fa-link',
+                label: game.i18n.localize('DX3rd.Combo')
+            });
+        }
         // 비공격 아이템은 '사용' 자체가 효과 적용 경로다. 공격 아이템만 공격 없이
         // 카드 효과를 적용할 수 있도록 별도 진입점을 제공한다.
         if (isAttack) {

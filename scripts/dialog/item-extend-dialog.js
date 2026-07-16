@@ -243,6 +243,14 @@
                 const item = this._resolveItem();
                 if (!item) return;
                 await effectAdapter?.updateAction?.(item, target.dataset.effectId, target.value);
+                const timingName = target.dataset.effectId === 'modifiers.self'
+                    ? 'system.active.runTiming'
+                    : 'system.effect.runTiming';
+                const timingSelect = this._query(`select[name="${timingName}"]`);
+                if (timingSelect) {
+                    if (target.value === 'activation') timingSelect.value = 'instant';
+                    this._setDisabled(timingSelect, target.value === 'activation');
+                }
             });
 
             this.initializeTabs();
@@ -291,7 +299,17 @@
         async _saveModifierInput(input) {
             const item = this._resolveItem();
             if (!item || !input?.name) return;
-            const value = input.type === 'checkbox' ? input.checked : input.value;
+            let value = input.type === 'checkbox' ? input.checked : input.value;
+            const selfActivation = effectAdapter?.inferAction?.(item, 'selfModifiers', item.system?.active || {}) === 'activation';
+            const targetActivation = effectAdapter?.inferAction?.(item, 'targetModifiers', item.system?.effect || {}) === 'activation';
+            if (input.name === 'system.active.runTiming' && selfActivation) {
+                value = 'instant';
+                input.value = value;
+            }
+            if (input.name === 'system.effect.runTiming' && targetActivation) {
+                value = 'instant';
+                input.value = value;
+            }
             if (input.name === 'system.active.state' && item.type === 'effect' && item.actor
                 && window.DX3rdActorSheetData?.updateOwnedItemActiveState) {
                 await window.DX3rdActorSheetData.updateOwnedItemActiveState(item.actor, item.id, value);
@@ -382,6 +400,7 @@
             if (subTab === 'damage') this.setupDamageConditionalFormulaToggle();
             if (['heal', 'damage', 'statusClear', 'condition1', 'condition2', 'condition3'].includes(subTab)) {
                 this.setupTimingLockForRestrictedItems(subTab);
+                this.setupTimingLockForActivation(subTab);
             }
             if (['condition1', 'condition2', 'condition3'].includes(subTab)) {
                 this.setupConditionPoisonedToggle(subTab);
@@ -520,6 +539,24 @@
             } catch (e) {
                 console.warn('DX3rd | setupTimingLockForRestrictedItems failed', e);
             }
+        }
+
+        setupTimingLockForActivation(subTab) {
+            const conditionIndex = ['condition1', 'condition2', 'condition3'].indexOf(subTab);
+            const saved = this.savedCardData || (conditionIndex >= 0
+                ? effectAdapter?.conditionEntries?.(this.savedItemExtend || {})?.[conditionIndex]
+                : this.savedItemExtend?.[subTab]);
+            const item = this._resolveItem();
+            const kind = conditionIndex >= 0 ? 'condition' : subTab;
+            if (effectAdapter?.inferAction?.(item, kind, saved || {}) !== 'activation') return;
+
+            const selector = conditionIndex >= 0
+                ? `select[name="cond${conditionIndex + 1}Timing"]`
+                : `select[name="${subTab}Timing"]`;
+            const timingSelect = this._query(selector, this._query(`#${subTab}-content`));
+            if (!timingSelect) return;
+            timingSelect.value = 'instant';
+            this._setDisabled(timingSelect, true);
         }
 
         applySavedToForm(subTab) {
@@ -807,10 +844,13 @@
                     const formKey = card.type === 'condition' ? 'condition1' : card.type;
                     const nextData = form[formKey];
                     if (!nextData) return;
+                    const action = card.data?.action || null;
+                    const effectiveAction = effectAdapter?.inferAction?.(item, card.type, card.data || {});
                     card.data = {
                         ...nextData,
                         configured: true,
-                        ...(card.data?.action ? {action: card.data.action} : {})
+                        ...(action ? {action} : {}),
+                        ...(effectiveAction === 'activation' ? {timing: 'instant'} : {})
                     };
                     existing.cards = cards;
                     await item.setFlag('dx3rd-emanim', 'itemExtend', existing);
@@ -827,9 +867,13 @@
                         ? foundry.utils.deepClone(existing.condition.conditions)
                         : [];
                     while (conditions.length < 3) conditions.push({timing: 'instant', target: 'self', type: '', poisonedRank: null, disable: null, activate: false});
+                    const existingCondition = conditions[n - 1] || {};
+                    const conditionAction = effectAdapter?.inferAction?.(item, 'condition', existingCondition);
                     const cData = {
                         action: conditions[n - 1]?.action || null,
-                        timing: this._value(`select[name="cond${n}Timing"]`, section),
+                        timing: conditionAction === 'activation'
+                            ? 'instant'
+                            : this._value(`select[name="cond${n}Timing"]`, section),
                         target: this._value(`select[name="cond${n}Target"]`, section),
                         type: type || '',
                         poisonedRank: type === 'poisoned' ? this._value(`input[name="cond${n}PoisonedRank"]`, section) : null,
@@ -841,9 +885,12 @@
                 } else {
                     const form = this.getFormData();
                     if (form[sub] && Object.keys(form[sub]).length) {
+                        const action = existing[sub]?.action || null;
+                        const effectiveAction = effectAdapter?.inferAction?.(item, sub, existing[sub] || {});
                         existing[sub] = {
                             ...form[sub],
-                            ...(existing[sub]?.action ? {action: existing[sub].action} : {})
+                            ...(action ? {action} : {}),
+                            ...(effectiveAction === 'activation' ? {timing: 'instant'} : {})
                         };
                     }
                 }

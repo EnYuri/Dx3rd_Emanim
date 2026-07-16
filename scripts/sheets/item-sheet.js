@@ -365,6 +365,7 @@
     async function updateEmbeddedMacro(item, index, property, value) {
         const macros = getEmbeddedMacros(item);
         if (!macros[index]) return null;
+        if (property === 'timing' && macros[index].action === 'activation') value = 'instant';
         macros[index][property] = property === 'disabled' ? Boolean(value) : value;
         await item.update({'system.macros': macros});
         return macros;

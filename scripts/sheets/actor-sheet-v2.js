@@ -440,12 +440,15 @@
       // 능동 아이템은 카드보다 먼저 사용 방식을 고른다.
       // 좌클릭 즉시 실행 예외 없이 항상 메뉴에서 공격/사용/콤보/효과 적용 중
       // 해당 아이템에 의미 있는 동작을 고른다.
-      if (['weapon', 'vehicle', 'effect'].includes(item.type)) {
+      const actionableTypes = ['weapon', 'protect', 'vehicle', 'effect', 'psionic', 'spell', 'book', 'connection', 'etc', 'once'];
+      if (actionableTypes.includes(item.type)) {
         if (typeof window.DX3rdChooseItemMode !== 'function') {
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
           return;
         }
-        const mode = await window.DX3rdChooseItemMode(target || event.currentTarget, item);
+        const mode = await window.DX3rdChooseItemMode(target || event.currentTarget, item, {
+          allowCombo: item.type !== 'protect'
+        });
         if (mode === null) return;
         if (mode === 'apply') {
           if (!(game.user.targets?.size > 0)) {
@@ -457,12 +460,21 @@
           });
           return;
         }
-        if (mode === 'combo' && item.type === 'effect') {
-          const skill = item.system?.skill;
+        if (mode === 'combo' && !['weapon', 'vehicle'].includes(item.type)) {
+          const skill = item.type === 'book'
+            ? 'cthulhu'
+            : (item.system?.comboSkill && item.system.comboSkill !== '-' ? item.system.comboSkill : item.system?.skill);
           const targetId = skill && skill !== '-' ? skill : '-';
-          await window.DX3rdUniversalHandler?.openComboBuilder?.(this.document, 'skill', targetId, null, {
-            preselectEffectIds: [item.id]
-          });
+          const builderOptions = {preselectEffectIds: [item.id]};
+          if (item.type === 'book') {
+            const difficultyValue = Number(item.system?.decipher) || 0;
+            Object.assign(builderOptions, {
+              isBookDecipher: true,
+              originalItem: item,
+              predefinedDifficulty: difficultyValue > 0 ? {type: 'number', value: difficultyValue} : null
+            });
+          }
+          await window.DX3rdUniversalHandler?.openComboBuilder?.(this.document, 'skill', targetId, null, builderOptions);
           return;
         }
         await this._useItemFromTarget(target, undefined, {
