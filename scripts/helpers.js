@@ -1670,16 +1670,20 @@
     window.DX3rdChooseItemMode = function(anchor = document.activeElement, item = null) {
         const isAttack = window.DX3rdItemEffectAdapter?.isAttackItem?.(item)
             || ['weapon', 'vehicle'].includes(item?.type);
-        const entries = [
-            {value: 'normal', icon: 'fa-solid fa-dice-d20', label: isAttack ? game.i18n.localize('DX3rd.EffectActionAttack') : game.i18n.localize('DX3rd.Normal')}
-        ];
-        if (isAttack && window.DX3rdItemEffectAdapter?.hasActionEffects?.(item, 'use')) {
-            entries.push({value: 'use', icon: 'fa-solid fa-bolt', label: game.i18n.localize('DX3rd.EffectActionUse')});
+        const entries = [{
+            value: isAttack ? 'normal' : 'use',
+            icon: isAttack ? 'fa-solid fa-crosshairs' : 'fa-solid fa-bolt',
+            label: game.i18n.localize(isAttack ? 'DX3rd.EffectActionAttack' : 'DX3rd.EffectActionUse')
+        }, {
+            value: 'combo',
+            icon: 'fa-solid fa-link',
+            label: game.i18n.localize('DX3rd.Combo')
+        }];
+        // 비공격 아이템은 '사용' 자체가 효과 적용 경로다. 공격 아이템만 공격 없이
+        // 카드 효과를 적용할 수 있도록 별도 진입점을 제공한다.
+        if (isAttack) {
+            entries.push({value: 'apply', icon: 'fa-solid fa-hand-sparkles', label: game.i18n.localize('DX3rd.ApplyEffect')});
         }
-        entries.push(
-            {value: 'combo', icon: 'fa-solid fa-link', label: game.i18n.localize('DX3rd.Combo')},
-            {value: 'apply', icon: 'fa-solid fa-hand-sparkles', label: game.i18n.localize('DX3rd.ApplyEffect')}
-        );
         return chooseMode(anchor, entries);
     };
 

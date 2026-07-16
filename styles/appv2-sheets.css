@@ -192,6 +192,26 @@
     margin-bottom: 0;
 }
 
+/* 이펙트 해설 그리드의 제목은 체크박스 유무와 관계없이 셀 정중앙에 고정한다.
+   난이도/레벨/대상의 보조 토글은 오른쪽 가장자리에 두어 제목의 시각 중심을 흔들지 않는다. */
+.application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .cell {
+    align-items: stretch;
+}
+
+.application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .cell > .cell--title {
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    text-align: center;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .cell--title > .cell--crit {
+    margin: 0;
+    position: absolute;
+    right: 6px;
+}
+
 /* ---------- 해설 탭 셀 라벨 한글 줄바꿈 ----------
    브라우저 기본 word-break:normal 은 한글(CJK)을 글자 사이 어디서나 끊어, "조합시 능력치 변경"
    같은 라벨이 "…변 경" 처럼 어절 중간에서 쪼개진다. keep-all 로 공백에서만 끊어 어절을 보존한다
@@ -241,13 +261,199 @@
     gap: 12px;
 }
 
-.application.sheet.dx3rd-emanim.item .dx3rd-effect-roll-settings {
-    margin: 10px 0 -2px;
+/* ---------- 이펙트 액션 설정 워크스페이스 ----------
+   기능/타이밍/판정/공격은 한 번의 액션을 정의하는 값이므로 효과 카드와 분리한다.
+   첫 행은 기능과 상세 설정, 둘째 행은 타이밍→판정→공격 순서로 읽히는 3단 구성이다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-action-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.application.sheet.dx3rd-emanim.item .dx3rd-effect-roll-settings table {
-    width: 100%;
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config {
+    border-top: 2px solid rgba(255, 187, 0, 0.8);
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-grid {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    grid-column: span 2;
+    min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-skill {
+    grid-column: span 2;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-editor {
+    grid-column: span 2;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-attack-stat {
+    grid-column: span 5;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-count {
+    grid-column: span 5;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-reset {
+    grid-column: span 5;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > span {
+    align-items: center;
+    color: #d2d2d2;
+    display: flex;
+    font-size: 12px;
+    font-weight: 700;
+    justify-content: center;
+    line-height: 1.1;
+    min-height: 22px;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > select,
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > input,
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > button {
+    box-sizing: border-box;
+    height: 28px;
     margin: 0;
+    min-width: 0;
+    text-align: center;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > select,
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > button {
+    align-self: center;
+    max-width: 136px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-skill > select {
+    max-width: 136px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-editor > button {
+    max-width: 136px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-reset > select {
+    /* 둘째 행의 오른쪽 끝을 첫 행/섹션 끝선과 맞춘다. */
+    max-width: none;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > select {
+    text-align-last: center;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-editor > button {
+    color: #e5c86b;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-heading {
+    align-items: center;
+    color: #d2d2d2;
+    display: grid;
+    font-size: 12px;
+    font-weight: 700;
+    grid-template-columns: 1fr auto 1fr;
+    line-height: 1.1;
+    min-height: 22px;
+    position: relative;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-heading > span {
+    grid-column: 2;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-heading .dx3rd-used-level {
+    align-items: center;
+    display: flex;
+    font-size: 10px;
+    gap: 3px;
+    grid-column: 3;
+    justify-self: end;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-heading .dx3rd-used-level input {
+    block-size: 20px;
+    flex: 0 0 20px;
+    inline-size: 20px;
+    margin: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-count .dx3rd-action-config-heading {
+    gap: 8px;
+    grid-template-columns: auto auto;
+    justify-content: center;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-count .dx3rd-action-config-heading > span {
+    grid-column: 1;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-usage-count .dx3rd-used-level {
+    grid-column: 2;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-used-values {
+    align-items: center;
+    display: flex;
+    height: 28px;
+    margin: 0;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-used-values input {
+    box-sizing: border-box;
+    flex: 1 1 0;
+    height: 28px;
+    margin: 0;
+    min-width: 0;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-used-values .slash {
+    flex: 0 0 auto;
+    padding: 0 6px;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+    height: 26px;
+    justify-content: center;
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls > label {
+    align-items: center;
+    display: flex;
+    font-size: 11px;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls input {
+    margin: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls.is-disabled {
+    opacity: 0.45;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-effect-section,
@@ -256,6 +462,21 @@
     border: 1px solid #343434;
     border-radius: 7px;
     padding: 9px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-settings table {
+    margin: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-settings th {
+    padding-left: 6px;
+    padding-right: 6px;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-settings input:not([type="checkbox"]):not([type="radio"]) {
+    text-align: center;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-effect-section-header {
@@ -589,15 +810,55 @@
     text-align: center;
 }
 
-/* ---------- 무기 탭 무기 선택 표↔무기 카드 사이 과다 여백 정리 ----------
-   무기 탭은 [무기 선택?] 표 아래에 무기 카드(.items-list .item)가 붙는데, 그 사이가 과도하게 벌어진다
-   (실측: 표 margin-bottom 16px[프레임워크 기본] + 카드 첫 제목바 h4.item-name 의 UA 기본 margin-top 32px
-   = 표 하단→제목바 54px 의 빈 공간). 표 하단 여백을 다른 탭과 동일하게 8px 로 줄이고, 첫 카드 제목바의
-   상단 UA 마진만 제거해 빈 공간을 없앤다. 둘째 카드부터는 기존 카드 간 간격(margin-top)을 보존한다. */
-.application.sheet.dx3rd-emanim.item .tab[data-tab="weapon"] > .sheet-wrapper > table {
+/* ---------- 액션 설정 탭 무기 선택 행 ----------
+   자동 무기 선택 토글과 직접 선택 드롭다운을 한 행에 배치해, 두 선택 방식의 관계가 바로 보이게 한다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-picker {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    justify-content: center;
     margin-bottom: 8px;
+    width: 100%;
 }
-.application.sheet.dx3rd-emanim.item .tab[data-tab="weapon"] .items-list .item:first-child .item-name {
+
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-picker > select {
+    grid-column: span 7;
+    max-width: none;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-select-toggle {
+    align-items: center;
+    align-self: stretch;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid #414141;
+    display: flex;
+    grid-column: span 2;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 5px;
+    height: 28px;
+    justify-content: center;
+    padding: 0 8px;
+    white-space: nowrap;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-picker > button {
+    grid-column: span 1;
+    margin: 0;
+    min-width: 0;
+    width: 100%;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-select-toggle input {
+    block-size: 20px;
+    flex: 0 0 20px;
+    inline-size: 20px;
+    margin: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-weapon-settings .items-list .item:first-child .item-name {
     margin-top: 0;
 }
 

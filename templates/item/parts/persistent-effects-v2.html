@@ -4,7 +4,7 @@
       <div><i class="fas fa-layer-group"></i> {{localize "DX3rd.PersistentEffects"}}</div>
       <div class="dx3rd-effect-add-control">
         <select class="effect-kind-select" data-family="persistent" aria-label="{{localize 'DX3rd.EffectKind'}}">
-          {{#each effectView.persistentAddOptions as |option|}}<option value="{{option.value}}">{{option.label}}</option>{{/each}}
+          {{#each effectView.persistentAddOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.persistentAddKind)}}selected{{/if}}>{{option.label}}</option>{{/each}}
         </select>
         <button type="button" data-action="addEffectCard" data-family="persistent" title="{{localize 'DX3rd.AddEffect'}}"><i class="fas fa-plus"></i></button>
       </div>

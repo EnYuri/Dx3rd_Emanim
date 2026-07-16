@@ -437,16 +437,9 @@
       const item = this._getItemFromTarget(target);
       if (!item) return;
 
-      // 자기 보정만 있는 이펙트는 적용 메뉴를 열지 않는다. 목록의 활성 체크박스와
-      // 같은 상태를 전환해, 지속 AE의 생성/제거 경로를 하나로 유지한다.
-      if (actorData.usesSelfEffectActiveToggle?.(item)) {
-        if (!this._canEdit()) return;
-        await actorData.updateOwnedItemActiveState(this.document, item.id, !item.system?.active?.state);
-        return;
-      }
-
       // 능동 아이템은 카드보다 먼저 사용 방식을 고른다.
-      // 효과만 적용은 독립 경로이므로 비용·사용 카드 없이 현재 타겟에게만 적용한다.
+      // 좌클릭 즉시 실행 예외 없이 항상 메뉴에서 공격/사용/콤보/효과 적용 중
+      // 해당 아이템에 의미 있는 동작을 고른다.
       if (['weapon', 'vehicle', 'effect'].includes(item.type)) {
         if (typeof window.DX3rdChooseItemMode !== 'function') {
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));

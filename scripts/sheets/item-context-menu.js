@@ -1,11 +1,8 @@
 // 아이템 우클릭 컨텍스트 메뉴 (이전 시트/AppV2 액터 시트 공용)
-// - '시트 열기'는 항상, '콤보로 조합'은 이펙트/무기 아이템에서만 노출.
+// - 좌클릭은 실행(공격/사용/콤보/효과 적용), 우클릭은 정보(시트/채팅)로 역할을 분리한다.
 // - Foundry ContextMenu의 버전 편차를 피하려 자체 경량 팝업으로 구현(네이티브 DOM, jQuery 미사용).
 // - 다이얼로그(alert/confirm)를 띄우지 않는다.
 (function() {
-  // '콤보로 조합' 진입을 허용하는 아이템 타입. 무기는 weaponItem 경로, 이펙트는 preselect 경로로 빌더를 연다.
-  const COMBO_SOURCE_TYPES = new Set(['effect', 'weapon']);
-
   let activeMenu = null;
 
   function closeMenu() {
@@ -26,26 +23,14 @@
     if (event.key === 'Escape') closeMenu();
   }
 
-  // 콤보 빌더 실행 (이펙트 preselect / 무기 weaponItem 경로 분기)
-  async function launchComboBuilder(actor, item) {
-    const handler = window.DX3rdUniversalHandler;
-    if (!handler?.openComboBuilder) {
-      ui.notifications.error(game.i18n.localize('DX3rd.HandlerNotFound') || 'UniversalHandler를 찾을 수 없습니다.');
+  async function sendToChat(actor, item, sheet) {
+    const gate = window.DX3rdActorSheetData?.checkItemChatGate?.(actor, item);
+    if (gate && !gate.ok) {
+      (ui.notifications[gate.level] || ui.notifications.warn).call(ui.notifications, gate.message);
       return;
     }
-
-    if (item.type === 'weapon') {
-      // 무기에서 시작: 무기 슬롯에 자동 등록되고 type(melee/ranged)으로 공격판정 초기화.
-      await handler.openComboBuilder(actor, 'skill', '-', item);
-      return;
-    }
-
-    // 이펙트에서 시작: 해당 이펙트를 미리 선택하고 스킬/능력치/공격판정을 시드로 상속.
-    const skill = item.system?.skill;
-    const targetId = (skill && skill !== '-') ? skill : '-';
-    await handler.openComboBuilder(actor, 'skill', targetId, null, {
-      preselectEffectIds: [item.id]
-    });
+    if (typeof sheet?._sendItemToChat === 'function') return sheet._sendItemToChat(item);
+    return window.DX3rdActorChat?.sendItemToChat?.(actor, item);
   }
 
   function buildEntries(actor, item, sheet) {
@@ -58,14 +43,11 @@
       onClick: () => item.sheet?.render(true)
     });
 
-    // 콤보로 조합 (캐릭터 액터의 이펙트/무기에서만)
-    if (actor?.type === 'character' && COMBO_SOURCE_TYPES.has(item.type)) {
-      entries.push({
-        icon: 'fas fa-dice-d20',
-        label: game.i18n.localize('DX3rd.CombineIntoCombo'),
-        onClick: () => launchComboBuilder(actor, item)
-      });
-    }
+    entries.push({
+      icon: 'fas fa-comment',
+      label: game.i18n.localize('DX3rd.SendToChat'),
+      onClick: () => sendToChat(actor, item, sheet)
+    });
 
     return entries;
   }

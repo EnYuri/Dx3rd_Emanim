@@ -126,14 +126,17 @@ window.DX3rdEffectHandler = {
      */
     async handleEffectRoll(actor, item, rollType, getTarget, options = {}) {
         const handler = window.DX3rdUniversalHandler;
+        const adapter = window.DX3rdItemEffectAdapter;
         if (!handler) {
             console.error("DX3rd | UniversalHandler not found");
             return;
         }
+        // 직접 공격 이펙트는 무기 없이도 자신의 수정치/공격력을 공격 운반값으로 제공한다.
+        const ownAttackBonus = adapter?.effectAttackBonus?.(item, actor) || null;
         
         // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
-            await this.showWeaponSelectionForAttack(actor, item, rollType, options);
+            await this.showWeaponSelectionForAttack(actor, item, rollType, options, ownAttackBonus);
             return;
         }
         
@@ -145,15 +148,18 @@ window.DX3rdEffectHandler = {
             const hasAvailableWeapons = registeredWeaponBonus.weaponIds.length > 0;
             
             if (hasAvailableWeapons) {
-                // 사용 가능한 무기가 있으면 보너스 적용
-                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0 || registeredWeaponBonus.attackFormula || registeredWeaponBonus.addFormula)
-                    ? registeredWeaponBonus 
-                    : null;
-                
+                // 이펙트 자체 수치와 등록 무기를 한 번씩만 합산한다.
+                const weaponBonus = adapter?.mergeAttackBonuses?.(ownAttackBonus, registeredWeaponBonus)
+                    || registeredWeaponBonus;
                 await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options);
                 return;
             }
             // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
+        }
+
+        if (ownAttackBonus) {
+            await this.handleEffectRollWithWeapon(actor, item, rollType, ownAttackBonus, options);
+            return;
         }
         
         // 아이템의 스킬로 stat 데이터 가져오기
@@ -192,7 +198,7 @@ window.DX3rdEffectHandler = {
     /**
      * 공격용 무기 선택 다이얼로그 표시
      */
-    async showWeaponSelectionForAttack(actor, item, rollType, options = {}) {
+    async showWeaponSelectionForAttack(actor, item, rollType, options = {}, ownAttackBonus = null) {
         const attackRollType = item.system.attackRoll;
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
@@ -208,8 +214,10 @@ window.DX3rdEffectHandler = {
             attackRoll: attackRollType,
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
-                // 무기 보너스를 적용하여 판정 다이얼로그 표시
-                await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options);
+                // 선택 무기와 이펙트 자체 수치를 함께 적용한다.
+                const combined = window.DX3rdItemEffectAdapter?.mergeAttackBonuses?.(ownAttackBonus, weaponBonus)
+                    || weaponBonus || ownAttackBonus;
+                await this.handleEffectRollWithWeapon(actor, item, rollType, combined, options);
             }
         }).render(true);
     },

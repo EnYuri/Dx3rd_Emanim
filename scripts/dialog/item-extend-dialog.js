@@ -13,6 +13,38 @@
     const attributeManager = window.DX3rdAttributeManager;
     const effectAdapter = window.DX3rdItemEffectAdapter;
 
+    const EDITOR_SIZES = {
+        heal: {width: 520, height: 330},
+        damage: {width: 560, height: 430},
+        statusClear: {width: 520, height: 360},
+        condition1: {width: 500, height: 330},
+        condition2: {width: 500, height: 330},
+        condition3: {width: 500, height: 330},
+        weapon: {width: 520, height: 390},
+        protect: {width: 500, height: 310},
+        vehicle: {width: 520, height: 360},
+        effectSettings: {width: 560, height: 450},
+        modifiers: {width: 600, height: 470}
+    };
+
+    function readPosition(key) {
+        try {
+            const value = JSON.parse(globalThis.localStorage?.getItem(key) || 'null');
+            return value && typeof value === 'object' ? value : {};
+        } catch (error) {
+            console.warn('DX3rd | Effect editor position restore failed', error);
+            return {};
+        }
+    }
+
+    function writePosition(key, value) {
+        try {
+            globalThis.localStorage?.setItem(key, JSON.stringify(value));
+        } catch (error) {
+            console.warn('DX3rd | Effect editor position save failed', error);
+        }
+    }
+
     class DX3rdItemExtendDialog extends BaseApplication {
         static DEFAULT_OPTIONS = {
             // 'sheet'+'item' 을 부여해 아이템 V2 시트의 모노 다크 테마(appv2-sheets.css)를
@@ -36,22 +68,31 @@
         };
 
         constructor(dialogData = {}, options = {}) {
+            let initialEditor = dialogData.initialEditor || null;
+            if (initialEditor === 'condition') initialEditor = 'condition1';
+            const focused = !!initialEditor;
+            const worldId = game.world?.id || 'world';
+            const positionPrefix = `dx3rd-emanim.${worldId}.effect-editor`;
+            const location = readPosition(`${positionPrefix}.location`);
+            const savedSize = readPosition(`${positionPrefix}.size.${initialEditor || 'full'}`);
+            const defaultSize = focused ? (EDITOR_SIZES[initialEditor] || {width: 520, height: 360}) : {width: 650, height: 550};
             const mergedOptions = foundry.utils.mergeObject({
-                window: {title: dialogData.title || game.i18n.localize('DX3rd.ItemExtend')}
+                window: {title: dialogData.title || game.i18n.localize('DX3rd.ItemExtend')},
+                position: {...defaultSize, ...savedSize, ...location}
             }, options, {inplace: false});
             super(mergedOptions);
 
             this.actorId = dialogData.actorId;
             this.itemId = dialogData.itemId;
-            this.initialEditor = dialogData.initialEditor || null;
+            this.initialEditor = initialEditor;
             this.effectId = dialogData.effectId || null;
-            // 신규 상태효과 카드는 슬롯 번호와 무관하게 하나의 전용 폼을 재사용한다.
-            if (this.initialEditor === 'condition') this.initialEditor = 'condition1';
-            this.currentTopTab = 'affectCharacter';
-            this.currentSubTab = 'heal';
+            this.currentTopTab = null;
+            this.currentSubTab = null;
             this.tempFormData = {};
             this.savedItemExtend = {};
             this.savedCardData = null;
+            this._focusedEditor = focused;
+            this._positionPrefix = positionPrefix;
         }
 
         async _prepareContext(options) {
@@ -92,18 +133,33 @@
                     this.savedCardData = card?.data || null;
                 }
                 data.actorSkills = skills;
-                data.weaponSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('weapon', skills);
-                data.vehicleSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('vehicle', skills);
-                if (item.type === 'effect') {
+                if (!this._focusedEditor || this.initialEditor === 'weapon') {
+                    data.weaponSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('weapon', skills);
+                }
+                if (!this._focusedEditor || this.initialEditor === 'vehicle') {
+                    data.vehicleSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('vehicle', skills);
+                }
+                if (item.type === 'effect' && (!this._focusedEditor || this.initialEditor === 'effectSettings')) {
                     data.effectSkillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', skills);
                 }
-                data.effectView = effectAdapter?.prepareSheetContext?.(item);
+                if (!this._focusedEditor || this.initialEditor === 'modifiers') {
+                    data.effectView = effectAdapter?.prepareSheetContext?.(item);
+                }
                 if (data.effectView && ['main', 'sub'].includes(this._modifierConfigScope)) {
                     data.effectView.modifierOverview.initialScope = this._modifierConfigScope;
                 }
             }
 
             data.focusedEditor = this.initialEditor;
+            const showAll = !this._focusedEditor;
+            const editorVisibility = {
+                EffectSettings: 'effectSettings', Heal: 'heal', Damage: 'damage', StatusClear: 'statusClear',
+                Condition1: 'condition1', Condition2: 'condition2', Condition3: 'condition3',
+                Weapon: 'weapon', Protect: 'protect', Vehicle: 'vehicle', Modifiers: 'modifiers'
+            };
+            for (const [suffix, editor] of Object.entries(editorVisibility)) {
+                data[`show${suffix}`] = showAll || this.initialEditor === editor;
+            }
 
             return data;
         }
@@ -112,6 +168,7 @@
             await super._onRender(context, options);
             const root = this._root;
             if (!root) return;
+            root.classList.toggle('effect-card-editor', this._focusedEditor);
 
             root.addEventListener('submit', event => event.preventDefault());
             this._on(root, '.top-tab', 'click', (event, target) => {
@@ -189,12 +246,40 @@
             });
 
             this.initializeTabs();
-            this.setupWeaponFistToggle();
-            this.setupHealResurrectToggle();
-            this.setupDamageConditionalFormulaToggle();
+            if (!this._focusedEditor || this.currentSubTab === 'weapon') this.setupWeaponFistToggle();
+            if (!this._focusedEditor || this.currentSubTab === 'heal') this.setupHealResurrectToggle();
+            if (!this._focusedEditor || this.currentSubTab === 'damage') this.setupDamageConditionalFormulaToggle();
             if (this.currentSubTab === 'modifiers') {
                 await attributeManager?.initializeAttributeLabels?.(root, this._resolveItem());
             }
+        }
+
+        _onPosition(position) {
+            super._onPosition?.(position);
+            if (!this.element || !this._positionPrefix) return;
+            clearTimeout(this._positionSaveTimer);
+            this._pendingPosition = {...position};
+            this._positionSaveTimer = setTimeout(() => this._saveWindowPosition(), 120);
+        }
+
+        _saveWindowPosition() {
+            const position = this._pendingPosition || this.position || {};
+            const numeric = key => Number.isFinite(Number(position[key])) ? Number(position[key]) : undefined;
+            const location = {left: numeric('left'), top: numeric('top')};
+            const size = {width: numeric('width'), height: numeric('height')};
+            if (location.left !== undefined && location.top !== undefined) {
+                writePosition(`${this._positionPrefix}.location`, location);
+            }
+            if (size.width !== undefined && size.height !== undefined) {
+                writePosition(`${this._positionPrefix}.size.${this.initialEditor || 'full'}`, size);
+            }
+            this._pendingPosition = null;
+        }
+
+        async close(options = {}) {
+            clearTimeout(this._positionSaveTimer);
+            this._saveWindowPosition();
+            return super.close(options);
         }
 
         _resolveItem() {
@@ -267,7 +352,6 @@
             const subTab = editor || 'heal';
             this.switchTopTab(topTab);
             this.switchSubTab(subTab);
-            this.applySavedToForm(subTab);
         }
 
         switchTopTab(topTab) {

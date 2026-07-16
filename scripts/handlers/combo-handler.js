@@ -769,10 +769,12 @@ window.DX3rdComboHandler = {
         console.log("DX3rd | ComboHandler - Combo roll processing", { rollType });
         
         const handler = window.DX3rdUniversalHandler;
+        const adapter = window.DX3rdItemEffectAdapter;
         if (!handler) {
             console.error("DX3rd | UniversalHandler not found");
             return;
         }
+        const effectAttackBonus = this.calculateEffectAttackBonus(actor, item);
         
         // 에너미이고 명중 달성치가 입력되어 있으면 롤 없이 바로 데미지 롤 버튼 생성 (다이스/수정치 보정 반영)
         if (actor.type === 'enemy' && item.system?.attackAchievement && 
@@ -788,7 +790,7 @@ window.DX3rdComboHandler = {
         
         // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
-            await this.showWeaponSelectionForAttack(actor, item, rollType, options);
+            await this.showWeaponSelectionForAttack(actor, item, rollType, options, effectAttackBonus);
             return;
         }
         
@@ -801,15 +803,18 @@ window.DX3rdComboHandler = {
             const hasAvailableWeapons = registeredWeaponBonus.weaponIds.length > 0;
             
             if (hasAvailableWeapons) {
-                // 사용 가능한 무기가 있으면 보너스 적용
-                const weaponBonus = (registeredWeaponBonus.attack > 0 || registeredWeaponBonus.add !== 0 || registeredWeaponBonus.attackFormula || registeredWeaponBonus.addFormula)
-                    ? registeredWeaponBonus 
-                    : null;
-                
+                // 조합된 이펙트의 자체 수치와 무기를 함께 적용한다.
+                const weaponBonus = adapter?.mergeAttackBonuses?.(effectAttackBonus, registeredWeaponBonus)
+                    || registeredWeaponBonus;
                 await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options);
                 return;
             }
             // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
+        }
+
+        if (effectAttackBonus) {
+            await this.handleComboRollWithWeapon(actor, item, rollType, effectAttackBonus, options);
+            return;
         }
         
         // 북 해독 콤보 등에서 전달된 메타데이터 복원
@@ -848,7 +853,7 @@ window.DX3rdComboHandler = {
     /**
      * 공격용 무기 선택 다이얼로그 표시
      */
-    async showWeaponSelectionForAttack(actor, item, rollType, options = {}) {
+    async showWeaponSelectionForAttack(actor, item, rollType, options = {}, effectAttackBonus = null) {
         const attackRollType = item.system.attackRoll;
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
@@ -864,10 +869,24 @@ window.DX3rdComboHandler = {
             attackRoll: attackRollType,
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
-                // 무기 보너스를 적용하여 판정 다이얼로그 표시
-                await this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options);
+                const combined = window.DX3rdItemEffectAdapter?.mergeAttackBonuses?.(effectAttackBonus, weaponBonus)
+                    || weaponBonus || effectAttackBonus;
+                await this.handleComboRollWithWeapon(actor, item, rollType, combined, options);
             }
         }).render(true);
+    },
+
+    /** 콤보에 포함된 이펙트의 자체 수정치/공격력을 합산한다. */
+    calculateEffectAttackBonus(actor, item) {
+        const adapter = window.DX3rdItemEffectAdapter;
+        if (!adapter) return null;
+        const effectIds = item.system?.effectIds || (Array.isArray(item.system?.effect) ? item.system.effect : []);
+        const bonuses = effectIds
+            .map(id => actor.items.get(id))
+            .filter(Boolean)
+            .map(effect => adapter.effectAttackBonus?.(effect, actor, {includeComboModifiers: true}))
+            .filter(Boolean);
+        return adapter.mergeAttackBonuses?.(bonuses) || null;
     },
     
     /**
@@ -1064,7 +1083,8 @@ window.DX3rdComboHandler = {
         
         const diceModifier = majorDice - baseDice;
         const addModifier = majorAdd - baseAdd;
-        const adjusted = baseAchievement + (diceModifier * 2) + addModifier;
+        const directEffectAdd = Number(this.calculateEffectAttackBonus(actor, item)?.add) || 0;
+        const adjusted = baseAchievement + (diceModifier * 2) + addModifier + directEffectAdd;
         return Math.max(1, Math.floor(adjusted));
     },
     
@@ -1110,7 +1130,8 @@ window.DX3rdComboHandler = {
         }
         
         // 참조값만 명중 시점으로 고정하고, 공격력 다이스식은 데미지 굴림 확정까지 보류한다.
-        const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
+        const storedAttack = item.system?.attack?.value ?? item.system?.attack ?? '0';
+        const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(storedAttack, item, actor);
         
         // 공격 타입 확인
         let attackType = null;

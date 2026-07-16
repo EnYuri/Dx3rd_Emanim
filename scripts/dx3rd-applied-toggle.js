@@ -13,9 +13,9 @@
 // object 형 value 를 그대로 소비하므로). [level] 등 수식 추종은 updateActor/updateItem 마다
 // 재-set 으로 처리한다(구 미러 로직 승계, 토글 순간 1-렌더 지연 수용 — self-heal).
 //
-// appliedKey 네임스페이스: `toggle:<itemId>`. 콤보 구성 이펙트와 독립 활성 이펙트가 같은
-// 아이템이면 같은 key → 자동 dedup(한 이펙트 = 한 AE, 이중가산 0). 콤보 자신의 attributes 는
-// 별도 key(toggle:<comboId>).
+// appliedKey 네임스페이스: `toggle:<itemId>`. 각 아이템의 active.state만 그 아이템의
+// 지속 AE를 만든다. 콤보는 자신의 attributes만 toggle:<comboId>로 반영하며, 구성 이펙트의
+// 지속 여부는 각 이펙트의 독립 토글이 관리한다.
 // ---------------------------------------------------------------------------
 (function () {
 
@@ -97,28 +97,18 @@
     };
   }
 
-  /** 액터의 현재 토글 상태로부터 원하는 { appliedKey: payload } 집합을 만든다(콤보 확장·dedup 포함). */
+  /** 액터의 현재 독립 토글 상태로부터 원하는 { appliedKey: payload } 집합을 만든다. */
   function desiredPayloads(actor) {
     const desired = new Map();
     const add = (item) => {
       const key = `${KEY_PREFIX}${item.id}`;
-      if (desired.has(key)) return; // dedup: 독립 활성 이펙트 = 콤보 구성 이펙트(같은 아이템)
+      if (desired.has(key)) return;
       desired.set(key, buildPayload(item, actor));
     };
     const toggled = (actor.items || []).filter(i =>
       i.system?.active?.state === true && TOGGLE_TYPES.includes(i.type));
-    const getEffectIds = window.DX3rdComboData?.getEffectIds;
     for (const item of toggled) {
-      add(item); // 아이템 자신의 attributes(콤보 자신 포함)
-      if (item.type === 'combo') {
-        const ids = getEffectIds ? getEffectIds(item)
-          : (Array.isArray(item.system?.effectIds) ? item.system.effectIds : []);
-        for (const eid of ids) {
-          if (!eid || eid === '-') continue;
-          const eff = actor.items.get(eid);
-          if (eff && eff.type === 'effect') add(eff);
-        }
-      }
+      add(item);
     }
     return desired;
   }

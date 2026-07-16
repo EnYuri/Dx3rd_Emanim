@@ -1,4 +1,5 @@
 <div class="sheet-wrapper margin-top-10 dx3rd-effect-workspace">
+  {{#unless isEffect}}
   <section class="dx3rd-action-settings">
     <header class="dx3rd-effect-section-header">
       <div><i class="fas fa-bolt"></i> {{localize "DX3rd.EffectExecutionSettings"}}</div>
@@ -20,13 +21,14 @@
       {{/if}}
     </table>
   </section>
+  {{/unless}}
 
   <section class="dx3rd-effect-section">
     <header class="dx3rd-effect-section-header">
       <div><i class="fas fa-wand-magic-sparkles"></i> {{localize "DX3rd.ImmediateEffects"}}</div>
       <div class="dx3rd-effect-add-control">
         <select class="effect-kind-select" data-family="immediate" aria-label="{{localize 'DX3rd.EffectKind'}}">
-          {{#each effectView.immediateAddOptions as |option|}}<option value="{{option.value}}">{{option.label}}</option>{{/each}}
+          {{#each effectView.immediateAddOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.immediateAddKind)}}selected{{/if}}>{{option.label}}</option>{{/each}}
         </select>
         <button type="button" data-action="addEffectCard" data-family="immediate" title="{{localize 'DX3rd.AddEffect'}}"><i class="fas fa-plus"></i></button>
       </div>

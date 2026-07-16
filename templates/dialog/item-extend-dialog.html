@@ -37,6 +37,7 @@
 <!-- Content Area -->
 <div class="sub-tab-content">
     {{#ifEquals item.type "effect"}}
+    {{#if showEffectSettings}}
     <section class="content-section" id="effectSettings-content">
         <div class="form-grid">
             <div class="form-label">{{localize "DX3rd.ResourceCostEnabled"}}</div>
@@ -122,9 +123,11 @@
             </div>
         </div>
     </section>
+    {{/if}}
     {{/ifEquals}}
 
     <!-- HP Recovery Tab -->
+    {{#if showHeal}}
     <section class="content-section" id="heal-content">
         <div class="form-grid">
             <!-- Row 1 -->
@@ -174,8 +177,10 @@
             <div><input type="text" name="encroachFixed" placeholder="5 / 2d10"></div>
         </div>
     </section>
+    {{/if}}
 
     <!-- HP Damage Tab -->
+    {{#if showDamage}}
     <section class="content-section" id="damage-content">
         <div class="form-grid">
             <!-- Row 1 -->
@@ -246,8 +251,10 @@
             </div>
         </div>
     </section>
+    {{/if}}
 
     <!-- 상태이상 해제 탭 -->
+    {{#if showStatusClear}}
     <section class="content-section" id="statusClear-content">
         <div class="form-grid">
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>
@@ -268,8 +275,10 @@
             <div style="display:flex;align-items:center;"><input type="checkbox" name="statusClearActivate" id="statusClearActivate"><label for="statusClearActivate">{{localize "DX3rd.Activate"}}</label></div>
         </div>
     </section>
+    {{/if}}
 
     <!-- 상태이상 1 탭 -->
+    {{#if showCondition1}}
     <section class="content-section" id="condition1-content">
         <div class="form-grid">
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>
@@ -305,8 +314,10 @@
             <div><select name="cond1Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
         </div>
     </section>
+    {{/if}}
 
     <!-- 상태이상 2 탭 -->
+    {{#if showCondition2}}
     <section class="content-section" id="condition2-content">
         <div class="form-grid">
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>
@@ -342,8 +353,10 @@
             <div><select name="cond2Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
         </div>
     </section>
+    {{/if}}
 
     <!-- 상태이상 3 탭 -->
+    {{#if showCondition3}}
     <section class="content-section" id="condition3-content">
         <div class="form-grid">
             <div class="form-label">{{localize "DX3rd.Timing"}}</div>
@@ -379,8 +392,10 @@
             <div><select name="cond3Disable"><option value="">-</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option></select></div>
         </div>
     </section>
+    {{/if}}
 
     <!-- Weapon Tab -->
+    {{#if showWeapon}}
     <section class="content-section" id="weapon-content">
         <div class="form-grid">
             <!-- Row 1 -->
@@ -429,8 +444,10 @@
             </div>
         </div>
     </section>
+    {{/if}}
 
     <!-- Protect Tab -->
+    {{#if showProtect}}
     <section class="content-section" id="protect-content">
         <div class="form-grid">
             <!-- Row 1 -->
@@ -459,8 +476,10 @@
             </div>
         </div>
     </section>
+    {{/if}}
 
     <!-- Vehicle Tab -->
+    {{#if showVehicle}}
     <section class="content-section" id="vehicle-content">
         <div class="form-grid">
             <!-- Row 1 -->
@@ -499,7 +518,9 @@
             </div>
         </div>
     </section>
+    {{/if}}
 
+    {{#if showModifiers}}
     <section class="content-section dx3rd-modifier-editor" id="modifiers-content">
         <article class="dx3rd-modifier-config">
             <header class="dx3rd-modifier-config-header">
@@ -538,6 +559,7 @@
             </ol>
         </div>
     </section>
+    {{/if}}
 
 </div>
 </div>

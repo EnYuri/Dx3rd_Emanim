@@ -49,6 +49,11 @@
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
       context.worldMacros = itemSheetData.getWorldMacroOptions();
       context.effectView = effectAdapter.prepareSheetContext(this.item);
+      this._effectAddKinds ??= {};
+      context.effectView.immediateAddKind = this._effectAddKinds.immediate
+        || context.effectView.immediateAddOptions[0]?.value || '';
+      context.effectView.persistentAddKind = this._effectAddKinds.persistent
+        || context.effectView.persistentAddOptions[0]?.value || '';
       if (['main', 'sub'].includes(this._modifierConfigScope)) {
         context.effectView.modifierOverview.initialScope = this._modifierConfigScope;
       }
@@ -118,6 +123,10 @@
       listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
       listen('change', '.effect-action-binding', event => this._updateEffectAction(event));
       listen('change', '.effect-enabled-toggle', event => this._toggleEffectDefinition(event));
+      listen('change', '.effect-kind-select', event => {
+        const family = event.target.dataset.family;
+        if (family) this._effectAddKinds[family] = event.target.value;
+      });
       listen('change', '.modifier-scope-select', event => this._moveModifier(event));
       listen('change', '.modifier-config-scope', event => this._switchModifierConfig(event));
 
@@ -216,6 +225,8 @@
       const select = this.element?.querySelector(`.effect-kind-select[data-family="${family}"]`);
       const kind = select?.value;
       if (!kind) return;
+      this._effectAddKinds ??= {};
+      this._effectAddKinds[family] = kind;
       if (family === 'persistent' && kind === 'modifiers') {
         await manager.createAttribute(this.item, 'main');
         this.render(false);

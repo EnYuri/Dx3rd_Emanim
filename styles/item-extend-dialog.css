@@ -5,9 +5,29 @@
     min-width: 600px;
 }
 
+.item-extend-dialog.effect-card-editor {
+    min-width: 460px;
+}
+
+/* appv2-sheets.css의 일반 아이템 시트 최소 높이(620px)가 이 대화상자까지
+   클램프하지 않도록 실클래스 체인으로 편집창 전용 한계를 지정한다. */
+.application.sheet.dx3rd-emanim.item.item-extend-dialog {
+    min-height: 480px;
+    min-width: 600px;
+}
+
+.application.sheet.dx3rd-emanim.item.item-extend-dialog.effect-card-editor {
+    min-height: 260px;
+    min-width: 460px;
+}
+
 .item-extend-dialog .window-content {
     padding: 0;
     overflow: visible;
+}
+
+.item-extend-dialog.effect-card-editor .window-content {
+    overflow: auto;
 }
 
 /* Top Navigation Tabs - 기존 탭 스타일 적용 */
@@ -125,6 +145,8 @@
 .item-extend-dialog .item-extend-dialog-content.is-focused .sub-tab-content {
     border-radius: 4px;
     margin-top: 8px;
+    min-height: 0;
+    padding: 14px;
 }
 
 .item-extend-dialog .dx3rd-modifier-editor .attributes {

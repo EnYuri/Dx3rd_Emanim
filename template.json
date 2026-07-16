@@ -196,6 +196,8 @@
       "range": "",
       "roll": "-",
       "attackRoll": "-",
+      "add": "0",
+      "attack": "0",
       "attackAchievement": "-",
       "encroach": {
         "init": 0,

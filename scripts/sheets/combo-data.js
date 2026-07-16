@@ -54,7 +54,7 @@
     return effectItems;
   }
 
-  function calculateSubmittedAttack(actor, attackRoll, weaponIds) {
+  function calculateSubmittedAttack(actor, attackRoll, weaponIds, effectIds = []) {
     if (!attackRoll || attackRoll === '-') return '-';
 
     let totalAttack = 0;
@@ -66,6 +66,7 @@
     for (const weaponId of normalizeIdList(weaponIds)) {
       totalAttack += Number(window.DX3rdResolveWeapon(actor, weaponId)?.system?.attack) || 0;
     }
+    totalAttack += getDirectEffectFormulaParts(actor, effectIds, 'attack').fixed;
 
     return totalAttack;
   }
@@ -83,7 +84,7 @@
       effectIds: normalizedEffectIds,
       encroachValue: calculateEncroachment(actor, normalizedEffectIds),
       weapons: normalizedWeapons,
-      attackValue: calculateSubmittedAttack(actor, effectiveAttackRoll, normalizedWeapons)
+      attackValue: calculateSubmittedAttack(actor, effectiveAttackRoll, normalizedWeapons, normalizedEffectIds)
     };
   }
 
@@ -221,7 +222,7 @@
     // --- 공격력 재계산 ---
     const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
     if (finalAttackRoll && finalAttackRoll !== '-') {
-      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, wpnIds);
+      updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, wpnIds, effIds);
     }
 
     return updates;
@@ -649,6 +650,23 @@
     return terms;
   }
 
+  // 직접 공격 및 조합 보정 이펙트의 자체 수정치/공격력도 무기와 같은 방식으로 합산한다.
+  // 다이스식은 시트에서 굴리지 않고 원문만 보존한다.
+  function getDirectEffectFormulaParts(actor, effectIds, field) {
+    const adapter = window.DX3rdItemEffectAdapter;
+    const result = {fixed: 0, diceTerms: []};
+    if (!adapter) return result;
+    for (const effectId of normalizeIdList(effectIds)) {
+      const effect = actor?.items.get(effectId);
+      const bonus = adapter.effectAttackBonus?.(effect, actor, {includeComboModifiers: true});
+      if (!bonus) continue;
+      result.fixed += Number(bonus[field]) || 0;
+      const formulaValue = bonus[`${field}Formula`];
+      if (formulaValue) result.diceTerms.push(formulaValue);
+    }
+    return result;
+  }
+
   function joinPreviewFormula(fixedValue, diceTerms) {
     const terms = [];
     if (fixedValue) terms.push(String(fixedValue));
@@ -797,8 +815,7 @@
   }
 
   // 액터에서 "이미 prepareData가 지속 적용 중"인 이펙트 id 집합.
-  //  (a) 독립적으로 active.state=true 인 이펙트
-  //  (b) active.state=true 인 콤보에 등록된 이펙트 (토글 시 DX3rdAppliedToggle 이 appliedKey AE 로 반영)
+  // 구성 콤보의 상태와 무관하게, 이펙트 자체의 active.state=true 인 경우만 해당한다.
   // 이 이펙트들은 능력치/스킬/굴림 total에 이미 반영되어 있으므로, 콤보/이펙트 굴림·공격
   // 보너스 계산에서 중복 가산하면 안 된다.
   function getPersistentEffectIds(actor) {
@@ -807,10 +824,6 @@
     for (const it of actor.items) {
       if (it.type === 'effect' && it.system?.active?.state === true) {
         ids.add(it.id);
-      } else if (it.type === 'combo' && it.system?.active?.state === true) {
-        for (const eid of getEffectIds(it)) {
-          if (actor.items.get(eid)?.type === 'effect') ids.add(eid);
-        }
       }
     }
     return ids;
@@ -822,7 +835,7 @@
       const effectItem = actor?.items.get(effectId);
       if (!effectItem || effectItem.type !== 'effect') continue;
 
-      // 이미 prepareData가 지속 적용 중인 이펙트(독립 활성 or 활성 콤보 소속)는 제외 (2중 계산 방지)
+      // 이미 prepareData가 지속 적용 중인 독립 활성 이펙트는 제외한다(2중 계산 방지).
       if (persistent.has(effectId)) continue;
 
       callback(effectItem);
@@ -984,12 +997,17 @@
     const currentAttackRoll = item.system.attackRoll || data.system.attackRoll;
     if (currentAttackRoll && currentAttackRoll !== '-') {
       const registeredWeapons = getWeaponIds(item, data);
+      const directEffects = getDirectEffectFormulaParts(actor, data.system.effectIds, 'attack');
       const totalAttack = calculateActorAttack(actor, currentAttackRoll)
         + calculateWeaponAttack(actor, registeredWeapons)
+        + directEffects.fixed
         + calculateItemAttackBonus(item, actor, currentAttackRoll)
         + calculateRegisteredEffectAttackBonus(actor, data.system.effectIds, currentAttackRoll);
       
-      data.system.attack = { value: joinPreviewFormula(totalAttack, getWeaponDiceFormulaTerms(actor, registeredWeapons, 'attack')) };
+      data.system.attack = { value: joinPreviewFormula(totalAttack, [
+        ...getWeaponDiceFormulaTerms(actor, registeredWeapons, 'attack'),
+        ...directEffects.diceTerms
+      ]) };
       data.attackLabel = getAttackLabel(currentAttackRoll);
     } else {
       // system.attackRoll이 '-'이거나 설정되지 않은 경우
@@ -1012,8 +1030,10 @@
     let {skillData, dice, add, critical, criticalMin} = rollBase;
 
     const currentAttackRoll = item.system.attackRoll || data.system.attackRoll;
+    const directEffectAdd = getDirectEffectFormulaParts(actor, data.system.effectIds, 'add');
     if (currentAttackRoll && currentAttackRoll !== '-') {
       add += calculateWeaponAddBonus(actor, getWeaponIds(item, data));
+      add += directEffectAdd.fixed;
     }
 
     if (rollType && rollType !== '-') {
@@ -1037,7 +1057,10 @@
     }
 
     data.system.dice = { value: dice };
-    data.system.add = { value: joinPreviewFormula(add, getWeaponDiceFormulaTerms(actor, getWeaponIds(item, data), 'add')) };
+    data.system.add = { value: joinPreviewFormula(add, [
+      ...getWeaponDiceFormulaTerms(actor, getWeaponIds(item, data), 'add'),
+      ...directEffectAdd.diceTerms
+    ]) };
     data.system.critical = { value: critical, min: criticalMin };
   }
 

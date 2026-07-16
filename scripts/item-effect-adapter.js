@@ -26,6 +26,69 @@
     return item.system?.attackRoll && item.system.attackRoll !== '-';
   }
 
+  function hasConfiguredFormula(value) {
+    const text = String(value ?? '').trim();
+    return text !== '' && text !== '-' && text !== '0';
+  }
+
+  /**
+   * 직접 공격 및 콤보 구성 이펙트의 수정치/공격력을 기존 weaponBonus 운반 형식으로 투영한다.
+   * 고정식은 즉시 수치화하고 다이스식은 명중/데미지 확정 시점까지 보존한다.
+   */
+  function effectAttackBonus(item, actor, {includeComboModifiers = false} = {}) {
+    if (item?.type !== 'effect' || (!isAttackItem(item) && !includeComboModifiers)) return null;
+    const rawAdd = item.system?.add ?? '0';
+    const rawAttack = item.system?.attack ?? '0';
+    if (!hasConfiguredFormula(rawAdd) && !hasConfiguredFormula(rawAttack)) return null;
+
+    const formula = window.DX3rdFormulaEvaluator;
+    if (!formula) return null;
+    const bonus = {
+      attack: 0,
+      add: 0,
+      attackFormula: '',
+      addFormula: '',
+      weaponName: String(item.name || '').split('||')[0].trim(),
+      weaponIds: [],
+      sourceLabel: localize('DX3rd.AttackSource')
+    };
+    const addTerm = (target, raw) => {
+      const prepared = formula.prepareRollFormula(String(raw ?? '0'), item, actor);
+      if (formula.hasDice(prepared)) bonus[target] = prepared;
+      else bonus[target === 'attackFormula' ? 'attack' : 'add'] = Number(formula.evaluate(raw, item, actor)) || 0;
+    };
+    addTerm('attackFormula', rawAttack);
+    addTerm('addFormula', rawAdd);
+    return bonus;
+  }
+
+  /** 기존 무기 보너스와 직접 공격 이펙트 보너스를 중복 평가 없이 한 운반 객체로 합친다. */
+  function mergeAttackBonuses(...entries) {
+    const bonuses = entries.flat().filter(Boolean);
+    if (!bonuses.length) return null;
+    const names = [];
+    const weaponIds = [];
+    const merged = {
+      attack: 0,
+      add: 0,
+      attackFormula: '',
+      addFormula: '',
+      weaponName: '',
+      weaponIds,
+      sourceLabel: bonuses.find(bonus => bonus.sourceLabel)?.sourceLabel || ''
+    };
+    for (const bonus of bonuses) {
+      merged.attack += Number(bonus.attack) || 0;
+      merged.add += Number(bonus.add) || 0;
+      if (bonus.attackFormula) merged.attackFormula = [merged.attackFormula, bonus.attackFormula].filter(Boolean).join(' + ');
+      if (bonus.addFormula) merged.addFormula = [merged.addFormula, bonus.addFormula].filter(Boolean).join(' + ');
+      if (bonus.weaponName && !names.includes(bonus.weaponName)) names.push(bonus.weaponName);
+      for (const id of (bonus.weaponIds || [])) if (id && !weaponIds.includes(id)) weaponIds.push(id);
+    }
+    merged.weaponName = names.join(', ');
+    return merged;
+  }
+
   function invocationAction(item, options = {}) {
     const explicit = normalizeAction(options.action || options.dx3rdAction);
     if (explicit) return explicit;
@@ -286,11 +349,12 @@
       {value: 'attack', label: actionLabel('attack')}
     ];
     const immediateAddOptions = DIRECT_TYPES.map(type => ({value: type, label: directTitle(type)}));
-    const persistentAddOptions = [];
-    if (!modifierOverview.totalCount) {
-      persistentAddOptions.push({value: 'modifiers', label: localize('DX3rd.PersistentModifiers')});
-    }
-    persistentAddOptions.push({value: 'condition', label: localize('DX3rd.Condition')});
+    // 지속 효과도 상태이상과 마찬가지로 같은 종류를 계속 추가할 수 있다.
+    // 기존 보정 행이 있다는 이유로 선택지를 숨기지 않는다.
+    const persistentAddOptions = [
+      {value: 'modifiers', label: localize('DX3rd.PersistentModifiers')},
+      {value: 'condition', label: localize('DX3rd.Condition')}
+    ];
     return {
       immediate, persistent, modifierOverview, actionOptions,
       immediateAddOptions, persistentAddOptions,
@@ -593,7 +657,7 @@
 
   window.DX3rdItemEffectAdapter = {
     ACTIONS, DIRECT_TYPES, PARTIALS,
-    isAttackItem, invocationAction, eventAction, inferAction, triggerFor,
+    isAttackItem, effectAttackBonus, mergeAttackBonuses, invocationAction, eventAction, inferAction, triggerFor,
     collectImmediate, collectPersistent, prepareSheetContext, conditionEntries,
     extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, extensionEntries,
     hasActionEffects, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,

@@ -22,7 +22,7 @@
     };
 
     static TABS = {primary: {
-      tabs: [{id: 'description'}, {id: 'immediate'}, {id: 'persistent'}, {id: 'weapon'}],
+      tabs: [{id: 'description'}, {id: 'action'}, {id: 'immediate'}, {id: 'persistent'}],
       initial: 'description'
     }};
 
@@ -43,6 +43,8 @@
       system.used.max ??= 0;
       system.used.level ??= false;
       system.used.disable ??= 'notCheck';
+      system.add ??= '0';
+      system.attack ??= '0';
       system.exp ??= {own: false, upgrade: false};
       system.exp.own ??= false;
       system.exp.upgrade ??= false;

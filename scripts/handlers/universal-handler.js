@@ -6035,6 +6035,7 @@
       const hasWeaponOrPenalty = weaponBonus || fearPenalty !== 0 || distastePenalty !== 0 || dependencyPenalty !== 0 || paranoiaPenalty !== 0;
       const attackSign = weaponBonus && weaponBonus.attack >= 0 ? '+' : '';
       const addSign = weaponBonus && weaponBonus.add >= 0 ? '+' : '';
+      const attackSourceLabel = weaponBonus?.sourceLabel || game.i18n.localize('DX3rd.Weapon');
       
       const content = `
         <div class="dx3rd-casting-dialog">
@@ -6057,7 +6058,7 @@
           </div>
           ${hasWeaponOrPenalty ? '<hr style="margin: 12px 0; border: none; border-top: 1px solid #ccc;">' : ''}
           ${weaponBonus ? `<div class="dx3rd-mb-4 dx3rd-p-6 dx3rd-text-small dx3rd-bold" style="text-align: center;">
-            무기: ${weaponBonus.weaponName} (공격력 ${attackSign}${weaponBonus.attack}, 수정치 ${addSign}${weaponBonus.add})
+            ${attackSourceLabel}: ${weaponBonus.weaponName} (${game.i18n.localize('DX3rd.Attack')} ${attackSign}${weaponBonus.attack}, ${game.i18n.localize('DX3rd.Add')} ${addSign}${weaponBonus.add})
           </div>` : ''}
           ${fearPenalty !== 0 ? `<div class="dx3rd-mb-4 dx3rd-p-6 dx3rd-text-small dx3rd-bold dx3rd-error" style="text-align: center; color: #ff6b6b;">
             ${game.i18n.localize('DX3rd.Fear')}: ${game.i18n.localize('DX3rd.Dice')} ${fearPenalty} (${game.i18n.localize('DX3rd.Target')}: ${fearTargetName})
@@ -6319,7 +6320,7 @@
       
       // 무기 보너스 정보 추가 (줄바꿈으로 구분)
       if (weaponBonus) {
-        flavorText += `<br>무기: ${weaponBonus.weaponName}`;
+        flavorText += `<br>${weaponBonus.sourceLabel || game.i18n.localize('DX3rd.Weapon')}: ${weaponBonus.weaponName}`;
       }
       
       try {

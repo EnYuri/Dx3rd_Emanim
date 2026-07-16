@@ -76,6 +76,9 @@
                         itemData.skill = currentItem.system.skill || '-';
                         itemData.target = currentItem.system.target || '-';
                         itemData.range = currentItem.system.range || '-';
+                        itemData.attackRoll = currentItem.system.attackRoll || '-';
+                        itemData.add = this._getDisplayFormula(currentItem.system.add ?? '0', currentItem);
+                        itemData.attack = this._getDisplayFormula(currentItem.system.attack ?? '0', currentItem);
                         itemData.encroach = currentItem.system.encroach?.value || 0;
                         itemData.limit = currentItem.system.limit || '-';
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
@@ -475,6 +478,15 @@
                     content += `<div class="detail-cell"><span class="detail-key">대상:</span> <span class="detail-value">${itemData.target}</span></div>`;
                     content += `<div class="detail-cell"><span class="detail-key">사정거리:</span> <span class="detail-value">${itemData.range}</span></div>`;
                     content += `</div>`;
+                    if (itemData.attackRoll && itemData.attackRoll !== '-') {
+                        const attackType = itemData.attackRoll === 'melee'
+                            ? game.i18n.localize('DX3rd.Melee')
+                            : game.i18n.localize('DX3rd.Ranged');
+                        content += `<div class="detail-row two-columns">`;
+                        content += `<div class="detail-cell"><span class="detail-key">${game.i18n.localize('DX3rd.AttackType')}:</span> <span class="detail-value">${attackType}</span></div>`;
+                        content += `<div class="detail-cell"><span class="detail-key">${game.i18n.localize('DX3rd.Add')} / ${game.i18n.localize('DX3rd.Attack')}:</span> <span class="detail-value">${itemData.add} / ${itemData.attack}</span></div>`;
+                        content += `</div>`;
+                    }
                     content += `<div class="detail-row two-columns">`;
                     content += `<div class="detail-cell"><span class="detail-key">침식치:</span> <span class="detail-value">${itemData.encroach}</span></div>`;
                     content += `<div class="detail-cell"><span class="detail-key">제한:</span> <span class="detail-value">${itemData.limit}</span></div>`;
