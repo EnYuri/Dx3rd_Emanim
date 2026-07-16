@@ -17,6 +17,56 @@
     return normalizeIdList(item.system?.weapon ?? data?.system?.weapon);
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[character]);
+  }
+
+  function getEffectDisplayLevel(effect, actor) {
+    const level = effect?.system?.level || {};
+    const baseLevel = Number(level.init ?? level.value ?? 0) || 0;
+    const encroachmentLevel = level.upgrade
+      ? Number(actor?.system?.attributes?.encroachment?.level) || 0
+      : 0;
+    return baseLevel + encroachmentLevel;
+  }
+
+  function getAutomaticEffectName(effect) {
+    const name = String(effect?.name || '').trim();
+    const concentrate = game.i18n.localize('DX3rd.ConcentrateCanonical');
+    const reflex = game.i18n.localize('DX3rd.ReflexCanonical');
+    if (name.startsWith(concentrate)) return concentrate;
+    if (name.startsWith(reflex)) return reflex;
+    return name;
+  }
+
+  /** 설명이 비어 있는 콤보 채팅 카드에 표시할 현재 조합 요약. */
+  function buildAutomaticDescription(item, actor) {
+    const parts = [];
+    const levelLabel = game.i18n.localize('DX3rd.LevelAbbreviation');
+
+    for (const effectId of getEffectIds(item)) {
+      const effect = actor?.items.get(effectId);
+      if (!effect || effect.type !== 'effect') continue;
+      const name = getAutomaticEffectName(effect);
+      if (!name) continue;
+      parts.push(`${escapeHtml(name)} ${levelLabel}${getEffectDisplayLevel(effect, actor)}`);
+    }
+
+    for (const weaponId of getWeaponIds(item)) {
+      const weapon = window.DX3rdResolveWeapon?.(actor, weaponId) || actor?.items.get(weaponId);
+      if (!weapon || !['weapon', 'vehicle'].includes(weapon.type)) continue;
+      parts.push(escapeHtml(weapon.name));
+    }
+
+    return parts.length ? `<p>${parts.join(' + ')}</p>` : '';
+  }
+
   function calculateEncroachment(actor, effectIds) {
     let totalDice = 0;
     let totalAdd = 0;
@@ -1133,6 +1183,8 @@
     normalizeIdList,
     getEffectIds,
     getWeaponIds,
+    getEffectDisplayLevel,
+    buildAutomaticDescription,
     getCombinedEffectTiming,
     getCompatibleSkillChoices,
     combineEffectsRangeTarget,

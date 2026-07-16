@@ -16,6 +16,18 @@
 (() => {
   "use strict";
 
+  function hasMeaningfulDescription(value) {
+    const html = String(value ?? '').trim();
+    if (!html) return false;
+
+    // 텍스트가 없어도 자체로 내용을 이루는 리치 텍스트 요소는 설명으로 취급한다.
+    if (/<(?:img|video|audio|iframe|object|embed|canvas|svg|table|hr)\b/i.test(html)) return true;
+
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    return template.content.textContent.replace(/\u00a0/g, ' ').trim().length > 0;
+  }
+
   class DX3rdActorChatHelper {
     constructor(actor) {
       this.actor = actor;
@@ -195,16 +207,24 @@
                         itemData.weapons = [];
 
 
-                        // 콤보 아이템은 system.effect와 system.weapon을 사용 (복수형이 아님)
-                        if (currentItem.system.effect && Array.isArray(currentItem.system.effect)) {
-                            for (const effectId of currentItem.system.effect) {
+                        const comboData = window.DX3rdComboData;
+                        const comboEffectIds = comboData?.getEffectIds?.(currentItem)
+                            || (Array.isArray(currentItem.system.effect) ? currentItem.system.effect : []);
+                        const comboWeaponIds = comboData?.getWeaponIds?.(currentItem)
+                            || (Array.isArray(currentItem.system.weapon) ? currentItem.system.weapon : []);
+
+                        if (comboEffectIds.length) {
+                            for (const effectId of comboEffectIds) {
                                 if (effectId && effectId !== '-') {
                                     const effect = this.actor.items.get(effectId);
                                     if (effect && effect.type === 'effect') {
                                         itemData.effects.push({
                                             id: effect.id,
                                             name: effect.name,
-                                            level: effect.system.level?.value || 0,
+                                            level: comboData?.getEffectDisplayLevel?.(effect, this.actor)
+                                                ?? effect.system.level?.value
+                                                ?? effect.system.level?.init
+                                                ?? 0,
                                             timing: effect.system.timing || '-',
                                             skill: effect.system.skill || '-',
                                             target: effect.system.target || '-',
@@ -217,8 +237,8 @@
                             }
                         }
 
-                        if (currentItem.system.weapon && Array.isArray(currentItem.system.weapon)) {
-                            for (const weaponId of currentItem.system.weapon) {
+                        if (comboWeaponIds.length) {
+                            for (const weaponId of comboWeaponIds) {
                                 if (weaponId && weaponId !== '-') {
                                     const weaponOrVehicle = this.actor.items.get(weaponId);
                                     if (weaponOrVehicle && (weaponOrVehicle.type === 'weapon' || weaponOrVehicle.type === 'vehicle')) {
@@ -250,6 +270,10 @@
                                     }
                                 }
                             }
+                        }
+
+                        if (!hasMeaningfulDescription(itemData.description)) {
+                            itemData.description = comboData?.buildAutomaticDescription?.(currentItem, this.actor) || '';
                         }
                         break;
                     case 'book':
@@ -377,9 +401,10 @@
                 setTimeout(() => {
                     const newMessage = this._getChatMessageElement(message.id);
                     if (newMessage) {
+                        const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
                         newMessage.querySelectorAll('.collapsible-content').forEach(element => {
-                            element.removeAttribute('style');
-                            element.classList.add('collapsed');
+                            element.classList.toggle('collapsed', !expandItemCards);
+                            element.style.display = expandItemCards ? '' : 'none';
                         });
                     }
                 }, 500);
@@ -693,7 +718,7 @@
             }
 
             // 설명이 있으면 추가
-            if (itemData.description && itemData.description.trim()) {
+            if (hasMeaningfulDescription(itemData.description)) {
                 content += `<div class="item-description collapsible-content collapsed">`;
                 content += `<div class="description-content">${itemData.description}</div>`;
                 content += `</div>`;
@@ -828,6 +853,14 @@
             }
 
             content += `</div>`;
+            if (game.settings.get('dx3rd-emanim', 'expandChatItemCards')) {
+                content = content
+                    .replaceAll('collapsible-content collapsed', 'collapsible-content')
+                    .replaceAll(
+                        'class="item-actions collapsible-content" style="display: none;"',
+                        'class="item-actions collapsible-content"'
+                    );
+            }
             return content;
         }
 
@@ -892,10 +925,11 @@
 
         _initializeExistingChatMessages() {
             // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
+            const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
             document.querySelectorAll('#chat-log .message, .chat-log .message').forEach(messageElement => {
-                messageElement.querySelectorAll('.collapsible-content').forEach(element => {
-                    element.removeAttribute('style');
-                    element.classList.add('collapsed');
+                messageElement.querySelectorAll('.dx3rd-item-chat .collapsible-content').forEach(element => {
+                    element.classList.toggle('collapsed', !expandItemCards);
+                    element.style.display = expandItemCards ? '' : 'none';
                 });
             });
         }

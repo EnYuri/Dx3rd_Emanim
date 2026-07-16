@@ -19,9 +19,22 @@
     const PRESERVE = [
         'system.active.state',   // 토글 버프 on/off
         'system.used.state',     // 사용 횟수 소진 카운트
-        'system.equipment',      // 장착 여부(무기/방어구/비클)
-        'system.level.value'     // 취득 레벨
+        'system.equipment'       // 장착 여부(무기/방어구/비클)
     ];
+
+    // 이펙트/사이오닉의 습득 레벨은 플레이어가 성장시킨 인스턴스 데이터다.
+    // max/upgrade 등 규칙 메타데이터는 보존하지 않아 컴펜디움 최신값을 받게 한다.
+    const TYPE_PRESERVE = {
+        effect: ['system.level.init'],
+        psionic: ['system.level.init']
+    };
+
+    // D/E 로이스는 공식 데이터 갱신 대상이지만, 일반 로이스는 플레이어 관계
+    // 데이터이므로 이름이 우연히 컴펜디움 항목과 같아도 덮어쓰지 않는다.
+    function isSyncEligible(item) {
+        if (item.type !== 'rois') return true;
+        return ['D', 'E'].includes(item.system?.type);
+    }
 
     const getPath = (obj, path) =>
         path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -61,9 +74,21 @@
 
         if (preserveState) {
             const oldObj = item.toObject();
-            for (const p of PRESERVE) {
+            const preservePaths = [...PRESERVE, ...(TYPE_PRESERVE[item.type] || [])];
+            for (const p of preservePaths) {
                 const v = getPath(oldObj, p);
                 if (v !== undefined) setPath(data, p, v);
+            }
+
+            // value는 저장 원본이 아니라 현재 습득 레벨 + 침식률 보정의 파생값이다.
+            // 보존한 init과 컴펜디움에서 갱신한 upgrade를 기준으로 다시 맞춘다.
+            if (item.type === 'effect' || item.type === 'psionic') {
+                const init = Number(getPath(data, 'system.level.init')) || 0;
+                const upgrade = item.type === 'effect' && Boolean(getPath(data, 'system.level.upgrade'));
+                const encroachmentLevel = upgrade
+                    ? Number(item.actor?.system?.attributes?.encroachment?.level) || 0
+                    : 0;
+                setPath(data, 'system.level.value', init + encroachmentLevel);
             }
         }
         return data;
@@ -143,6 +168,7 @@
         for (const actor of game.actors) {
             const matches = [];
             for (const item of actor.items) {
+                if (!isSyncEligible(item)) continue;
                 const src = index.get(`${item.type}|${item.name}`);
                 if (src && needsReplacement(item, src)) {
                     matches.push({ item, fingerprint: itemFingerprint(item) });
@@ -171,6 +197,7 @@
             const changes = [];
             const unmatched = [];
             for (const item of actor.items) {
+                if (!isSyncEligible(item)) continue;
                 const src = index.get(`${item.type}|${item.name}`);
                 if (!src) {
                     result.unmatched++;
@@ -253,6 +280,7 @@
                     console.warn(`DX3rd | 컴펜디움 동기화 건너뜀(검사 후 변경): ${actor.name} / ${planned.item.name}`);
                     continue;
                 }
+                if (!isSyncEligible(item)) continue;
                 const src = index.get(`${item.type}|${item.name}`);
                 if (!src) continue;
                 const oldObj = item.toObject();
@@ -353,7 +381,7 @@
         ).join('');
         const content =
             `<p>${plan.length}개 액터의 <b>${totalItems}</b>개 아이템을 컴펜디움 데이터로 덮어씁니다.</p>` +
-            `<p style="opacity:.75;font-size:.9em">장착·사용·활성·레벨 상태는 보존되고, 그 외 데이터(효과·수치·기계화·ActiveEffect)는 컴펜디움 값으로 교체됩니다.</p>` +
+            `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.CompendiumSyncPreserveHint')}</p>` +
             (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '') +
             `<ul style="max-height:240px;overflow:auto;margin:.5em 0">${rows}</ul>`;
 

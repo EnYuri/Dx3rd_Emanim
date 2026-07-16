@@ -11,7 +11,7 @@
 (function () {
 
   const SETTING = 'appliedAEMigrationVersion';
-  const CURRENT = 3; // 이 모듈이 정의한 이행 단계 수
+  const CURRENT = 4; // 이 모듈이 정의한 이행 단계 수
 
   Hooks.once('init', function () {
     game.settings.register('dx3rd-emanim', SETTING, {
@@ -54,6 +54,7 @@
       //  dnd5e 방식 전환으로 기본 OFF(NEVER) 정책이 확정되어 v3 가 이를 덮는다. v0 신규 이행은
       //  buildAEData 가 이미 NEVER 로 생성하고 v3 가 no-op → v2 는 순수 churn 이라 삭제.)
       if (version < 3) await cleanupMirrorsAndDefaultOverlayOff();
+      if (version < 4) await restoreTokenPreferenceAfterCoreMigration();
       await game.settings.set('dx3rd-emanim', SETTING, CURRENT);
       console.log('DX3rd | applied→AE 이행 완료');
       ui.notifications.info('DX3rd | 적용 효과 이행이 완료되었습니다.');
@@ -144,6 +145,46 @@
     }
 
     console.log(`DX3rd | v3: 미러 AE ${removedMirrors}개 제거, applied AE ${overlayOff}개 오버레이 OFF`);
+  }
+
+  /**
+   * v4: Foundry v14.353+ 코어 마이그레이션 대응.
+   * 합성 statuses 가 있는 기존 applied AE 의 showIcon 을 코어가 ALWAYS 로 바꿀 수 있으므로,
+   * 다른 데이터는 건드리지 않고 저장된 showOnToken 선택에 맞춰 showIcon 만 복구한다.
+   * 실제 상태이상 AE에는 appliedKey 플래그가 없으므로 영향을 주지 않는다.
+   */
+  async function restoreTokenPreferenceAfterCoreMigration() {
+    const SHOW_ICON = CONST.ACTIVE_EFFECT_SHOW_ICON || {};
+    const NEVER = SHOW_ICON.NEVER ?? 0;
+    const ALWAYS = SHOW_ICON.ALWAYS ?? 2;
+    let actorsUpdated = 0, effectsUpdated = 0;
+
+    for (const actor of game.actors) {
+      const updates = [];
+      for (const eff of actor.effects) {
+        if (!eff.getFlag?.('dx3rd-emanim', 'appliedKey')) continue;
+
+        const payload = eff.getFlag('dx3rd-emanim', 'applied') || {};
+        const expectedShowIcon = payload.showOnToken === true ? ALWAYS : NEVER;
+        if (eff.showIcon === expectedShowIcon) continue;
+
+        updates.push({
+          _id: eff.id,
+          showIcon: expectedShowIcon
+        });
+      }
+
+      if (!updates.length) continue;
+      try {
+        await actor.updateEmbeddedDocuments('ActiveEffect', updates, { render: false });
+        actorsUpdated++;
+        effectsUpdated += updates.length;
+      } catch (e) {
+        console.error(`DX3rd | v4 applied 토큰 표시 복구 실패: ${actor.name}`, e);
+      }
+    }
+
+    console.log(`DX3rd | v4: applied AE 토큰 표시 복구 — 액터 ${actorsUpdated}개 / 효과 ${effectsUpdated}개`);
   }
 
   /**

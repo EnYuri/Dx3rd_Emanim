@@ -24,7 +24,8 @@
 
   "DX3rd.CompendiumSyncName": "데이터 갱신",
   "DX3rd.CompendiumSyncLabel": "데이터 갱신",
-  "DX3rd.CompendiumSyncHint": "월드 액터가 가진 아이템 중 컴펜디움과 이름·타입이 같은 것을 컴펜디움 데이터로 덮어씁니다. 장착·사용·활성·레벨 상태는 보존됩니다.",
+  "DX3rd.CompendiumSyncHint": "월드 액터가 가진 아이템 중 컴펜디움과 이름·타입이 같은 것을 컴펜디움 데이터로 덮어씁니다. 일반 로이스는 제외되며 장착·사용·활성 상태와 이펙트·사이오닉의 습득 레벨은 보존됩니다.",
+  "DX3rd.CompendiumSyncPreserveHint": "일반 로이스는 갱신하지 않습니다. 장착·사용·활성 상태와 이펙트·사이오닉의 습득 레벨은 보존되고, 그 외 데이터(효과·수치·기계화·ActiveEffect)는 컴펜디움 값으로 교체됩니다.",
   "DX3rd.CompendiumSyncTitle": "데이터 갱신 — 아이템 덮어쓰기",
   "DX3rd.CompendiumSyncHubTitle": "데이터 갱신",
   "DX3rd.CompendiumSyncHubHint": "실행할 동기화 작업을 선택하세요. 각 작업은 대상과 변경 내용을 별도로 확인합니다.",
@@ -82,6 +83,11 @@
   
   "DX3rd.BerserkReactionExceptionItems": "폭주 예외 아이템 목록",
   "DX3rd.BerserkReactionExceptionItemsHint": "폭주 상태이상 중에도 사용할 수 있는 아이템 목록 (쉼표로 구분)",
+  "DX3rd.ExpandChatItemCards": "아이템 채팅 카드 기본 펼침",
+  "DX3rd.ExpandChatItemCardsHint": "채팅에 출력되는 모든 아이템 카드의 상세 정보와 설명을 기본적으로 펼쳐서 표시합니다.",
+  "DX3rd.ConcentrateCanonical": "컨센트레이트",
+  "DX3rd.ReflexCanonical": "리플렉스",
+  "DX3rd.LevelAbbreviation": "Lv.",
 
   "DX3rd.Actor": "액터",
 

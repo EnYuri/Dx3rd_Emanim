@@ -121,6 +121,23 @@ Hooks.once('init', async function() {
         onChange: value => {
         }
     });
+
+    // 아이템 채팅 카드의 상세 정보/설명 초기 표시 상태
+    game.settings.register('dx3rd-emanim', 'expandChatItemCards', {
+        name: 'DX3rd.ExpandChatItemCards',
+        hint: 'DX3rd.ExpandChatItemCardsHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true,
+        onChange: value => {
+            document.querySelectorAll('#chat-log .dx3rd-item-chat .collapsible-content, .chat-log .dx3rd-item-chat .collapsible-content')
+                .forEach(element => {
+                    element.classList.toggle('collapsed', !value);
+                    element.style.display = value ? '' : 'none';
+                });
+        }
+    });
     
     // 설정 등록: AfterMain 큐 (월드에 저장)
     // v13/v14 호환: type: Array는 v14에서 경고가 발생할 수 있으므로 방어적으로 처리
@@ -2286,6 +2303,13 @@ Hooks.on('chatMessage', (chatLog, message, chatData) => {
 // 채팅 메시지 렌더링 시 완료 상태 복원
 Hooks.on('renderChatMessageHTML', (message, html, data) => {
     const completeText = game.i18n.localize('DX3rd.Complete');
+
+    // 저장된 카드 HTML의 상태와 관계없이 현재 월드 설정을 초기 표시 상태로 적용한다.
+    const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
+    html.querySelectorAll('.dx3rd-item-chat .collapsible-content').forEach(element => {
+        element.classList.toggle('collapsed', !expandItemCards);
+        element.style.display = expandItemCards ? '' : 'none';
+    });
     
     // message-header에 data-actor-id 속성 추가 (로이스 추가 기능을 위해)
     if (message.speaker && message.speaker.actor) {
@@ -4065,12 +4089,13 @@ window.DX3rdChatHandlers = {
         // v14는 .chat-log, 레거시는 #chat-log 를 사용하므로 둘 다 지원
         const existingMessages = document.querySelectorAll('#chat-log .message, .chat-log .message');
 
+        const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
         for (const messageElement of existingMessages) {
-            const collapsibleElements = messageElement.querySelectorAll('.collapsible-content');
-            // 인라인 스타일 제거하고 CSS 클래스로 초기화
+            const collapsibleElements = messageElement.querySelectorAll('.dx3rd-item-chat .collapsible-content');
+            // 현재 월드 설정에 따라 초기 표시 상태를 통일한다.
             for (const el of collapsibleElements) {
-                el.removeAttribute('style');
-                el.classList.add('collapsed');
+                el.classList.toggle('collapsed', !expandItemCards);
+                el.style.display = expandItemCards ? '' : 'none';
             }
         }
     },
