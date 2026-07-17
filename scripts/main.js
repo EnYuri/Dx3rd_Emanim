@@ -4708,6 +4708,11 @@ Hooks.on('updateItem', async (item, changed, options, userId) => {
         Object.keys(changed || {}).some(key => key.startsWith('system.'));
     if (!hasSystemChange) return;
 
+    // 훅은 모든 접속 클라이언트에서 실행된다. 저장 동기화는 변경을 일으킨 본인이,
+    // 그것도 해당 액터에 쓰기 권한이 있을 때만 한 번 수행한다. 재렌더는 표시값 갱신이므로
+    // 쓰기가 아니고, 시트를 열어둔 모든 클라이언트에서 그대로 수행한다.
+    const canSync = userId === game.user.id && actor.isOwner;
+
     const comboData = window.DX3rdComboData;
     const getEffectIds = comboData?.getEffectIds;
     for (const combo of actor.items) {
@@ -4716,10 +4721,12 @@ Hooks.on('updateItem', async (item, changed, options, userId) => {
             : (Array.isArray(combo.system?.effectIds) ? combo.system.effectIds : []);
         if (!ids.includes(item.id)) continue;
 
-        try {
-            await comboData?.syncRegisteredEffectData?.(combo, actor);
-        } catch (error) {
-            console.error('DX3rd | Failed to synchronize combo after registered effect update', error);
+        if (canSync) {
+            try {
+                await comboData?.syncRegisteredEffectData?.(combo, actor);
+            } catch (error) {
+                console.error('DX3rd | Failed to synchronize combo after registered effect update', error);
+            }
         }
         _dx3rdRerenderSheet(combo._sheet);
     }
