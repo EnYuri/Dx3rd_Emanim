@@ -32,7 +32,6 @@
       const actor = this.item.actor;
 
       context.actor = actor ? {id: actor.id, type: actor.type, system: actor.system} : null;
-      context.isEffect = true;
       system.actorSkills = actor?.system?.attributes?.skills || {};
       system.skillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', system.actorSkills, actor?.type);
 

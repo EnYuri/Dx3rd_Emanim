@@ -87,13 +87,16 @@
     }
 
     /**
-     * AppV2 헤더 컨트롤(⋮ 메뉴). 이전 시트 은 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로
+     * AppV2 헤더 컨트롤(⋮ 메뉴). 이전 시트 은 액터 타입/토큰 설정을 헤더에 인라인 버튼으로
      * 노출하므로, 여기서는 동일한 항목들을 드롭다운에서 제거하고 _injectHeaderButtons 로
      * 헤더에 직접 주입한다(중복 방지).
+     * 액션명을 정확히 비교한다. /token/i 로 거르면 인라인 버튼으로 대체하지 않는
+     * showTokenArtwork(토큰 아트워크 보기)까지 사라진다.
      */
     _getHeaderControls() {
+      const replacedByInlineButtons = ['configurePrototypeToken', 'configureToken'];
       return super._getHeaderControls()
-        .filter(control => !/token/i.test(control.action || ''));
+        .filter(control => !replacedByInlineButtons.includes(control.action));
     }
 
     /**
@@ -129,8 +132,17 @@
         makeButton('fa-solid fa-user-tag', game.i18n.localize('DX3rd.ActorType'),
           event => DX3rdActorSheetV2._onEditActorType.call(this, event, event.currentTarget));
       }
-      makeButton('fa-solid fa-user-circle', game.i18n.localize('DX3rd.Token'),
-        event => this._onConfigurePrototypeToken(event));
+
+      // 코어 _getHeaderControls 와 동일한 분기: 편집 권한이 없으면 토큰 설정을 노출하지 않고,
+      // 무연결 토큰의 시트는 프로토타입이 아니라 그 토큰 자신의 설정을 연다.
+      if (!this.isEditable) return;
+      if (this.document.isToken) {
+        makeButton('fa-solid fa-user-circle', game.i18n.localize('DX3rd.Token'),
+          event => this._onConfigureToken(event));
+      } else {
+        makeButton('fa-solid fa-user-circle', game.i18n.localize('DX3rd.PrototypeToken'),
+          event => this._onConfigurePrototypeToken(event));
+      }
     }
 
     /**
@@ -188,15 +200,26 @@
 
     _onConfigurePrototypeToken(event) {
       event?.preventDefault();
-      const PrototypeTokenConfig = foundry.applications?.sheets?.PrototypeTokenConfig;
+      // CONFIG 를 경유해야 프로토타입 토큰 시트를 교체한 모듈의 설정이 유지된다.
+      const PrototypeTokenConfig = CONFIG.Token?.prototypeSheetClass
+        || foundry.applications?.sheets?.PrototypeTokenConfig;
       if (!PrototypeTokenConfig) {
         ui.notifications.warn(game.i18n.localize('DX3rd.PrototypeTokenConfigUnavailable'));
         return;
       }
       try {
-        new PrototypeTokenConfig({prototype: this.document.prototypeToken}).render(true);
+        new PrototypeTokenConfig({prototype: this.document.prototypeToken}).render({force: true});
       } catch (error) {
         console.error('DX3rd | ActorSheetV2 prototype token config failed:', error);
+      }
+    }
+
+    _onConfigureToken(event) {
+      event?.preventDefault();
+      try {
+        this.document.token?.sheet?.render({force: true});
+      } catch (error) {
+        console.error('DX3rd | ActorSheetV2 token config failed:', error);
       }
     }
 
@@ -401,15 +424,14 @@
       if (item) item.sheet.render(true);
     }
 
-    // 우클릭 = 편집 연필 버튼과 동일하게 아이템 시트 열기
+    // 우클릭 = 시트 열기 / 채팅 전송 메뉴. 좌클릭(실행)과 달리 읽기 전용이므로
+    // 편집 권한을 요구하지 않는다. 채팅 전송은 메뉴 쪽에서 자체 게이트를 건다.
     _onItemContextMenu(event) {
       // 입력 요소 위에서의 우클릭(붙여넣기 등 기본 메뉴)은 가로채지 않는다
       if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       event.preventDefault();
-      if (!this._canEdit()) return;
       const item = this._getItemFromTarget(event.currentTarget);
       if (!item) return;
-      // 우클릭 컨텍스트 메뉴: 시트 열기 + (이펙트/무기) 콤보로 조합
       window.DX3rdItemContextMenu?.open(event, { actor: this.document, item, sheet: this });
     }
 
@@ -769,26 +791,25 @@
       event.dataTransfer?.setData('text/plain', JSON.stringify(dragData));
     }
 
-    async _onDrop(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!this._canEdit()) return;
-
-      const raw = this._readTransferText(event.dataTransfer);
-      if (!raw) return;
+    /**
+     * 아이템 드롭만 시스템 규칙(타입별 개수 제한 / stageCRC)으로 처리한다.
+     * _onDrop 전체를 가로채면 dropActorSheetData 훅과 ActiveEffect·폴더 드롭까지 함께 죽으므로,
+     * 코어가 문서를 해석한 뒤 호출하는 이 진입점만 재정의한다.
+     */
+    async _onDropItem(event, item) {
+      if (!this._canEdit()) return null;
 
       try {
-        const data = JSON.parse(raw);
-        // 정렬/외부 드롭 처리는 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
-        await window.DX3rdActorSheetData.handleActorItemDrop(this.document, data, event.target);
+        // 같은 액터의 아이템을 드래그한 경우는 생성이 아니라 순서 변경이다.
+        if (this.document.uuid === item.parent?.uuid) {
+          const sorted = await actorData.sortOwnedItem(this.document, {itemId: item.id}, event.target);
+          return sorted ? item : null;
+        }
+        return await actorData.createDroppedItem(this.document, item);
       } catch (error) {
         console.error('DX3rd | ActorSheetV2 item drop failed:', error);
+        return null;
       }
-    }
-
-    _readTransferText(dataTransfer) {
-      const reader = dataTransfer?.[['get', 'Data'].join('')];
-      return typeof reader === 'function' ? reader.call(dataTransfer, 'text/plain') : '';
     }
   }
 

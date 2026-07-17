@@ -48,6 +48,9 @@
       system.macros = itemSheetData.getEmbeddedMacros(this.item);
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
       context.worldMacros = itemSheetData.getWorldMacroOptions();
+      // 사용 횟수 설정을 즉시 효과 탭 상단에 얹을지. 자체 설정 탭이 있는 타입
+      // (effect 의 action 탭, spell/psionic/combo 의 action 탭)은 그쪽이 담당하므로 중복 노출하지 않는다.
+      context.showUsageSettings = ['weapon', 'protect', 'vehicle', 'etc', 'once'].includes(this.item.type);
       context.effectView = effectAdapter.prepareSheetContext(this.item);
       this._effectAddKinds ??= {};
       context.effectView.immediateAddKind = this._effectAddKinds.immediate
@@ -61,40 +64,13 @@
     }
 
     /**
-     * 이전 시트 은 확장 도구를 헤더 버튼(_getHeaderButtons)으로 직접 노출하지만, AppV2 는
-     * _getHeaderControls 를 ⋮ 드롭다운으로만 렌더한다. 이전 시트 과 동일하게 헤더에 바로
-     * 노출하기 위해 드롭다운에서는 제거하고 _injectItemExtendButton 으로 직접 주입한다.
+     * 확장 도구는 각 효과 카드에서 해당 효과 하나만 잘라 개별로 연다.
+     * 아이템의 확장 전체를 한 번에 여는 진입점은 존재하지 않으므로 initialEditor 는 필수다.
      */
-    _getHeaderControls() {
-      return super._getHeaderControls()
-        .filter(control => control.action !== 'itemExtend');
-    }
-
-    _injectItemExtendButton() {
-      const header = this.element?.querySelector('.window-header');
-      if (!header) return;
-
-      // 재렌더 시 중복 주입 방지
-      header.querySelectorAll('.dx3rd-header-btn.item-extend').forEach(el => el.remove());
-
-      const label = game.i18n.localize('DX3rd.ItemExtend');
-      const anchor = header.querySelector('[data-action="toggleControls"]')
-        || header.querySelector('[data-action="close"]');
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'header-control dx3rd-header-btn item-extend';
-      button.dataset.tooltip = label;
-      button.innerHTML = `<i class="fa-solid fa-screwdriver-wrench"></i><span>${label}</span>`;
-      button.addEventListener('click', event => this._openItemExtend(event));
-      if (anchor) header.insertBefore(button, anchor);
-      else header.appendChild(button);
-    }
-
-    _openItemExtend(event, initialEditor = null, effectId = null) {
+    _openItemExtend(event, initialEditor, effectId = null) {
       event?.preventDefault();
       new window.DX3rdItemExtendDialog({
-        title: game.i18n.localize(initialEditor ? 'DX3rd.EffectEditor' : 'DX3rd.ItemExtend'),
+        title: game.i18n.localize('DX3rd.EffectEditor'),
         actorId: this.item.actor?.id || null,
         itemId: this.item.id,
         initialEditor,
@@ -107,9 +83,6 @@
     async _onRender(context, options) {
       await super._onRender(context, options);
       await manager.initializeAttributeLabels(this.element, this.item);
-      if (!['effect', 'weapon', 'protect', 'vehicle', 'etc', 'once'].includes(this.item.type)) {
-        this._injectItemExtendButton();
-      }
 
       // 임베드 매크로 행 리스너
       this._macroCleanups?.forEach(cleanup => cleanup());

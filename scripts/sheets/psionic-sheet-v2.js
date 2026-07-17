@@ -14,7 +14,7 @@
     };
 
     static TABS = {primary: {
-      tabs: [{id: 'description'}, {id: 'attributes'}, {id: 'target'}, {id: 'weapon'}],
+      tabs: [{id: 'description'}, {id: 'action'}, {id: 'immediate'}, {id: 'persistent'}],
       initial: 'description'
     }};
 

@@ -365,7 +365,6 @@
     async function updateEmbeddedMacro(item, index, property, value) {
         const macros = getEmbeddedMacros(item);
         if (!macros[index]) return null;
-        if (property === 'timing' && macros[index].action === 'activation') value = 'instant';
         macros[index][property] = property === 'disabled' ? Boolean(value) : value;
         await item.update({'system.macros': macros});
         return macros;
@@ -378,8 +377,8 @@
 
     const macroSupportedTypes = ['effect', 'combo', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'book', 'once', 'etc'];
     // 임베드 매크로(system.macros[]) UI를 제공하는 타입. 이들은 월드 매크로 드롭·이름참조도 임베드 행으로 통합한다.
-    // effect + 공유 active-item 템플릿(active-item-sheet-v2.html)을 쓰는 5개 타입.
-    const embedMacroTypes = ['effect', 'weapon', 'etc', 'vehicle', 'protect', 'once'];
+    // 즉시 효과 탭(parts/immediate-effects-v2.html)의 매크로 섹션을 노출하는 타입 전체.
+    const embedMacroTypes = ['effect', 'weapon', 'etc', 'vehicle', 'protect', 'once', 'combo', 'spell', 'psionic'];
 
     async function handleMacroDrop(item, event, {fallback = null, fallbackOnInvalidData = false} = {}) {
         let data;

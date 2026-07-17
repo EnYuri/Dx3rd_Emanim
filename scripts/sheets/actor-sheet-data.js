@@ -39,18 +39,9 @@
     function shouldUseSimpleSheet(actor, user = game.user) {
         if (user.isGM) return false;
 
-        let permission = actor.permission[user.id];
-        if (permission === CONST.DOCUMENT_OWNERSHIP_LEVELS.INHERIT || permission === undefined) {
-            if (actor.testUserPermission(user, "OWNER")) {
-                permission = CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
-            } else if (actor.testUserPermission(user, "OBSERVER")) {
-                permission = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-            } else if (actor.testUserPermission(user, "LIMITED")) {
-                permission = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
-            } else {
-                permission = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
-            }
-        }
+        // getUserLevel 은 INHERIT 를 이미 기본 권한으로 풀어서 돌려준다.
+        // (actor.permission 은 "현재 사용자"의 권한 레벨 숫자이므로 user 별 조회에 쓸 수 없다.)
+        const permission = actor.getUserLevel(user) ?? CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
 
         if (permission >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) return false;
         if (permission === CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED) return true;
@@ -366,40 +357,25 @@
         return true;
     }
 
-    // 외부 아이템 드롭 → 타입별 제한 체크 후 생성. 생성했으면 true, 막혔으면 false.
+    // 외부 아이템 드롭 → 타입별 제한 체크 후 생성. 생성한 아이템을 반환하고, 막혔으면 null.
     async function createDroppedItem(actor, item) {
-        if (!item) return false;
+        if (!item) return null;
 
         if (['spell', 'psionic', 'book'].includes(item.type) && !game.settings.get('dx3rd-emanim', 'stageCRC')) {
             ui.notifications.warn(localize('DX3rd.StageCRCItemsAddDisabled'));
-            return false;
+            return null;
         }
         if (item.type === 'works' && actor.items.filter(i => i.type === 'works').length >= 1) {
             ui.notifications.info(localize('DX3rd.WorksLimitOne'));
-            return false;
+            return null;
         }
         if (item.type === 'syndrome' && actor.items.filter(i => i.type === 'syndrome').length >= 3) {
             ui.notifications.info(localize('DX3rd.SyndromeLimitThree'));
-            return false;
+            return null;
         }
 
-        await actor.createEmbeddedDocuments('Item', [item.toObject()]);
-        return true;
-    }
-
-    // 액터 시트 드롭 통합 처리. parsedData = 드래그 데이터(JSON.parse 결과), targetEl = 드롭 대상 엘리먼트.
-    async function handleActorItemDrop(actor, parsedData, targetEl) {
-        if (!actor || !parsedData || parsedData.type !== 'Item') return;
-
-        // 같은 액터의 아이템을 드래그한 경우 순서 변경
-        if (parsedData.actorId === actor.id) {
-            await sortOwnedItem(actor, parsedData, targetEl);
-            return;
-        }
-
-        // 외부에서 새 아이템을 드롭하는 경우
-        const item = await fromUuid(parsedData.uuid);
-        await createDroppedItem(actor, item);
+        const created = await actor.createEmbeddedDocuments('Item', [item.toObject()]);
+        return created?.[0] || null;
     }
 
     // 스킬 생성/편집 다이얼로그 오픈. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
@@ -696,7 +672,8 @@
         showStatRoll,
         openComboBuilder,
         buildItemDragData,
-        handleActorItemDrop,
+        sortOwnedItem,
+        createDroppedItem,
         openCreateSkillDialog,
         openEditSkillDialog,
         useTitus,

@@ -18,7 +18,7 @@
     };
     static PARTS = {main: {template: 'systems/dx3rd-emanim/templates/item/combo-sheet-v2.html', root: true}};
     static TABS = {primary: {
-      tabs: [{id: 'description'}, {id: 'effect'}, {id: 'weapon'}, {id: 'attributes'}, {id: 'target'}],
+      tabs: [{id: 'description'}, {id: 'action'}, {id: 'immediate'}, {id: 'persistent'}],
       initial: 'description'
     }};
 
@@ -37,15 +37,14 @@
       this._listenerCleanups = window.DX3rdWeaponTabManager.setupWeaponTabListeners(this.element, this) || [];
       const listen = (...args) => this._listenerCleanups.push(compat.on(this.element, ...args));
 
-      listen('click', '.tab[data-tab="effect"] .add-effect', event => this._addEffect(event));
-      listen('click', '.tab[data-tab="effect"] .item-edit', (event, target) => this._editEffect(event, target));
-      listen('click', '.tab[data-tab="effect"] .item-delete', (event, target) => this._deleteEffect(event, target));
+      // 이펙트/무기 리스트가 action 탭으로 합쳐졌으므로, 이펙트 편집/삭제는
+      // 무기 항목(.weapon-item)을 제외한 콤보 항목에만 배선한다(무기 삭제는 WeaponTabManager 담당).
+      listen('click', '.add-effect', event => this._addEffect(event));
+      listen('click', '.combo-item:not(.weapon-item) .item-edit', (event, target) => this._editEffect(event, target));
+      listen('click', '.combo-item:not(.weapon-item) .item-delete', (event, target) => this._deleteEffect(event, target));
       listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
       listen('change', 'select[name="system.skill"]', event => this._updateBaseAttribute(event.target.value));
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
-      listen('change', '[data-target-field="system.getTarget"]', event => {
-        this.item.update({'system.getTarget': event.target.checked});
-      });
       listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
       listen('blur', '.difficulty-input', event => this._validateDifficulty(event));
       listen('input', 'input[name="system.limit"]', event => this._validateLimit(event));

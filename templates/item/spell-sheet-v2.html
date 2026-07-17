@@ -9,8 +9,9 @@
   {{!-- Sheet Tab Navigation --}}
   <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
     <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description" }}</a>
-    <a class="item {{tabs.attributes.cssClass}}" data-action="tab" data-group="primary" data-tab="attributes">{{localize "DX3rd.Attributes" }}</a>
-    <a class="item {{tabs.target.cssClass}}" data-action="tab" data-group="primary" data-tab="target">{{localize "DX3rd.Target" }}</a>
+    <a class="item {{tabs.action.cssClass}}" data-action="tab" data-group="primary" data-tab="action">{{localize "DX3rd.ActionSettings" }}</a>
+    <a class="item {{tabs.immediate.cssClass}}" data-action="tab" data-group="primary" data-tab="immediate">{{localize "DX3rd.ImmediateEffects" }}</a>
+    <a class="item {{tabs.persistent.cssClass}}" data-action="tab" data-group="primary" data-tab="persistent">{{localize "DX3rd.PersistentEffects" }}</a>
   </nav>
 
   {{!-- Sheet Body --}}
@@ -88,10 +89,11 @@
       </div>
     </div>
 
-    {{!-- Attributes Tab --}}
-    <div class="tab {{tabs.attributes.cssClass}}" data-group="primary" data-tab="attributes">
+    {{!-- Action Settings Tab --}}
+    <div class="tab {{tabs.action.cssClass}}" data-group="primary" data-tab="action">
       <div class="sheet-wrapper margin-top-10">
         <table>
+          <caption class="dx3rd-settings-caption">{{localize "DX3rd.Self"}}</caption>
           <tr>
             <th><span>{{localize "DX3rd.RollType"}}</span></th>
             <td>
@@ -135,71 +137,8 @@
           </tr>
         </table>
 
-        <div class="dx3rd-embed-macros">
-          <header class="attributes-header flexrow">
-            <span>{{localize "DX3rd.Macro"}} (embed)</span>
-            <a class="macro-control" data-action="macroAdd"><i class="fas fa-plus"></i></a>
-          </header>
-          {{#each system.macros as |m i|}}
-          <div class="embed-macro-row flexcol" data-index="{{i}}" style="margin-bottom:4px;">
-            <div class="flexrow" style="align-items:center; gap:4px;">
-              <select class="macro-timing" data-index="{{i}}">
-                {{#each ../macroTimings as |tm|}}
-                <option value="{{tm}}" {{#if (eq tm m.timing)}}selected{{/if}}>{{tm}}</option>
-                {{/each}}
-              </select>
-              <select class="macro-kind" data-index="{{i}}">
-                <option value="code" {{#unless (eq m.kind "macro")}}selected{{/unless}}>{{localize "DX3rd.MacroKindCode"}}</option>
-                <option value="macro" {{#if (eq m.kind "macro")}}selected{{/if}}>{{localize "DX3rd.MacroKindWorld"}}</option>
-              </select>
-              <label style="white-space:nowrap;"><input type="checkbox" class="macro-disabled" data-index="{{i}}" {{#if m.disabled}}checked{{/if}}> off</label>
-              <a class="macro-control" data-action="macroDelete" data-index="{{i}}"><i class="fas fa-trash"></i></a>
-            </div>
-            {{#if (eq m.kind "macro")}}
-            <select class="macro-name" data-index="{{i}}">
-              <option value="">- {{localize "DX3rd.MacroSelect"}} -</option>
-              {{#each ../worldMacros as |wm|}}
-              <option value="{{wm.name}}" {{#if (eq wm.name m.macroName)}}selected{{/if}}>{{wm.name}}</option>
-              {{/each}}
-            </select>
-            {{else}}
-            <textarea class="macro-command" data-index="{{i}}" rows="2" placeholder="actor, item, token, scope 사용 가능">{{m.command}}</textarea>
-            {{/if}}
-          </div>
-          {{/each}}
-        </div>
-
-
-        <div class="attributes">
-          <header class="attributes-header flexrow">
-            <span class="attribute-key">{{localize "DX3rd.Name"}}</span>
-            <span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span>
-            <span class="attribute-value">{{localize "DX3rd.Value"}}</span>
-            <a class="attribute-control" data-action="createAttribute" data-pos="main" data-type="attributes"><i class="fas fa-plus"></i></a>
-          </header>
-
-          <ol class="attributes-list" data-pos="main">
-          {{#each system.attributes as |attr key|}}
-            <li class="attribute flexrow" data-attribute="{{key}}">
-              <select class="attribute-key" name="system.attributes.{{key}}.key" data-dtype="String">
-                {{{attributeOptions attr.key}}}
-              </select>
-
-              <input class="attribute-label" type="text" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled>
-              <input class="attribute-value" type="text" name="system.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
-              <a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a>
-            </li>
-          {{/each}}
-          </ol>
-        </div>
-
-      </div>
-    </div>
-
-    {{!-- Target Tab --}}
-    <div class="tab {{tabs.target.cssClass}}" data-group="primary" data-tab="target">
-      <div class="sheet-wrapper margin-top-10">
         <table>
+          <caption class="dx3rd-settings-caption">{{localize "DX3rd.Target"}}</caption>
           <tr>
             <th><span>{{localize "DX3rd.Target"}}</span></th>
             <td><input type="checkbox" data-target-field="system.getTarget" {{#if system.getTarget}} checked {{/if}}></td>
@@ -240,34 +179,12 @@
             </td>
           </tr>
         </table>
-
-
-        <div class="attributes">
-          <header class="attributes-header flexrow">
-            <span class="attribute-key">{{localize "DX3rd.Name"}}</span>
-            <span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span>
-            <span class="attribute-value">{{localize "DX3rd.Value"}}</span>
-            <a class="attribute-control" data-action="createAttribute" data-pos="sub" data-type="attributes"><i class="fas fa-plus"></i></a>
-          </header>
-
-
-          <ol class="attributes-list" data-pos="sub">
-          {{#each system.effect.attributes as |attr key|}}
-            <li class="attribute flexrow" data-attribute="{{key}}">
-              <select class="attribute-key" name="system.effect.attributes.{{key}}.key" data-dtype="String">
-                {{{attributeOptions attr.key}}}
-              </select>
-
-              <input class="attribute-label" type="text" name="system.effect.attributes.{{key}}.label" value="{{attr.label}}" disabled>
-              <input class="attribute-value" type="text" name="system.effect.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
-              <a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a>
-            </li>
-          {{/each}}
-          </ol>
-        </div>
-
       </div>
     </div>
+
+    {{!-- 즉시/지속 효과: 효과 카드에서 각 효과를 개별로 편집한다 --}}
+    <div class="tab {{tabs.immediate.cssClass}}" data-group="primary" data-tab="immediate">{{> "systems/dx3rd-emanim/templates/item/parts/immediate-effects-v2.html"}}</div>
+    <div class="tab {{tabs.persistent.cssClass}}" data-group="primary" data-tab="persistent">{{> "systems/dx3rd-emanim/templates/item/parts/persistent-effects-v2.html"}}</div>
 
   </section>
 </div>

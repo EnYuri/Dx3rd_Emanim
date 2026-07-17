@@ -25,12 +25,9 @@
   {{!-- Sheet Tab Navigation --}}
   <nav class="sheet-navigation sheet-tabs tabs" data-group="primary">
     <a class="item {{tabs.description.cssClass}}" data-action="tab" data-group="primary" data-tab="description">{{localize "DX3rd.Description" }}</a>
-    <a class="item {{tabs.effect.cssClass}}" data-action="tab" data-group="primary" data-tab="effect">{{localize "DX3rd.Effect" }}</a>
-    {{#unless (eq actor.type "enemy")}}
-    <a class="item {{tabs.weapon.cssClass}}" data-action="tab" data-group="primary" data-tab="weapon">{{localize "DX3rd.Weapon" }}</a>
-    {{/unless}}
-    <a class="item {{tabs.attributes.cssClass}}" data-action="tab" data-group="primary" data-tab="attributes">{{localize "DX3rd.Attributes" }}</a>
-    <a class="item {{tabs.target.cssClass}}" data-action="tab" data-group="primary" data-tab="target">{{localize "DX3rd.Target" }}</a>
+    <a class="item {{tabs.action.cssClass}}" data-action="tab" data-group="primary" data-tab="action">{{localize "DX3rd.ActionSettings" }}</a>
+    <a class="item {{tabs.immediate.cssClass}}" data-action="tab" data-group="primary" data-tab="immediate">{{localize "DX3rd.ImmediateEffects" }}</a>
+    <a class="item {{tabs.persistent.cssClass}}" data-action="tab" data-group="primary" data-tab="persistent">{{localize "DX3rd.PersistentEffects" }}</a>
   </nav>
 
   {{!-- Sheet Body --}}
@@ -51,13 +48,6 @@
               {{/select}}
             </select>
           </div>
-          {{#if comboSkillChoices.length}}
-          <div class="cell grid-4">
-            <label class="cell--title">{{localize "DX3rd.Skill"}} (선택 가능)</label>
-            <div>{{#each comboSkillChoices}}{{this}}{{#unless @last}} / {{/unless}}{{/each}}</div>
-          </div>
-          {{/if}}
-
           <div class="cell grid-4">
             <label class="cell--title">
               {{localize "DX3rd.Base"}}
@@ -126,10 +116,9 @@
             </select>
           </div>
 
-          <div class="cell grid-4 space-between">
+          <div class="cell grid-4">
             <label class="cell--title">
-              <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Target"}}</span>
-              <input type="checkbox" class="cell--crit" data-target-field="system.getTarget" {{#if system.getTarget}} checked {{/if}}>
+              {{localize "DX3rd.Target"}}
             </label>
             <div class="rt-field" data-rt="target" style="display:flex;gap:4px;align-items:center;">
               <select class="rt-option" style="flex:1 1 auto;">
@@ -184,347 +173,191 @@
 
     </div>
 
-    {{!-- Effect Tab --}}
-    <div class="tab {{tabs.effect.cssClass}}" data-group="primary" data-tab="effect">
-      <div class="sheet-wrapper">
+    {{!-- Action Tab (발동 설정 + 콤보 구성: 이펙트/무기) --}}
+    <div class="tab {{tabs.action.cssClass}}" data-group="primary" data-tab="action">
+      <div class="sheet-wrapper margin-top-10 dx3rd-action-workspace">
 
-        <div class="add-skills">
-          <select name="system.effectTmp" id="actor-effect">
-            {{#select system.effectTmp}}
-            {{#each actorEffect as |item id|}}
-            <option value="{{id}}">{{item}}</option>
-            {{/each}}
-            {{/select}}
-          </select>
-          <button type="button" class="add-effect"><i class="fas fa-arrow-down"></i></button>
-        </div>
-
-        <section class="sheet-attributes margin-top-10">
-
-          <div class="cell grid-4">
-            <label class="cell--title">
-              {{#if attackLabel}}{{attackLabel}}{{else}}{{localize "DX3rd.Attack"}}{{/if}}
-            </label>
-            <input type="text" value="{{system.attack.value}}" disabled>
-          </div>
-
-          <div class="cell grid-8 space-between">
-            <label class="cell--title">
-              {{localize "DX3rd.Dice"}}
-              <input type="text" class="cell--crit" value="{{system.critical.min}}" disabled>
-            </label>
-            <div class="flex">
-              <input type="text" value="{{system.dice.value}}" disabled>
-              <span class="slash"> DX </span>
-              <input type="text" value="{{system.critical.value}}" disabled>
-              <span class="slash"> + </span>
-              <input type="text" value="{{system.add.value}}" disabled>
+        {{!-- 액션 설정 (액션·대상·무기 통합) --}}
+        <section class="dx3rd-effect-section dx3rd-action-config">
+          <header class="dx3rd-effect-section-header">
+            <div><i class="fas fa-crosshairs"></i> {{localize "DX3rd.ActionSettings"}}</div>
+          </header>
+          <div class="dx3rd-combo-config">
+            <div class="dx3rd-combo-config-row">
+              <label class="dx3rd-action-config-field is-check"><span>{{localize "DX3rd.Active"}}</span>
+                <input type="checkbox" name="system.active.state" {{#if system.active.state}}checked{{/if}}></label>
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.RunTiming"}}</span>
+                <select name="system.active.runTiming">{{#select system.active.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.DisableTiming"}}</span>
+                <select name="system.active.disable">{{#select system.active.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option>{{/select}}</select></label>
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.AttackRoll"}}</span>
+                <select name="system.attackRoll" class="attackroll-select" {{#if (or (eq system.roll "-") (eq system.roll "dodge"))}}disabled{{/if}}>{{#select system.attackRoll}}<option value="-">-</option><option value="melee">{{localize "DX3rd.Melee"}}</option><option value="ranged">{{localize "DX3rd.Ranged"}}</option>{{/select}}</select></label>
+              {{#if (eq actor.type "enemy")}}
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.Achievement"}}</span>
+                <input type="text" name="system.attackAchievement" value="{{system.attackAchievement}}" placeholder="-"></label>
+              {{/if}}
+            </div>
+            <div class="dx3rd-combo-config-row">
+              <label class="dx3rd-action-config-field is-check"><span>{{localize "DX3rd.Target"}}</span>
+                <input type="checkbox" name="system.getTarget" {{#if system.getTarget}}checked{{/if}}></label>
+              <label class="dx3rd-action-config-field is-check"><span>{{localize "DX3rd.Scene"}}</span>
+                <input type="checkbox" name="system.scene" {{#if system.scene}}checked{{/if}}></label>
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.DisableTiming"}}</span>
+                <select name="system.effect.disable">{{#select system.effect.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+              <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.RunTiming"}}</span>
+                <select name="system.effect.runTiming">{{#select system.effect.runTiming}}<option value="-">-</option><option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
             </div>
           </div>
 
-          <div class="cell grid-4">
-            <label class="cell--title">
-              {{localize "DX3rd.Encroach"}}
-            </label>
-            <input type="text" value="{{system.encroach.value}}" data-dtype="Number" disabled/>
+          {{!-- 무기 (아군 전용) --}}
+          {{#unless (eq actor.type "enemy")}}
+          <div class="dx3rd-weapon-picker">
+            <label class="dx3rd-weapon-select-toggle"><span>{{localize "DX3rd.WeaponSelect"}}</span><input type="checkbox" name="system.weaponSelect" {{#if system.weaponSelect}}checked{{/if}}></label>
+            {{#unless system.weaponSelect}}
+            <select name="system.weaponTmp" id="actor-weapon">
+              {{#select system.weaponTmp}}
+              {{#each actorWeapon as |item id|}}
+              <option value="{{id}}">{{item}}</option>
+              {{/each}}
+              {{/select}}
+            </select>
+            <button type="button" class="add-weapon"><i class="fas fa-arrow-down"></i></button>
+            {{/unless}}
           </div>
 
+          {{#unless system.weaponSelect}}
+          <ol class="items-list dx3rd-weapon-list">
+          {{#each system.weaponItems as |item id|}}
+            <li class="item flexrow combo-item weapon-item" data-item-id="{{id}}" draggable="true">
+              <input type="hidden" name="system.weapon" value="{{id}}">
+              <h4 class="item-name">
+                <span class="item-label">
+                  {{item.name}}
+
+                  <div class="item-controls">
+                    <a class="item-control item-edit" title="Edit Item"><i class="fas fa-edit"></i></a>
+                    <a class="item-control item-delete" title="Delete Item"><i class="fas fa-trash"></i></a>
+                  </div>
+                </span>
+
+              </h4>
+              <table class="info-table">
+                <tr>
+                  <th class="width-18">{{localize "DX3rd.Type"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Skill"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Range"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Add"}}</th>
+                  <th class="width-14">{{localize "DX3rd.Attack"}}</th>
+                  <th class="width-14">{{localize "DX3rd.Guard"}}</th>
+                </tr>
+                <tr>
+                  {{#if (eq item.type "vehicle")}}
+                  <td class="width-18">{{localize "DX3rd.Melee"}}</td>
+                  <td class="width-18">{{#if item.system.skill}}{{skillByKey actor item.system.skill}}{{else}}-{{/if}}</td>
+                  <td class="width-18">{{localize "DX3rd.Engage"}}</td>
+                  <td class="width-18">0</td>
+                  <td class="width-14">{{item.system.attack}}</td>
+                  <td class="width-14">0</td>
+                  {{else}}
+                  <td class="width-18">{{skillByKey actor item.system.type}}</td>
+                  <td class="width-18">{{skillByKey actor item.system.skill}}</td>
+                  <td class="width-18">{{item.system.range}}</td>
+                  <td class="width-18">{{item.system.add}}</td>
+                  <td class="width-14">{{item.system.attack}}</td>
+                  <td class="width-14">{{item.system.guard}}</td>
+                  {{/if}}
+                </tr>
+              </table>
+
+              <div class="item-description">{{{item.system.description}}}</div>
+            </li>
+          {{/each}}
+          </ol>
+          {{/unless}}
+          {{/unless}}
         </section>
 
-        <ol class="items-list">
-        {{#each system.effectItems as |item id|}}
-          <li class="item flexrow combo-item" data-item-id="{{id}}">
-            <input type="hidden" name="system.effectIds" value="{{id}}">
-            <h4 class="item-name">
-              <span class="item-label">
-                <span class="level">{{item.system.level.value}}</span>
-                {{item.name}}
-
-                <div class="item-controls">
-                  <a class="item-control item-edit" title="Edit Item"><i class="fas fa-edit"></i></a>
-                  <a class="item-control item-delete" title="Delete Item"><i class="fas fa-trash"></i></a>
-                </div>
-              </span>
-
-            </h4>
-            <table class="info-table">
-              <tr>
-                <th class="width-18">{{localize "DX3rd.Timing"}}</th>
-                <th class="width-18">{{localize "DX3rd.Skill"}}</th>
-                <th class="width-18">{{localize "DX3rd.Target"}}</th>
-                <th class="width-18">{{localize "DX3rd.Range"}}</th>
-                <th class="width-14">{{localize "DX3rd.Encroach"}}</th>
-                <th class="width-14">{{localize "DX3rd.Limit"}}</th>
-              </tr>
-              <tr>
-                <td class="width-18">{{timing item.system.timing}}</td>
-                <td class="width-18">{{skillByKey ../actor item.system.skill}}</td>
-                <td class="width-18">{{item.system.target}}</td>
-                <td class="width-18">{{item.system.range}}</td>
-                <td class="width-14">{{item.system.encroach.value}}</td>
-                <td class="width-14">{{item.system.limit}}</td>
-              </tr>
-            </table>
-
-            <div class="item-description">{{{item.system.description}}}</div>
-          </li>
-        {{/each}}
-        </ol>
-      </div>
-    </div>
-
-    {{!-- Weapon Tab --}}
-    {{#unless (eq actor.type "enemy")}}
-    <div class="tab {{tabs.weapon.cssClass}}" data-group="primary" data-tab="weapon">
-      <div class="sheet-wrapper">
-
-        {{#unless system.weaponSelect}}
-        <div class="add-skills">
-          <select name="system.weaponTmp" id="actor-weapon">
-            {{#select system.weaponTmp}}
-            {{#each actorWeapon as |item id|}}
-            <option value="{{id}}">{{item}}</option>
-            {{/each}}
-            {{/select}}
-          </select>
-          <button type="button" class="add-weapon"><i class="fas fa-arrow-down"></i></button>
-        </div>
-        {{/unless}}
-
-        <table class="margin-top-10" style="width: 100%;">
-          <tr>
-            <th colspan="2" style="text-align: right; padding-right: 0; vertical-align: middle;">
-              <div style="display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
-                <span>{{localize "DX3rd.WeaponSelect"}}</span>
-                <input type="checkbox" name="system.weaponSelect" data-dtype="Boolean" {{#if system.weaponSelect}} checked {{/if}}>
+        {{!-- 이펙트 구성 --}}
+        <section class="dx3rd-effect-section dx3rd-effect-compose">
+          <header class="dx3rd-effect-section-header">
+            <div><i class="fas fa-bolt"></i> {{localize "DX3rd.Effect"}}</div>
+          </header>
+          <div class="dx3rd-action-config-grid dx3rd-combo-readout">
+            <label class="dx3rd-action-config-field"><span>{{#if attackLabel}}{{attackLabel}}{{else}}{{localize "DX3rd.Attack"}}{{/if}}</span>
+              <input type="text" value="{{system.attack.value}}" disabled></label>
+            <div class="dx3rd-action-config-field is-dice">
+              <span>{{localize "DX3rd.Dice"}} <input type="text" class="dice-crit" value="{{system.critical.min}}" disabled></span>
+              <div class="dx3rd-combo-dice">
+                <input type="text" value="{{system.dice.value}}" disabled>
+                <span class="slash"> DX </span>
+                <input type="text" value="{{system.critical.value}}" disabled>
+                <span class="slash"> + </span>
+                <input type="text" value="{{system.add.value}}" disabled>
               </div>
-            </th>
-          </tr>
-        </table>
+            </div>
+            <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.Encroach"}}</span>
+              <input type="text" value="{{system.encroach.value}}" disabled></label>
+          </div>
 
+          {{!-- 이펙트 추가 줄은 목록 바로 위에 둔다 --}}
+          <div class="add-skills">
+            <select name="system.effectTmp" id="actor-effect">
+              {{#select system.effectTmp}}
+              {{#each actorEffect as |item id|}}
+              <option value="{{id}}">{{item}}</option>
+              {{/each}}
+              {{/select}}
+            </select>
+            <button type="button" class="add-effect"><i class="fas fa-arrow-down"></i></button>
+          </div>
 
-        {{#unless system.weaponSelect}}
-        <ol class="items-list">
-        {{#each system.weaponItems as |item id|}}
-          <li class="item flexrow combo-item weapon-item" data-item-id="{{id}}" draggable="true">
-            <input type="hidden" name="system.weapon" value="{{id}}">
-            <h4 class="item-name">
-              <span class="item-label">
-                {{item.name}}
+          <ol class="items-list">
+          {{#each system.effectItems as |item id|}}
+            <li class="item flexrow combo-item" data-item-id="{{id}}">
+              <input type="hidden" name="system.effectIds" value="{{id}}">
+              <h4 class="item-name">
+                <span class="item-label">
+                  <span class="level">{{item.system.level.value}}</span>
+                  {{item.name}}
 
-                <div class="item-controls">
-                  <a class="item-control item-edit" title="Edit Item"><i class="fas fa-edit"></i></a>
-                  <a class="item-control item-delete" title="Delete Item"><i class="fas fa-trash"></i></a>
-                </div>
-              </span>
+                  <div class="item-controls">
+                    <a class="item-control item-edit" title="Edit Item"><i class="fas fa-edit"></i></a>
+                    <a class="item-control item-delete" title="Delete Item"><i class="fas fa-trash"></i></a>
+                  </div>
+                </span>
 
-            </h4>
-            <table class="info-table">
-              <tr>
-                <th class="width-18">{{localize "DX3rd.Type"}}</th>
-                <th class="width-18">{{localize "DX3rd.Skill"}}</th>
-                <th class="width-18">{{localize "DX3rd.Range"}}</th>
-                <th class="width-18">{{localize "DX3rd.Add"}}</th>
-                <th class="width-14">{{localize "DX3rd.Attack"}}</th>
-                <th class="width-14">{{localize "DX3rd.Guard"}}</th>
-              </tr>
-              <tr>
-                {{#if (eq item.type "vehicle")}}
-                <td class="width-18">{{localize "DX3rd.Melee"}}</td>
-                <td class="width-18">{{#if item.system.skill}}{{skillByKey actor item.system.skill}}{{else}}-{{/if}}</td>
-                <td class="width-18">{{localize "DX3rd.Engage"}}</td>
-                <td class="width-18">0</td>
-                <td class="width-14">{{item.system.attack}}</td>
-                <td class="width-14">0</td>
-                {{else}}
-                <td class="width-18">{{skillByKey actor item.system.type}}</td>
-                <td class="width-18">{{skillByKey actor item.system.skill}}</td>
-                <td class="width-18">{{item.system.range}}</td>
-                <td class="width-18">{{item.system.add}}</td>
-                <td class="width-14">{{item.system.attack}}</td>
-                <td class="width-14">{{item.system.guard}}</td>
-                {{/if}}
-              </tr>
-            </table>
+              </h4>
+              <table class="info-table">
+                <tr>
+                  <th class="width-18">{{localize "DX3rd.Timing"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Skill"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Target"}}</th>
+                  <th class="width-18">{{localize "DX3rd.Range"}}</th>
+                  <th class="width-14">{{localize "DX3rd.Encroach"}}</th>
+                  <th class="width-14">{{localize "DX3rd.Limit"}}</th>
+                </tr>
+                <tr>
+                  <td class="width-18">{{timing item.system.timing}}</td>
+                  <td class="width-18">{{skillByKey ../actor item.system.skill}}</td>
+                  <td class="width-18">{{item.system.target}}</td>
+                  <td class="width-18">{{item.system.range}}</td>
+                  <td class="width-14">{{item.system.encroach.value}}</td>
+                  <td class="width-14">{{item.system.limit}}</td>
+                </tr>
+              </table>
 
-            <div class="item-description">{{{item.system.description}}}</div>
-          </li>
-        {{/each}}
-        </ol>
-        {{/unless}}
-      </div>
-    </div>
-    {{/unless}}
-
-
-    {{!-- Attributes Tab --}}
-    <div class="tab {{tabs.attributes.cssClass}}" data-group="primary" data-tab="attributes">
-      <div class="sheet-wrapper margin-top-10">
-        <table>
-          <tr>
-            <th><span>{{localize "DX3rd.Active"}}</span></th>
-            <td><input type="checkbox" name="system.active.state" {{#if system.active.state}} checked {{/if}}></td>
-            <th><label for="system.active.runTiming">{{localize "DX3rd.RunTiming"}}</label></th>
-            <td>
-              <select name="system.active.runTiming" data-dtype="String" style="width: 100%;">
-                {{#select system.active.runTiming}}
-                <option value="instant">{{localize "DX3rd.Instant"}}</option>
-                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
-                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
-                {{/select}}
-              </select>
-            </td>
-            <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
-            <td>
-              <select name="system.active.disable" data-dtype="String" style="width: 100%;">
-                {{#select system.active.disable}}
-                <option value="-">-</option>
-                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
-                <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
-                <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
-                <option value="main">{{localize "DX3rd.AfterMain"}}</option>
-                <option value="reaction">{{localize "DX3rd.AfterReaction"}}</option>
-                <option value="guard">{{localize "DX3rd.AfterGuard"}}</option>
-                <option value="round">{{localize "DX3rd.AfterRound"}}</option>
-                <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
-                {{/select}}
-              </select>
-            </td>
-          </tr>
-          
-          <tr>
-            <th>
-              {{localize "DX3rd.AttackRoll"}}
-            </th>
-            <td>
-              <select name="system.attackRoll" data-dtype="String" class="attackroll-select" {{#if (or (eq system.roll "-") (eq system.roll "dodge"))}}disabled{{/if}}>
-                {{#select system.attackRoll}}
-                <option value="-">-</option>
-                <option value="melee">{{localize "DX3rd.Melee"}}</option>
-                <option value="ranged">{{localize "DX3rd.Ranged"}}</option>
-                {{/select}}
-              </select> 
-            </td>
-            {{#if (eq actor.type "enemy")}}
-            <th>{{localize "DX3rd.Achievement"}}</th>
-            <td>
-              <input type="text" name="system.attackAchievement" data-dtype="String" value="{{system.attackAchievement}}" placeholder="-" style="width: 60px;">
-            </td>
-            <th></th>
-            <td></td>
-            {{else}}
-            <th></th>
-            <td></td>
-            <th></th>
-            <td></td>
-            {{/if}}
-          </tr>
-          
-          <tr>
-            <th><label for="system.macro">{{localize "DX3rd.Macro"}}</label></th>
-            <td colspan="5"><input type="text" name="system.macro" data-dtype="String" value="{{system.macro}}"></td>
-          </tr>
-        </table>
-
-
-        <div class="attributes">
-          <header class="attributes-header flexrow">
-            <span class="attribute-key">{{localize "DX3rd.Name"}}</span>
-            <span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span>
-            <span class="attribute-value">{{localize "DX3rd.Value"}}</span>
-            <a class="attribute-control" data-action="createAttribute" data-pos="main" data-type="attributes"><i class="fas fa-plus"></i></a>
-          </header>
-    
-          <ol class="attributes-list" data-pos="main">
-          {{#each system.attributes as |attr key|}}
-            <li class="attribute flexrow" data-attribute="{{key}}">
-              <select class="attribute-key" name="system.attributes.{{key}}.key" data-dtype="String">
-                {{{attributeOptions attr.key}}}
-              </select>
-
-              <input class="attribute-label" type="text" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled>
-              <input class="attribute-value" type="text" name="system.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
-              <a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a>
+              <div class="item-description">{{{item.system.description}}}</div>
             </li>
           {{/each}}
           </ol>
-        </div>
+        </section>
 
       </div>
     </div>
 
-    {{!-- Target Tab --}}
-    <div class="tab {{tabs.target.cssClass}}" data-group="primary" data-tab="target">
-      <div class="sheet-wrapper margin-top-10">
-        <table>
-          <tr>
-            <th><span>{{localize "DX3rd.Target"}}</span></th>
-            <td><input type="checkbox" name="system.getTarget" {{#if system.getTarget}} checked {{/if}}></td>
-            <th><span>{{localize "DX3rd.Scene"}}</span></th>
-            <td><input type="checkbox" name="system.scene" {{#if system.scene}} checked {{/if}}></td>
-            <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
-            <td colspan="3">
-              <select name="system.effect.disable" data-dtype="String" style="width:90%; margin-left:10px;">
-                {{#select system.effect.disable}}
-                <option value="-">-</option>
-                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
-                <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
-                <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
-                <option value="main">{{localize "DX3rd.AfterMain"}}</option>
-                <option value="reaction">{{localize "DX3rd.AfterReaction"}}</option>
-                <option value="guard">{{localize "DX3rd.AfterGuard"}}</option>
-                <option value="round">{{localize "DX3rd.AfterRound"}}</option>
-                <option value="scene">{{localize "DX3rd.AfterScene"}}</option>
-                <option value="session">{{localize "DX3rd.AfterSession"}}</option>
-                {{/select}}
-              </select>
-            </td>
-          </tr>
-          <tr>
-            <th></th>
-            <td></td>
-            <th></th>
-            <td></td>
-            <th><span>{{localize "DX3rd.RunTiming"}}</span></th>
-            <td colspan="3">
-              <select name="system.effect.runTiming" data-dtype="String" style="width:90%; margin-left:10px;">
-                {{#select system.effect.runTiming}}
-                <option value="-">-</option>
-                <option value="instant">{{localize "DX3rd.Instant"}}</option>
-                <option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option>
-                <option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>
-                {{/select}}
-              </select>
-            </td>
-          </tr>
-        </table>
-
-
-        <div class="attributes">
-          <header class="attributes-header flexrow">
-            <span class="attribute-key">{{localize "DX3rd.Name"}}</span>
-            <span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span>
-            <span class="attribute-value">{{localize "DX3rd.Value"}}</span>
-            <a class="attribute-control" data-action="createAttribute" data-pos="sub" data-type="attributes"><i class="fas fa-plus"></i></a>
-          </header>
-    
-          <ol class="attributes-list" data-pos="sub">
-          {{#each system.effect.attributes as |attr key|}}
-            <li class="attribute flexrow" data-attribute="{{key}}">
-              <select class="attribute-key" name="system.effect.attributes.{{key}}.key" data-dtype="String">
-                {{{attributeOptions attr.key}}}
-              </select>
-
-              <input class="attribute-label" type="text" name="system.effect.attributes.{{key}}.label" value="{{attr.label}}" disabled>
-              <input class="attribute-value" type="text" name="system.effect.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
-              <a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a>
-            </li>
-          {{/each}}
-          </ol>
-        </div>
-
-      </div>
-    </div>
+    {{!-- 즉시/지속 효과: 효과 카드에서 각 효과를 개별로 편집한다 --}}
+    <div class="tab {{tabs.immediate.cssClass}}" data-group="primary" data-tab="immediate">{{> "systems/dx3rd-emanim/templates/item/parts/immediate-effects-v2.html"}}</div>
+    <div class="tab {{tabs.persistent.cssClass}}" data-group="primary" data-tab="persistent">{{> "systems/dx3rd-emanim/templates/item/parts/persistent-effects-v2.html"}}</div>
 
   </section>
 
