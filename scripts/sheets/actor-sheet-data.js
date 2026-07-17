@@ -319,7 +319,7 @@
         return handler.openComboBuilder(actor, targetType, targetId);
     }
 
-    function showStatRoll(actor, targetType, targetId) {
+    function showStatRoll(actor, targetType, targetId, anchor = null) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.showStatRollConfirmDialog) {
             ui.notifications.error(format("DX3rd.HandlerMissing", {name: "UniversalHandler"}));
@@ -329,7 +329,9 @@
             actor,
             targetType,
             targetId,
-            (type, id) => openComboBuilder(actor, type, id)
+            (type, id) => openComboBuilder(actor, type, id),
+            null,
+            anchor
         );
     }
 

@@ -110,9 +110,12 @@
     if (kind === 'selfModifiers') {
       if (['weapon', 'protect', 'vehicle'].includes(item.type)) return 'activation';
       if ((item.system?.active?.applyMode || 'onUse') === 'toggle') return 'activation';
-      // 기존 액터 시트에서 자기 보정만 가진 비공격 이펙트는 이름 클릭으로 on/off하던
+      // 기존 액터 시트에서 자기 보정만 가진 상시 비공격 이펙트는 이름 클릭으로 on/off하던
       // 지속 토글이었다. 명시 action이 없는 기존 데이터는 이 의미를 그대로 보존한다.
-      if (item.type === 'effect' && !isAttackItem(item) && hasEntries(item.system?.attributes)
+      // 상시 조건은 시트가 토글 버튼을 그리는 기준(actor-sheet-data usesSelfEffectActiveToggle)과
+      // 반드시 일치해야 한다. 어긋나면 토글도 없고 사용에도 안 걸리는 이펙트가 생긴다.
+      if (item.type === 'effect' && item.system?.timing === 'always' && !isAttackItem(item)
+        && hasEntries(item.system?.attributes)
         && !hasEntries(item.system?.effect?.attributes)) return 'activation';
       return invocationAction(item);
     }

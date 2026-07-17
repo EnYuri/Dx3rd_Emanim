@@ -1914,6 +1914,36 @@
     },
 
     /**
+     * 사용 시점(instant)의 자기 보정 발동 채널을 applyMode로 갈라준다.
+     *   - toggle: active.state=true. DX3rdAppliedToggle이 액터/아이템 갱신마다 attributes를 재평가하므로
+     *     [level] 같은 추종 수식이 따라간다. 수명은 disable-hooks가 active.disable로 관리.
+     *   - onUse : 사용 시점 값을 동결한 applied AE를 1회 적용. 토글 채널은 재평가 때
+     *     actor._dx3rdRuntimeInput이 이미 사라져 [소비HP] 등이 0으로 주저앉으므로,
+     *     런타임 입력을 쓰는 버프는 이 채널이어야 한다.
+     *
+     * afterSuccess/afterDamage 발동 지점(handleSuccessButton·processCombo* ·main.js 채팅 버튼)은
+     * 이 함수를 쓰지 않고 active.state 토글로 남겨둔다. 이유:
+     *   (1) 그 시점엔 handleItemUse가 이미 끝나 _dx3rdRuntimeInput이 지워졌으므로(finally 절)
+     *       동결로 바꿔도 [소비HP]는 똑같이 0이다 — 얻는 게 없다.
+     *   (2) spell/psionic/combo는 template.json에 applyMode 필드가 아예 없어 'onUse'로 떨어지는데,
+     *       이들을 동결 채널로 보내면 active.state로 "지속 적용 중"을 판단하는 곳
+     *       (combo-data getPersistentEffectIds/calculateItemAttackBonus, 시트 활성 표시)이 어긋난다.
+     * runTiming/active.state/disable 게이트는 호출부가 미리 판정한다.
+     * @param {Actor} actor - 사용 액터(=대상)
+     * @param {Item} item
+     * @returns {boolean} active.state를 켰으면 true
+     */
+    async applySelfModifiers(actor, item) {
+      const applyMode = item.system?.active?.applyMode || 'onUse';
+      if (applyMode === 'onUse') {
+        await this.applySelfFrozenBuff(actor, item);
+        return false;
+      }
+      await item.update({ 'system.active.state': true });
+      return true;
+    },
+
+    /**
      * 시트의 "효과 적용" 전용 경로.
      * 대상 탭(system.effect.attributes)과 자기 효과 탭(system.attributes)은 서로 다른
      * 의미이므로, 자신을 타겟으로 잡았고 둘 다 있을 때만 어느 쪽을 적용할지 묻는다.
@@ -5538,7 +5568,7 @@
       }
     },
     
-    async showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null) {
+    async showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null, menuAnchor = null) {
       // 권한 체크
       if (!actor.isOwner && !game.user.isGM) {
         ui.notifications.warn('이 액터에 대한 권한이 없습니다.');
@@ -5572,7 +5602,7 @@
         ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
         return;
       }
-      const useCombo = await window.DX3rdChooseRollMode();
+      const useCombo = await window.DX3rdChooseRollMode(menuAnchor ?? undefined);
 
       if (useCombo === true) return openCombo();
       if (useCombo === false) return rollDirectly();
@@ -7830,18 +7860,11 @@
       // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
       const activeDisable = item.system?.active?.disable ?? '-';
       const skipToggle = item.type === 'once' && activeDisable === '-';
-      const applyMode = item.system?.active?.applyMode || 'onUse';
       const selfActionMatches = !window.DX3rdItemEffectAdapter
         || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant');
       if (selfActionMatches && item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
-        if (applyMode === 'onUse') {
-          // 사용 시 self 동결버프: active.state는 켜지 않고, 런타임 입력이 반영된 동결 버프를 자신에게 적용.
-          await this.applySelfFrozenBuff(actor, item);
-          console.log('DX3rd | handleItemUse - Self frozen buff applied (onUse mode)');
-        } else {
-          await item.update({ 'system.active.state': true });
-          console.log('DX3rd | handleItemUse - Item activated (instant timing)');
-        }
+        const toggled = await this.applySelfModifiers(actor, item);
+        console.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       
       // 2.7. 자원소비 비례형(네이티브 필드) 처리 — HP 등을 n 소비하고 n×배수만큼 판정/스탯 버프

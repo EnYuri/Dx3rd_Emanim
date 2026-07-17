@@ -1652,9 +1652,14 @@
             }));
             document.body.appendChild(menu);
 
-            const candidateRect = anchor?.getBoundingClientRect?.();
-            // body/html은 (0, 0)을 돌려주므로 메뉴의 실제 호출 위치가 아니다.
-            // 클릭 요소처럼 면적이 있는 앵커만 사용하고, 그 외에는 화면 중앙에 둔다.
+            // body/html은 문서 전체 크기의 rect를 돌려주므로 호출 위치가 아니다.
+            // (그대로 쓰면 메뉴가 문서 하단으로 클램프되어 화면 좌하단에 붙는다.)
+            // 클릭 요소처럼 면적이 있는 실제 앵커만 사용하고, 그 외에는 화면 중앙에 둔다.
+            const isUsableAnchor = anchor instanceof Element
+                && anchor !== document.body
+                && anchor !== document.documentElement
+                && anchor.isConnected;
+            const candidateRect = isUsableAnchor ? anchor.getBoundingClientRect() : null;
             const rect = candidateRect?.width > 0 && candidateRect?.height > 0 ? candidateRect : null;
             const preferredLeft = rect ? rect.left : (window.innerWidth / 2 - menu.offsetWidth / 2);
             const preferredTop = rect ? rect.bottom + 6 : (window.innerHeight / 2 - menu.offsetHeight / 2);

@@ -341,19 +341,19 @@
       event.preventDefault();
       const abilityId = target.closest('[data-ability-id]')?.dataset.abilityId;
       if (!abilityId) return;
-      this._showStatRoll('ability', abilityId);
+      this._showStatRoll('ability', abilityId, target || event.currentTarget);
     }
 
     static _onRollSkill(event, target) {
       event.preventDefault();
       const skillId = target.closest('[data-skill-id]')?.dataset.skillId;
       if (!skillId) return;
-      this._showStatRoll('skill', skillId);
+      this._showStatRoll('skill', skillId, target || event.currentTarget);
     }
 
-    _showStatRoll(targetType, targetId) {
+    _showStatRoll(targetType, targetId, anchor = null) {
       if (!this._canEdit()) return;
-      actorData.showStatRoll(this.document, targetType, targetId);
+      actorData.showStatRoll(this.document, targetType, targetId, anchor);
     }
 
     // 외부 호출자(combat-ui, action-ui)가 sheet._openComboBuilder를 콜백으로 사용하므로 유지.

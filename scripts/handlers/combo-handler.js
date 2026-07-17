@@ -178,6 +178,40 @@ window.DX3rdComboHandler = {
     },
     
     /**
+     * 조합된 멤버 이펙트의 발동 액션. 콤보 본체의 액션이 아니라 멤버 자신의 기준을 쓴다.
+     * @param {Item} effectItem
+     * @param {string} fallback - 어댑터가 없을 때 쓸 콤보 본체의 액션
+     */
+    comboMemberAction(effectItem, fallback) {
+        return window.DX3rdItemEffectAdapter?.invocationAction?.(effectItem) || fallback;
+    },
+
+    /**
+     * 상시 토글(활성화 액션)로 쓰도록 만들어진 멤버인지. 조합해서 쓰는 것 자체를 막지는 않고,
+     * 사용자에게 경고만 남긴 뒤 다른 멤버와 똑같이 발동시킨다.
+     * @param {Item} effectItem
+     */
+    isToggleBoundMember(effectItem) {
+        const adapter = window.DX3rdItemEffectAdapter;
+        if (!adapter?.inferAction) return false;
+        return adapter.inferAction(effectItem, 'selfModifiers', effectItem.system?.active || {}) === 'activation';
+    },
+
+    /**
+     * 조합된 상시 토글 멤버 경고. 콤보 사용 1회당 한 번만 띄운다.
+     * @param {Item} comboItem
+     * @param {string[]} memberNames
+     */
+    warnToggleBoundMembers(comboItem, memberNames) {
+        if (!memberNames?.length) return;
+        const unique = [...new Set(memberNames)];
+        ui.notifications.warn(game.i18n.format('DX3rd.ComboToggleMemberWarning', {
+            combo: comboItem?.name || '',
+            names: unique.join(', ')
+        }));
+    },
+
+    /**
      * 주어진 소스 아이템들(콤보 본체 + 포함 이펙트)에서 익스텐션 정의를 수집한다.
      * 기존 3개 메서드(processInstant/collectAfterSuccess/collectAfterDamage)에 복붙되어 있던
      * pushExtensionsFrom 로직을 단일화한 것.
@@ -185,12 +219,17 @@ window.DX3rdComboHandler = {
      * @param {Array} srcItems - 익스텐션 플래그를 가진 아이템 배열 (앞에서부터 순서대로 수집)
      * @param {Object} [opts]
      * @param {boolean} [opts.includeItemCreation=true] - weapon/protect/vehicle 생성 익스텐션 포함 여부 (afterDamage는 instant 전용이라 false)
+     * @param {string|null} [opts.comboItemId=null] - 콤보 본체의 id. 지정 시 액션 게이트는 본체에만 적용하고
+     *   조합된 멤버 이펙트의 익스텐션은 게이트 없이 모두 수집한다(콤보는 하나의 사용 행위이므로,
+     *   본체가 공격 콤보라는 이유로 멤버의 '사용' 채널을 떨어뜨리면 안 된다).
      * @returns {Array} 수집된 익스텐션 정의 배열
      */
-    collectExtensions(actor, srcItems, { includeItemCreation = true, action = 'attack' } = {}) {
+    collectExtensions(actor, srcItems, { includeItemCreation = true, action = 'attack', comboItemId = null } = {}) {
         const collected = [];
+        const gatedByAction = srcItem => !comboItemId || srcItem.id === comboItemId;
         for (const srcItem of srcItems) {
             if (!srcItem) continue;
+            const gated = gatedByAction(srcItem);
             const ext = srcItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
             // 부모 아이템의 runTiming 저장 (익스텐션의 등록 타이밍 결정에 사용)
             const parentRunTiming = srcItem.system?.active?.runTiming || 'instant';
@@ -205,7 +244,7 @@ window.DX3rdComboHandler = {
                 if (!d || !d.activate) return;
 
                 if (typeKey === 'heal' || typeKey === 'damage' || typeKey === 'condition') {
-                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
+                    if (gated && window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
                     collected.push({
                         type: typeKey, ...baseData,
                         timing: d.timing || 'instant',
@@ -221,7 +260,7 @@ window.DX3rdComboHandler = {
                         conditionalFormula: !!d.conditionalFormula
                     });
                 } else if (typeKey === 'statusClear') {
-                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
+                    if (gated && window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
                     collected.push({
                         type: typeKey, ...baseData,
                         timing: d.timing || 'instant',
@@ -231,7 +270,7 @@ window.DX3rdComboHandler = {
                 } else if (typeKey === 'weapon' || typeKey === 'protect' || typeKey === 'vehicle') {
                     // 아이템 생성 익스텐션은 instant만 지원 (afterDamage 수집에서는 제외)
                     if (!includeItemCreation) return;
-                    if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, 'instant')) return;
+                    if (gated && window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, 'instant')) return;
                     collected.push({
                         type: typeKey, ...baseData,
                         timing: 'instant',
@@ -305,6 +344,7 @@ window.DX3rdComboHandler = {
         }
 
         const effectItems = [];
+        const toggleBoundMembers = [];
         for (const effectId of effectIds) {
             if (!effectId || effectId === '-') continue;
             const effectItem = actor.items.get(effectId);
@@ -324,35 +364,36 @@ window.DX3rdComboHandler = {
 
             // 이펙트 즉시 처리
             try {
-                const selfMatchesAttack = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, action, 'instant');
-                if (selfMatchesAttack && effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
-                    // applyMode='onUse'인 멤버(노도의 선풍 등)는 active.state를 켜지 않고, 콤보 사용 시점의
-                    // 런타임 입력([소비HP])이 반영된 동결 버프를 자신에게 적용한다. processItemUsageCost가
-                    // 콤보 멤버를 스캔해 이미 _dx3rdRuntimeInput을 세팅했으므로 여기서 동결 평가가 잡힌다.
-                    const memApplyMode = effectItem.system?.active?.applyMode || 'onUse';
-                    if (memApplyMode === 'onUse') {
-                        await handler.applySelfFrozenBuff(actor, effectItem);
-                        console.log('DX3rd | ComboHandler - Effect self frozen buff applied (onUse):', effectItem.name);
-                    } else {
-                        await effectItem.update({ 'system.active.state': true });
-                        console.log('DX3rd | ComboHandler - Effect activated (instant):', effectItem.name);
-                    }
+                // 콤보는 하나의 사용 행위다. 조합된 멤버는 콤보 본체의 액션(공격/사용)이 아니라
+                // 자기 자신의 발동 액션으로 판정한다. 본체가 공격 콤보라는 이유로 멤버의 '사용' 채널을
+                // 떨어뜨리면 조합해 넣은 효과가 조용히 사라진다.
+                const memberAction = this.comboMemberAction(effectItem, action);
+                // 이미 켜 둔 토글 멤버는 그대로 유지되므로 경고 대상이 아니다.
+                if (this.isToggleBoundMember(effectItem) && !effectItem.system?.active?.state) {
+                    toggleBoundMembers.push(effectItem.name);
                 }
-                await handler.executeMacros(effectItem, 'instant', action);
-                await handler.applyToTargets(actor, effectItem, 'instant', null, action);
+                if (effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
+                    // applyMode='onUse'인 멤버(노도의 선풍 등)는 동결 채널로 간다. processItemUsageCost가
+                    // 콤보 멤버를 스캔해 이미 _dx3rdRuntimeInput을 세팅했으므로 여기서 [소비HP]가 잡힌다.
+                    const toggled = await handler.applySelfModifiers(actor, effectItem);
+                    console.log(`DX3rd | ComboHandler - Effect self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, effectItem.name);
+                }
+                await handler.executeMacros(effectItem, 'instant', memberAction);
+                await handler.applyToTargets(actor, effectItem, 'instant', null, memberAction);
             } catch (e) {
                 console.warn('DX3rd | ComboHandler - effect instant process skipped:', effectItem?.name, e);
             }
 
             effectItems.push(effectItem);
         }
+        this.warnToggleBoundMembers(item, toggleBoundMembers);
 
         // updateItem 훅의 AE 동기화는 비동기다. 즉시 활성화 이펙트(예: 굶주린 그림자)의
         // 공격력 보정이 공격 판정 전에 actor 파생값에 반영되도록, 진행 중인 동기화까지 완료를 대기한다.
         await window.DX3rdAppliedToggle?.sync?.(actor);
 
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트)
-        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action });
+        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action, comboItemId: item.id });
 
         console.log('DX3rd | ComboHandler - Total collected extensions before merge:', collectedExtensions.length);
         console.log('DX3rd | ComboHandler - Collected extensions:', collectedExtensions);
@@ -578,9 +619,10 @@ window.DX3rdComboHandler = {
             });
 
             // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
+            // 멤버는 콤보 본체의 액션으로 거르지 않는다(processInstantExtensions 주석 참조).
             const effectActiveDisable = effectItem.system?.active?.disable ?? '-';
-            const effectSelfMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, action, 'afterSuccess');
-            if (effectSelfMatches && effectItem.system?.active?.runTiming === 'afterSuccess' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
+            const memberAction = this.comboMemberAction(effectItem, action);
+            if (effectItem.system?.active?.runTiming === 'afterSuccess' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
                 result.activations.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect activation:', effectItem.name);
             }
@@ -601,7 +643,7 @@ window.DX3rdComboHandler = {
                 }
             }
             // 3) 어플라이드
-            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, action, 'afterSuccess')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
+            if ((!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(effectItem, memberAction, 'afterSuccess')) && effectItem.system?.getTarget && effectItem.system?.effect?.runTiming === 'afterSuccess') {
                 result.applies.push({ itemId: effectItem.id, itemName: effectItem.name });
                 console.log('DX3rd | ComboHandler - Added effect apply:', effectItem.name);
             }
@@ -609,7 +651,7 @@ window.DX3rdComboHandler = {
         }
 
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트)
-        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action });
+        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: true, action, comboItemId: item.id });
 
         // 익스텐션 병합 (afterSuccess + afterMain)
         console.log('DX3rd | ComboHandler - Collected extensions count:', collectedExtensions.length);
@@ -705,9 +747,9 @@ window.DX3rdComboHandler = {
             effectItems.push(effectItem);
 
             // 1) 활성화 (disable이 'notCheck'가 아닌 경우에만)
+            // 멤버는 콤보 본체의 액션으로 거르지 않는다(processInstantExtensions 주석 참조).
             const effectActiveDisable = effectItem.system?.active?.disable ?? '-';
-            const effectSelfMatchesDamage = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'selfModifiers', effectItem.system?.active || {}, 'attack', 'afterDamage');
-            if (effectSelfMatchesDamage && effectItem.system?.active?.runTiming === 'afterDamage' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
+            if (effectItem.system?.active?.runTiming === 'afterDamage' && !effectItem.system?.active?.state && effectActiveDisable !== 'notCheck') {
                 result.activations.push({ itemId: effectItem.id, itemName: effectItem.name });
             }
             // 2) 매크로 (문자열 파싱)
@@ -734,7 +776,7 @@ window.DX3rdComboHandler = {
         }
 
         // 익스텐드 일괄 수집 (콤보 본체 + 포함 이펙트). afterDamage는 아이템 생성 익스텐션 제외(instant 전용)
-        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: false });
+        const collectedExtensions = this.collectExtensions(actor, [item, ...effectItems], { includeItemCreation: false, comboItemId: item.id });
 
         // 익스텐션 병합 (afterDamage + afterMain)
         console.log('DX3rd | ComboHandler - Collected extensions count:', collectedExtensions.length);
