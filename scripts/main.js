@@ -33,6 +33,22 @@ function dx3rdReadData(el, key) {
     return raw;
 }
 
+// URI 인코딩해서 data-*로 실어 나른 수식 전용 리더. dx3rdReadData는 "10" 같은 순수 숫자
+// 수식을 Number로 승격해버려, 고정 공격력이 문자열 검사에서 탈락해 통째로 유실된다.
+// 수식은 항상 원문 문자열로 되읽는다. 속성이 없거나 비면 빈 문자열.
+function dx3rdReadEncodedFormula(el, key) {
+    if (!el?.dataset) return '';
+    const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const raw = el.dataset[camel];
+    if (typeof raw !== 'string' || raw === '') return '';
+    try {
+        return decodeURIComponent(raw);
+    } catch (e) {
+        console.warn(`DX3rd | Could not read encoded formula (${key})`, e);
+        return '';
+    }
+}
+
 // 채팅 버튼 "완료" 텍스트 토글(네이티브). jQuery .data('original-text') 캐시는
 // data-original-text 속성(dataset.originalText)으로 대체한다.
 function dx3rdApplyCompleteText(button, isCompleted, completeText) {
@@ -2840,38 +2856,15 @@ window.DX3rdChatToggleManager = {
 
             // 개별 보존된 값들 읽기
             const preservedActorAttack = dx3rdReadData(button, 'preserved-actor-attack');
-            const preservedActorAttackFormulaEncoded = dx3rdReadData(button, 'preserved-actor-attack-formula');
             const preservedActorDamageRoll = dx3rdReadData(button, 'preserved-actor-damage-roll');
-            const preservedActorDamageRollFormulaEncoded = dx3rdReadData(button, 'preserved-actor-damage-roll-formula');
             const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
             const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
-            const preservedAttackFormulaEncoded = dx3rdReadData(button, 'preserved-attack-formula');
             const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
-            let preservedAttackFormula = null;
-            let preservedActorAttackFormula = '';
-            let preservedActorDamageRollFormula = '';
-            if (typeof preservedAttackFormulaEncoded === 'string' && preservedAttackFormulaEncoded !== '') {
-                try {
-                    preservedAttackFormula = decodeURIComponent(preservedAttackFormulaEncoded);
-                } catch (e) {
-                    console.warn('DX3rd | Could not read preserved attack formula', e);
-                }
-            }
-            if (typeof preservedActorAttackFormulaEncoded === 'string' && preservedActorAttackFormulaEncoded !== '') {
-                try {
-                    preservedActorAttackFormula = decodeURIComponent(preservedActorAttackFormulaEncoded);
-                } catch (e) {
-                    console.warn('DX3rd | Could not read preserved actor attack formula', e);
-                }
-            }
-            if (typeof preservedActorDamageRollFormulaEncoded === 'string' && preservedActorDamageRollFormulaEncoded !== '') {
-                try {
-                    preservedActorDamageRollFormula = decodeURIComponent(preservedActorDamageRollFormulaEncoded);
-                } catch (e) {
-                    console.warn('DX3rd | Could not read preserved damage-roll formula', e);
-                }
-            }
-            
+            // 속성이 없을 때만 null로 남겨 구형 카드의 숫자 보존값(weaponAttack) 폴백을 살린다.
+            const preservedAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-attack-formula') || null;
+            const preservedActorAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-actor-attack-formula');
+            const preservedActorDamageRollFormula = dx3rdReadEncodedFormula(button, 'preserved-actor-damage-roll-formula');
+
             if (!actorId || !itemId) return;
             
             const actor = game.actors.get(actorId);
