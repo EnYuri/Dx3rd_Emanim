@@ -440,7 +440,7 @@
               itemRunTiming: itemRunTiming  // 아이템의 runTiming 저장
             };
             
-            console.log('DX3rd | GM registered afterDamage extension request:', {
+            window.DX3rdDebug.log('DX3rd | GM registered afterDamage extension request:', {
               queueKey: queueKey,
               attacker: actor.name,
               targetCount: targetActorIds.length,
@@ -484,7 +484,7 @@
               }
             });
             
-            console.log('DX3rd | Sent afterDamage extension registration to GM');
+            window.DX3rdDebug.log('DX3rd | Sent afterDamage extension registration to GM');
           }
         }
       }
@@ -534,7 +534,7 @@
                 comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
                 timestamp: Date.now()
               };
-              console.log('DX3rd | GM registered afterDamage request:', {
+              window.DX3rdDebug.log('DX3rd | GM registered afterDamage request:', {
                 queueKey: queueKey,
                 attacker: actor.name,
                 targetCount: targetActorIds.length,
@@ -556,7 +556,7 @@
                   comboAfterDamageData: comboAfterDamageData // 콤보 데이터 전달
                 }
               });
-              console.log('DX3rd | AfterDamage registration sent to GM:', {
+              window.DX3rdDebug.log('DX3rd | AfterDamage registration sent to GM:', {
                 attacker: actor.name,
                 item: item.name,
                 targetCount: targetActorIds.length,
@@ -598,11 +598,11 @@
               type: 'showDefenseDialog',
               dialogData: payload  // payload → dialogData로 통일
             });
-            console.log('DX3rd | Defense dialog sent via socket to non-GM owner for:', targetActor.name);
+            window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket to non-GM owner for:', targetActor.name);
           } else {
             // 접속 중인 일반 소유자가 없으면 GM이 직접 표시
             await this.showDefenseDialog(payload);
-            console.log('DX3rd | GM showing defense dialog directly (no active non-GM owner)');
+            window.DX3rdDebug.log('DX3rd | GM showing defense dialog directly (no active non-GM owner)');
           }
         } else {
           // 일반 유저: 항상 소켓 전송 (GM 백업 로직이 처리)
@@ -610,7 +610,7 @@
             type: 'showDefenseDialog',
             dialogData: payload  // payload → dialogData로 통일
           });
-          console.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
+          window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
         }
       }
       
@@ -763,7 +763,7 @@
                   extensionRequest.damageReports[targetActor.id] = hpChange;
                   extensionRequest.reportCount++;
                   
-                  console.log('DX3rd | Extension damage report recorded:', {
+                  window.DX3rdDebug.log('DX3rd | Extension damage report recorded:', {
                     target: targetActor.name,
                     hpChange: hpChange,
                     reportCount: extensionRequest.reportCount,
@@ -772,7 +772,7 @@
                   
                   // 모든 타겟이 보고했는지 확인
                   if (extensionRequest.reportCount === extensionRequest.targetActorIds.length) {
-                    console.log('DX3rd | All targets reported for extensions, processing...');
+                    window.DX3rdDebug.log('DX3rd | All targets reported for extensions, processing...');
                     
                     // HP 데미지를 받은 타겟 목록
                     const damagedTargets = Object.entries(extensionRequest.damageReports)
@@ -802,7 +802,7 @@
                       // heal 익스텐션 처리
                       if (extensionRequest.extensions.heal) {
                         const healTiming = extensionRequest.extensions.heal.timing;
-                        console.log(`DX3rd | Processing heal extension for damaged targets (timing: ${healTiming})`);
+                        window.DX3rdDebug.log(`DX3rd | Processing heal extension for damaged targets (timing: ${healTiming})`);
                         
                         // healDataWithTargets 먼저 생성
                         const originalTarget = extensionRequest.extensions.heal.target;
@@ -825,9 +825,9 @@
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
                             await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, healDataWithTargets, triggerItem, 'heal');
-                            console.log('DX3rd | Heal extension (afterMain) registered to afterMain queue from afterDamage');
+                            window.DX3rdDebug.log('DX3rd | Heal extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
-                            console.log('DX3rd | Skipping afterMain heal extension in afterDamage (item runTiming is not afterDamage)');
+                            window.DX3rdDebug.log('DX3rd | Skipping afterMain heal extension in afterDamage (item runTiming is not afterDamage)');
                           }
                         } else {
                           if (window.DX3rdUniversalHandler) {
@@ -840,7 +840,7 @@
                       // damage 익스텐션 처리
                       if (extensionRequest.extensions.damage) {
                         const damageTiming = extensionRequest.extensions.damage.timing;
-                        console.log(`DX3rd | Processing damage extension for damaged targets (timing: ${damageTiming})`);
+                        window.DX3rdDebug.log(`DX3rd | Processing damage extension for damaged targets (timing: ${damageTiming})`);
                         
                         // damageDataWithTargets 먼저 생성
                         const originalTarget = extensionRequest.extensions.damage.target;
@@ -863,9 +863,9 @@
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
                             await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, damageDataWithTargets, triggerItem, 'damage');
-                            console.log('DX3rd | Damage extension (afterMain) registered to afterMain queue from afterDamage');
+                            window.DX3rdDebug.log('DX3rd | Damage extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
-                            console.log('DX3rd | Skipping afterMain damage extension in afterDamage (item runTiming is not afterDamage)');
+                            window.DX3rdDebug.log('DX3rd | Skipping afterMain damage extension in afterDamage (item runTiming is not afterDamage)');
                           }
                         } else {
                           if (window.DX3rdUniversalHandler) {
@@ -902,7 +902,7 @@
                       // condition 익스텐션 처리
                       for (const condCfg of condList) {
                         const conditionTiming = condCfg.timing;
-                        console.log(`DX3rd | Processing condition extension for damaged targets (timing: ${conditionTiming}, type: ${condCfg.type})`);
+                        window.DX3rdDebug.log(`DX3rd | Processing condition extension for damaged targets (timing: ${conditionTiming}, type: ${condCfg.type})`);
                         
                         const originalTarget = condCfg.target;
                         const conditionDataWithTargets = {
@@ -924,9 +924,9 @@
                           if (itemRunTiming === 'afterDamage') {
                             // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
                             await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, conditionDataWithTargets, triggerItem, 'condition');
-                            console.log('DX3rd | Condition extension (afterMain) registered to afterMain queue from afterDamage');
+                            window.DX3rdDebug.log('DX3rd | Condition extension (afterMain) registered to afterMain queue from afterDamage');
                           } else {
-                            console.log('DX3rd | Skipping afterMain condition extension in afterDamage (item runTiming is not afterDamage)');
+                            window.DX3rdDebug.log('DX3rd | Skipping afterMain condition extension in afterDamage (item runTiming is not afterDamage)');
                           }
                         } else {
                           if (window.DX3rdUniversalHandler) {
@@ -954,18 +954,18 @@
                         }
                       }
                     } else {
-                      console.log('DX3rd | No damaged targets for extensions, skipping');
+                      window.DX3rdDebug.log('DX3rd | No damaged targets for extensions, skipping');
                     }
                     
                     // 요청 삭제
                     delete window.DX3rdAfterDamageExtensionQueue[extensionQueueKey];
-                    console.log('DX3rd | Extension request removed from queue');
+                    window.DX3rdDebug.log('DX3rd | Extension request removed from queue');
                   }
                 }
               }
               
               // ===== 기존 afterDamage 시스템 (queueIndex가 없는 경우) =====
-              console.log('DX3rd | Checking afterDamage conditions:', {
+              window.DX3rdDebug.log('DX3rd | Checking afterDamage conditions:', {
                 hpChange: hpChange,
                 attackerId: attackerId,
                 itemId: itemId,
@@ -973,8 +973,8 @@
               });
               
               if (attackerId && itemId) {
-                console.log('DX3rd | Reporting damage result to GM, hpChange:', hpChange);
-                console.log('DX3rd | Current user isGM:', game.user.isGM);
+                window.DX3rdDebug.log('DX3rd | Reporting damage result to GM, hpChange:', hpChange);
+                window.DX3rdDebug.log('DX3rd | Current user isGM:', game.user.isGM);
                 
                 if (game.user.isGM) {
                   // GM은 직접 큐 확인 및 처리
@@ -983,7 +983,7 @@
                   // 1. afterDamage 타겟 효과 적용
                   const applyRequest = window.DX3rdTargetApplyQueue?.[applyQueueKey];
                   if (applyRequest) {
-                    console.log('DX3rd | Found target apply request in queue:', applyRequest);
+                    window.DX3rdDebug.log('DX3rd | Found target apply request in queue:', applyRequest);
                     
                     if (hpChange >= 1) {
                       // HP 감소했으면 효과 적용
@@ -993,7 +993,7 @@
                       if (item && targetActor.isOwner) {
                         // GM이 타겟 소유자이므로 직접 적용
                         await window.DX3rdUniversalHandler._applyItemAttributes(sourceActor, item, targetActor, applyRequest.targetAttributes);
-                        console.log('DX3rd | Target effect applied directly by GM');
+                        window.DX3rdDebug.log('DX3rd | Target effect applied directly by GM');
                       } else {
                         // 타겟 소유자에게 적용 지시
                         window.DX3rdSocketRouter.emit({
@@ -1005,17 +1005,17 @@
                             targetAttributes: applyRequest.targetAttributes
                           }
                         });
-                        console.log('DX3rd | Sent applyEffectToTarget to target owner');
+                        window.DX3rdDebug.log('DX3rd | Sent applyEffectToTarget to target owner');
                       }
                     } else {
-                      console.log('DX3rd | HP not decreased, skipping effect application');
+                      window.DX3rdDebug.log('DX3rd | HP not decreased, skipping effect application');
                     }
                     
                     // 요청 삭제 (HP 감소 여부 무관)
                     delete window.DX3rdTargetApplyQueue[applyQueueKey];
-                    console.log('DX3rd | Target apply request removed from queue');
+                    window.DX3rdDebug.log('DX3rd | Target apply request removed from queue');
                   } else {
-                    console.log('DX3rd | No target apply request found for:', applyQueueKey);
+                    window.DX3rdDebug.log('DX3rd | No target apply request found for:', applyQueueKey);
                   }
                   
                   // 2. 활성화/매크로 처리 (활성화 큐 확인 및 보고 수집)
@@ -1026,7 +1026,7 @@
                     activationRequest.damageReports[targetActor.id] = hpChange;
                     activationRequest.reportCount++;
                     
-                    console.log('DX3rd | Activation report recorded:', {
+                    window.DX3rdDebug.log('DX3rd | Activation report recorded:', {
                       target: targetActor.name,
                       hpChange: hpChange,
                       reportCount: activationRequest.reportCount,
@@ -1035,7 +1035,7 @@
                     
                     // 모든 타겟이 보고했는지 확인
                     if (activationRequest.reportCount === activationRequest.targetActorIds.length) {
-                      console.log('DX3rd | All targets reported, processing activation...');
+                      window.DX3rdDebug.log('DX3rd | All targets reported, processing activation...');
                       
                       // HP 데미지를 받은 타겟 목록
                       const damagedTargets = Object.entries(activationRequest.damageReports)
@@ -1057,7 +1057,7 @@
                       // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
                       const comboData = activationRequest.comboAfterDamageData;
                       if (comboData && damagedTargets.length > 0) {
-                        console.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
+                        window.DX3rdDebug.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
                         // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
                         const damagedActors = damagedTargets.map(id => game.actors.get(id)).filter(a => a);
                         await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors);
@@ -1068,7 +1068,7 @@
                         if (attacker.isOwner) {
                           // GM이 공격자 소유자면 직접 실행
                           await window.DX3rdUniversalHandler.executeMacros(attackerItem, 'afterDamage');
-                          console.log('DX3rd | AfterDamage macro executed directly by GM');
+                          window.DX3rdDebug.log('DX3rd | AfterDamage macro executed directly by GM');
                         } else {
                           // 공격자 소유자에게 실행 지시
                           window.DX3rdSocketRouter.emit({
@@ -1079,7 +1079,7 @@
                               hpChange: damagedTargets.length  // 데미지 받은 타겟 수 전달
                             }
                           });
-                          console.log('DX3rd | AfterDamage macro sent via socket');
+                          window.DX3rdDebug.log('DX3rd | AfterDamage macro sent via socket');
                         }
                       }
                       
@@ -1091,7 +1091,7 @@
                       const usedMax = currentItem?.system?.used?.max || 0;
                       const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0;
                       
-                      console.log('DX3rd | Usage check:', {
+                      window.DX3rdDebug.log('DX3rd | Usage check:', {
                         itemName: currentItem.name,
                         usedDisable: usedDisable,
                         usedState: usedState,
@@ -1115,18 +1115,18 @@
                             title: game.i18n.localize('DX3rd.NoDamage'),
                             content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`
                           });
-                          console.log('DX3rd | No damage notification shown directly by GM');
+                          window.DX3rdDebug.log('DX3rd | No damage notification shown directly by GM');
                         } else {
                           // 공격자 소유자에게 소켓 전송
                           window.DX3rdSocketRouter.emit({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
                           });
-                          console.log('DX3rd | No damage notification sent via socket to player');
+                          window.DX3rdDebug.log('DX3rd | No damage notification sent via socket to player');
                         }
                       } else if (isUsageExhausted && (activationRequest.shouldActivate || activationRequest.shouldApplyToTargets)) {
                         // 횟수 소진: 활성화/적용 불가, 아무 작업도 하지 않음
-                        console.log('DX3rd | Usage exhausted, skipping activation/effect application');
+                        window.DX3rdDebug.log('DX3rd | Usage exhausted, skipping activation/effect application');
                       } else {
                         // 최소 한 명 데미지 받음 & 횟수 남음: 처리 지시
                         const needsConfirmation = activationRequest.needsDialog && usedDisable !== 'notCheck';
@@ -1136,7 +1136,7 @@
                           if (!hasActiveNonGMOwner) {
                             // 접속 중인 non-GM 소유자 없음: GM이 직접 표시
                             await window.DX3rdUniversalHandler._showAfterDamageDialog(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
-                            console.log('DX3rd | AfterDamage dialog shown directly by GM');
+                            window.DX3rdDebug.log('DX3rd | AfterDamage dialog shown directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
                             window.DX3rdSocketRouter.emit({
@@ -1149,14 +1149,14 @@
                                 shouldApplyToTargets: activationRequest.shouldApplyToTargets
                               }
                             });
-                            console.log('DX3rd | AfterDamage dialog sent via socket to player');
+                            window.DX3rdDebug.log('DX3rd | AfterDamage dialog sent via socket to player');
                           }
                         } else {
                           // 나머지 (무기/비클 notCheck 포함): 자동 활성화
                           if (!hasActiveNonGMOwner) {
                             // 접속 중인 non-GM 소유자 없음: GM이 직접 실행
                             await window.DX3rdUniversalHandler._executeAfterDamageActivation(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
-                            console.log('DX3rd | AfterDamage auto-activation executed directly by GM');
+                            window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation executed directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
                             window.DX3rdSocketRouter.emit({
@@ -1169,14 +1169,14 @@
                                 shouldApplyToTargets: activationRequest.shouldApplyToTargets
                               }
                             });
-                            console.log('DX3rd | AfterDamage auto-activation sent via socket to player');
+                            window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation sent via socket to player');
                           }
                         }
                       }
                       
                       // 큐에서 제거
                       delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
-                      console.log('DX3rd | Activation request removed from queue');
+                      window.DX3rdDebug.log('DX3rd | Activation request removed from queue');
                     }
                   }
                 } else {
@@ -1191,7 +1191,7 @@
                       hpChange: hpChange
                     }
                   });
-                  console.log('DX3rd | Damage result report sent to GM (effect apply):', {
+                  window.DX3rdDebug.log('DX3rd | Damage result report sent to GM (effect apply):', {
                     target: targetActor.name,
                     hpChange: hpChange
                   });
@@ -1206,7 +1206,7 @@
                       hpChange: hpChange
                     }
                   });
-                  console.log('DX3rd | Damage result report sent to GM (activation):', {
+                  window.DX3rdDebug.log('DX3rd | Damage result report sent to GM (activation):', {
                     target: targetActor.name,
                     hpChange: hpChange
                   });
@@ -1253,7 +1253,7 @@
         const totalGuard = root.querySelector('#total-guard');
         if (totalGuard) totalGuard.textContent = '0';
 
-        console.log(`DX3rd | Defense dialog - Guard/Weapon disabled due to berserk type: ${berserkType}`);
+        window.DX3rdDebug.log(`DX3rd | Defense dialog - Guard/Weapon disabled due to berserk type: ${berserkType}`);
       }
 
       const getNumberValue = (selector) => parseInt(root.querySelector(selector)?.value) || 0;
@@ -1497,13 +1497,13 @@
         if (usedDisable !== 'notCheck') {
           const currentUsedState = item.system?.used?.state || 0;
           updates['system.used.state'] = currentUsedState + 1;
-          console.log('DX3rd | Used count increased on afterDamage:', currentUsedState, '→', currentUsedState + 1);
+          window.DX3rdDebug.log('DX3rd | Used count increased on afterDamage:', currentUsedState, '→', currentUsedState + 1);
         }
         
         // 2. 활성화 (shouldActivate가 true인 경우)
         if (shouldActivate) {
           updates['system.active.state'] = true;
-          console.log('DX3rd | Item activated on afterDamage:', item.name);
+          window.DX3rdDebug.log('DX3rd | Item activated on afterDamage:', item.name);
         }
         
         if (Object.keys(updates).length > 0) {
@@ -1532,7 +1532,7 @@
                   }
                 });
               }
-              console.log('DX3rd | Effect applied to damaged target (dialog):', targetActor.name);
+              window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (dialog):', targetActor.name);
             }
           }
         }
@@ -1625,7 +1625,7 @@
       
       if (shouldActivate) {
         updates['system.active.state'] = true;
-        console.log('DX3rd | Item activated on afterDamage (auto):', item.name);
+        window.DX3rdDebug.log('DX3rd | Item activated on afterDamage (auto):', item.name);
       }
       
       if (Object.keys(updates).length > 0) {
@@ -1654,7 +1654,7 @@
                 }
               });
             }
-            console.log('DX3rd | Effect applied to damaged target (auto):', targetActor.name);
+            window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (auto):', targetActor.name);
           }
         }
       }
@@ -1807,7 +1807,7 @@
           const hasHatredTarget = targets.some(t => (t?.actor?.name || t?.name) === hatredTarget);
           if (hasHatredTarget) {
             await actor.toggleStatusEffect('hatred', { active: false });
-            console.log(`DX3rd | Hatred auto-cleared after attack roll against target: ${hatredTarget}`);
+            window.DX3rdDebug.log(`DX3rd | Hatred auto-cleared after attack roll against target: ${hatredTarget}`);
           }
         }
       } catch (e) {

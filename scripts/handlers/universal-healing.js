@@ -7,10 +7,10 @@
   }
 
   handler.executeHealExtension = async function(actor, healData, item = null) {
-    console.log('DX3rd | executeHealExtension called', { actor: actor.name, healData, item: item?.name });
+    window.DX3rdDebug.log('DX3rd | executeHealExtension called', { actor: actor.name, healData, item: item?.name });
     const { timing } = healData;
     if (timing === 'afterMain' || timing === 'afterDamage' || timing === 'afterSuccess') {
-      console.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
+      window.DX3rdDebug.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
       return;
     }
     await this.executeHealExtensionNow(actor, healData, item);
@@ -37,7 +37,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
     return;
   }
   
-  console.log('DX3rd | executeHealExtensionNow called', { actor: actor.name, actorId: actor.id, healData, item: item?.name, options });
+  window.DX3rdDebug.log('DX3rd | executeHealExtensionNow called', { actor: actor.name, actorId: actor.id, healData, item: item?.name, options });
   
   const { formulaDice, formulaAdd, target, rivival, resurrect, selectedTargetIds, triggerItemName, healTo, encroachFixed, excludeSelf = false } = healData;
   const { skipDialog = false } = options;
@@ -52,7 +52,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
   if (target === 'targetToken' || target === 'targetAll') {
     // selectedTargetIds가 있으면 사용 (큐에서 복원된 경우)
     if (selectedTargetIds && selectedTargetIds.length > 0) {
-      console.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
+      window.DX3rdDebug.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
       selectedTargetIds.forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
         if (token && token.actor && (!excludeSelf || token.actor.id !== actor.id) && !targets.find(a => a.id === token.actor.id)) {
@@ -70,7 +70,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
     }
   }
   
-  console.log(`DX3rd | Heal targets collected: ${targets.map(t => t.name).join(', ')} (total: ${targets.length})`);
+  window.DX3rdDebug.log(`DX3rd | Heal targets collected: ${targets.map(t => t.name).join(', ')} (total: ${targets.length})`);
   
   if (targets.length === 0) {
     ui.notifications.warn(excludeSelf ? game.i18n.localize('DX3rd.HealTargetOtherOnly') : '회복 대상이 없습니다.');
@@ -88,7 +88,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
     }
   };
   
-  console.log(`DX3rd | Using item level for formula: ${itemLevel} (item: ${item?.name || 'none'})`);
+  window.DX3rdDebug.log(`DX3rd | Using item level for formula: ${itemLevel} (item: ${item?.name || 'none'})`);
   
   // 공식 평가 (액터의 능력치/기능치 참조)
   let evaluatedDice = 0;
@@ -124,7 +124,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
     .filter(Boolean)
     .join(' + ') || '0';
   
-  console.log(`DX3rd | Heal formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
+  window.DX3rdDebug.log(`DX3rd | Heal formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
 
   // 상한회복(부활)형: healTo(목표 HP) 평가 — "max"는 최대치, 공식이면 액터/레벨로 평가
   let evaluatedHealTo = null;
@@ -143,7 +143,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
       encFixedOut = String(parseInt(window.DX3rdFormulaEvaluator.evaluate(ef, itemForFormula, actor)) || 0);
     }
   }
-  console.log(`DX3rd | Heal threshold/encroach - healTo: ${healTo} → ${evaluatedHealTo}, encroachFixed: ${encroachFixed} → ${encFixedOut}`);
+  window.DX3rdDebug.log(`DX3rd | Heal threshold/encroach - healTo: ${healTo} → ${evaluatedHealTo}, encroachFixed: ${encroachFixed} → ${encFixedOut}`);
 
   // 사용자가 결과를 한 번 굴린다. 소유 대상과 GM 중계 대상이 서로 다른 결과를
   // 받지 않도록, 계산 결과 자체를 전달한다.
@@ -231,10 +231,10 @@ handler.handleHealRequest = async function(requestData) {
     const rollHTML = await roll.render();
     rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
     
-    console.log(`DX3rd | HP heal roll: ${formulaText} = ${healAmount}`);
+    window.DX3rdDebug.log(`DX3rd | HP heal roll: ${formulaText} = ${healAmount}`);
   } else if (!Number.isFinite(healAmount)) {
     healAmount = rollFormula ? window.DX3rdFormulaEvaluator.evaluate(rollFormula) : formulaAdd;
-    console.log(`DX3rd | HP heal (no dice): ${healAmount}`);
+    window.DX3rdDebug.log(`DX3rd | HP heal (no dice): ${healAmount}`);
   }
   
   // 각 대상에게 회복 적용
@@ -256,7 +256,7 @@ handler.handleHealRequest = async function(requestData) {
           }
         }
       });
-      console.log(`DX3rd | HP heal blocked: ${targetActor.name} is incapacitated`);
+      window.DX3rdDebug.log(`DX3rd | HP heal blocked: ${targetActor.name} is incapacitated`);
       continue;
     }
     
@@ -287,7 +287,7 @@ handler.handleHealRequest = async function(requestData) {
           }
         }
       });
-      console.log(`DX3rd | HP heal blocked: ${targetActor.name} has berserk bloodsucking`);
+      window.DX3rdDebug.log(`DX3rd | HP heal blocked: ${targetActor.name} has berserk bloodsucking`);
       continue;
     }
     
@@ -320,7 +320,7 @@ handler.handleHealRequest = async function(requestData) {
     if (encDelta) {
       const currentEncroachment = targetActor.system.attributes.encroachment?.value || 0;
       updates['system.attributes.encroachment.value'] = currentEncroachment + encDelta;
-      console.log(`DX3rd | Encroachment +${encDelta}: ${targetActor.name} (${currentEncroachment} → ${currentEncroachment + encDelta})`);
+      window.DX3rdDebug.log(`DX3rd | Encroachment +${encDelta}: ${targetActor.name} (${currentEncroachment} → ${currentEncroachment + encDelta})`);
     }
 
     await targetActor.update(updates);
@@ -367,7 +367,7 @@ handler.handleHealRequest = async function(requestData) {
       }
     });
     
-    console.log(`DX3rd | HP healed: ${targetActor.name} +${healAmount} HP (${currentHP} → ${newHP})`);
+    window.DX3rdDebug.log(`DX3rd | HP healed: ${targetActor.name} +${healAmount} HP (${currentHP} → ${newHP})`);
   }
 };
 

@@ -250,7 +250,7 @@
         for (const entry of extensionEntries) {
           const extensionType = entry.type;
           const extensionData = entry.data;
-          console.log(`DX3rd | Extension ${extensionType}:`, {
+          window.DX3rdDebug.log(`DX3rd | Extension ${extensionType}:`, {
             activate: extensionData?.activate,
             parentTiming: parentItemTiming,
             requestedTiming: timing,
@@ -263,7 +263,7 @@
               ? 'instant'
               : (extensionData.timing || 'instant');
             if (extensionData.activate && extensionData.type && extensionTiming === timing) {
-              console.log(`DX3rd | Executing condition extension - timing match: ${extensionTiming}, type: ${extensionData.type}`);
+              window.DX3rdDebug.log(`DX3rd | Executing condition extension - timing match: ${extensionTiming}, type: ${extensionData.type}`);
               await this.executeItemExtension(actor, 'condition', {...extensionData, timing: extensionTiming}, item);
             }
             continue;
@@ -279,10 +279,10 @@
               
               // extensionTiming과 요청된 timing이 일치하는지 확인
               if (extensionTiming === timing) {
-                console.log(`DX3rd | Executing ${extensionType} extension - timing match: ${extensionTiming}`);
+                window.DX3rdDebug.log(`DX3rd | Executing ${extensionType} extension - timing match: ${extensionTiming}`);
                 await this.executeItemExtension(actor, extensionType, {...extensionData, timing: extensionTiming}, item);
               } else {
-                console.log(`DX3rd | Skipping ${extensionType} extension - timing mismatch: extensionTiming=${extensionTiming}, requestedTiming=${timing}`);
+                window.DX3rdDebug.log(`DX3rd | Skipping ${extensionType} extension - timing mismatch: extensionTiming=${extensionTiming}, requestedTiming=${timing}`);
               }
             } else {
               // 일반 익스텐션 (weapon, protect, vehicle 등) - 부모 타이밍을 따름
@@ -662,7 +662,7 @@
         
         // 다이얼로그가 닫힐 때까지 대기
         const result = await dialog.promise;
-        console.log('DX3rd | Equipment selection dialog completed:', result);
+        window.DX3rdDebug.log('DX3rd | Equipment selection dialog completed:', result);
         return result;
       } catch (e) {
         console.error('DX3rd | showEquipmentSelectionDialog failed', e);

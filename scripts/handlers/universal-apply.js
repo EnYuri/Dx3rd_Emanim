@@ -95,7 +95,7 @@
                 targetAttributes: targetAttributes,
                 timestamp: Date.now()
               };
-              console.log('DX3rd | GM registered target apply (afterDamage):', {
+              window.DX3rdDebug.log('DX3rd | GM registered target apply (afterDamage):', {
                 queueKey: queueKey,
                 target: targetActor.name
               });
@@ -110,7 +110,7 @@
                   targetAttributes: targetAttributes
                 }
               });
-              console.log('DX3rd | Target apply registration sent to GM (afterDamage):', targetActor.name);
+              window.DX3rdDebug.log('DX3rd | Target apply registration sent to GM (afterDamage):', targetActor.name);
             }
           }
         } else {
@@ -132,7 +132,7 @@
                 type: 'applyItemAttributes',
                 payload: payload
               });
-              console.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
+              window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
             }
           }
         }

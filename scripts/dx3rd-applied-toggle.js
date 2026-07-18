@@ -201,7 +201,7 @@
       scanned++;
       if (await sync(actor)) changed++;
     }
-    console.log(`DX3rd | AppliedToggle explicit sync: ${scanned} actors scanned, ${changed} changed.`);
+    window.DX3rdDebug.log(`DX3rd | AppliedToggle explicit sync: ${scanned} actors scanned, ${changed} changed.`);
     return { scanned, changed };
   }
 
@@ -246,9 +246,9 @@
   });
   // 월드 준비 중 전체 액터를 순회해 AE를 생성·삭제하지 않는다.
   // 이후 아이템/액터 변경 훅은 필요한 해당 액터만 즉시 동기화한다.
-  Hooks.once('ready', () => console.log('DX3rd | AppliedToggle startup sweep skipped; explicit repair is available.'));
+  Hooks.once('ready', () => window.DX3rdDebug.log('DX3rd | AppliedToggle startup sweep skipped; explicit repair is available.'));
 
   window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, syncAll, auditAll, desiredPayloads, isResponsible };
 
-  console.log('DX3rd | AppliedToggle sync loaded');
+  window.DX3rdDebug.log('DX3rd | AppliedToggle sync loaded');
 })();

@@ -14,13 +14,13 @@
  * @param {Item} item - 연동된 아이템 (옵션)
  */
 handler.executeDamageExtension = async function(actor, damageData, item = null) {
-  console.log('DX3rd | executeDamageExtension called', { actor: actor.name, damageData, item: item?.name });
+  window.DX3rdDebug.log('DX3rd | executeDamageExtension called', { actor: actor.name, damageData, item: item?.name });
   
   const { timing } = damageData;
   
   // afterMain, afterDamage, afterSuccess는 각 버튼/호출 지점에서 직접 큐에 등록하므로 여기서는 처리 안 함
   if (timing === 'afterMain' || timing === 'afterDamage' || timing === 'afterSuccess') {
-    console.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
+    window.DX3rdDebug.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
     return;
   }
   
@@ -116,7 +116,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     return;
   }
   
-  console.log('DX3rd | executeDamageExtensionNow called', { actor: actor.name, actorId: actor.id, damageData, item: item?.name, options });
+  window.DX3rdDebug.log('DX3rd | executeDamageExtensionNow called', { actor: actor.name, actorId: actor.id, damageData, item: item?.name, options });
   
   let { formulaDice, formulaAdd, target, ignoreReduce, selectedTargetIds, triggerItemName, conditionalFormula } = damageData;
   const { skipDialog = false } = options;
@@ -126,14 +126,14 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     const customFormula = await this.promptConditionalDamageFormula();
     
     if (!customFormula) {
-      console.log('DX3rd | Conditional formula input cancelled');
+      window.DX3rdDebug.log('DX3rd | Conditional formula input cancelled');
       return; // 취소 시 데미지 적용 중단
     }
     
     // 입력받은 공식으로 덮어쓰기
     formulaDice = customFormula.dice;
     formulaAdd = customFormula.add;
-    console.log('DX3rd | Custom damage formula applied:', { formulaDice, formulaAdd });
+    window.DX3rdDebug.log('DX3rd | Custom damage formula applied:', { formulaDice, formulaAdd });
   }
   
   // 대상 수집
@@ -145,7 +145,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
   
   if (target === 'targetToken' || target === 'targetAll') {
     if (selectedTargetIds && selectedTargetIds.length > 0) {
-      console.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
+      window.DX3rdDebug.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
       selectedTargetIds.forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
         if (token && token.actor && !targets.find(a => a.id === token.actor.id)) {
@@ -162,7 +162,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     }
   }
   
-  console.log(`DX3rd | Damage targets collected: ${targets.map(t => t.name).join(', ')} (total: ${targets.length})`);
+  window.DX3rdDebug.log(`DX3rd | Damage targets collected: ${targets.map(t => t.name).join(', ')} (total: ${targets.length})`);
   
   if (targets.length === 0) {
     ui.notifications.warn('데미지 대상이 없습니다.');
@@ -180,7 +180,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     }
   };
   
-  console.log(`DX3rd | Using item level for formula: ${itemLevel} (item: ${item?.name || 'none'})`);
+  window.DX3rdDebug.log(`DX3rd | Using item level for formula: ${itemLevel} (item: ${item?.name || 'none'})`);
   
   // 공식 평가 (액터의 능력치/기능치 참조)
   let evaluatedDice = 0;
@@ -216,7 +216,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     .filter(Boolean)
     .join(' + ') || '0';
 
-  console.log(`DX3rd | Damage formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
+  window.DX3rdDebug.log(`DX3rd | Damage formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
   
   // 사용자가 결과를 한 번 굴린다. 소유 대상과 GM 중계 대상에 같은 결과를 적용한다.
   const requestData = {
@@ -259,7 +259,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
  */
 handler.handleDamageRequest = async function(requestData) {
   
-  console.log('DX3rd | handleDamageRequest called with:', requestData);
+  window.DX3rdDebug.log('DX3rd | handleDamageRequest called with:', requestData);
   
   // requestData가 undefined인 경우 체크
   if (!requestData) {
@@ -292,10 +292,10 @@ handler.handleDamageRequest = async function(requestData) {
     const rollHTML = await roll.render();
     rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
     
-    console.log(`DX3rd | HP damage roll: ${rollFormula} = ${damageAmount}`);
+    window.DX3rdDebug.log(`DX3rd | HP damage roll: ${rollFormula} = ${damageAmount}`);
   } else if (!Number.isFinite(damageAmount)) {
     damageAmount = rollFormula ? window.DX3rdFormulaEvaluator.evaluate(rollFormula) : formulaAdd;
-    console.log(`DX3rd | HP damage (no dice): ${damageAmount}`);
+    window.DX3rdDebug.log(`DX3rd | HP damage (no dice): ${damageAmount}`);
   }
   
   // 각 대상에게 데미지 적용
@@ -340,7 +340,7 @@ handler.handleDamageRequest = async function(requestData) {
       }
     });
     
-    console.log(`DX3rd | HP damaged: ${targetActor.name} -${actualDamage} HP (${currentHP} → ${newHP})`);
+    window.DX3rdDebug.log(`DX3rd | HP damaged: ${targetActor.name} -${actualDamage} HP (${currentHP} → ${newHP})`);
   }
 };
 

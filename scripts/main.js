@@ -451,6 +451,17 @@ Hooks.once('init', async function() {
         default: false
     });
 
+    // 상세 디버그 로그. 평시에는 꺼두고, 아이템 사용/데미지 흐름을 추적할 때만 켠다.
+    game.settings.register('dx3rd-emanim', 'debugLogging', {
+        name: 'DX3rd.DebugLogging',
+        hint: '아이템 사용·확장·데미지 처리 과정의 상세 로그를 콘솔에 출력합니다. 문제 추적용이며 평소에는 꺼두세요.',
+        scope: 'client',
+        config: true,
+        type: Boolean,
+        default: false,
+        onChange: () => window.DX3rdDebug?.invalidate()
+    });
+
     // 장면 개막 번호 (GM용, 설정 UI에는 미노출)
     game.settings.register('dx3rd-emanim', 'sceneOpenNumber', {
         scope: 'world',
@@ -1256,24 +1267,6 @@ Hooks.once('ready', function() {
     
     // Disable Hooks 채팅 명령어 등록
     
-    // 액터 격자 데이터 저장
-    game.settings.register('dx3rd-emanim', 'actorGridActors', {
-        name: 'Actor Grid Actors',
-        scope: 'client',
-        config: false,
-        type: Array,
-        default: []
-    });
-
-    // 폴더 상태 저장
-    game.settings.register('dx3rd-emanim', 'folderStates', {
-        name: 'Folder States',
-        scope: 'client',
-        config: false,
-        type: Object,
-        default: {}
-    });
-
     // 채팅 메시지 생성 전, 설정에 맞춰 스피커 보정
     Hooks.on('preCreateChatMessage', (doc, data) => {
         try {

@@ -84,13 +84,13 @@ window.DX3rdUniversalHandler._getConditionEntries = function(condData) {
  * @param {Item} item - 연동된 아이템 (옵션)
  */
 window.DX3rdUniversalHandler.executeConditionExtension = async function(actor, conditionData, item = null) {
-  console.log('DX3rd | executeConditionExtension called', { actor: actor.name, conditionData, item: item?.name });
+  window.DX3rdDebug.log('DX3rd | executeConditionExtension called', { actor: actor.name, conditionData, item: item?.name });
   
   const { timing } = conditionData;
   
   // afterMain, afterDamage, afterSuccess는 각 버튼/호출 지점에서 직접 큐에 등록하므로 여기서는 처리 안 함
   if (timing === 'afterMain' || timing === 'afterDamage' || timing === 'afterSuccess') {
-    console.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
+    window.DX3rdDebug.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
     return;
   }
   
@@ -105,7 +105,7 @@ window.DX3rdUniversalHandler.executeConditionExtension = async function(actor, c
  * @param {Item} item - 연동된 아이템 (옵션)
  */
 window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor, conditionData, item = null) {
-  console.log('DX3rd | executeConditionExtensionNow called', { actor: actor.name, conditionData, item: item?.name });
+  window.DX3rdDebug.log('DX3rd | executeConditionExtensionNow called', { actor: actor.name, conditionData, item: item?.name });
   
   const { target, selectedTargetIds, triggerItemName, poisonedRank } = conditionData;
   
@@ -134,7 +134,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
     return;
   }
   
-  console.log(`DX3rd | Condition type: ${conditionType}`);
+  window.DX3rdDebug.log(`DX3rd | Condition type: ${conditionType}`);
 
   // 단일/복수 상태이상은 반드시 같은 경로로 처리한다. 그래야 특수 입력과
   // 사독 랭크도 발동 클라이언트에서 한 번만 확정된다.
@@ -226,14 +226,14 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
   if (conditionTypes.length === 0) return;
   
   // 사독 랭크가 포뮬러 문자열인 경우 여기서 숫자로 평가 (병합 시 이미 평가됐을 수도 있음)
-  console.log('DX3rd | handleConditionRequestBulk - Initial poisonedRank:', poisonedRank, 'conditionTypes:', conditionTypes);
+  window.DX3rdDebug.log('DX3rd | handleConditionRequestBulk - Initial poisonedRank:', poisonedRank, 'conditionTypes:', conditionTypes);
   try {
     if (conditionTypes.includes('poisoned') && poisonedRank !== undefined && poisonedRank !== null) {
       // 이미 숫자면 그대로 사용, 문자열은 승인 직후 한 번만 평가한다.
       if (typeof poisonedRank === 'number') {
-        console.log('DX3rd | Poisoned rank already evaluated:', poisonedRank);
+        window.DX3rdDebug.log('DX3rd | Poisoned rank already evaluated:', poisonedRank);
       } else if (typeof poisonedRank === 'string' && poisonedRank.trim() !== '') {
-        console.log('DX3rd | Poisoned rank detected, checking if formula:', poisonedRank);
+        window.DX3rdDebug.log('DX3rd | Poisoned rank detected, checking if formula:', poisonedRank);
         if (typeof window.DX3rdFormulaEvaluator?.evaluateRoll === 'function') {
           const actor = game.actors.get(actorId);
           const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
@@ -248,7 +248,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
             });
           }
           const num = Number(evaluated);
-          console.log('DX3rd | Evaluated poisonedRank formula:', poisonedRank, '→', evaluated, '→', num);
+          window.DX3rdDebug.log('DX3rd | Evaluated poisonedRank formula:', poisonedRank, '→', evaluated, '→', num);
           if (!Number.isNaN(num) && Number.isFinite(num) && num > 0) poisonedRank = num;
         } else {
           poisonedRank = Number(poisonedRank) || 0;
@@ -258,7 +258,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
   } catch (e) {
     console.warn('DX3rd | Failed to evaluate poisonedRank formula in bulk:', e);
   }
-  console.log('DX3rd | handleConditionRequestBulk - Final poisonedRank:', poisonedRank);
+  window.DX3rdDebug.log('DX3rd | handleConditionRequestBulk - Final poisonedRank:', poisonedRank);
   
   // 💡 특수 상태이상(증오/공포/폭주)의 경우 미리 입력 받기
   const specialConditions = { ...(requestData.specialConditions || {}) };
@@ -335,9 +335,9 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       if (hatredTarget) {
         specialConditions[ct] = hatredTarget;
-        console.log(`DX3rd | Hatred target set:`, hatredTarget);
+        window.DX3rdDebug.log(`DX3rd | Hatred target set:`, hatredTarget);
       } else {
-        console.log(`DX3rd | Hatred cancelled`);
+        window.DX3rdDebug.log(`DX3rd | Hatred cancelled`);
         return;
       }
     } else if (ct === 'fear') {
@@ -411,9 +411,9 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       if (fearTarget) {
         specialConditions[ct] = fearTarget;
-        console.log(`DX3rd | Fear target set:`, fearTarget);
+        window.DX3rdDebug.log(`DX3rd | Fear target set:`, fearTarget);
       } else {
-        console.log(`DX3rd | Fear cancelled`);
+        window.DX3rdDebug.log(`DX3rd | Fear cancelled`);
         return;
       }
     } else if (ct === 'berserk') {
@@ -484,9 +484,9 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
       
       if (berserkType) {
         specialConditions[ct] = berserkType;
-        console.log(`DX3rd | Berserk type set:`, berserkType);
+        window.DX3rdDebug.log(`DX3rd | Berserk type set:`, berserkType);
       } else {
-        console.log(`DX3rd | Berserk cancelled`);
+        window.DX3rdDebug.log(`DX3rd | Berserk cancelled`);
         return;
       }
     }
@@ -505,7 +505,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         const rankToPass = (ct === 'poisoned' && poisonedRank) ? poisonedRank : null;
         // 특수 상태이상이면 입력받은 값 전달
         const specialTarget = specialConditions[ct] || null;
-        console.log(`DX3rd | Applying condition ${ct} to ${targetActor.name}, rankToPass:`, rankToPass, 'specialTarget:', specialTarget);
+        window.DX3rdDebug.log(`DX3rd | Applying condition ${ct} to ${targetActor.name}, rankToPass:`, rankToPass, 'specialTarget:', specialTarget);
         if (already) {
           // 이미 활성: 직접 갱신 루틴 호출(기본 핸들러 사용)
           let token = targetActor.token;
@@ -528,7 +528,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
           // 신규: 맵 저장 후 토글로 생성 → 훅에서 메시지
           const key = `${targetActor.id}:${ct}`;
           if (!window.DX3rdConditionTriggerMap) window.DX3rdConditionTriggerMap = new Map();
-          console.log(`DX3rd | Storing in map - key: ${key}, trigger: ${triggerItemName}, poisonedRank: ${rankToPass}, specialTarget: ${specialTarget}`);
+          window.DX3rdDebug.log(`DX3rd | Storing in map - key: ${key}, trigger: ${triggerItemName}, poisonedRank: ${rankToPass}, specialTarget: ${specialTarget}`);
           window.DX3rdConditionTriggerMap.set(key, { trigger: (triggerItemName||null), poisonedRank: rankToPass, specialTarget: specialTarget });
           await targetActor.toggleStatusEffect(ct, { active: true });
         }
@@ -589,7 +589,7 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
   }
   
   // 각 대상에게 상태이상 적용
-  console.log(`DX3rd | Applying condition to ${targets.length} targets, conditionType: ${conditionType}`);
+  window.DX3rdDebug.log(`DX3rd | Applying condition to ${targets.length} targets, conditionType: ${conditionType}`);
   
   for (const targetData of targets) {
     const targetActor = game.actors.get(targetData.id);
@@ -598,7 +598,7 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
       continue;
     }
     
-    console.log(`DX3rd | Applying ${conditionType} to ${targetActor.name}`);
+    window.DX3rdDebug.log(`DX3rd | Applying ${conditionType} to ${targetActor.name}`);
     
     // toggleStatusEffect 사용하여 상태이상 적용
     try {
@@ -625,9 +625,9 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
         window.DX3rdConditionTriggerMap.set(key, { trigger: (triggerItemName||null), poisonedRank: (conditionType==='poisoned'? (poisonedRank||null): null) });
         await targetActor.toggleStatusEffect(conditionType, { active: true });
       }
-      console.log(`DX3rd | toggleStatusEffect completed for ${targetActor.name}`);
+      window.DX3rdDebug.log(`DX3rd | toggleStatusEffect completed for ${targetActor.name}`);
       const hasEffect = targetActor.effects.find(e => e.statuses.has(conditionType));
-      console.log(`DX3rd | Condition effect exists: ${!!hasEffect}`);
+      window.DX3rdDebug.log(`DX3rd | Condition effect exists: ${!!hasEffect}`);
     } catch (error) {
       console.error(`DX3rd | Failed to apply condition to ${targetActor.name}:`, error);
       continue;
@@ -635,5 +635,5 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
     // 채팅은 condtions 훅에서 기본 메시지로 일원화 (여기서는 출력 안 함)
   }
   
-  console.log(`DX3rd | All conditions applied successfully`);
+  window.DX3rdDebug.log(`DX3rd | All conditions applied successfully`);
 };

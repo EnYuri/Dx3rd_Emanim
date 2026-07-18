@@ -124,7 +124,7 @@
       });
       queue.push(entry);
       await game.settings.set('dx3rd-emanim', SETTING, queue);
-      console.log(`DX3rd | Added to AfterMain queue: ${type} for ${actor?.name || actor?.id || 'unknown'}, Queue length: ${queue.length}`);
+      window.DX3rdDebug.log(`DX3rd | Added to AfterMain queue: ${type} for ${actor?.name || actor?.id || 'unknown'}, Queue length: ${queue.length}`);
       return queueId;
     });
   };
@@ -157,7 +157,7 @@
     });
     for (const entry of afterMain) enqueue(entry.type, entry.data);
     if (afterMain.length > 0) {
-      console.log(`DX3rd | Registered afterMain extensions for ${actor.name} (${afterMain.length} entries)`);
+      window.DX3rdDebug.log(`DX3rd | Registered afterMain extensions for ${actor.name} (${afterMain.length} entries)`);
     }
     return Promise.all(pending);
   };
@@ -167,14 +167,14 @@
     return withQueueLock(async () => {
       const queue = getStoredQueue().map(normalizeStoredEntry).filter(Boolean);
       if (!queue.length) {
-        console.log('DX3rd | AfterMain queue is empty');
+        window.DX3rdDebug.log('DX3rd | AfterMain queue is empty');
         return { processed: 0, failed: 0 };
       }
 
       const failedEntries = [];
       let newFailures = 0;
       let processed = 0;
-      console.log(`DX3rd | Processing AfterMain queue: ${queue.length} items`);
+      window.DX3rdDebug.log(`DX3rd | Processing AfterMain queue: ${queue.length} items`);
       for (const entry of queue) {
         // 부분 적용 뒤 실패했을 수 있으므로 자동 재실행하지 않는다.
         // retryAfterMainQueueEntry로 명시적으로 해제한 항목만 다시 시도한다.
@@ -202,7 +202,7 @@
       if (newFailures) {
         ui.notifications.error(game.i18n.format('DX3rd.AfterMainQueueFailed', { count: newFailures }));
       }
-      console.log(`DX3rd | AfterMain queue processed: ${processed}, retained failures: ${failedEntries.length}`);
+      window.DX3rdDebug.log(`DX3rd | AfterMain queue processed: ${processed}, retained failures: ${failedEntries.length}`);
       return { processed, failed: failedEntries.length };
     });
   };
@@ -211,7 +211,7 @@
     if (!socketRouter.isResponsibleGM()) return Promise.resolve(false);
     return withQueueLock(async () => {
       await game.settings.set('dx3rd-emanim', SETTING, []);
-      console.log('DX3rd | AfterMain queue manually cleared');
+      window.DX3rdDebug.log('DX3rd | AfterMain queue manually cleared');
       return true;
     });
   };

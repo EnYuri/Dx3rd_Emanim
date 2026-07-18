@@ -408,5 +408,5 @@
     }, true);
   });
 
-  console.log('DX3rd | AppliedEffects adapter loaded');
+  window.DX3rdDebug.log('DX3rd | AppliedEffects adapter loaded');
 })();

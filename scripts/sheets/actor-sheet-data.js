@@ -54,16 +54,6 @@
         return true;
     }
 
-    function getTemplate(actor, simple = shouldUseSimpleSheet(actor)) {
-        if (actor.type === "enemy") {
-            return "systems/dx3rd-emanim/templates/actor/actor-sheet-enemy.html";
-        }
-        if (simple) {
-            return "systems/dx3rd-emanim/templates/actor/actor-sheet-simple.html";
-        }
-        return "systems/dx3rd-emanim/templates/actor/actor-sheet.html";
-    }
-
     function getSkillDisplay(actor, skillKey) {
         if (!skillKey || skillKey === "-") return "-";
 
@@ -654,7 +644,6 @@
     window.DX3rdActorSheetData = {
         hasOwnerPermission,
         shouldUseSimpleSheet,
-        getTemplate,
         getSkillDisplay,
         getCreateSkillDialogOptions,
         getEditSkillDialogOptions,

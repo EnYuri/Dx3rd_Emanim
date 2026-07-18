@@ -1,6 +1,6 @@
 // Disable Hooks - 타이밍에 따라 아이템 비활성화 및 효과 제거
 (function() {
-    console.log("DX3rd | DisableHooks script loading...");
+    window.DX3rdDebug.log("DX3rd | DisableHooks script loading...");
 
     class DX3rdDisableHooks {
         /**
@@ -14,7 +14,7 @@
                 return;
             }
 
-            console.log(`DX3rd | DisableHooks - Executing ${timing} hook`, { targetActors });
+            window.DX3rdDebug.log(`DX3rd | DisableHooks - Executing ${timing} hook`, { targetActors });
 
             // 대상 액터 결정
             let actors = [];
@@ -119,7 +119,7 @@
                     try {
                         await item.update({ 'system.active.state': false });
                         deactivatedCount++;
-                        console.log(`DX3rd | DisableHooks - Deactivated item: ${item.name} (${item.type}) on actor ${actor.name}`);
+                        window.DX3rdDebug.log(`DX3rd | DisableHooks - Deactivated item: ${item.name} (${item.type}) on actor ${actor.name}`);
                     } catch (error) {
                         console.error(`DX3rd | DisableHooks - Failed to deactivate item ${item.name}:`, error);
                     }
@@ -129,7 +129,7 @@
                 try {
                     const clearedConditions = await window.DX3rdConditionSources?.clearByTiming?.(actor, timing) || 0;
                     if (clearedConditions) {
-                        console.log(`DX3rd | DisableHooks - Cleared ${clearedConditions} condition source(s) from actor ${actor.name}`);
+                        window.DX3rdDebug.log(`DX3rd | DisableHooks - Cleared ${clearedConditions} condition source(s) from actor ${actor.name}`);
                     }
                 } catch (error) {
                     console.error(`DX3rd | DisableHooks - Failed to clear condition sources on actor ${actor.name}:`, error);
@@ -140,7 +140,7 @@
                     try {
                         await item.update({ 'system.used.state': 0 });
                         resetUsageCount++;
-                        console.log(`DX3rd | DisableHooks - Reset usage for item: ${item.name} (${item.type}) on actor ${actor.name}`);
+                        window.DX3rdDebug.log(`DX3rd | DisableHooks - Reset usage for item: ${item.name} (${item.type}) on actor ${actor.name}`);
                     } catch (error) {
                         console.error(`DX3rd | DisableHooks - Failed to reset usage for item ${item.name}:`, error);
                     }
@@ -149,7 +149,7 @@
                 // 적용된 효과 제거 (네이티브 AE 삭제)
                 if (appliedToRemove.length) {
                     removedAppliedCount += await window.DX3rdAppliedEffects.removeMany(actor, appliedToRemove);
-                    console.log(`DX3rd | DisableHooks - Removed applied effects: ${appliedToRemove.join(', ')} from actor ${actor.name}`);
+                    window.DX3rdDebug.log(`DX3rd | DisableHooks - Removed applied effects: ${appliedToRemove.join(', ')} from actor ${actor.name}`);
                 }
 
                 // 액터 업데이트
@@ -162,7 +162,7 @@
                 }
             }
 
-            console.log(`DX3rd | DisableHooks - ${timing} hook completed. Actors: ${actors.length}, Deactivated: ${deactivatedCount}, Reset Usage: ${resetUsageCount}, Removed Applied: ${removedAppliedCount}`);
+            window.DX3rdDebug.log(`DX3rd | DisableHooks - ${timing} hook completed. Actors: ${actors.length}, Deactivated: ${deactivatedCount}, Reset Usage: ${resetUsageCount}, Removed Applied: ${removedAppliedCount}`);
         }
 
         /**
@@ -210,5 +210,5 @@
     window.afterScene = (targetActors = null) => DX3rdDisableHooks.afterScene(targetActors);
     window.afterSession = (targetActors = null) => DX3rdDisableHooks.afterSession(targetActors);
 
-    console.log("DX3rd | DisableHooks script loaded");
+    window.DX3rdDebug.log("DX3rd | DisableHooks script loaded");
 })();

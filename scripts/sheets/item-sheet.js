@@ -3,7 +3,6 @@
  */
 (function() {
     const DialogV2 = foundry.applications?.api?.DialogV2;
-    const compat = window.DX3rdApplicationCompat;
 
     function localize(key) {
         return game.i18n.localize(key);
@@ -80,12 +79,6 @@
         return data;
     }
 
-    function prepareActorSummary(item, data) {
-        const actor = item?.actor;
-        data.actor = actor ? {id: actor.id, type: actor.type} : null;
-        return data.actor;
-    }
-
     function prepareSkillOptions(item, data, sheetType, {includeActorType = false, warnIfMissing = false} = {}) {
         const actor = item?.actor;
         data.system.actorSkills = actor?.system?.attributes?.skills || {};
@@ -103,49 +96,6 @@
         }
 
         return data.system.skillOptions;
-    }
-
-    function hydrateSystemFields(item, data, fields, {stringFields = [], booleanFields = [], defaults = {}} = {}) {
-        for (const field of fields) {
-            if (data.system[field] !== undefined) continue;
-            let defaultValue;
-            if (Object.prototype.hasOwnProperty.call(defaults, field)) defaultValue = defaults[field];
-            else if (stringFields.includes(field)) defaultValue = '';
-            else if (booleanFields.includes(field)) defaultValue = false;
-            else defaultValue = {};
-
-            data.system[field] = item.system?.[field] ?? defaultValue;
-        }
-        return data;
-    }
-
-    function prepareUsedData(item, data, {maxFallback = 0} = {}) {
-        data.system.used ??= {};
-        if (item.system?.used) {
-            data.system.used.state = item.system.used.state ?? 0;
-            data.system.used.max = item.system.used.max ?? maxFallback;
-            data.system.used.level = item.system.used.level ?? false;
-            data.system.used.disable = item.system.used.disable ?? 'notCheck';
-        } else {
-            data.system.used.state = 0;
-            data.system.used.max = maxFallback;
-            data.system.used.level = false;
-            data.system.used.disable = 'notCheck';
-        }
-        return data.system.used;
-    }
-
-    function prepareSavingData(item, data, {difficultyFallback = '', valueFallback = 0} = {}) {
-        data.system.saving ??= {};
-        data.system.saving.difficulty = item.system?.saving?.difficulty || difficultyFallback;
-        data.system.saving.value = item.system?.saving?.value || valueFallback;
-        return data.system.saving;
-    }
-
-    function prepareEquipmentData(item, data) {
-        const rawEquipment = item.system?.equipment;
-        data.system.equipment = rawEquipment === 'on' || rawEquipment === true;
-        return data.system.equipment;
     }
 
     function prepareActiveData(item, data, {disableFallback = '-', runTimingFallback = 'instant', undefinedOnly = false} = {}) {
@@ -186,18 +136,6 @@
             if (item.system?.effect?.attributes) {
                 data.system.effect.attributes = {...item.system.effect.attributes};
             }
-        }
-
-        return data.system.attributes;
-    }
-
-    function prepareAbilityAttributeValues(item, data, abilities = ['body', 'sense', 'mind', 'social']) {
-        const currentAttrs = item.system?.attributes || {};
-        data.system.attributes ??= {};
-
-        for (const ability of abilities) {
-            data.system.attributes[ability] = currentAttrs[ability] || data.system.attributes[ability] || {};
-            if (data.system.attributes[ability].value == null) data.system.attributes[ability].value = 0;
         }
 
         return data.system.attributes;
@@ -305,11 +243,6 @@
         return Array.isArray(item?.system?.macros) ? foundry.utils.deepClone(item.system.macros) : [];
     }
 
-    function prepareEmbeddedMacroData(item, data) {
-        data.system.macros = getEmbeddedMacros(item);
-        return data.system.macros;
-    }
-
     function createEmbeddedMacro() {
         // kind: 'code'(인라인 코드) | 'macro'(월드 매크로 이름참조). 기본은 코드.
         return {timing: 'instant', kind: 'code', command: '', macroName: '', disabled: false};
@@ -368,11 +301,6 @@
         macros[index][property] = property === 'disabled' ? Boolean(value) : value;
         await item.update({'system.macros': macros});
         return macros;
-    }
-
-    function activateBaseItemListeners(sheet, html) {
-        // AppV2 시트는 ApplicationV2의 actions/form submit 경로를 사용한다.
-        // 호환용 데이터 API를 유지하기 위한 no-op이다.
     }
 
     const macroSupportedTypes = ['effect', 'combo', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'book', 'once', 'etc'];
@@ -481,248 +409,14 @@
         return true;
     }
 
-    async function updateAfterDefault(item, updates) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-        await item.update(updates);
-    }
-
-    const targetTabTypes = ['combo', 'effect', 'spell', 'psionic', 'once', 'protect', 'etc', 'vehicle', 'weapon'];
-    const targetExclusiveFields = ['system.getTarget', 'system.scene'];
-
-    function hasTargetTab(item) {
-        return targetTabTypes.includes(item?.type);
-    }
-
-    function getTargetTab(root) {
-        return compat.query(root, 'div[data-tab="target"]');
-    }
-
-    function parseTargetInputValue(input) {
-        if (input.type === 'checkbox') return input.checked;
-        if (input.type === 'number') return parseInt(input.value) || 0;
-        return input.value;
-    }
-
-    async function updateTargetBoolean(item, field, checked) {
-        const updates = {[field]: checked};
-        if (field === 'system.getTarget' && checked) updates['system.scene'] = false;
-        if (field === 'system.scene' && checked) updates['system.getTarget'] = false;
-        await updateAfterDefault(item, updates);
-    }
-
-    async function updateTargetField(item, input) {
-        const name = input.name;
-        if (!name || targetExclusiveFields.includes(name)) return;
-
-        const updates = foundry.utils.expandObject({
-            [name]: parseTargetInputValue(input)
-        });
-        await item.update(updates);
-    }
-
-    function activateTargetTabListeners(sheet, root) {
-        const targetTab = getTargetTab(root);
-        if (!targetTab) return false;
-
-        compat.on(targetTab, 'change', 'input[name="system.getTarget"]', async (event) => {
-            event.preventDefault();
-            try {
-                await updateTargetBoolean(sheet.item, 'system.getTarget', event.target.checked);
-            } catch (e) {
-                console.error('DX3rd | ItemSheet getTarget update failed', e);
-            }
-        });
-
-        compat.on(targetTab, 'change', 'input[name="system.scene"]', async (event) => {
-            event.preventDefault();
-            try {
-                await updateTargetBoolean(sheet.item, 'system.scene', event.target.checked);
-            } catch (e) {
-                console.error('DX3rd | ItemSheet scene update failed', e);
-            }
-        });
-
-        compat.on(targetTab, 'change', 'input[name^="system."]', async (event) => {
-            if (sheet._isAddingAttribute) return;
-            try {
-                await updateTargetField(sheet.item, event.target);
-            } catch (error) {
-                console.error("DX3rd | ItemSheet Target Tab input update failed", error);
-            }
-        });
-
-        compat.on(targetTab, 'change', 'select[name^="system."]:not([name$=".key"])', async (event) => {
-            if (sheet._isAddingAttribute) return;
-            try {
-                await updateTargetField(sheet.item, event.target);
-            } catch (error) {
-                console.error("DX3rd | ItemSheet Target Tab select update failed", error);
-            }
-        });
-
-        compat.on(targetTab, 'change', 'textarea[name^="system."]', async (event) => {
-            if (sheet._isAddingAttribute) return;
-            try {
-                await updateTargetField(sheet.item, event.target);
-            } catch (error) {
-                console.error("DX3rd | ItemSheet Target Tab textarea update failed", error);
-            }
-        });
-
-        return true;
-    }
-
-    const defaultSubmitExclusions = [
-        'system.getTarget',
-        'system.scene',
-        'system.effect.disable',
-        'system.effect.runTiming'
-    ];
-
-    function sanitizeSubmitFormData(formData, {exclude = defaultSubmitExclusions} = {}) {
-        for (const field of exclude) {
-            delete formData[field];
-        }
-        return formData;
-    }
-
-    function normalizeEquipmentFormData(formData) {
-        formData['system.equipment'] = formData['system.equipment'] === 'on' || formData['system.equipment'] === true;
-        return formData;
-    }
-
-    async function submitSanitizedFormData(item, formData, {
-        exclude = defaultSubmitExclusions,
-        remove = [],
-        normalizeEquipment = false
-    } = {}) {
-        sanitizeSubmitFormData(formData, {exclude});
-        for (const field of remove) {
-            delete formData[field];
-        }
-        if (normalizeEquipment) normalizeEquipmentFormData(formData);
-        return item.update(formData);
-    }
-
-    const defaultSystemInputExclusions = ['system.getTarget', 'system.scene'];
-    const defaultSystemSelectExclusions = [
-        'system.getTarget',
-        'system.scene',
-        'system.effect.disable',
-        'system.effect.runTiming',
-        'system.active.disable',
-        'system.active.runTiming',
-        'system.used.disable'
-    ];
-
-    function getSystemFieldValue(input) {
-        if (input.type === 'checkbox') return input.checked;
-        if (input.type === 'number' || input.dataset.dtype === 'Number') return parseInt(input.value) || 0;
-        return input.value;
-    }
-
-    async function updateSystemField(item, input, {defer = false} = {}) {
-        const name = input.name;
-        if (!name) return;
-        const updates = foundry.utils.expandObject({
-            [name]: getSystemFieldValue(input)
-        });
-
-        if (defer) return updateAfterDefault(item, updates);
-        return item.update(updates);
-    }
-
-    function activateAttributeControls(sheet, html) {
-        sheet._isAddingAttribute = false;
-        window.DX3rdAttributeManager.setupAttributeListeners(html, sheet);
-        window.DX3rdAttributeManager.initializeAttributeLabels(html, sheet.item);
-    }
-
-    function activateStateDisableListeners(sheet, root, {
-        active = true,
-        used = true,
-        wrapEvent = true
-    } = {}) {
-        const makeEvent = event => wrapEvent ? {currentTarget: event.target, target: event.target} : event;
-
-        if (active) {
-            compat.on(root, 'change', 'select[name="system.active.disable"]', event => {
-                sheet._onActiveDisableChange(makeEvent(event));
-            });
-        }
-
-        if (used) {
-            compat.on(root, 'change', 'select[name="system.used.disable"]', event => {
-                sheet._onUsedDisableChange(makeEvent(event));
-            });
-        }
-    }
-
-    function activateEquipmentListener(sheet, root, {logPrefix = 'Item Base'} = {}) {
-        compat.on(root, 'change', 'input[name="system.equipment"]', async (event) => {
-            try {
-                await updateAfterDefault(sheet.item, {'system.equipment': event.target.checked});
-            } catch (error) {
-                console.error(`DX3rd | ${logPrefix} equipment update failed`, error);
-            }
-        });
-    }
-
-    function activateSystemFieldListeners(sheet, root, {
-        logPrefix = 'Item Base',
-        inputSelector = 'input[name^="system."]',
-        inputExclude = defaultSystemInputExclusions,
-        selectSelector = 'select[name^="system."]:not([name$=".key"])',
-        selectExclude = defaultSystemSelectExclusions,
-        textareaSelector = 'textarea[name^="system."]',
-        defer = true
-    } = {}) {
-        compat.on(root, 'change', inputSelector, async (event) => {
-            if (sheet._isAddingAttribute) return;
-            if (inputExclude.includes(event.target.name)) return;
-            try {
-                await updateSystemField(sheet.item, event.target, {defer});
-            } catch (error) {
-                console.error(`DX3rd | ${logPrefix} input update failed`, error);
-            }
-        });
-
-        compat.on(root, 'change', selectSelector, async (event) => {
-            if (sheet._isAddingAttribute) return;
-            if (selectExclude.includes(event.target.name)) return;
-            try {
-                await updateSystemField(sheet.item, event.target, {defer});
-            } catch (error) {
-                console.error(`DX3rd | ${logPrefix} select update failed`, error);
-            }
-        });
-
-        compat.on(root, 'change', textareaSelector, async (event) => {
-            if (sheet._isAddingAttribute) return;
-            try {
-                await updateSystemField(sheet.item, event.target, {defer});
-            } catch (error) {
-                console.error(`DX3rd | ${logPrefix} textarea update failed`, error);
-            }
-        });
-    }
-
     const itemSheetData = Object.freeze({
-        prepareSystem,
         prepareSheetData,
         prepareAppV2Context,
-        enrichDescription,
         enrichSheetData,
-        prepareActorSummary,
         prepareSkillOptions,
-        hydrateSystemFields,
-        prepareUsedData,
-        prepareSavingData,
-        prepareEquipmentData,
         prepareActiveData,
         prepareEffectData,
         preserveAttributeData,
-        prepareAbilityAttributeValues,
         prepareTargetFlags,
         normalizeIdList,
         getRollDifficultyToggleUpdate,
@@ -732,24 +426,11 @@
         prepareEffectLevelData,
         preparePsionicLevelData,
         getEmbeddedMacros,
-        prepareEmbeddedMacroData,
-        createEmbeddedMacro,
         addEmbeddedMacro,
         removeEmbeddedMacro,
         updateEmbeddedMacro,
         getWorldMacroOptions,
         migrateLegacyMacroField,
-        activateBaseItemListeners,
-        updateAfterDefault,
-        hasTargetTab,
-        activateTargetTabListeners,
-        sanitizeSubmitFormData,
-        normalizeEquipmentFormData,
-        submitSanitizedFormData,
-        activateAttributeControls,
-        activateStateDisableListeners,
-        activateEquipmentListener,
-        activateSystemFieldListeners,
         handleMacroDrop
     });
 

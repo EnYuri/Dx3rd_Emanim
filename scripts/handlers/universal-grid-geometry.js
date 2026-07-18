@@ -129,7 +129,7 @@
             y: centerY + (dy * gridSize)
           });
         }
-        console.log(`DX3rd | Fallback - Generated ${grids.length} adjacent cells`);
+        window.DX3rdDebug.log(`DX3rd | Fallback - Generated ${grids.length} adjacent cells`);
       }
 
       return grids;

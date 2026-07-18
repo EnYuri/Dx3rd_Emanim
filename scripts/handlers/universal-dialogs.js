@@ -1,27 +1,5 @@
 // Universal handler dialog helpers shared by item activation workflows.
 (function() {
-  window.DX3rdUniversalConfirmDialogV2 = async function({ title, content, defaultYes = true, yesLabel, noLabel } = {}) {
-    const DialogV2 = foundry.applications?.api?.DialogV2;
-    if (!DialogV2?.confirm) {
-      ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-      return false;
-    }
-
-    return DialogV2.confirm({
-      window: { title },
-      content,
-      yes: {
-        icon: '<i class="fas fa-check"></i>',
-        label: yesLabel || game.i18n.localize('DX3rd.Confirm')
-      },
-      no: {
-        icon: '<i class="fas fa-times"></i>',
-        label: noLabel || game.i18n.localize('DX3rd.Cancel')
-      },
-      defaultYes
-    });
-  };
-
   window.DX3rdUniversalAlertDialogV2 = async function({ title, content, label } = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2?.wait) {

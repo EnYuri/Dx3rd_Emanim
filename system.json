@@ -12,8 +12,9 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.9.5",
+  "version": "1.9.6",
   "scripts": [
+    "scripts/core/debug-log.js",
     "scripts/application-compat.js",
     "scripts/import-compat.js",
     "scripts/core/runtime-utils.js",
@@ -111,7 +112,6 @@
     "styles/equipment-selection-dialog.css",
     "styles/weapon-for-attack-dialog.css",
     "styles/skills-settings-dialog.css",
-    "styles/combo-dialog.css",
     "styles/turn-process-ui.css",
     "styles/dx3rd-condition-hud.css",
     "styles/appv2-sheets.css",

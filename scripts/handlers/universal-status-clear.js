@@ -74,7 +74,7 @@
           console.error('DX3rd | statusClear toggle failed', status, targetActor.name, error);
         }
       }
-      console.log(`DX3rd | statusClear: ${targetActor.name} cleared [${cleared.join(',')}]`);
+      window.DX3rdDebug.log(`DX3rd | statusClear: ${targetActor.name} cleared [${cleared.join(',')}]`);
     }
   };
 })();

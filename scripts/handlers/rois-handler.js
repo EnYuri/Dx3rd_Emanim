@@ -365,7 +365,7 @@ window.DX3rdRoisHandler = {
                             displayMax += baseLevel;
                         }
                         
-                        console.log(`DX3rd | Effect ${effect.name}: notCheck=${notCheck}, state=${state}, max=${max}, level=${level}, displayMax=${displayMax}`);
+                        window.DX3rdDebug.log(`DX3rd | Effect ${effect.name}: notCheck=${notCheck}, state=${state}, max=${max}, level=${level}, displayMax=${displayMax}`);
                         
                         // notCheck가 false이고, state가 1 이상이며, displayMax가 0보다 큰 경우
                         return notCheck !== 'notCheck' && state >= 1 && displayMax > 0;

@@ -14,7 +14,7 @@ window.DX3rdProtectHandler = {
         // armor/init/dodge를 자동으로 합산하므로 이 플래그 설정이 핵심.
         if (!item.system.equipment) {
             await item.update({ 'system.equipment': true });
-            console.log(`DX3rd | ProtectHandler - Equipped: ${item.name}`);
+            window.DX3rdDebug.log(`DX3rd | ProtectHandler - Equipped: ${item.name}`);
         }
 
         // 스탯 평가: 수식 문자열 → 숫자
@@ -77,12 +77,12 @@ window.DX3rdProtectHandler = {
         }
 
         if (!item.system.equipment) {
-            console.log(`DX3rd | ProtectHandler.handleUnequip - already unequipped: ${item.name}`);
+            window.DX3rdDebug.log(`DX3rd | ProtectHandler.handleUnequip - already unequipped: ${item.name}`);
             return false;
         }
 
         await item.update({ 'system.equipment': false });
-        console.log(`DX3rd | ProtectHandler - Unequipped: ${item.name}`);
+        window.DX3rdDebug.log(`DX3rd | ProtectHandler - Unequipped: ${item.name}`);
 
         let itemName = item.name;
         const rubyMatch = itemName.match(/^(.+)\|\|(.+)$/);
@@ -111,7 +111,7 @@ window.DX3rdProtectHandler = {
         const required   = Number(item.system.saving?.value) || 0;
 
         if (!difficulty || difficulty === '-' || required === 0) {
-            console.log(`DX3rd | ProtectHandler.handleSellSaving - no saving defined for ${item.name}`);
+            window.DX3rdDebug.log(`DX3rd | ProtectHandler.handleSellSaving - no saving defined for ${item.name}`);
             return;
         }
 
@@ -148,7 +148,7 @@ window.DX3rdProtectHandler = {
 
         // 실패 → 장비 해제
         await item.update({ 'system.equipment': false });
-        console.log(`DX3rd | ProtectHandler - SellSaving failed, unequipped: ${item.name}`);
+        window.DX3rdDebug.log(`DX3rd | ProtectHandler - SellSaving failed, unequipped: ${item.name}`);
 
         ChatMessage.create({
             content:

@@ -655,7 +655,7 @@
           effectiveStat.dodge.add = (effectiveStat.dodge.add || 0) + (weaponBonus.add || 0);
         }
         
-        console.log('DX3rd | Applied weapon bonus to stat', {
+        window.DX3rdDebug.log('DX3rd | Applied weapon bonus to stat', {
           originalAdd: stat.add,
           weaponAdd: weaponBonus.add,
           effectiveAdd: effectiveStat.add,
@@ -735,7 +735,7 @@
           
           if (hasFearTarget) {
             fearPenalty = -2;
-            console.log(`DX3rd | Fear penalty for attack roll: ${fearTarget} is in targets (-2 dice)`);
+            window.DX3rdDebug.log(`DX3rd | Fear penalty for attack roll: ${fearTarget} is in targets (-2 dice)`);
           }
         }
       }
@@ -768,7 +768,7 @@
                 distasteTargetNames.push(adjacentTokenName);
               }
               
-              console.log(`DX3rd | Berserk distaste penalty: ${adjacentTokenName} is adjacent (-10 add)`);
+              window.DX3rdDebug.log(`DX3rd | Berserk distaste penalty: ${adjacentTokenName} is adjacent (-10 add)`);
             }
           }
         }
@@ -822,7 +822,7 @@
             // 일치하는 토큰이 없으면 dice 패널티 -4 표시
             if (!hasMatchingRoisToken) {
               dependencyPenalty = -4;
-              console.log(`DX3rd | Panic 8 (Dependency) penalty: No matching Rois token in engage range (-4 dice)`);
+              window.DX3rdDebug.log(`DX3rd | Panic 8 (Dependency) penalty: No matching Rois token in engage range (-4 dice)`);
             }
           }
         }
@@ -1033,7 +1033,7 @@
             const finalCrit = Math.max(2, baseCrit + critModifier);
             const finalAdd = baseAdd + addModifier;
             
-            console.log('DX3rd | Roll button clicked - values:', {
+            window.DX3rdDebug.log('DX3rd | Roll button clicked - values:', {
               rollType: t,
               baseDice,
               diceModifier,
@@ -2031,7 +2031,7 @@
           await this.onAttackRollComplete(actor, item, Array.from(game.user.targets), rollResult, isFumble);
         }
       } catch (e) {
-        console.log('DX3rd | Roll failed', e);
+        window.DX3rdDebug.log('DX3rd | Roll failed', e);
         // 에러 시 메시지 미생성: 정상 메시지가 이미 나간 뒤 예외면 GM으로 중복 메시지가 나가는 것 방지
       }
     },

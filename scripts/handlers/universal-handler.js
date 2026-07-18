@@ -49,7 +49,7 @@
             
             // 예외 아이템 목록에 없으면 채팅 메시지 생성 안 함
             if (!exceptionList.includes(itemName)) {
-              console.log(`DX3rd | Chat message blocked: ${itemName} has auto timing with pressure condition`);
+              window.DX3rdDebug.log(`DX3rd | Chat message blocked: ${itemName} has auto timing with pressure condition`);
               
               // 에러 메시지 출력
               await ChatMessage.create({
@@ -85,7 +85,7 @@
             
             // 예외 아이템 목록에 없으면 사용 불가
             if (!exceptionList.includes(itemName)) {
-              console.log(`DX3rd | Item usage blocked: ${itemName} has ${runTiming} timing with berserk condition`);
+              window.DX3rdDebug.log(`DX3rd | Item usage blocked: ${itemName} has ${runTiming} timing with berserk condition`);
               
               // 에러 메시지 출력
               await ChatMessage.create({
@@ -152,7 +152,7 @@
                       });
                       
                       ui.notifications.warn(`${itemName}에 포함된 ${effect.name}의 사용 횟수가 소진되었습니다. (${effectUsedState}/${effectDisplayMax})`);
-                      console.log('DX3rd | Combo usage blocked - included effect exhausted:', { effectName: effect.name, effectUsedState, effectUsedMax, effectUsedLevel, effectDisplayMax });
+                      window.DX3rdDebug.log('DX3rd | Combo usage blocked - included effect exhausted:', { effectName: effect.name, effectUsedState, effectUsedMax, effectUsedLevel, effectDisplayMax });
                       return false;
                     }
                   }
@@ -208,7 +208,7 @@
             });
             
             ui.notifications.warn(`${itemName}의 사용 횟수가 모두 소진되었습니다. (${usedState}/${displayMax})`);
-            console.log('DX3rd | Item usage blocked - usage count exhausted:', { usedState, usedMax, usedLevel, displayMax });
+            window.DX3rdDebug.log('DX3rd | Item usage blocked - usage count exhausted:', { usedState, usedMax, usedLevel, displayMax });
             return false;
           }
         }
@@ -239,7 +239,7 @@
               content: errorMsg,
               style: CONST.CHAT_MESSAGE_STYLES.OTHER
             });
-            console.log('DX3rd | Resurrect item blocked - HP is not 0:', currentHP);
+            window.DX3rdDebug.log('DX3rd | Resurrect item blocked - HP is not 0:', currentHP);
             return false;
           }
           
@@ -252,7 +252,7 @@
               content: errorMsg,
               style: CONST.CHAT_MESSAGE_STYLES.OTHER
             });
-            console.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
+            window.DX3rdDebug.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
             return false;
           }
         }
@@ -280,7 +280,7 @@
                 content: errorMsg,
                 style: CONST.CHAT_MESSAGE_STYLES.OTHER
               });
-              console.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
+              window.DX3rdDebug.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
               return false;
             }
           } else {
@@ -307,7 +307,7 @@
                   content: errorMsg,
                   style: CONST.CHAT_MESSAGE_STYLES.OTHER
                 });
-                console.log('DX3rd | Item usage blocked - Encroachment below limit:', { currentEncroachment, limitValue });
+                window.DX3rdDebug.log('DX3rd | Item usage blocked - Encroachment below limit:', { currentEncroachment, limitValue });
                 return false;
               }
             }
@@ -348,7 +348,7 @@
               defaultValue: Number(runtimeCfg.runtimeDefault) || 0
             });
             if (entered === null || entered === undefined) {
-              console.log('DX3rd | Item use canceled at runtime input prompt');
+              window.DX3rdDebug.log('DX3rd | Item use canceled at runtime input prompt');
               return false; // 취소 → 사용 중단(코스트 미차감)
             }
             actor._dx3rdRuntimeInput = entered;
@@ -458,7 +458,7 @@
               speaker: ChatMessage.getSpeaker({ actor }) 
             });
             
-            console.log('DX3rd | Item usage blocked: insufficient HP');
+            window.DX3rdDebug.log('DX3rd | Item usage blocked: insufficient HP');
             return false; // 아이템 사용 중단
           }
           
@@ -1223,14 +1223,14 @@
           }
         } else if (bucket.type === 'weapon' || bucket.type === 'protect' || bucket.type === 'vehicle') {
           // 아이템 생성은 afterDamage에서 하지 않음 (instant만)
-          console.log(`DX3rd | Combo afterDamage - Skipping item creation (${bucket.type})`);
+          window.DX3rdDebug.log(`DX3rd | Combo afterDamage - Skipping item creation (${bucket.type})`);
         }
       }
       
       // 5. afterMain 익스텐션을 큐에 등록 (runTiming이 afterDamage인 경우)
-      console.log('DX3rd | processComboAfterDamage - Registering afterMain extensions:', afterMainExtensions.length);
+      window.DX3rdDebug.log('DX3rd | processComboAfterDamage - Registering afterMain extensions:', afterMainExtensions.length);
       for (const bucket of afterMainExtensions) {
-        console.log('DX3rd | processComboAfterDamage - Registering afterMain:', bucket.type, 'merged:', bucket.merged);
+        window.DX3rdDebug.log('DX3rd | processComboAfterDamage - Registering afterMain:', bucket.type, 'merged:', bucket.merged);
         if (bucket.type === 'heal') {
           const healData = {
             formulaDice: bucket.merged?.dice || 0,
@@ -1485,7 +1485,7 @@
       const skipToggle = item.type === 'once' && activeDisable === '-';
       if (item.system?.active?.runTiming === 'instant' && !item.system?.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         await item.update({'system.active.state': true});
-        console.log('DX3rd | UniversalHandler.activateItem - Item activated:', item.name);
+        window.DX3rdDebug.log('DX3rd | UniversalHandler.activateItem - Item activated:', item.name);
       }
       return true;
     },
@@ -1556,7 +1556,7 @@
         ? getTarget
         : (window.DX3rdItemEffectAdapter?.requiresTarget(item, action) ?? !!item.system?.getTarget);
       
-      console.log('DX3rd | handleItemUse target check:', {
+      window.DX3rdDebug.log('DX3rd | handleItemUse target check:', {
         itemName: item.name,
         getTargetParam: getTarget,
         itemGetTarget: item.system?.getTarget,
@@ -1568,11 +1568,11 @@
       if (requiresTarget) {
         const targets = Array.from(game.user.targets || []);
         if (targets.length === 0) {
-          console.log('DX3rd | Item use blocked - no targets selected (highlight preserved)');
+          window.DX3rdDebug.log('DX3rd | Item use blocked - no targets selected (highlight preserved)');
           ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
           return false; // 하이라이트 유지하고 중단
         }
-        console.log('DX3rd | Target check passed -', targets.length, 'targets selected');
+        window.DX3rdDebug.log('DX3rd | Target check passed -', targets.length, 'targets selected');
       }
 
       // 사용 버튼 클릭 시 통합 처리
@@ -1629,7 +1629,7 @@
       try {
       const usageAllowed = await this.processItemUsageCost(actor, item, {action});
       if (!usageAllowed) {
-        console.log('DX3rd | handleItemUse - Usage blocked by cost');
+        window.DX3rdDebug.log('DX3rd | handleItemUse - Usage blocked by cost');
         return false;
       }
       
@@ -1638,7 +1638,7 @@
       if (usedDisable !== 'notCheck') {
         const currentUsedState = item.system?.used?.state || 0;
         await item.update({ 'system.used.state': currentUsedState + 1 });
-        console.log('DX3rd | handleItemUse - Used count increased:', currentUsedState, '→', currentUsedState + 1);
+        window.DX3rdDebug.log('DX3rd | handleItemUse - Used count increased:', currentUsedState, '→', currentUsedState + 1);
       }
       
       // 2. instant 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
@@ -1649,7 +1649,7 @@
         || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant');
       if (selfActionMatches && item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         const toggled = await this.applySelfModifiers(actor, item);
-        console.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
+        window.DX3rdDebug.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       
       // 2.7. 자원소비 비례형(네이티브 필드) 처리 — HP 등을 n 소비하고 n×배수만큼 판정/스탯 버프
@@ -1662,7 +1662,7 @@
       if (item.type !== 'combo') {
         await this.processItemExtensions(actor, item, 'instant', action);
       } else {
-        console.log('DX3rd | handleItemUse - Skipping combo instant extensions here (will be merged and executed in ComboHandler)');
+        window.DX3rdDebug.log('DX3rd | handleItemUse - Skipping combo instant extensions here (will be merged and executed in ComboHandler)');
       }
       
       // 4. runTiming이 instant인 경우, afterMain 익스텐드를 큐에 등록
@@ -1671,11 +1671,11 @@
         if (item.type !== 'combo') {
           const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend');
           if (itemExtend) {
-            console.log('DX3rd | handleItemUse - Registering afterMain extensions for non-combo item:', item.name);
+            window.DX3rdDebug.log('DX3rd | handleItemUse - Registering afterMain extensions for non-combo item:', item.name);
             await this.registerAfterMainExtensions(actor, item, itemExtend, action);
           }
         } else {
-          console.log('DX3rd | handleItemUse - Skipping afterMain registration for combo (will be handled by ComboHandler)');
+          window.DX3rdDebug.log('DX3rd | handleItemUse - Skipping afterMain registration for combo (will be handled by ComboHandler)');
         }
       }
 
