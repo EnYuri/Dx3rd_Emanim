@@ -1380,6 +1380,15 @@ Hooks.once('ready', async function() {
     // 변경을 일으킨 클라이언트에서만 오버레이를 동기화(다중 접속 시 중복 생성 방지)
     if (game.user.id !== userId) return;
 
+    // 이 훅이 보는 건 system.conditions.*.active 뿐인데, flattenObject 는 페이로드 전체를
+    // 훑는다. 시트 저장처럼 큰 업데이트에서 헛일하지 않도록 최상위 키로 먼저 걸러낸다.
+    // (점 표기 키 "system.conditions..." 와 중첩 객체 {system:{conditions:...}} 양쪽 모두 처리)
+    const sys = updateData?.system;
+    const hasConditionChange =
+      (sys && (sys.conditions !== undefined || Object.keys(sys).some(k => k.startsWith('conditions.')))) ||
+      Object.keys(updateData || {}).some(k => k.startsWith('system.conditions.'));
+    if (!hasConditionChange) return;
+
     let flat;
     try {
       flat = foundry.utils.flattenObject(updateData);

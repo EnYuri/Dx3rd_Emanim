@@ -1,6 +1,15 @@
 // Psionic 아이템 핸들러
 (function() {
 window.DX3rdPsionicHandler = {
+    /**
+     * 사이오닉의 system.skill로부터 판정용 stat과 라벨을 해석한다.
+     * 실제 로직은 UniversalHandler 가 effect 와 공유한다.
+     * @returns {{stat: object|null, label: string}}
+     */
+    resolveStatAndLabel(actor, item) {
+        return window.DX3rdUniversalHandler.resolveStatAndLabel(actor, item);
+    },
+
     async handle(actorId, itemId, getTarget, options = {}) {
         const actor = game.actors.get(actorId);
         if (!actor) { 
@@ -78,26 +87,9 @@ window.DX3rdPsionicHandler = {
             return;
         }
         
-        // 스킬 또는 능력치 데이터 가져오기
-        const attributes = ['body', 'sense', 'mind', 'social'];
-        let stat = null;
-        let label = '';
-        
-        if (attributes.includes(skillKey)) {
-            // 능력치
-            stat = actor.system.attributes[skillKey];
-            label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
-        } else {
-            // 스킬
-            stat = actor.system.attributes.skills?.[skillKey];
-            if (stat) {
-                label = stat.name;
-                if (label && label.startsWith('DX3rd.')) {
-                    label = game.i18n.localize(label);
-                }
-            }
-        }
-        
+        // 스킬 또는 능력치 데이터 가져오기 (능력치/신드롬/커스텀 스킬 공통 처리)
+        const { stat, label } = this.resolveStatAndLabel(actor, item);
+
         if (!stat) {
             ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
             return;
@@ -167,24 +159,9 @@ window.DX3rdPsionicHandler = {
             return;
         }
         
-        // 스킬 또는 능력치 데이터 가져오기
-        const attributes = ['body', 'sense', 'mind', 'social'];
-        let stat = null;
-        let label = '';
-        
-        if (attributes.includes(skillKey)) {
-            stat = actor.system.attributes[skillKey];
-            label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
-        } else {
-            stat = actor.system.attributes.skills?.[skillKey];
-            if (stat) {
-                label = stat.name;
-                if (label && label.startsWith('DX3rd.')) {
-                    label = game.i18n.localize(label);
-                }
-            }
-        }
-        
+        // 스킬 또는 능력치 데이터 가져오기 (능력치/신드롬/커스텀 스킬 공통 처리)
+        const { stat, label } = this.resolveStatAndLabel(actor, item);
+
         if (!stat) {
             ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
             return;

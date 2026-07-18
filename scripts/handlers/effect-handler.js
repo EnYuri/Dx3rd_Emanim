@@ -2,70 +2,12 @@
 (function() {
 window.DX3rdEffectHandler = {
     /**
-     * 스킬 키로부터 표시 이름 가져오기 (커스텀 스킬 및 로컬라이징 처리)
-     * ComboHandler.getSkillDisplayName과 동일한 로직 — 카테고리/커스텀 스킬 라벨 일관성 유지
-     */
-    getSkillDisplayName(skillKey, skillStat) {
-        return window.DX3rdSkillManager.getSkillDisplayName(skillKey, skillStat);
-    },
-
-    /**
      * 이펙트의 system.skill로부터 판정용 stat과 라벨을 해석한다.
-     * 능력치(body/sense/mind/social), 신드롬(syndrome), 일반/커스텀 스킬을 모두 지원.
+     * 실제 로직은 UniversalHandler 가 psionic 과 공유한다.
      * @returns {{stat: object|null, label: string}}
      */
     resolveStatAndLabel(actor, item) {
-        const skillKey = item.system?.skill;
-        const attributes = ['body', 'sense', 'mind', 'social'];
-
-        if (attributes.includes(skillKey)) {
-            return {
-                stat: actor.system.attributes[skillKey],
-                label: game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`)
-            };
-        }
-
-        if (skillKey === 'syndrome') {
-            const stat = actor.system.attributes.syndrome;
-            let label = stat?.name || game.i18n.localize('DX3rd.Syndrome');
-            if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
-            return { stat, label };
-        }
-
-        // 일반/커스텀 스킬
-        const stat = actor.system.attributes.skills?.[skillKey];
-        if (stat) return { stat, label: this.getSkillDisplayName(skillKey, stat) };
-
-        // 폴백: 액터가 보유하지 않은 (계통) 기능치를 참조하면 연결 능력치로 판정한다.
-        // (미습득 기능 = 능력치 판정, DX3 규칙과 일치. 계통 기능치를 새 캐릭터에 자동 시드하지
-        //  않으므로, 홈브루 이펙트가 그런 기능치를 참조해도 판정이 중단되지 않게 한다.)
-        const base = this._resolveSkillBase(skillKey);
-        if (base && actor.system.attributes[base]) {
-            const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
-            const cs = customSkills[skillKey];
-            const label = cs
-                ? (typeof cs === 'object' ? cs.name : cs)
-                : (skillKey.startsWith('DX3rd.') ? game.i18n.localize(skillKey) : skillKey);
-            return { stat: actor.system.attributes[base], label };
-        }
-
-        return { stat: null, label: '' };
-    },
-
-    /**
-     * 액터에 없는 기능치 키의 연결 능력치를 추정한다.
-     * customSkills 설정의 base 를 우선 사용하고, 없으면 계통 키 접두사로 추론한다.
-     */
-    _resolveSkillBase(skillKey) {
-        if (!skillKey) return null;
-        const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
-        const cs = customSkills[skillKey];
-        if (cs && typeof cs === 'object' && cs.base) return cs.base;
-        if (skillKey.startsWith('info_')) return 'social';
-        if (skillKey.startsWith('know_')) return 'mind';
-        if (skillKey.startsWith('drive_')) return 'body';
-        if (skillKey.startsWith('ars_')) return 'sense';
-        return null;
+        return window.DX3rdUniversalHandler.resolveStatAndLabel(actor, item);
     },
 
     async handle(actorId, itemId, getTarget, options = {}) {
