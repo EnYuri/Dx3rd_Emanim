@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.9.4",
+  "version": "1.9.5",
   "scripts": [
     "scripts/application-compat.js",
     "scripts/import-compat.js",
@@ -43,6 +43,9 @@
     "scripts/handlers/universal-handler.js",
     "scripts/handlers/universal-grid-geometry.js",
     "scripts/handlers/universal-damage-dialog.js",
+    "scripts/handlers/universal-roll-dialog.js",
+    "scripts/handlers/universal-extensions.js",
+    "scripts/handlers/universal-apply.js",
     "scripts/handlers/universal-condition-apply.js",
     "scripts/handlers/universal-after-main.js",
     "scripts/dialog/after-main-queue-manager.js",
