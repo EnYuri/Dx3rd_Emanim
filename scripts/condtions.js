@@ -200,7 +200,12 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
       }
       
       // 드롭다운 옵션 생성
-      const options = otherTokens.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
+      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      const options = otherTokens.map(t => {
+        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
+        return `<option value="${safe}">${safe}</option>`;
+      }).join('');
       
       const template = `
         <div class="condition-rank-dialog">
@@ -247,8 +252,11 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             "system.conditions.hatred.target": targetName
           });
 
-          // 채팅 메시지 출력
-          const messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
+          // 채팅 메시지 출력.
+          // 토큰 이름은 사용자 입력이고 채팅 내용은 접속한 모든 클라이언트에서 HTML로 렌더되므로,
+          // 넣기 직전에 이스케이프한다(universal-damage.js의 safeDamageText와 같은 규약).
+          const safeTargetName = window.DX3rdRuntimeUtils.escapeHTML(targetName);
+          const messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${safeTargetName}) ${game.i18n.localize("DX3rd.Apply")}`;
 
           ChatMessage.create({
             content: `<div class="dx3rd-item-chat">${messageContent}</div>`,
@@ -616,7 +624,12 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
       }
       
       // 드롭다운 옵션 생성
-      const options = otherTokens.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
+      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      const options = otherTokens.map(t => {
+        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
+        return `<option value="${safe}">${safe}</option>`;
+      }).join('');
       
       const template = `
         <div class="condition-rank-dialog">
@@ -663,11 +676,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             "system.conditions.fear.target": targetName
           });
 
-          // 채팅 메시지 출력
-          let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")}`;
+          // 채팅 메시지 출력.
+          // 토큰 이름·아이템 이름 모두 사용자 입력이고 채팅 내용은 접속한 모든 클라이언트에서
+          // HTML로 렌더되므로, 넣기 직전에 이스케이프한다(증오 경로와 동일 규약).
+          const safeTargetName = window.DX3rdRuntimeUtils.escapeHTML(targetName);
+          let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${safeTargetName}) ${game.i18n.localize("DX3rd.Apply")}`;
           if (triggerItemName) {
-            const clean = String(triggerItemName).split('||')[0];
-            messageContent = `${game.i18n.localize("DX3rd.Fear")}(${targetName}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
+            const clean = window.DX3rdRuntimeUtils.escapeHTML(String(triggerItemName).split('||')[0]);
+            messageContent = `${game.i18n.localize("DX3rd.Fear")}(${safeTargetName}) ${game.i18n.localize("DX3rd.Apply")} (${clean})`;
           }
 
           ChatMessage.create({

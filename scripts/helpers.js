@@ -1177,6 +1177,28 @@
      */
     window.DX3rdSkillManager = {
         /**
+         * 스킬 키로부터 표시 이름 가져오기 (커스텀 스킬 및 로컬라이징 처리).
+         * combo/effect 핸들러가 각자 복제해 두었던 것을 여기로 모았다 — 계통/커스텀 스킬
+         * 라벨이 판정 경로마다 달라지지 않게 하는 것이 목적이다.
+         * @param {string} skillKey
+         * @param {Object} skillStat - 액터의 해당 스킬 데이터
+         * @returns {string}
+         */
+        getSkillDisplayName(skillKey, skillStat) {
+            if (!skillKey) return '';
+            let label = skillStat?.name || '';
+            if (label && label.startsWith('DX3rd.')) {
+                const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
+                const customSkill = customSkills[skillKey];
+                if (customSkill) {
+                    return typeof customSkill === 'object' ? customSkill.name : customSkill;
+                }
+                return game.i18n.localize(label);
+            }
+            return label || skillKey;
+        },
+
+        /**
          * 아이템 타입별 스킬 선택 옵션 생성
          * @param {string} itemType - 아이템 타입 ('effect', 'weapon', 'psionic', 'combo')
          * @param {Object} actorSkills - 액터의 스킬 데이터

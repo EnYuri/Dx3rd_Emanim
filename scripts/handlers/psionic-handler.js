@@ -147,59 +147,11 @@ window.DX3rdPsionicHandler = {
     },
     
     /**
-     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만)
+     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만).
+     * 실제 로직은 UniversalHandler 가 effect 와 공유한다.
      */
     calculateRegisteredWeaponBonus(actor, item) {
-        const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
-        
-        // 무기 탭에 등록된 무기들 가져오기
-        const registeredWeapons = item.system?.weapon || [];
-        
-        // 각 등록된 무기의 보너스 합산 (공격 횟수가 남은 무기만)
-        for (const weaponId of registeredWeapons) {
-            if (weaponId && weaponId !== '-') {
-                // 액터의 아이템에서 직접 무기 데이터 가져오기
-                const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-                if (weaponItem && weaponItem.type === 'weapon') {
-                    // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
-                    const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
-                    const attackUsedState = weaponItem.system['attack-used']?.state || 0;
-                    const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
-                    const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
-                    
-                    // 공격 횟수가 소진된 무기는 제외
-                    if (isAttackExhausted) {
-                        continue;
-                    }
-                    
-                    // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
-                    const formula = window.DX3rdFormulaEvaluator;
-                    const addFormulaTerm = (target, raw) => {
-                        const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
-                        if (formula.hasDice(prepared)) weaponBonus[target] = [weaponBonus[target], prepared].filter(Boolean).join(' + ');
-                        else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
-                    };
-                    addFormulaTerm('attackFormula', weaponItem.system?.attack);
-                    addFormulaTerm('addFormula', weaponItem.system?.add);
-                    
-                    // 무기 이름 추가
-                    if (!weaponBonus.weaponName) {
-                        weaponBonus.weaponName = weaponItem.name;
-                    } else {
-                        weaponBonus.weaponName += `, ${weaponItem.name}`;
-                    }
-                    
-                    // 무기 ID 추가
-                    weaponBonus.weaponIds.push(weaponId);
-                } else if (weaponItem) {
-                    // 무기가 아닌 경우 건너뛰기
-                } else {
-                    // 무기를 찾을 수 없는 경우 건너뛰기
-                }
-            }
-        }
-        
-        return weaponBonus;
+        return window.DX3rdUniversalHandler.calculateRegisteredWeaponBonus(actor, item);
     },
 
     /**

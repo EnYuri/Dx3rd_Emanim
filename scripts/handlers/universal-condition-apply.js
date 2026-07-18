@@ -285,7 +285,12 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
       
-      const options = otherTokens.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
+      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      const options = otherTokens.map(t => {
+        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
+        return `<option value="${safe}">${safe}</option>`;
+      }).join('');
       const template = `
         <div class="condition-rank-dialog">
           <div class="form-group">
@@ -361,7 +366,12 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
       
-      const options = otherTokens.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
+      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      const options = otherTokens.map(t => {
+        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
+        return `<option value="${safe}">${safe}</option>`;
+      }).join('');
       const template = `
         <div class="condition-rank-dialog">
           <div class="form-group">

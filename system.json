@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.9.6",
+  "version": "1.9.7",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/application-compat.js",

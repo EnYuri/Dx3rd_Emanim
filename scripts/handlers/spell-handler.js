@@ -1140,7 +1140,7 @@ window.DX3rdSpellHandler = {
 
             // 드롭다운 옵션 생성
             const options = availableRois.map(rois => 
-                `<option value="${rois.id}">${rois.name}</option>`
+                `<option value="${window.DX3rdRuntimeUtils.escapeHTML(rois.id)}">${window.DX3rdRuntimeUtils.escapeHTML(rois.name)}</option>`
             ).join('');
 
             const template = `
@@ -1287,7 +1287,7 @@ window.DX3rdSpellHandler = {
 
             // 드롭다운 옵션 생성
             const options = availableRois.map(rois => 
-                `<option value="${rois.id}">${rois.name}</option>`
+                `<option value="${window.DX3rdRuntimeUtils.escapeHTML(rois.id)}">${window.DX3rdRuntimeUtils.escapeHTML(rois.name)}</option>`
             ).join('');
 
             const template = `

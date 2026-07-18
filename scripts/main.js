@@ -1243,6 +1243,54 @@ Hooks.on('preCreateActor', (document, data, options, userId) => {
     }
 });
 
+// 시트·다이얼로그 템플릿 선반입.
+// 원격 호스팅(Forge 등)에서는 템플릿을 처음 쓸 때의 fetch가 그대로 네트워크 왕복이라,
+// 시트나 다이얼로그를 처음 여는 순간에 눈에 띄는 지연이 된다. 미리 받아두면 그 지연이 사라진다.
+// 일부러 await 하지 않는다 — 월드 기동을 붙잡지 않고 배경에서 채우며, 아직 안 받힌 템플릿은
+// 기존대로 그 자리에서 로드되므로 실패해도 기능에 영향이 없다.
+// 새 템플릿을 추가하면 이 목록에도 넣을 것(item-effect-adapter.js의 PARTIALS와 같은 규약).
+const DX3RD_PRELOAD_TEMPLATES = [
+    'systems/dx3rd-emanim/templates/actor/actor-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/active-item-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/book-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/combo-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/connection-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/effect-workspace-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/psionic-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/record-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/rois-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/spell-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/syndrome-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/item/works-sheet-v2.html',
+    'systems/dx3rd-emanim/templates/dialog/after-main-queue-manager.html',
+    'systems/dx3rd-emanim/templates/dialog/damage-calc-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/defense-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/effect-recovery-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/equipment-selection-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/item-extend-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/skill-create-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/skill-edit-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/skills-settings-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/spell-selection-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/sublimation-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/weapon-for-attack-dialog.html',
+    // 아래는 코드에서 경로를 변수로 조립하는 것들(actor-edit-dialogs / enemy-stat-dialogs).
+    'systems/dx3rd-emanim/templates/dialog/ability-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/actor-type-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/armor-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/evasion-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/hp-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/init-dialog.html',
+    'systems/dx3rd-emanim/templates/dialog/move-dialog.html'
+];
+
+Hooks.once('ready', () => {
+    const loadTemplatesCompat = foundry.applications?.handlebars?.loadTemplates;
+    if (typeof loadTemplatesCompat !== 'function') return;
+    Promise.resolve(loadTemplatesCompat(DX3RD_PRELOAD_TEMPLATES))
+        .catch(e => console.warn('DX3rd | Template preload skipped:', e));
+});
+
 // 스크립트 로딩 체크
 Hooks.once('ready', function() {
     if (!window.DX3rdSkillCreateDialog || !window.DX3rdSkillEditDialog) {
@@ -2386,6 +2434,43 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
     });
 });
 
+/**
+ * 플레이어 클라이언트에서 HP 데미지 익스텐션을 GM에게 넘긴다.
+ * 조건부 공식이 걸려 있으면 본인 화면에서 먼저 입력을 받아 확정하고, 취소하면 전송하지 않는다.
+ * DX3rdChatToggleManager 의 두 경로(afterSuccess / afterDamage)가 같은 절차를 복제하고
+ * 있어 여기로 모았다 — 한쪽만 고쳐 어긋나는 것을 막는 것이 목적이다.
+ *
+ * 원본 두 곳은 handler 유무 검사만 달랐다(`handler.` vs `h?.`). 더 안전한 옵셔널 체이닝
+ * 쪽으로 통일했으므로, 핸들러가 없는 비정상 상태에서 예외 대신 그대로 전송된다.
+ */
+async function _dx3rdEmitDamageRequestAsPlayer(actor, item, damageData) {
+    const handler = window.DX3rdUniversalHandler;
+    let payload = damageData;
+
+    if (payload.conditionalFormula && handler?.promptConditionalDamageFormula) {
+        const customFormula = await handler.promptConditionalDamageFormula();
+        if (!customFormula) {
+            ui.notifications.warn('조건부 공식 입력이 취소되어 HP 데미지 익스텐션을 건너뜁니다.');
+            return;
+        }
+        payload = {
+            ...payload,
+            formulaDice: customFormula.dice,
+            formulaAdd: customFormula.add,
+            conditionalFormula: false
+        };
+    }
+
+    window.DX3rdSocketRouter.emit({
+        type: 'damageRequest',
+        requestData: {
+            actorId: actor.id,
+            damageData: payload,
+            itemId: item.id
+        }
+    });
+}
+
 // 채팅 토글 매니저
 window.DX3rdChatToggleManager = {
     initialized: false,
@@ -2609,36 +2694,7 @@ window.DX3rdChatToggleManager = {
                         });
                     } else {
                         // 플레이어: 조건부 공식 입력은 본인 클라이언트에서만 → 확정 후 GM 소켓 처리
-                        if (damageDataWithTargets.conditionalFormula && handler.promptConditionalDamageFormula) {
-                            const customFormula = await handler.promptConditionalDamageFormula();
-                            if (!customFormula) {
-                                ui.notifications.warn('조건부 공식 입력이 취소되어 HP 데미지 익스텐션을 건너뜁니다.');
-                            } else {
-                                damageDataWithTargets = {
-                                    ...damageDataWithTargets,
-                                    formulaDice: customFormula.dice,
-                                    formulaAdd: customFormula.add,
-                                    conditionalFormula: false
-                                };
-                                window.DX3rdSocketRouter.emit({
-                                    type: 'damageRequest',
-                                    requestData: {
-                                        actorId: actor.id,
-                                        damageData: damageDataWithTargets,
-                                        itemId: item.id
-                                    }
-                                });
-                            }
-                        } else {
-                            window.DX3rdSocketRouter.emit({
-                                type: 'damageRequest',
-                                requestData: {
-                                    actorId: actor.id,
-                                    damageData: damageDataWithTargets,
-                                    itemId: item.id
-                                }
-                            });
-                        }
+                        await _dx3rdEmitDamageRequestAsPlayer(actor, item, damageDataWithTargets);
                     }
                 }
                 
@@ -2966,37 +3022,7 @@ window.DX3rdChatToggleManager = {
                         });
                     } else {
                         // 플레이어: 조건부 공식 입력은 본인 클라이언트에서만 → 확정 후 GM 소켓 처리
-                        const h = window.DX3rdUniversalHandler;
-                        if (damageDataWithTargets.conditionalFormula && h?.promptConditionalDamageFormula) {
-                            const customFormula = await h.promptConditionalDamageFormula();
-                            if (!customFormula) {
-                                ui.notifications.warn('조건부 공식 입력이 취소되어 HP 데미지 익스텐션을 건너뜁니다.');
-                            } else {
-                                damageDataWithTargets = {
-                                    ...damageDataWithTargets,
-                                    formulaDice: customFormula.dice,
-                                    formulaAdd: customFormula.add,
-                                    conditionalFormula: false
-                                };
-                                window.DX3rdSocketRouter.emit({
-                                    type: 'damageRequest',
-                                    requestData: {
-                                        actorId: actor.id,
-                                        damageData: damageDataWithTargets,
-                                        itemId: item.id
-                                    }
-                                });
-                            }
-                        } else {
-                            window.DX3rdSocketRouter.emit({
-                                type: 'damageRequest',
-                                requestData: {
-                                    actorId: actor.id,
-                                    damageData: damageDataWithTargets,
-                                    itemId: item.id
-                                }
-                            });
-                        }
+                        await _dx3rdEmitDamageRequestAsPlayer(actor, item, damageDataWithTargets);
                     }
                 }
                 
@@ -3802,197 +3828,6 @@ window.DX3rdChatHandlers = {
         document.body.appendChild(dialogDiv);
     },
     
-    async showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets) {
-        // 커스텀 DOM 다이얼로그 생성
-        const dialogDiv = document.createElement("div");
-        dialogDiv.className = "after-damage-dialog";
-        dialogDiv.style.position = "fixed";
-        dialogDiv.style.top = "50%";
-        dialogDiv.style.left = "50%";
-        dialogDiv.style.transform = "translate(-50%, -50%)";
-        dialogDiv.style.background = "rgba(0, 0, 0, 0.85)";
-        dialogDiv.style.color = "white";
-        dialogDiv.style.padding = "20px";
-        dialogDiv.style.border = "none";
-        dialogDiv.style.borderRadius = "8px";
-        dialogDiv.style.zIndex = "9999";
-        dialogDiv.style.textAlign = "center";
-        dialogDiv.style.fontSize = "16px";
-        dialogDiv.style.boxShadow = "0 0 10px black";
-        dialogDiv.style.minWidth = "280px";
-        dialogDiv.style.cursor = "move";
-        
-        // 제목
-        const title = document.createElement("div");
-        title.textContent = `${item.name}`;
-        title.style.marginBottom = "16px";
-        title.style.fontSize = "1em";
-        title.style.fontWeight = "bold";
-        title.style.cursor = "move";
-        dialogDiv.appendChild(title);
-        
-        // 버튼 컨테이너
-        const buttonContainer = document.createElement("div");
-        buttonContainer.style.display = "flex";
-        buttonContainer.style.flexDirection = "column";
-        buttonContainer.style.gap = "8px";
-        
-        // "장비 효과 사용" 버튼
-        const useBtn = document.createElement("button");
-        const equipText = game.i18n.localize('DX3rd.Equipment');
-        const appliedText = game.i18n.localize('DX3rd.Applied');
-        const useText = game.i18n.localize('DX3rd.Use');
-        useBtn.textContent = `${equipText} ${appliedText} ${useText}`;
-        useBtn.style.width = "100%";
-        useBtn.style.height = "32px";
-        useBtn.style.background = "white";
-        useBtn.style.color = "black";
-        useBtn.style.borderRadius = "4px";
-        useBtn.style.border = "none";
-        useBtn.style.fontWeight = "bold";
-        useBtn.style.fontSize = "0.9em";
-        useBtn.style.cursor = "pointer";
-        useBtn.onclick = async () => {
-            const updates = {};
-            
-            // 1. system.used.state 증가 (notCheck가 아닌 경우)
-            const usedDisable = item.system?.used?.disable || 'notCheck';
-            if (usedDisable !== 'notCheck') {
-                const currentUsedState = item.system?.used?.state || 0;
-                updates['system.used.state'] = currentUsedState + 1;
-            }
-            
-            // 2. 활성화 (shouldActivate가 true이고 disable이 'notCheck'가 아닌 경우)
-            if (shouldActivate) {
-                const activeDisable = item.system?.active?.disable ?? '-';
-                if (activeDisable !== 'notCheck') {
-                    updates['system.active.state'] = true;
-                }
-            }
-            
-            if (Object.keys(updates).length > 0) {
-                await item.update(updates);
-            }
-            
-            // 3. HP 데미지 받은 타겟에게만 효과 적용
-            if (shouldApplyToTargets) {
-                for (const targetId of damagedTargets) {
-                    const targetActor = game.actors.get(targetId);
-                    if (targetActor) {
-                        const targetAttributes = item.system.effect?.attributes || {};
-                        
-                        if (game.user.isGM) {
-                            // GM이면 직접 적용
-                            await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
-                        } else {
-                            // 일반 유저는 소켓 전송
-                            window.DX3rdSocketRouter.emit({
-                                type: 'applyItemAttributes',
-                                payload: {
-                                    sourceActorId: actor.id,
-                                    itemId: item.id,
-                                    targetActorId: targetId,
-                                    targetAttributes: targetAttributes
-                                }
-                            });
-                        }
-                    }
-                }
-            }
-            
-            if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
-        };
-        buttonContainer.appendChild(useBtn);
-        
-        // "사용 안 함" 버튼
-        const notUseBtn = document.createElement("button");
-        notUseBtn.textContent = game.i18n.localize('DX3rd.NotUse');
-        notUseBtn.style.width = "100%";
-        notUseBtn.style.height = "32px";
-        notUseBtn.style.background = "#666";
-        notUseBtn.style.color = "white";
-        notUseBtn.style.borderRadius = "4px";
-        notUseBtn.style.border = "none";
-        notUseBtn.style.fontWeight = "bold";
-        notUseBtn.style.fontSize = "0.9em";
-        notUseBtn.style.cursor = "pointer";
-        notUseBtn.onclick = async () => {
-            // 아무것도 안 함 (활성화 X, 대상 적용 X, state 증가 X)
-            if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
-        };
-        buttonContainer.appendChild(notUseBtn);
-        
-        dialogDiv.appendChild(buttonContainer);
-        
-        // 드래그 기능 추가
-        let isDragging = false;
-        let offsetX;
-        let offsetY;
-        
-        const onMouseDown = (e) => {
-            // 버튼 클릭은 제외
-            if (e.target.tagName === 'BUTTON') return;
-            
-            isDragging = true;
-            
-            // 다이얼로그의 현재 위치 계산
-            const rect = dialogDiv.getBoundingClientRect();
-            offsetX = e.clientX - rect.left;
-            offsetY = e.clientY - rect.top;
-            
-            dialogDiv.style.cursor = "grabbing";
-            title.style.cursor = "grabbing";
-        };
-        
-        const onMouseMove = (e) => {
-            if (!isDragging) return;
-            
-            e.preventDefault();
-            
-            // 마우스 위치에서 오프셋을 빼서 정확한 위치 계산
-            const newLeft = e.clientX - offsetX;
-            const newTop = e.clientY - offsetY;
-            
-            dialogDiv.style.left = newLeft + "px";
-            dialogDiv.style.top = newTop + "px";
-            dialogDiv.style.transform = "none";  // transform 제거
-        };
-        
-        const onMouseUp = () => {
-            if (isDragging) {
-                isDragging = false;
-                dialogDiv.style.cursor = "move";
-                title.style.cursor = "move";
-            }
-        };
-        
-        dialogDiv.addEventListener("mousedown", onMouseDown);
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-        
-        // 다이얼로그 제거 시 이벤트 리스너도 제거
-        const cleanup = () => {
-            document.removeEventListener("mousemove", onMouseMove);
-            document.removeEventListener("mouseup", onMouseUp);
-        };
-        
-        // 다이얼로그가 제거될 때 cleanup 호출
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.removedNodes.forEach((node) => {
-                    if (node === dialogDiv) {
-                        cleanup();
-                        observer.disconnect();
-                    }
-                });
-            });
-        });
-        
-        observer.observe(document.body, { childList: true });
-        
-        document.body.appendChild(dialogDiv);
-    },
-    
     
     initializeExistingMessages() {
         // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
@@ -4567,11 +4402,28 @@ Hooks.on('createCombat', async (combat, options, userId) => {
 
 // 사용자가 지금 편집 중(포커스가 시트 안에 있음)인 시트는 재렌더하지 않는다.
 // 재렌더가 DOM을 교체해 입력 포커스/타이핑을 날리는 것을 막는다.
-function _dx3rdRerenderSheet(app) {
+function _dx3rdRerenderSheetNow(app) {
     if (!app?.rendered) return;
     const active = document.activeElement;
     if (active && app.element?.contains(active)) return;
     app.render(false);
+}
+
+// 아이템 사용 한 번은 액터 업데이트를 연달아 일으킬 수 있고(HP·침식률·applied 등),
+// 그때마다 같은 시트를 다시 그리면 낭비다. 대기 집합에 모아 한 프레임 뒤 한 번만 그린다.
+// rendered/포커스 검사는 "그리는 시점"에 하므로, 대기 중 닫히거나 사용자가 입력을 시작한
+// 시트는 자연히 건너뛴다 — 즉시 실행보다 오히려 정확하다.
+const _dx3rdPendingRerenders = new Set();
+const _dx3rdFlushRerenders = foundry.utils.debounce(() => {
+    const apps = [..._dx3rdPendingRerenders];
+    _dx3rdPendingRerenders.clear();
+    for (const app of apps) _dx3rdRerenderSheetNow(app);
+}, 50);
+
+function _dx3rdRerenderSheet(app) {
+    if (!app) return;                          // 아직 열린 적 없는 시트는 생성하지 않는다
+    _dx3rdPendingRerenders.add(app);
+    _dx3rdFlushRerenders();
 }
 
 // 침식률 등 액터 능력치가 바뀌면, 그 값을 표시/계산에 쓰는 열린 아이템 시트를 갱신.

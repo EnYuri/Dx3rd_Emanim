@@ -6,24 +6,9 @@ window.DX3rdComboHandler = {
     /**
      * 스킬 키로부터 표시 이름 가져오기 (커스텀 스킬 및 로컬라이징 처리)
      */
+    /** 스킬 표시 이름. 실제 로직은 DX3rdSkillManager 가 effect 와 공유한다. */
     getSkillDisplayName(skillKey, skillStat) {
-        if (!skillKey) return '';
-        
-        let label = skillStat?.name || '';
-        if (label && label.startsWith('DX3rd.')) {
-            // customSkills 설정 확인
-            const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
-            const customSkill = customSkills[skillKey];
-            
-            if (customSkill) {
-                // 커스텀 이름이 있으면 우선 사용
-                return typeof customSkill === 'object' ? customSkill.name : customSkill;
-            } else {
-                // 커스텀 이름이 없으면 기본 로컬라이징
-                return game.i18n.localize(label);
-            }
-        }
-        return label || skillKey;
+        return window.DX3rdSkillManager.getSkillDisplayName(skillKey, skillStat);
     },
 
     /**

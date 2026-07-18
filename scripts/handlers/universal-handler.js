@@ -3,6 +3,64 @@
 
   window.DX3rdUniversalHandler = {
     /**
+     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만).
+     * effect/psionic 이 공유한다 — 두 곳에 같은 52줄이 복제돼 있어, 무기 소진 규칙을
+     * 고칠 때 한쪽만 고치는 사고를 막으려고 여기로 올렸다.
+     *
+     * ComboHandler.calculateRegisteredWeaponBonus 는 이것과 다른 함수다. 복수무기(multiWeapon)
+     * 규칙이 얹혀 있으므로 여기로 합치지 말 것.
+     */
+    calculateRegisteredWeaponBonus(actor, item) {
+      const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
+
+      // 무기 탭에 등록된 무기들 가져오기
+      const registeredWeapons = item.system?.weapon || [];
+
+      // 각 등록된 무기의 보너스 합산 (공격 횟수가 남은 무기만)
+      for (const weaponId of registeredWeapons) {
+        if (weaponId && weaponId !== '-') {
+          // 액터의 아이템에서 직접 무기 데이터 가져오기
+          const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
+          if (weaponItem && weaponItem.type === 'weapon') {
+            // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
+            const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
+            const attackUsedState = weaponItem.system['attack-used']?.state || 0;
+            const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
+            const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
+
+            // 공격 횟수가 소진된 무기는 제외
+            if (isAttackExhausted) {
+              continue;
+            }
+
+            // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
+            const formula = window.DX3rdFormulaEvaluator;
+            const addFormulaTerm = (target, raw) => {
+              const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
+              if (formula.hasDice(prepared)) weaponBonus[target] = [weaponBonus[target], prepared].filter(Boolean).join(' + ');
+              else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
+            };
+            addFormulaTerm('attackFormula', weaponItem.system?.attack);
+            addFormulaTerm('addFormula', weaponItem.system?.add);
+
+            // 무기 이름 추가
+            if (!weaponBonus.weaponName) {
+              weaponBonus.weaponName = weaponItem.name;
+            } else {
+              weaponBonus.weaponName += `, ${weaponItem.name}`;
+            }
+
+            // 무기 ID 추가
+            weaponBonus.weaponIds.push(weaponId);
+          }
+          // 무기가 아니거나 찾을 수 없는 경우는 건너뛴다.
+        }
+      }
+
+      return weaponBonus;
+    },
+
+    /**
      * Process item usage cost (encroachment/HP) and send unified chat message.
      * @param {Actor} actor
      * @param {Item} item
@@ -358,6 +416,13 @@
 
         let costMessages = [];
 
+        // 비용 차감(HP·침식률)은 한 번의 actor.update로 모아서 쓴다.
+        // update 1회마다 서버 왕복 + prepareData 전량 재계산 + updateActor 훅 전체가 도므로,
+        // 아이템을 쓸 때마다 이 비용을 두 번 낼 이유가 없다. reviveSelf(같은 파일)와 동일한 패턴.
+        // 순서 의존은 없다: HP 코스트 수식은 아래 1-E에서 어떤 쓰기보다 먼저 전부 평가되고,
+        // 침식률은 item.system.encroach.value 원시값만 읽으므로 HP 반영 여부와 무관하다.
+        const costUpdate = {};
+
         // 1. HP 비용 처리 (아이템 + 익스텐드 통합)
         let totalHpCost = 0;
         let hpCostRolls = [];
@@ -462,9 +527,9 @@
             return false; // 아이템 사용 중단
           }
           
-          // HP 감소 적용
+          // HP 감소 적용 (실제 쓰기는 침식률까지 모아 아래에서 한 번에)
           const afterHP = currentHP - totalHpCost;
-          await actor.update({ 'system.attributes.hp.value': afterHP });
+          costUpdate['system.attributes.hp.value'] = afterHP;
           
           // 채팅 메시지에 HP 코스트 추가
           if (hpCostRolls.length > 0) {
@@ -512,9 +577,9 @@
           
           const before = Number(actor.system?.attributes?.encroachment?.value ?? 0);
           const after = before + encAdd;
-          
-          await actor.update({ 'system.attributes.encroachment.value': after });
-          
+
+          costUpdate['system.attributes.encroachment.value'] = after;
+
           if (isDiceFormula && displayFormula) {
             costMessages.push(`${game.i18n.localize('DX3rd.Encroachment')} +${encAdd} (${displayFormula})`);
             if (roll) {
@@ -526,6 +591,11 @@
           }
         }
         
+        // 2-B. 모아둔 비용을 한 번에 반영.
+        // 침식률(없음) 가드(_preUpdate)와 HP 0 감지(condtions.js)는 둘 다 이 병합 페이로드에서
+        // 각자의 키를 그대로 찾아내므로, 분리해서 쓸 때와 동작이 동일하다.
+        if (Object.keys(costUpdate).length) await actor.update(costUpdate);
+
         // 3. 통합 채팅 메시지 생성
         // 로이스 아이템 타입이 '-' 또는 'S'인 경우 사용 메시지를 출력하지 않음
         const isRoisWithNoMessage = item.type === 'rois' && 
