@@ -368,35 +368,6 @@
                     }
                 }
 
-                // 범위 하이라이트 설정 (combo, effect, psionic, weapon, vehicle)
-                if (currentItem.type === 'combo' || currentItem.type === 'effect' ||
-                    currentItem.type === 'psionic' || currentItem.type === 'weapon' ||
-                    currentItem.type === 'vehicle') {
-
-                    // 무기의 경우 공격 횟수 체크
-                    let shouldShowHighlight = true;
-                    if (currentItem.type === 'weapon') {
-                        const attackUsedDisable = currentItem.system['attack-used']?.disable || 'notCheck';
-                        if (attackUsedDisable !== 'notCheck') {
-                            const attackUsedState = currentItem.system['attack-used']?.state || 0;
-                            const attackUsedMax = currentItem.system['attack-used']?.max || 0;
-                            const isAttackExhausted = attackUsedMax <= 0 || attackUsedState >= attackUsedMax;
-
-                            if (isAttackExhausted) {
-                                shouldShowHighlight = false;
-                            }
-                        }
-                    }
-
-                    if (shouldShowHighlight) {
-                        if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.setRangeHighlightForItem) {
-                            await window.DX3rdUniversalHandler.setRangeHighlightForItem(this.actor, currentItem);
-                        } else {
-                            console.warn('DX3rd | UniversalHandler not loaded yet, skipping range highlight');
-                        }
-                    }
-                }
-
                 // 새로 생성된 메시지에 토글 기능 초기화
                 setTimeout(() => {
                     const newMessage = this._getChatMessageElement(message.id);

@@ -806,16 +806,6 @@ async function executeInitiativeProcess(combat, pendingCombatantId = null) {
     pendingCombatantId
   });
   
-  // 범위 하이라이트 큐 초기화 (모든 유저에게)
-  if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearRangeHighlightQueue) {
-    window.DX3rdUniversalHandler.clearRangeHighlightQueue();
-    
-    // 다른 유저들에게도 소켓으로 전송
-    window.DX3rdSocketRouter.emit({
-      type: 'clearRangeHighlight'
-    });
-  }
-  
   // 이니셔티브 프로세스 매크로 실행
   await executeMacrosByPrefix('init-process-macro-');
   

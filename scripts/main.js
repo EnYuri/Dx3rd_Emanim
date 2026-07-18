@@ -500,15 +500,6 @@ Hooks.once('init', async function() {
         default: false
     });
 
-    game.settings.register('dx3rd-emanim', 'rangeHighlight', {
-        name: 'DX3rd.RangeHighlight',
-        hint: '아이템 채팅 출력 시 사정거리 하이라이트를 표시합니다.',
-        scope: 'world',
-        config: true,
-        type: Boolean,
-        default: true
-    });
-
     game.settings.register('dx3rd-emanim', 'rangeHighlightColor', {
         name: 'DX3rd.RangeHighlightColor',
         hint: '기본 색상(녹색) 대신 사용자 색상을 사용합니다.',
@@ -1265,56 +1256,6 @@ Hooks.once('ready', function() {
     
     // Disable Hooks 채팅 명령어 등록
     
-    // 범위 하이라이트 관련 Combat Hooks 등록
-    Hooks.on('updateCombat', (combat, changed, options, userId) => {
-        // 턴이 변경되거나 라운드가 변경되면 하이라이트 큐 초기화 (강제 클리어)
-        if (changed.turn !== undefined || changed.round !== undefined) {
-            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearRangeHighlightQueue) {
-                window.DX3rdUniversalHandler.clearRangeHighlightQueue(true); // force = true
-            }
-        }
-    });
-    
-    Hooks.on('deleteCombat', (combat, options, userId) => {
-        // 전투 종료 시 하이라이트 큐 초기화 (강제 클리어)
-        if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearRangeHighlightQueue) {
-            window.DX3rdUniversalHandler.clearRangeHighlightQueue(true); // force = true
-        }
-    });
-    
-    // ESC 키로 범위 하이라이트 클리어 (다이얼로그 닫기보다 우선)
-    dx3rdRegisterGlobalListener('dx3rd-range-highlight', 'keydown', (event) => {
-        if (event.key === 'Escape' || event.keyCode === 27) {
-            // 범위 하이라이트가 활성화되어 있는지 확인
-            if (window.DX3rdUniversalHandler && 
-                window.DX3rdUniversalHandler.rangeHighlightQueue && 
-                window.DX3rdUniversalHandler.rangeHighlightQueue.current) {
-                
-                const currentHighlight = window.DX3rdUniversalHandler.rangeHighlightQueue.current;
-                const highlightUserId = currentHighlight.userId;
-                const currentUserId = game.user.id;
-                const isCreator = highlightUserId && highlightUserId === currentUserId;
-                const isGM = game.user.isGM;
-                
-                // 권한 체크: 하이라이트를 생성한 사용자 또는 GM만 클리어 가능
-                if (isCreator || isGM) {
-                    // 하이라이트가 있으면 먼저 클리어
-            window.DX3rdUniversalHandler.clearRangeHighlightQueue();
-                    
-                    // 다른 유저들에게도 소켓으로 전송
-                    window.DX3rdSocketRouter.emit({
-                        type: 'clearRangeHighlight'
-                    });
-                    
-                    // 이벤트 전파 중지 (다이얼로그 닫기 등 다른 동작 방지)
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return false;
-                }
-            }
-        }
-    });
-    
     // 액터 격자 데이터 저장
     game.settings.register('dx3rd-emanim', 'actorGridActors', {
         name: 'Actor Grid Actors',
@@ -1507,12 +1448,6 @@ Hooks.once('ready', function() {
             if (data.data.userId === game.user.id) {
                 ui.notifications.warn('GM이 HP 회복 요청을 거부했습니다.');
             }
-            return;
-        }
-        
-        if (data.type === 'setRangeHighlight') {
-            // 범위 하이라이트 설정 요청 (모든 사용자가 처리)
-            await window.DX3rdUniversalHandler.processRangeHighlightQueue(data.data);
             return;
         }
         
@@ -1842,14 +1777,6 @@ Hooks.once('ready', function() {
                 await window.DX3rdUniversalHandler.showDefenseDialog(payload);
             }
             
-            return;
-        }
-        
-        if (data.type === 'clearRangeHighlight') {
-            // 범위 하이라이트 제거 요청 (소켓으로 받은 경우는 권한 체크 없이 강제 클리어, 소켓 전송 건너뛰기)
-            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearRangeHighlightQueue) {
-                window.DX3rdUniversalHandler.clearRangeHighlightQueue(true, true); // force = true, skipSocket = true
-            }
             return;
         }
         

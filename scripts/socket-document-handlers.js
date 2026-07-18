@@ -52,14 +52,6 @@
     ui.notifications.warn(game.i18n.localize(labels[data.type]));
   });
 
-  register('setRangeHighlight', data => {
-    return window.DX3rdUniversalHandler?.processRangeHighlightQueue?.(data.data);
-  });
-
-  register('clearRangeHighlight', () => {
-    return window.DX3rdUniversalHandler?.clearRangeHighlightQueue?.(true, true);
-  });
-
   register('setSpellCalamityHighlight', async data => {
     const token = canvas.tokens?.placeables?.find(candidate => candidate.id === data.data.tokenId);
     if (!token || !data.data.position) return;

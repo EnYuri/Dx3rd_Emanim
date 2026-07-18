@@ -108,10 +108,6 @@
   });
 
   // Canvas-only synchronization still requires an active, identifiable sender.
-  contract('setRangeHighlight', {
-    validate: data => isObject(data.data) && isId(data.data.actorId) && isId(data.data.tokenId),
-    authorize: ownsActor('data.actorId')
-  });
   contract('setSpellCalamityHighlight', {
     validate: data => isObject(data.data) && isId(data.data.tokenId),
     authorize: ownsToken('data.tokenId')
@@ -124,7 +120,6 @@
     validate: data => isObject(data.data) && isId(data.data.tokenId) && isId(data.data.sceneId),
     authorize: activeSender
   });
-  contract('clearRangeHighlight', { authorize: activeSender });
 
   // User-scoped notices are the only protocol-v0 compatibility surface.
   contract(['healRejected', 'damageRejected', 'conditionRejected'], {
