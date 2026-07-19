@@ -557,38 +557,12 @@
           totalHpCost += hpCost;
         }
         
-        // 1-F. HP 부족 체크
+        // 1-F. HP 코스트 적용
+        // HP 부족은 사용을 막지 않는다. 룰상 코스트는 지불 가능 여부와 무관하게 지불하며,
+        // 결과로 HP가 0 이하가 되는 것(전투불능)은 정상적인 귀결이다.
         if (totalHpCost > 0) {
           const currentHP = Number(actor.system?.attributes?.hp?.value ?? 0);
-          
-          if (currentHP <= totalHpCost) {
-            // HP 부족으로 사용 불가
-            // 아이템 이름에서 || 패턴 제거
-            let itemName = item.name;
-            const rubyPattern = /^(.+)\|\|(.+)$/;
-            const match = itemName.match(rubyPattern);
-            if (match) {
-              itemName = match[1]; // 메인 이름만 사용
-            }
-            
-            let errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} 사용 불가</strong><br>HP 부족 (현재: ${currentHP}, 필요: ${totalHpCost})</div></div>`;
-            
-            // 주사위 결과가 있으면 표시
-            for (const { roll, formula, source } of hpCostRolls) {
-              errorMsg += `<div class="dx3rd-mt-4">HP 코스트 (${source}): ${roll.total} (${formula})</div>`;
-              const diceHTML = await roll.render();
-              errorMsg += `<div class="dx3rd-mt-4">${diceHTML}</div>`;
-            }
-            
-            await ChatMessage.create({ 
-              content: errorMsg, 
-              speaker: ChatMessage.getSpeaker({ actor }) 
-            });
-            
-            window.DX3rdDebug.log('DX3rd | Item usage blocked: insufficient HP');
-            return false; // 아이템 사용 중단
-          }
-          
+
           // HP 감소 적용 (실제 쓰기는 침식률까지 모아 아래에서 한 번에)
           const afterHP = currentHP - totalHpCost;
           costUpdate['system.attributes.hp.value'] = afterHP;
@@ -1917,9 +1891,9 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
     if (!Number.isFinite(cap)) cap = 0;
     cap = Math.max(0, Math.floor(cap));
 
-    // HP는 0 이하 불가 → 실제 상한 = min(cap, 현재HP). input은 cap 없으면 넉넉한 기본 상한(99).
-    const curHp = Number(actor.system?.attributes?.hp?.value ?? 0);
-    const usableMax = (resource === 'hp') ? Math.max(0, Math.min(cap, curHp))
+    // 상한은 공식이 정한 cap 그대로다. 현재 HP로 깎지 않는다 —
+    // 지불 능력은 사용 가부를 제한하지 않으며, HP가 0 이하가 되어도 무방하다.
+    const usableMax = (resource === 'hp') ? cap
                     : isInput ? (cap > 0 ? cap : 99)
                     : cap;
 
@@ -1934,6 +1908,8 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
 
     // 자원 차감(hp만; input/기타는 차감 없음)
     if (resource === 'hp') {
+      // 차감 시점의 HP를 읽는다(입력 다이얼로그가 열려 있는 동안 바뀌었을 수 있다).
+      const curHp = Number(actor.system?.attributes?.hp?.value ?? 0);
       await actor.update({ 'system.attributes.hp.value': curHp - n });
     }
 

@@ -32,6 +32,34 @@
       .replaceAll("'", '&#39;');
   }
 
+  /**
+   * 문서 업데이트 페이로드가 특정 경로를 건드리는지 판별한다.
+   *
+   * Foundry 는 훅에 넘기는 변경분을 항상 같은 모양으로 주지 않는다 — 호출 경로에 따라
+   * 중첩 객체({system:{conditions:{...}}}), 최상위 점 표기({"system.conditions.x":1}),
+   * 혼합({system:{"conditions.x":1}}) 셋 다 나온다. 훅마다 제각각 방어하다 한 형태를
+   * 빠뜨리면(예: 중첩만 읽는 가드) 정상 경로가 조용히 죽으므로 여기로 모은다.
+   *
+   * @param {object} updateData 훅이 받은 변경분
+   * @param {string} path 점 표기 경로 (예: 'system.conditions')
+   * @returns {boolean} 해당 경로 또는 그 하위가 변경분에 포함되면 true
+   */
+  function updateTouchesPath(updateData, path) {
+    if (!isPlainObject(updateData) || typeof path !== 'string' || !path) return false;
+    const segments = path.split('.');
+    let node = updateData;
+    for (let i = 0; i < segments.length; i++) {
+      if (!isPlainObject(node)) return false;
+      // 남은 경로가 이 깊이에서 점 표기로 뭉쳐 있을 수 있다.
+      const remainder = segments.slice(i).join('.');
+      for (const key of Object.keys(node)) {
+        if (key === remainder || key.startsWith(`${remainder}.`)) return true;
+      }
+      node = node[segments[i]];
+    }
+    return false;
+  }
+
   function createSocketEnvelope(message, { senderId = null } = {}) {
     if (!isPlainObject(message)) throw new TypeError('DX3rd socket message must be an object.');
     const type = String(message.type || '').trim();
@@ -171,6 +199,7 @@
   window.DX3rdRuntimeUtils = Object.freeze({
     AFTER_MAIN_TYPES,
     isPlainObject,
+    updateTouchesPath,
     escapeHTML,
     createRequestId,
     createSocketEnvelope,

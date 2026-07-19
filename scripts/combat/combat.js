@@ -247,6 +247,40 @@ async function executeMacrosByPrefix(prefix) {
   }
 }
 
+// 컴배턴트 하나의 이니셔티브 값을 산출한다. 굴림은 없다 — 액터의 【행동치】가 그대로 값이다.
+// rollInitiative 와 부분 갱신(refreshCombatantInitiative)이 같은 규칙을 쓰도록 한 곳에 둔다.
+function computeInitiativeValue(combatant) {
+  // 셋업/클린업은 진행 표시를 위한 가상 컴배턴트다. 주도권을 굴리거나 소유하지 않는다.
+  if (!combatant || combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return null;
+  const actor = combatant.actor;
+  if (!actor) return 0;
+  const actionValue = Number(actor.system?.attributes?.init?.value ?? 0);
+  // 룰: 대기자는 【행동치】 무관하게 라운드 최후에 행동하되,
+  // 대기자가 여럿이면 행동치가 느린(낮은) 순서대로 실행한다.
+  // 이니셔티브를 -(행동치)로 두면 (1) 음수라 정상 액터 뒤로 정렬되고
+  // (2) 행동치가 낮을수록 -값이 0에 가까워 더 먼저 정렬된다.
+  const isActionDelay = actor.system?.conditions?.action_delay?.active ?? false;
+  return isActionDelay ? -actionValue : actionValue;
+}
+
+// 컴배턴트 한 명의 이니셔티브만 다시 스냅샷한다.
+// onlyIfLower: 값이 낮아질 때만 반영한다. 라운드 도중 【행동치】가 오르는 변경은
+// 그 액터의 메인 종료 시점까지 보류하기 위한 것이다 — 그러지 않으면 자기 차례 직전에
+// 행동치를 올려 남들보다 앞질러 행동할 수 있다. 내려가는 변경은 자기 순서를 뒤로
+// 미루는 것이라 즉시 통해도 무방하다.
+async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = false} = {}) {
+  if (!combat || !combatantId || !game.user.isGM) return;
+  const combatant = combat.combatants.get(combatantId);
+  const next = computeInitiativeValue(combatant);
+  if (next === null) return;
+  const current = Number(combatant.initiative);
+  if (Number.isFinite(current)) {
+    if (current === next) return;
+    if (onlyIfLower && next > current) return;
+  }
+  await combat.updateEmbeddedDocuments('Combatant', [{_id: combatantId, initiative: next}]);
+}
+
 (function() {
   // v13/v14 호환: Combat, Combatant 글로벌이 없을 경우 폴백
   const _CombatBase = foundry.documents?.Combat ?? globalThis.Combat;
@@ -292,37 +326,8 @@ async function executeMacrosByPrefix(prefix) {
       
       for (const id of ids) {
         const combatant = this.combatants.get(id);
-        if (!combatant) continue;
-        
-        // 프로세스 컴배턴트 확인
-        const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-        if (isProcessCombatant) {
-          // 셋업/클린업은 진행 표시를 위한 가상 컴배턴트다. 주도권을 굴리거나 소유하지 않는다.
-          continue;
-        }
-
-        let initValue;
-        {
-          // 일반 액터
-          const actor = combatant.actor;
-          if (!actor) {
-            initValue = 0;
-          } else {
-            // 행동 대기 상태 확인
-            const isActionDelay = actor.system?.conditions?.action_delay?.active ?? false;
-            if (isActionDelay) {
-              // 룰: 대기자는 【행동치】 무관하게 라운드 최후에 행동하되,
-              // 대기자가 여럿이면 행동치가 느린(낮은) 순서대로 실행한다.
-              // 이니셔티브를 -(행동치)로 두면 (1) 음수라 정상 액터 뒤로 정렬되고
-              // (2) 행동치가 낮을수록 -값이 0에 가까워 더 먼저 정렬된다.
-              const actionValue = Number(actor.system?.attributes?.init?.value ?? 0);
-              initValue = -actionValue;
-            } else {
-              initValue = Number(actor.system?.attributes?.init?.value ?? 0);
-            }
-          }
-        }
-        
+        const initValue = computeInitiativeValue(combatant);
+        if (initValue === null) continue;
         updates.push({
           _id: id,
           initiative: initValue
@@ -462,21 +467,18 @@ Hooks.once('ready', () => {
       // 행동 종료/대기는 공용 전투 진행 표시줄에서만 명시적으로 선택한다.
       if (!forcedChoice) {
         // 원본 nextTurn이 실제로 선택한 다음 전투원을 기준으로 이니셔티브를 연다.
-        // updateCombat 훅과 경쟁하지 않도록 전환 중임을 표시한다.
-        this._dx3rdAdvancingNativeTurn = true;
-        try {
-          const result = await wrapped();
-          const nextCombatant = this.combatant;
-          const process = this.getFlag('dx3rd-emanim', 'currentProcess');
-          if (nextCombatant?.actor && process?.type !== 'setup' && process?.type !== 'cleanup') {
-            await executeInitiativeProcess(this, nextCombatant.id);
-          }
-          return result;
-        } finally {
-          delete this._dx3rdAdvancingNativeTurn;
+        const result = await wrapped();
+        const nextCombatant = this.combatant;
+        const process = this.getFlag('dx3rd-emanim', 'currentProcess');
+        if (nextCombatant?.actor && process?.type !== 'setup' && process?.type !== 'cleanup') {
+          await executeInitiativeProcess(this, nextCombatant.id);
         }
+        return result;
       }
       const choice = forcedChoice;
+      // EXTRA TURN 이 붙으면 행동 종료를 골라도 action_end 가 해제되어 이번 라운드에
+      // 한 번 더 행동한다. 대기와 마찬가지로 완료 집합에서 되돌려야 한다.
+      let extraTurnGranted = false;
 
       // 다이얼로그를 닫은 경우 (선택 안 함)
       if (!choice) {
@@ -517,6 +519,7 @@ Hooks.once('ready', () => {
             // EXTRA TURN 패널티가 부착되면 행동 종료 해제
             updates['system.conditions.action_end.active'] = false;
             _extraTurnApplied = { key: appliedKey, initPenalty };
+            extraTurnGranted = true;
           }
 
           await actor.update(updates);
@@ -593,13 +596,17 @@ Hooks.once('ready', () => {
       // 종료/대기 뒤에도 같은 상태 기계로 다음 단계로 진행한다.
       // 플레이어는 자신의 액터 상태는 갱신할 수 있어도 Combat 문서를 전환할
       // 권한은 없으므로, GM에게 현재 메인 프로세스의 진행을 요청한다.
+      // 대기를 고른 경우에만 완료 집합을 되돌린다. 플래그를 쓰는 건 GM이므로
+      // 플레이어 경로에서는 소켓으로 그 사실을 함께 넘긴다.
+      const deferCurrent = choice === 'delay' || extraTurnGranted;
       if (game.user.isGM) {
-        await advanceCombatState(this, 'forward');
+        await advanceCombatState(this, 'forward', {deferCurrent});
       } else {
         window.DX3rdSocketRouter.emit({
           type: 'advanceCombatProcess',
           combatId: this.id,
-          actorId: currentCombatant.actor?.id
+          actorId: currentCombatant.actor?.id,
+          deferCurrent
         });
       }
       
@@ -622,53 +629,50 @@ Hooks.once('ready', () => {
     Combat.prototype.previousTurn._dx3rdOriginal = originalPreviousTurn;
     
     Combat.prototype.previousTurn = async function(...args) {
+      // 되감기도 상태 기계 단일 진입점으로 보낸다. 원본 previousTurn 은 쓰지 않는다
+      // (원본은 프로세스 단계를 모른 채 전투원 포인터만 되돌린다).
       return window.DX3rdCombatFlow?.advance?.(this, 'backward');
-
-      // 원본 메서드 래퍼 (저장된 변수 사용)
-      const wrapped = async () => {
-        return await originalPreviousTurn.apply(this, args);
-      };
-      
-      // 원본 previousTurn이 선택한 이전 전투원을 기준으로 이니셔티브를 연다.
-      this._dx3rdRewindingNativeTurn = true;
-      try {
-        const result = await wrapped();
-        const previousCombatant = this.combatant;
-        if (previousCombatant?.actor) {
-          await executeInitiativeProcess(this, previousCombatant.id);
-        }
-        return result;
-      } finally {
-        delete this._dx3rdRewindingNativeTurn;
-      }
-      // 커스텀 로직 끝
     };
   }
 });
 
-async function syncCombatProcessToCurrentTurn(combat) {
-  if (!game.user.isGM || !combat) return;
+// === 라운드 진행 판정 =========================================================
+// 라운드가 끝났는지를 combat.turns 의 "배열 위치"(turns[currentIndex + 1] 이 있는가)로
+// 판정하면, 행동 대기로 이니셔티브가 재정렬되는 순간 남은 전투원을 통째로 건너뛴다.
+// 그래서 위치 대신 "이번 라운드에 메인 프로세스를 마친 전투원 집합"을 기준으로 삼는다.
+//   - 메인 시작 시 집합에 추가 (startMainProcessFromInitiative)
+//   - 행동 대기 / EXTRA TURN 시 집합에서 제거 = 아직 행동하지 않은 것으로 되돌림
+//     (advanceCombatState 의 deferCurrent)
+//   - 셋업(라운드 시작)에서 비움
+// 종료 보장: 대기는 라운드당 1회만 고를 수 있고(action_delay 는 라운드 리셋에서만 풀린다),
+// EXTRA TURN 은 고를 때마다 extra-turn.value 를 1 깎는다. 되돌림 횟수가 액터당 유한하므로
+// 라운드는 반드시 종료한다.
+const MAIN_DONE_FLAG = 'mainDoneCombatantIds';
 
-  const currentCombatant = combat.combatant;
-  if (!currentCombatant) return;
+function getMainDone(combat) {
+  return new Set(combat?.getFlag('dx3rd-emanim', MAIN_DONE_FLAG) || []);
+}
 
-  const isProcessCombatant = currentCombatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-  if (isProcessCombatant || !currentCombatant.actor) return;
+async function setMainDone(combat, ids) {
+  if (!combat || !game.user.isGM) return;
+  await combat.setFlag('dx3rd-emanim', MAIN_DONE_FLAG, Array.from(ids));
+}
 
-  const currentProcess = combat.getFlag('dx3rd-emanim', 'currentProcess');
-  if (
-    currentProcess?.type === 'main' &&
-    currentProcess?.actorId === currentCombatant.actor.id &&
-    currentProcess?.combatantId === currentCombatant.id
-  ) {
-    return;
-  }
+// 이번 라운드에 아직 행동할 수 있는 전투원인가.
+function isMainEligible(combatant) {
+  if (!combatant || combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return false;
+  const actor = combatant.actor;
+  // 액터가 없는 전투원은 수동 진행용으로 남겨 둔다(기존 동작 유지).
+  if (!actor) return true;
+  if (actor.system?.conditions?.action_end?.active) return false;
+  return (actor.system?.attributes?.hp?.value ?? 0) > 0;
+}
 
-  await combat.setFlag('dx3rd-emanim', 'currentProcess', {
-    type: 'main',
-    actorId: currentCombatant.actor.id,
-    combatantId: currentCombatant.id
-  });
+// 아직 메인 프로세스를 받지 않은 전투원들. 현재 이니셔티브 정렬 순서를 그대로 따른다.
+function getPendingMainCombatants(combat) {
+  if (!combat) return [];
+  const done = getMainDone(combat);
+  return combat.turns.filter(combatant => !done.has(combatant.id) && isMainEligible(combatant));
 }
 
 async function clearProcessInitiatives(combat) {
@@ -691,6 +695,9 @@ async function advanceToSetupProcess(combat) {
   // 라운드만 올리고 이전 액터 커서를 유지하면 셋업/이니셔티브 대상이 뒤섞인다.
   if (process?.needsRoundAdvance) {
     await combat.update({round: (combat.round || 0) + 1, turn: 0});
+    // 라운드 지속 효과(disable: 'round')의 만료는 클린업(handleCombatUpdate)에서 한다.
+    // 이니셔티브 재굴림보다 먼저 만료돼야 EXTRA TURN 패널티가 트래커에 남지 않는다.
+    // (handleCombatUpdate 의 'round' 분기는 도달할 수 없어 한때 여기 있었다.)
   } else if (combat.turn !== 0) {
     await combat.update({turn: 0});
   }
@@ -702,26 +709,19 @@ async function advanceToSetupProcess(combat) {
 async function startMainProcessFromInitiative(combat) {
   if (!combat || !game.user.isGM) return;
 
-  // 1. 모든 컴배턴트의 이니셔티브 재확인
-  await combat.rollInitiative(combat.combatants.map(c => c.id));
+  // 순서는 셋업에서 확정된 스냅샷을 쓴다. 여기서 전원을 다시 굴리지 않는다 —
+  // 라운드 도중에 바뀐 【행동치】는 다음 셋업까지 미뤄야 하기 때문이다.
+  // (자기 순서를 뒤로 미루는 변경만 메인 종료 시점에 개별 반영된다.)
 
-  // 약간의 딜레이 (이니셔티브 업데이트 대기)
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  // 2. 행동 종료하지 않은 액터 중 가장 높은 이니셔티브 찾기
+  // 행동 종료하지 않은 액터 중 가장 높은 이니셔티브 찾기
   let candidates = [];
 
-  for (let combatant of combat.combatants) {
-    const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
-    if (isProcessCombatant) continue;
-
-    const actor = combatant.actor;
-    if (actor) {
-      if (actor.system?.conditions?.action_end?.active) continue;
-      if ((actor.system?.attributes?.hp?.value ?? 0) <= 0) continue;
-    }
-
-    candidates.push({ combatant, init: combatant.initiative ?? -Infinity, actor });
+  const alreadyDone = getMainDone(combat);
+  for (const combatant of combat.combatants) {
+    if (!isMainEligible(combatant)) continue;
+    // 이번 라운드에 이미 메인을 마친 전투원은 후보에서 뺀다.
+    if (alreadyDone.has(combatant.id)) continue;
+    candidates.push({ combatant, init: combatant.initiative ?? -Infinity, actor: combatant.actor });
   }
 
   candidates.sort((a, b) => {
@@ -748,15 +748,13 @@ async function startMainProcessFromInitiative(combat) {
     || (candidates.length > 0 ? candidates[0].combatant : null);
   if (nextCombatant !== null) {
     const turnIndex = combat.turns.findIndex(t => t.id === nextCombatant.id);
-    combat._dx3rdSelectingMainProcess = true;
-    try {
-      await combat.update({ turn: turnIndex });
-    } finally {
-      delete combat._dx3rdSelectingMainProcess;
-    }
+    await combat.update({ turn: turnIndex });
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'main', actorId: nextCombatant.actor?.id ?? null, combatantId: nextCombatant.id
     });
+    // 이번 라운드의 메인 프로세스를 받은 것으로 기록한다. 라운드 종료 판정의 기준.
+    alreadyDone.add(nextCombatant.id);
+    await setMainDone(combat, alreadyDone);
     // 매 메인 프로세스 시작 시 이전 액션 표시를 초기화한다.
     await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
 
@@ -782,23 +780,29 @@ async function executeInitiativeProcess(combat, pendingCombatantId = null) {
     await window.DX3rdUniversalHandler.processAfterMainQueue();
   }
 
-  // 이니셔티브는 이전 액터가 아니라, 이번에 행동할 다음 전투원을 대상으로 표시한다.
-  // (행동 종료 처리로 action_end가 갱신된 뒤에 계산해야 한다.)
-  await combat.rollInitiative(combat.combatants.map(combatant => combatant.id));
+  // 매 이니셔티브 프로세스마다 전원을 다시 계산해 순서를 즉시 반영한다.
+  // 단 【행동치】가 오르는 변경은 그 액터의 메인 종료까지 보류한다(onlyIfLower).
+  // 보류분은 advanceCombatState 의 메인 종료 지점에서 무조건 반영된다.
+  for (const combatant of combat.combatants) {
+    await refreshCombatantInitiative(combat, combatant.id, {onlyIfLower: true});
+  }
   await new Promise(resolve => setTimeout(resolve, 100));
-  if (!pendingCombatantId) {
-    const nextCombatant = combat.turns.find(combatant => {
-      if (combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return false;
-      const actor = combatant.actor;
-      return !actor
-        || (!actor.system?.conditions?.action_end?.active
-          && (actor.system?.attributes?.hp?.value ?? 0) > 0);
-    });
-    pendingCombatantId = nextCombatant?.id ?? null;
+  if (pendingCombatantId) {
+    // 되감기·네이티브 다음 턴처럼 대상을 못박아 들어온 경우다. 그 전투원은 이제 다시
+    // 메인을 받아야 하므로 완료 집합에서 뺀다(그러지 않으면 후보에서 걸러진다).
+    const done = getMainDone(combat);
+    if (done.delete(pendingCombatantId)) await setMainDone(combat, done);
+  } else {
+    // 재정렬된 순서에서 아직 메인을 받지 않은 첫 전투원.
+    pendingCombatantId = getPendingMainCombatants(combat)[0]?.id ?? null;
   }
   
   // 이니셔티브 프로세스 플래그 설정
   const pendingCombatant = pendingCombatantId ? combat.combatants.get(pendingCombatantId) : null;
+  // 전투 트래커 커서도 이번에 행동할 전투원으로 옮긴다. 옮기지 않으면 이니셔티브
+  // 단계 내내 트래커가 직전 액터를 현재 차례로 표시한다(메인 시작 때까지 어긋난다).
+  // 재정렬이 끝난 뒤에 옮겨야 대기로 순서가 바뀐 경우도 맞는다.
+  if (pendingCombatant) await moveCombatCursor(combat, pendingCombatant);
   await combat.setFlag('dx3rd-emanim', 'currentProcess', {
     type: 'initiative',
     actorId: pendingCombatant?.actor?.id ?? null,
@@ -821,13 +825,20 @@ async function moveCombatCursor(combat, combatant) {
 async function enterPreviousMainProcess(combat, combatant) {
   if (!combatant?.actor) return;
   await moveCombatCursor(combat, combatant);
+  // 되감기: "이 전투원까지 메인을 마친" 상태로 완료 집합을 다시 만든다.
+  // 그러지 않으면 되감은 뒤 앞으로 진행할 때 남은 전투원이 없다고 보고 라운드가 끝난다.
+  const index = combat.turns.findIndex(entry => entry.id === combatant.id);
+  const rewound = index >= 0 ? combat.turns.slice(0, index + 1) : [combatant];
+  await setMainDone(combat, rewound
+    .filter(entry => !entry.getFlag('dx3rd-emanim', 'isProcessCombatant'))
+    .map(entry => entry.id));
   await combat.setFlag('dx3rd-emanim', 'currentProcess', {
     type: 'main', actorId: combatant.actor.id, combatantId: combatant.id
   });
   await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
 }
 
-async function advanceCombatState(combat, direction = 'forward') {
+async function advanceCombatState(combat, direction = 'forward', {deferCurrent = false} = {}) {
   if (!combat || !game.user.isGM) return;
   const process = combat.getFlag('dx3rd-emanim', 'currentProcess') || {type: 'setup'};
   const turns = combat.turns.filter(combatant => !combatant.getFlag('dx3rd-emanim', 'isProcessCombatant'));
@@ -861,11 +872,30 @@ async function advanceCombatState(combat, direction = 'forward') {
     return;
   }
 
-  const currentIndex = turns.findIndex(combatant => combatant.id === process.combatantId);
-  if (currentIndex >= 0 && currentIndex < turns.length - 1) {
-    const nextCombatant = turns[currentIndex + 1];
-    await moveCombatCursor(combat, nextCombatant);
-    await executeInitiativeProcess(combat, nextCombatant.id);
+  // 여기부터 메인 프로세스에서 앞으로 진행하는 경로.
+  // 자기 턴이 끝나는 지점이다. 이니셔티브 프로세스에서 보류해 둔 【행동치】 상승분을
+  // 여기서 무조건 반영한다 — 이미 행동을 마쳤으므로 이번 라운드를 앞지를 수 없다.
+  if (process.combatantId) {
+    await refreshCombatantInitiative(combat, process.combatantId);
+  }
+
+  if (deferCurrent && process.combatantId) {
+    // 행동 대기를 고른 액터는 이번 라운드에 아직 행동하지 않은 것으로 되돌린다.
+    // 이후 executeInitiativeProcess 의 재정렬이 그를 라운드 최후로 보낸다.
+    const done = getMainDone(combat);
+    if (done.delete(process.combatantId)) await setMainDone(combat, done);
+  }
+
+  if (process.combatantId && !turns.some(combatant => combatant.id === process.combatantId)) {
+    // 현재 메인 전투원이 사라졌다(삭제됐거나 플래그가 어긋났다). 예전에는 이 경우가
+    // "마지막 전투원"과 구분되지 않아 조용히 라운드가 끝났다. 이제는 남은 전투원
+    // 기준으로 계속 진행하되, 상태가 어긋났다는 사실은 드러낸다.
+    console.warn(`DX3rd | 메인 프로세스 전투원(${process.combatantId})을 전투에서 찾을 수 없습니다.`);
+  }
+
+  // 라운드 종료 판정은 배열 위치가 아니라 "아직 메인을 받지 않은 전투원이 남았는가"다.
+  if (getPendingMainCombatants(combat).length > 0) {
+    await executeInitiativeProcess(combat);
     return;
   }
   await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
@@ -955,66 +985,14 @@ async function handleCombatUpdate(combat, changes, options, userId) {
   // 일반 Combat 문서 갱신은 UI 갱신 외의 상태 전환을 유발하지 않는다.
   if (!combat._dx3rdRequestedProcess) return;
 
-  // FVTT가 마지막 전투원 다음에 라운드를 올린 경우, 다음 액터 이니셔티브보다 클린업을 먼저 실행한다.
-  if ('round' in changes && !combat._dx3rdRequestedProcess
-    && combat.getFlag('dx3rd-emanim', 'currentProcess')?.type === 'main') {
-    await runCombatProcess(combat, 'cleanup');
-    return;
-  }
-  
-  // 라운드가 변경되었을 때 현재 캔버스의 토큰 액터들의 행동 상태 초기화 (캐릭터 + 에너미)
-  if ('round' in changes) {
-    const currentScene = game.scenes.active;
-    if (currentScene) {
-      const tokensWithActors = currentScene.tokens.filter(t => t.actor && (t.actor.type === 'character' || t.actor.type === 'enemy'));
-      
-      for (const tokenDoc of tokensWithActors) {
-        const actor = tokenDoc.actor;
-        if (!actor) continue;
-        
-        // 행동 종료 및 행동 대기 상태 초기화
-        const updates = {
-          'system.conditions.action_end.active': false,
-          'system.conditions.action_delay.active': false,
-          'system.conditions.action_delay.value': 0
-        };
-        
-        // 추가 행동 value를 max 값으로 초기화
-        const extraTurnMax = actor.system?.conditions?.['extra-turn']?.max ?? 0;
-        if (extraTurnMax > 0) {
-          updates['system.conditions.extra-turn.value'] = extraTurnMax;
-        }
-        
-        await actor.update(updates);
-      }
-    }
-    
-    // round disable hook 실행
-    if (typeof DX3rdDisableHooks !== 'undefined') {
-      await DX3rdDisableHooks.executeDisableHook('round', null);
-    }
-  }
-  
+  // 아래 코드는 _dx3rdRequestedProcess 가 있는 경우만 실행된다. 예전에는 이 지점에
+  // 'round' 분기와 !requestedProcess 분기가 있었지만, 위 가드 때문에 어느 쪽도 도달할
+  // 수 없었다. 라운드 지속 효과 만료는 advanceToSetupProcess 로 옮겼다.
+
   // turn이 변경되었을 때만 실행
   if (!('turn' in changes)) return;
-  
-  const requestedProcess = combat._dx3rdRequestedProcess;
-  const currentCombatant = combat.combatant;
-  if (!requestedProcess && !currentCombatant) return;
 
-  if (!requestedProcess) {
-    // 이전/다음 턴처럼 전투원 포인터가 직접 이동한 경우에도 메인으로 건너뛰지 않는다.
-    // 메인 시작 함수가 이동시킨 경우만 예외로 둔다.
-    if (combat._dx3rdSelectingMainProcess || combat._dx3rdAdvancingNativeTurn
-      || combat._dx3rdRewindingNativeTurn || !currentCombatant.actor) return;
-    const currentProcess = combat.getFlag('dx3rd-emanim', 'currentProcess');
-    // 전투 시작·라운드 전환에서 Foundry가 첫 전투원을 가리키더라도,
-    // 셋업/클린업은 진행 표시줄에서 명시적으로 다음 단계로 넘긴다.
-    if (currentProcess?.type === 'setup' || currentProcess?.type === 'cleanup') return;
-    if (currentProcess?.type === 'main' && currentProcess?.combatantId === currentCombatant.id) return;
-    await executeInitiativeProcess(combat, currentCombatant.id);
-    return;
-  }
+  const requestedProcess = combat._dx3rdRequestedProcess;
   
   const processType = requestedProcess.type;
   
@@ -1023,7 +1001,13 @@ async function handleCombatUpdate(combat, changes, options, userId) {
     const roundText = game.i18n.localize('DX3rd.Round');
     const currentRound = combat.round || 1;
     await resetRoundActorStates();
-    
+    // 새 라운드다. 아무도 아직 메인 프로세스를 받지 않았다.
+    await combat.unsetFlag('dx3rd-emanim', MAIN_DONE_FLAG);
+    // 새 라운드의 기준 순서. 여기서는 상승분 보류 없이 전원을 무조건 다시 굴린다 —
+    // 지난 라운드에 보류된 【행동치】 상승이 있다면 이 시점에 전부 풀린다.
+    // 셋업 진행 중에 걸리는 변경도 아래 훅이 즉시 순서에 반영한다.
+    await combat.rollInitiative(combat.combatants.map(entry => entry.id));
+
     // 셋업 프로세스 플래그 설정
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'setup',
@@ -1053,7 +1037,21 @@ async function handleCombatUpdate(combat, changes, options, userId) {
     
     // 클린업 프로세스 매크로 실행
     await executeMacrosByPrefix('cleanup-process-macro-');
-    
+
+    // === 라운드 종료 정리 =====================================================
+    // 이니셔티브를 왜곡하는 것들을 여기서 모두 풀고 원래 【행동치】로 되돌린다.
+    //   - 행동 대기: rollInitiative 가 -(행동치)로 뒤집어 둔 상태
+    //   - EXTRA TURN: disable 'round' 인 applied 의 init 패널티
+    // 풀지 않으면 클린업~다음 셋업 내내 전투 트래커가 뒤집힌 순서를 보여 준다
+    // (예전에는 다음 이니셔티브 프로세스의 전원 재굴림에서야 교정됐다).
+    // 라운드 지속 효과의 만료 지점도 셋업이 아니라 여기다 — 라운드가 끝나는 시점이
+    // 클린업이고, 여기서 만료시켜야 이어지는 재굴림에 반영된다.
+    if (typeof DX3rdDisableHooks !== 'undefined') {
+      await DX3rdDisableHooks.executeDisableHook('round', null);
+    }
+    await resetRoundActorStates();
+    await combat.rollInitiative(combat.combatants.map(entry => entry.id));
+
     // SpellCalamity 5번 효과 count 감소 처리
     if (game.user.isGM) {
       for (const combatant of combat.combatants) {
@@ -1401,27 +1399,47 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
   }
 });
 
-// 액터의 action_end/action_delay 상태 변경 감지 (이니셔티브 재계산용)
-Hooks.on('updateActor', async (actor, changes, options, userId) => {
-  // GM만 실행 (권한 문제 방지)
-  if (!game.user.isGM) return;
-  
-  // action_end나 action_delay 상태가 변경되었는지 확인
-  const actionEndChanged = changes.system?.conditions?.action_end?.active !== undefined;
-  const actionDelayChanged = changes.system?.conditions?.action_delay?.active !== undefined;
-  
-  if (!actionEndChanged && !actionDelayChanged) return;
-  
-  // 현재 진행 중인 전투가 있는지 확인
-  const combat = game.combats?.active;
-  if (!combat || !combat.started) return;
-  
-  // 해당 액터의 컴배턴트 찾기
-  const combatant = combat.combatants.find(c => c.actor?.id === actor.id);
+// action_end/action_delay 변경 시 전원의 이니셔티브를 "즉시" 재계산하는 updateActor 훅이
+// 여기 있었다. 되살리지 말 것.
+// (당시 설계는 executeInitiativeProcess 가 매 액터의 메인 직전마다 전 컴배턴트를 다시
+//  굴리는 것이었다. 지금은 순서를 셋업에서 확정하고 라운드 도중에는 다시 굴리지 않는다.)
+//
+// 당시 advanceCombatState 는 "현 정렬 스냅샷의 배열 위치"로 다음 액터를 골랐다:
+//     if (currentIndex < turns.length - 1) 다음 = turns[currentIndex + 1]
+//     else                                cleanup
+// 대기자는 rollInitiative 에서 -(행동치)로 뒤집혀 맨 뒤로 밀리므로, 대기 선택 직후에
+// 재계산이 끼어들면 currentIndex 가 곧바로 마지막 칸이 되어 남은 액터를 전부 건너뛰고
+// 라운드가 끝났다. Hooks.on 은 async 콜백을 await 하지 않아 경쟁으로 나타났다.
+//
+// 지금은 라운드 종료 판정이 위치가 아니라 완료 집합(MAIN_DONE_FLAG) 기준이라 재정렬
+// 시점에 영향받지 않는다. 그래도 라운드 도중에 전원을 재정렬하는 훅은 되살리지 말 것.
+// (제거 시점 기준으로 이 훅은 changes 를 중첩 객체로만 읽고 있었는데 action_end/action_delay
+//  기록자는 전부 점 표기여서, 사실상 발화하지 않는 상태였다. 형태 판별이 필요하면
+//  DX3rdRuntimeUtils.updateTouchesPath 를 쓸 것.)
+//
+// 아래 훅은 그것과 다르다. 셋업 프로세스일 때만, 갱신된 그 액터 하나만 다시 스냅샷한다.
+// 셋업은 액터가 행동하지 않는 정지 구간이라 상태 기계와 경쟁하지 않고, 순서 확정 자체가
+// 셋업의 일이다. 라운드 도중에는 이 훅이 아무것도 하지 않는다 — 그때의 재계산은
+// executeInitiativeProcess(상승 보류) 와 메인 종료 지점(보류 해제)이 담당한다.
+// 셋업에서는 상승도 즉시 통해야 한다. 행동치 변경 효과는 보통 셋업에 쓰이고,
+// 그 자리에서 순서가 바뀌는 것이 이 효과들의 용도이기 때문이다.
+function syncInitiativeDuringSetup(actor) {
+  if (!actor?.id || !game.user.isGM) return;
+  const combat = game.combat;
+  if (combat?.getFlag('dx3rd-emanim', 'currentProcess')?.type !== 'setup') return;
+  const combatant = combat.combatants.find(entry => entry.actor?.id === actor.id);
   if (!combatant) return;
-  
-  // 이니셔티브 재계산 (상태 변경 시 항상)
-  await combat.rollInitiative([combatant.id]);
-});
+  // 값이 그대로면 refreshCombatantInitiative 가 알아서 아무것도 하지 않는다.
+  refreshCombatantInitiative(combat, combatant.id).catch(error => {
+    console.error('DX3rd | 셋업 중 이니셔티브 갱신 실패', error);
+  });
+}
+
+// 【행동치】는 파생값이라 액터 자체 갱신뿐 아니라 ActiveEffect(applied)·아이템 장착으로도 바뀐다.
+Hooks.on('updateActor', actor => syncInitiativeDuringSetup(actor));
+for (const hook of ['createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect',
+                    'createItem', 'updateItem', 'deleteItem']) {
+  Hooks.on(hook, document => syncInitiativeDuringSetup(document?.parent));
+}
 
 // ========== AfterDamage 큐 시스템 ========== //

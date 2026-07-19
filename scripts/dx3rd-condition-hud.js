@@ -228,7 +228,14 @@
 
   Hooks.on('controlToken', () => render());
   Hooks.on('canvasReady', () => render());
-  Hooks.on('updateActor', (actor) => renderIfCurrent(actor));
+  // HUD 가 액터에서 읽는 건 system.conditions(getActiveConditions) 와 actor.effects(getAppliedEffects)
+  // 뿐이다. 후자는 아래 ActiveEffect 훅들이 잡으므로, 여기서는 conditions 변경만 보면 된다.
+  // (가드가 없으면 전투 중 HP 가 깎일 때마다 HUD DOM 을 통째로 다시 짓는다.)
+  // 이 훅은 모든 클라이언트에서 표시를 갱신해야 하므로 userId 로 거르지 않는다.
+  Hooks.on('updateActor', (actor, changed) => {
+    if (!window.DX3rdRuntimeUtils.updateTouchesPath(changed, 'system.conditions')) return;
+    renderIfCurrent(actor);
+  });
   Hooks.on('createActiveEffect', (effect) => renderIfCurrent(effect.parent));
   Hooks.on('updateActiveEffect', (effect) => renderIfCurrent(effect.parent));
   Hooks.on('deleteActiveEffect', (effect) => renderIfCurrent(effect.parent));
