@@ -423,6 +423,10 @@
     grid-column: span 8;
 }
 
+.dx3rd-emanim .grid-9 {
+    grid-column: span 9;
+}
+
 .dx3rd-emanim .grid-10 {
     grid-column: span 10;
 }
@@ -477,6 +481,31 @@
     align-items: center;
 }
 
+/* 캐릭터 헤더는 4개 요소(침식률 종류 / 침식률 바 / 등장 / 백트랙)가 고정 역할을 가지므로
+   16등분 그리드 대신 명시적 폭을 쓴다. 바만 1fr 로 남은 공간을 전부 먹어 가장 길게 유지된다.
+   첫 컬럼 122px = 드롭다운 실폭 106px + 좌우 마진 16px.
+   아이템 시트도 .sheet-header 를 쓰므로 액터 콘텐츠로 스코프를 한정한다. */
+.dx3rd-emanim.actor.actor-sheet-v2 .sheet-wrapper .sheet-header {
+    /* .select-box 의 좌우 마진은 이 헤더에서 적용되지 않으므로(그리드 아이템이 컬럼을
+       그대로 채움) 첫 컬럼 폭이 곧 드롭다운 실폭이다. */
+    grid-template-columns: 100px minmax(0, 1fr) 86px 86px;
+    column-gap: 6px;
+    /* 두 버튼은 마진 0 으로 두고(서로 붙는 간격은 column-gap 만), 시트 우측 여백은 여기서 준다. */
+    padding-right: 8px;
+}
+
+.dx3rd-emanim.actor.actor-sheet-v2 .sheet-wrapper .sheet-header .enter-scene-btn,
+.dx3rd-emanim.actor.actor-sheet-v2 .sheet-wrapper .sheet-header .backtrack-btn {
+    margin: 0;
+}
+
+/* .encroachment-bar 의 width:100% 는 그리드 셀 전체를 차지해 margin-left 만큼 옆 칸을
+   침범한다(그래서 바가 등장 버튼과 2px 겹쳐 있었다). auto 로 되돌려 셀에서 마진을 뺀
+   크기로 늘어나게 하면, 바 양옆 간격이 모두 column-gap(6px)으로 동일해진다. */
+.dx3rd-emanim.actor.actor-sheet-v2 .sheet-wrapper .sheet-header .encroachment-bar {
+    width: auto;
+}
+
 .dx3rd-emanim .sheet-wrapper .sheet-header .select-box {
     background: black;
     color: white;
@@ -499,8 +528,9 @@
     line-height: 22px;
 }
 
-/* 백트랙 버튼: 헤더 다크 테마에 맞춰 흰 테두리 + 투명 배경(침식률 바 입력과 통일) */
-.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn .backtrack-roll {
+/* 백트랙 / 등장 버튼: 헤더 다크 테마에 맞춰 흰 테두리 + 투명 배경(침식률 바 입력과 통일) */
+.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn .backtrack-roll,
+.dx3rd-emanim .sheet-wrapper .sheet-header .enter-scene-btn .enter-scene-roll {
     width: 100%;
     height: 30px;
     padding: 0 6px;
@@ -511,11 +541,23 @@
     cursor: pointer;
     box-shadow: none;
     transition: background 0.15s ease, box-shadow 0.15s ease;
+    /* CRC 스테이지에서는 문구가 "등장/충동/공포"로 길어진다. 줄바꿈 대신 말줄임 처리하고
+       전체 문구는 data-tooltip 으로 제공한다. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn .backtrack-roll:hover {
+.dx3rd-emanim .sheet-wrapper .sheet-header .backtrack-btn .backtrack-roll:hover,
+.dx3rd-emanim .sheet-wrapper .sheet-header .enter-scene-btn .enter-scene-roll:hover {
     background: rgba(255, 255, 255, 0.16);
     box-shadow: 0 0 8px var(--color-shadow-primary);
+}
+
+.dx3rd-emanim .sheet-wrapper .sheet-header .enter-scene-btn * {
+    font-weight: bold;
+    color: white;
+    line-height: 22px;
 }
 
 .dx3rd-emanim .sheet-wrapper .sheet-header .progress-bar {
@@ -600,7 +642,20 @@
     text-shadow: 0 0 4px #000;
     outline: none;
   }
-  
+
+/* 부모(.encroachment-value-text)가 flex 컨테이너라, AppV2 의 `.application input{flex:1}`이
+   걸리면 flex-basis:0 + grow:1 로 위의 width 가 무시되고 바 전체(약 480px)까지 늘어난다.
+   그러면 숫자 입력 영역이 우측 dice-addon 위를 덮어 클릭을 가로챈다.
+   AppV2 규칙보다 높은 특이도로 flex 를 꺼서 width 가 실제로 적용되게 한다. */
+/* 테두리/배경도 같은 이유로 여기서 잡는다. `.progress-bar input{border:2px solid white}`
+   가 더 특이도가 높아, 그냥 두면 침식률 숫자 주위에 흰 상자가 그려진다. */
+.dx3rd-emanim.actor.actor-sheet-v2 .sheet-wrapper .encroachment-value-input {
+    flex: 0 0 auto;
+    width: 60px;
+    border: none;
+    background: transparent;
+}
+
 
 .dx3rd-emanim .sheet-wrapper .sheet-stat {
     display: grid !important;
@@ -1298,6 +1353,92 @@
     height: 22px;
     margin: 2px 5px;
     text-align: center;
+}
+
+/* ==========================================================================
+   효과 탭 상태 그리드 압축
+   ========================================================================== */
+
+/* 라벨 바(.cell--title)의 기본값은 높이 34px + 상하 패딩 5px 인데, 효과 탭의 항목은
+   "중독"·"경직"처럼 두 글자짜리 라벨과 체크박스뿐이라 글자보다 여백이 더 크다.
+   이 탭에 한해 26px 로 줄인다. 22px 까지 내려봤더니 글자가 바에 끼어 답답했다.
+   다른 탭은 셀 하나가 담는 정보가 많아 현재 높이가 필요하므로 건드리지 않는다.
+   기본 규칙(.dx3rd-emanim .sheet-wrapper .cell .cell--title, 명세도 0,4,0)을 이기려면
+   같은 수 이상의 클래스가 필요해 .sheet-wrapper 와 .cell 을 모두 경로에 남긴다. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell .cell--title {
+    height: 26px;
+    padding: 4px 5px;
+    margin-bottom: 4px;
+}
+
+/* 값 입력(중독 수치·폭주 종류 등)은 AppV2 기본값이 32px 라, 줄인 라벨 바보다 오히려
+   커져 행이 도로 벌어진다. 라벨과 같은 높이로 맞춰 줄 높이를 일정하게 한다. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell input:not([type="checkbox"]),
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell select {
+    height: 26px;
+    box-sizing: border-box;
+    margin-bottom: 4px;
+}
+
+/* 체크박스가 줄어든 라벨 바보다 커서 바를 도로 밀어 올리지 않도록 함께 줄인다.
+   기본 width:40px 은 좁아진 칸에서 라벨을 밀어내기도 한다. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell--crit {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+}
+
+/* 값 입력이 있는 셀(중독·증오·공포·폭주·행동 대기·추가 행동)은 기본 .cell 의
+   flex-wrap:wrap + .cell--title{flex-basis:100px} 조합 때문에 입력이 라벨 아래로
+   내려가 이 셀만 두 줄 높이가 된다. 그래서 옆의 체크박스 전용 칸과 크기가 어긋나고
+   섹션도 한 줄 더 길어진다. 라벨과 입력을 한 줄에 나란히 놓아 모든 칸을 같은
+   높이로 맞춘다. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field {
+    flex-wrap: nowrap;
+    gap: 4px;
+}
+
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field > .cell--title {
+    /* flex:1 + flex-basis:100px 를 눌러 라벨이 남는 폭을 다 먹지 않게 한다. */
+    flex: 0 0 52%;
+    min-width: 0;
+}
+
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field > input,
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field > select,
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field > .inline-field__pair {
+    /* .cell > input{width:100%} 이 남아 있으면 라벨과 합쳐 100% 를 넘겨 삐져나온다. */
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+}
+
+/* 적 시트 전용 '기타 속성'의 읽기 전용 수치는 한두 자리 숫자뿐이라 값 칸을 좁게 고정하고
+   라벨에 남는 폭을 준다("백병 데미지룰"처럼 라벨이 길어 52% 로는 잘린다).
+   바로 위 기본 .inline-field 규칙과 명세도가 같으므로 반드시 뒤에 와야 이긴다. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field--readout > .cell--title {
+    flex: 1 1 auto;
+}
+
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .cell.inline-field--readout > input {
+    flex: 0 0 56px;
+}
+
+/* 추가 행동의 "현재 / 최대" 두 칸 래퍼. */
+.dx3rd-emanim .sheet-wrapper .tab[data-tab="applied"] .inline-field__pair {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 값 입력이 없는 상태 플래그(경직·중압·방심·탑승·은밀·비행)는 6개뿐이라
+   16열 그리드에서 grid-4(4열)로 두면 둘째 줄에 두 칸이 빈다.
+   전용 6등분 행으로 묶어 한 줄을 빈칸 없이 채운다. */
+.dx3rd-emanim .sheet-wrapper .sheet-attributes .condition-flags {
+    grid-column: span 16;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0 10px;
 }
 
 /* ==========================================================================

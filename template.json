@@ -63,14 +63,6 @@
         "boarding": {
           "active": false
         },
-        "lostHP": {
-          "active": false,
-          "value": 0
-        },
-        "healing": {
-          "active": false,
-          "value": 0
-        },
         "extra-turn": {
           "active": false,
           "value": 0,
@@ -125,14 +117,6 @@
         },
         "boarding": {
           "active": false
-        },
-        "lostHP": {
-          "active": false,
-          "value": 0
-        },
-        "healing": {
-          "active": false,
-          "value": 0
         },
         "extra-turn": {
           "active": false,

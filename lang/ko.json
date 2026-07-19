@@ -668,6 +668,7 @@
 
   "DX3rd.Condition": "상태이상",
   "DX3rd.ConditionNone": "없음",
+  "DX3rd.SectionStatus": "상태",
   "DX3rd.Apply": "적용",
   "DX3rd.Clear": "해제",
   "DX3rd.AllConditionClear": "모든 상태이상 해제",
@@ -721,7 +722,6 @@
   "DX3rd.ActionEnd": "행동종료",
   "DX3rd.ActionDelay": "행동대기",
 
-  "DX3rd.LostHP": "HP 상실",
   "DX3rd.Healing": "힐링",
   "DX3rd.ExtraTurn": "추가 행동",
 

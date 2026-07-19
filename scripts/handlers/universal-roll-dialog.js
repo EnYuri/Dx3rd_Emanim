@@ -28,59 +28,18 @@
         // 이렇게 하면 공격 카드가 아직 공개하지 않은 데미지 결과를 품지 않는다.
         const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
-        // 공격 타입 확인
-        let attackType = null;
-        if (item.type === 'weapon') {
-          attackType = item.system.type || null; // 'melee' or 'ranged'
-        } else if (item.type === 'vehicle') {
-          attackType = 'melee'; // 비클은 항상 melee
-        } else if (item.system?.attackRoll && item.system.attackRoll !== '-') {
-          attackType = item.system.attackRoll; // 'melee' or 'ranged'
-        }
-        
-        // 공격 타입에 맞는 attack 보너스 계산
-        let attackBonus = actor.system.attributes.attack?.value || 0;
-        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
-        let actorAttackFormula = attackFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
-          attackBonus += actor.system.attributes.attack.melee;
-          actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
-          attackBonus += actor.system.attributes.attack.ranged;
-          actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
-        attackBonus += this.getFistAttackBonus(actor, item);
+        // 공격 타입/액터 보너스 산출 (데미지 굴림 시점과 동일 경로)
+        const bonuses = this.resolveAttackBonuses(actor, item);
 
-        // 공격 타입에 맞는 damage_roll 보너스 계산
-        let damageRollBonus = actor.system.attributes.damage_roll?.value || 0;
-        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
-        let damageRollFormula = damageRollFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
-          damageRollBonus += actor.system.attributes.damage_roll.melee;
-          damageRollFormula = [damageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
-          damageRollBonus += actor.system.attributes.damage_roll.ranged;
-          damageRollFormula = [damageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        
         const preservedValues = {
-          actorAttack: attackBonus,
-          actorAttackFormula: actorAttackFormula,
-          actorDamageRoll: damageRollBonus,
-          actorDamageRollFormula: damageRollFormula,
-          actorPenetrate: actor.system.attributes.penetrate?.value || 0
+          actorAttack: bonuses.actorAttack,
+          actorAttackFormula: bonuses.actorAttackFormula,
+          actorDamageRoll: bonuses.actorDamageRoll,
+          actorDamageRollFormula: bonuses.actorDamageRollFormula,
+          actorPenetrate: bonuses.actorPenetrate,
+          weaponAttackFormula: itemAttackFormula
         };
-        
-        // 아이템 타입별 공격력 키 설정
-        if (item.type === 'weapon') {
-          preservedValues.weaponAttackFormula = itemAttackFormula;
-        } else if (item.type === 'vehicle') {
-          preservedValues.weaponAttackFormula = itemAttackFormula;
-        } else {
-          preservedValues.weaponAttackFormula = itemAttackFormula;
-        }
-        
+
       
         // 공포 패널티는 이미 다이얼로그에서 반영되었으므로 여기서는 적용하지 않음
         // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
@@ -1171,45 +1130,18 @@
                              (item.system.attackRoll === 'melee' || item.system.attackRoll === 'ranged');
         
         if (isAttackRoll) {
-          // 공격 타입 확인
-          const attackRollType = item.system.attackRoll;
-          
-          // 공격 타입에 맞는 attack 보너스 계산
-          let attackBonus = actor.system.attributes.attack?.value || 0;
-          const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
-          let actorAttackFormula = attackFormulas._ || '';
-          if (attackRollType === 'melee' && actor.system.attributes.attack?.melee) {
-            attackBonus += actor.system.attributes.attack.melee;
-            actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
-          } else if (attackRollType === 'ranged' && actor.system.attributes.attack?.ranged) {
-            attackBonus += actor.system.attributes.attack.ranged;
-            actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
-          }
-          // 맨손 한정 공격력(축퇴기관 등): weapon-for-attack로 맨손을 선택한 경우만 가산
-          const fistNameForAtk = game.i18n.localize('DX3rd.Fist');
-          const wName = weaponBonus?.weaponName || '';
-          if (wName === fistNameForAtk || wName.includes(`[${fistNameForAtk}]`)) {
-            attackBonus += Number(actor.system.attributes.attack?.fist) || 0;
-          }
+          // 맨손 보너스는 weapon-for-attack으로 고른 무기 이름 기준으로 판정한다.
+          const bonuses = this.resolveAttackBonuses(actor, item, {
+            attackType: item.system.attackRoll,
+            fistWeaponName: weaponBonus?.weaponName || ''
+          });
 
-          // 공격 타입에 맞는 damage_roll 보너스 계산
-          let damageRollBonus = actor.system.attributes.damage_roll?.value || 0;
-          const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
-          let damageRollFormula = damageRollFormulas._ || '';
-          if (attackRollType === 'melee' && actor.system.attributes.damage_roll?.melee) {
-            damageRollBonus += actor.system.attributes.damage_roll.melee;
-            damageRollFormula = [damageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
-          } else if (attackRollType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
-            damageRollBonus += actor.system.attributes.damage_roll.ranged;
-            damageRollFormula = [damageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
-          }
-          
           preservedValues = {
-            actorAttack: attackBonus,
-            actorAttackFormula: actorAttackFormula,
-            actorDamageRoll: damageRollBonus,
-            actorDamageRollFormula: damageRollFormula,
-            actorPenetrate: actor.system.attributes.penetrate?.value || 0,
+            actorAttack: bonuses.actorAttack,
+            actorAttackFormula: bonuses.actorAttackFormula,
+            actorDamageRoll: bonuses.actorDamageRoll,
+            actorDamageRollFormula: bonuses.actorDamageRollFormula,
+            actorPenetrate: bonuses.actorPenetrate,
             // 무기 공격력 다이스식은 데미지 확정 시점까지 보존한다.
             weaponAttackFormula: effectiveWeaponBonus.attackFormula || String(effectiveWeaponBonus.attack || 0)
           };
@@ -1495,11 +1427,7 @@
         // 공포 효과 처리 함수
         const applyPanicEffect = async (panicNumber, { messageKey, rolls = [] } = {}) => {
           if (messageKey) {
-            // 액터만 스피커로 지정 (token 미지정 → GM 포함 모든 클라이언트에서 액터 초상화 사용)
-            const panicEffectSpeaker = (() => {
-              const s = ChatMessage.getSpeaker({ actor });
-              return { ...s, token: null, scene: null };
-            })();
+            const panicEffectSpeaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
             const panicLabel = game.i18n.localize(`DX3rd.Panic${panicNumber}`);
             const panicMessageContent = `
               <div class="dx3rd-item-chat">
@@ -1655,18 +1583,14 @@
                 document.body.appendChild(dialog);
                 document.addEventListener("keydown", keyHandler);
                 
-                document.getElementById("dx3rd-madness-select-button").addEventListener("click", () => onSelect("select"));
-                document.getElementById("dx3rd-madness-roll-button").addEventListener("click", () => onSelect("roll"));
-                document.getElementById("dx3rd-madness-cancel-button").addEventListener("click", () => onSelect(null));
+                dialog.querySelector("#dx3rd-madness-select-button").addEventListener("click", () => onSelect("select"));
+                dialog.querySelector("#dx3rd-madness-roll-button").addEventListener("click", () => onSelect("roll"));
+                dialog.querySelector("#dx3rd-madness-cancel-button").addEventListener("click", () => onSelect(null));
               });
               
               /** 광기 효과 적용 공통 처리 (지정/굴림 공통) */
               const applyMadnessEffect = async (actor, madnessNumber, { messageKey, rolls = [] }) => {
-                // 액터만 스피커로 지정 (token 미지정 → GM 포함 모든 클라이언트에서 액터 초상화 사용)
-                const madnessEffectSpeaker = (() => {
-                  const s = ChatMessage.getSpeaker({ actor });
-                  return { ...s, token: null, scene: null };
-                })();
+                const madnessEffectSpeaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
                 const madnessLabel = game.i18n.localize(`DX3rd.Madness${madnessNumber}`);
                 const madnessMessageContent = `
                   <div class="dx3rd-item-chat">
@@ -1784,7 +1708,7 @@
                       ev.preventDefault();
                       ev.stopPropagation();
                       document.removeEventListener("keydown", keyHandler);
-                      const selectedValue = parseInt(document.getElementById("dx3rd-madness-select").value);
+                      const selectedValue = parseInt(selectDialog.querySelector("#dx3rd-madness-select").value);
                       selectDialog.remove();
                       resolve(selectedValue);
                     } else if (ev.key === "Escape") {
@@ -1820,11 +1744,11 @@
                   document.body.appendChild(selectDialog);
                   document.addEventListener("keydown", keyHandler);
                   
-                  document.getElementById("dx3rd-madness-confirm-button").addEventListener("click", () => {
-                    const selectedValue = parseInt(document.getElementById("dx3rd-madness-select").value);
+                  selectDialog.querySelector("#dx3rd-madness-confirm-button").addEventListener("click", () => {
+                    const selectedValue = parseInt(selectDialog.querySelector("#dx3rd-madness-select").value);
                     onConfirm(selectedValue);
                   });
-                  document.getElementById("dx3rd-madness-select-cancel-button").addEventListener("click", () => onConfirm(null));
+                  selectDialog.querySelector("#dx3rd-madness-select-cancel-button").addEventListener("click", () => onConfirm(null));
                 });
                 
                 if (selectedMadness !== null) {
@@ -1903,9 +1827,9 @@
               document.body.appendChild(dialog);
               document.addEventListener("keydown", keyHandler);
               
-              document.getElementById("dx3rd-panic-select-button").addEventListener("click", () => onSelect("select"));
-              document.getElementById("dx3rd-panic-roll-button").addEventListener("click", () => onSelect("roll"));
-              document.getElementById("dx3rd-panic-cancel-button").addEventListener("click", () => onSelect(null));
+              dialog.querySelector("#dx3rd-panic-select-button").addEventListener("click", () => onSelect("select"));
+              dialog.querySelector("#dx3rd-panic-roll-button").addEventListener("click", () => onSelect("roll"));
+              dialog.querySelector("#dx3rd-panic-cancel-button").addEventListener("click", () => onSelect(null));
             });
             
             if (panicChoice === "select") {
@@ -1936,7 +1860,7 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     document.removeEventListener("keydown", keyHandler);
-                    const selectedValue = parseInt(document.getElementById("dx3rd-panic-select").value);
+                    const selectedValue = parseInt(selectDialog.querySelector("#dx3rd-panic-select").value);
                     selectDialog.remove();
                     resolve(selectedValue);
                   } else if (ev.key === "Escape") {
@@ -1972,11 +1896,11 @@
                 document.body.appendChild(selectDialog);
                 document.addEventListener("keydown", keyHandler);
                 
-                document.getElementById("dx3rd-panic-confirm-button").addEventListener("click", () => {
-                  const selectedValue = parseInt(document.getElementById("dx3rd-panic-select").value);
+                selectDialog.querySelector("#dx3rd-panic-confirm-button").addEventListener("click", () => {
+                  const selectedValue = parseInt(selectDialog.querySelector("#dx3rd-panic-select").value);
                   onConfirm(selectedValue);
                 });
-                document.getElementById("dx3rd-panic-select-cancel-button").addEventListener("click", () => onConfirm(null));
+                selectDialog.querySelector("#dx3rd-panic-select-cancel-button").addEventListener("click", () => onConfirm(null));
               });
               
               if (selectedPanic !== null) {

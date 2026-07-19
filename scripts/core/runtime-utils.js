@@ -196,8 +196,19 @@
     return Array.from(buckets.values());
   }
 
+  /**
+   * 액터만 스피커로 반환한다.
+   * token/scene을 명시적으로 null로 고정해야 선택된 토큰에 스피커가 오염되지 않고,
+   * GM을 포함한 모든 클라이언트에서 액터 초상화가 쓰인다(lichsoma-speaker-selecter 호환).
+   */
+  function getActorOnlySpeaker(actor) {
+    const s = ChatMessage.getSpeaker({ actor });
+    return { ...s, token: null, scene: null };
+  }
+
   window.DX3rdRuntimeUtils = Object.freeze({
     AFTER_MAIN_TYPES,
+    getActorOnlySpeaker,
     isPlainObject,
     updateTouchesPath,
     escapeHTML,

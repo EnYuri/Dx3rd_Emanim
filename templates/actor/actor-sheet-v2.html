@@ -116,7 +116,7 @@
   {{else}}
   {{!-- ===================== Character Header ===================== --}}
   <header class="sheet-header">
-    <select class="grid-3 select-box" name="system.attributes.encroachment.type">
+    <select class="select-box" name="system.attributes.encroachment.type">
       {{#select system.attributes.encroachment.type}}
       <option value="-">{{localize "DX3rd.EncroachmentCore"}}</option>
       <option value="ea">{{localize "DX3rd.EncroachmentEA"}}</option>
@@ -125,12 +125,14 @@
       {{/select}}
     </select>
 
-    <div class="progress-bar grid-11 encroachment-bar">
+    <div class="progress-bar encroachment-bar">
       <div class="enc-bar-layer enc-bar-blue" style="width: {{min system.attributes.encroachment.value 100}}%"></div>
       <div class="enc-bar-layer enc-bar-red" style="width: {{min (max (subtract system.attributes.encroachment.value 100) 0) 100}}%"></div>
       <div class="enc-bar-layer enc-bar-darkred" style="width: {{min (max (subtract system.attributes.encroachment.value 200) 0) 100}}%"></div>
+      {{!-- 스타일은 styles.css 의 .encroachment-value-input 에 있다. 인라인으로 두면
+            AppV2 의 flex 기본값(input{flex:1})에 폭이 먹혀 바 전체로 늘어난다. --}}
       <div class="encroachment-value-text">
-        <input type="number" class="encroachment-value-input" name="system.attributes.encroachment.value" value="{{system.attributes.encroachment.value}}" data-dtype="Number" style="text-align:center; width: 60px; background: transparent; color: #fff; border: none; font-weight: bold; font-size: 16px; text-shadow: 0 0 4px #000;" />
+        <input type="number" class="encroachment-value-input" name="system.attributes.encroachment.value" value="{{system.attributes.encroachment.value}}" data-dtype="Number" />
       </div>
       <div class="dice-addon">
         <label><i class="fas fa-dice"></i> </label>
@@ -140,7 +142,11 @@
         <input type="text" name="system.attributes.encroachment.level" value="{{system.attributes.encroachment.level}}" disabled>
       </div>
     </div>
-    <div class="grid-2 backtrack-btn">
+    <div class="enter-scene-btn">
+      <button type="button" class="enter-scene-roll" data-action="enterScene"
+              data-tooltip="{{localize enterSceneLabel}}">{{localize enterSceneLabel}}</button>
+    </div>
+    <div class="backtrack-btn">
       <button type="button" class="backtrack-roll" data-action="backtrack">{{localize "DX3rd.BackTrackBtn"}}</button>
     </div>
   </header>
@@ -1027,21 +1033,23 @@
             </ol>
           </div>
 
-          <div class="cell grid-full"><div class="cell--title"><label>{{localize "DX3rd.Condition"}}</label></div></div>
+          <div class="cell grid-full"><div class="cell--title"><label>{{localize "DX3rd.SectionStatus"}}</label></div></div>
 
-          <div class="cell grid-4">
+          {{!-- inline-field: 라벨 바와 값 입력을 한 줄에 나란히 둔다.
+                세로로 쌓으면 이 셀만 두 줄 높이가 되어 옆 칸과 크기가 어긋난다. --}}
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Poisoned"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.poisoned.active" {{#if system.conditions.poisoned.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.poisoned.value" value="{{#if system.conditions.poisoned.active}}{{system.conditions.poisoned.value}}{{/if}}" {{#unless system.conditions.poisoned.active}} disabled {{/unless}}>
           </div>
-          <div class="cell grid-4">
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Hatred"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.hatred.active" {{#if system.conditions.hatred.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.hatred.target" value="{{#if system.conditions.hatred.active}}{{system.conditions.hatred.target}}{{/if}}" {{#unless system.conditions.hatred.active}} disabled {{/unless}}>
           </div>
-          <div class="cell grid-4">
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Fear"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.fear.active" {{#if system.conditions.fear.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.fear.target" value="{{#if system.conditions.fear.active}}{{system.conditions.fear.target}}{{/if}}" {{#unless system.conditions.fear.active}} disabled {{/unless}}>
           </div>
-          <div class="cell grid-4">
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Berserk"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.berserk.active" {{#if system.conditions.berserk.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <select name="system.conditions.berserk.type" data-dtype="String" {{#unless system.conditions.berserk.active}} disabled {{/unless}}>
               {{#select system.conditions.berserk.type}}
@@ -1062,38 +1070,28 @@
               {{/select}}
             </select>
           </div>
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Rigor"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.rigor.active" {{#if system.conditions.rigor.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Pressure"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.pressure.active" {{#if system.conditions.pressure.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Dazed"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.dazed.active" {{#if system.conditions.dazed.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-
-          <div class="cell grid-full"><div class="cell--title"><label>{{localize "DX3rd.Etc"}}</label></div></div>
-
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Boarding"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.boarding.active" {{#if system.conditions.boarding.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Stealth"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.stealth.active" {{#if system.conditions.stealth.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Fly"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.fly.active" {{#if system.conditions.fly.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div></div>
-          <div class="cell grid-4">
-            <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.LostHP"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.lostHP.active" {{#if system.conditions.lostHP.active}} checked {{/if}} data-dtype="Boolean"/></label>
-            <input type="text" name="system.conditions.lostHP.value" value="{{#if system.conditions.lostHP.active}}{{system.conditions.lostHP.value}}{{/if}}" {{#unless system.conditions.lostHP.active}} disabled {{/unless}}>
+          {{!-- 값 입력이 없는 상태 플래그는 6등분 전용 행으로 묶는다.
+                grid-4(4열)로 두면 6개가 두 줄에 걸쳐 빈칸이 생긴다. --}}
+          <div class="condition-flags">
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Rigor"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.rigor.active" {{#if system.conditions.rigor.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Pressure"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.pressure.active" {{#if system.conditions.pressure.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Dazed"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.dazed.active" {{#if system.conditions.dazed.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Boarding"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.boarding.active" {{#if system.conditions.boarding.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Stealth"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.stealth.active" {{#if system.conditions.stealth.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
+            <div class="cell space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Fly"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.fly.active" {{#if system.conditions.fly.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
           </div>
-          <div class="cell grid-4">
-            <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Healing"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.healing.active" {{#if system.conditions.healing.active}} checked {{/if}} data-dtype="Boolean"/></label>
-            <input type="text" name="system.conditions.healing.value" value="{{#if system.conditions.healing.active}}{{system.conditions.healing.value}}{{/if}}" {{#unless system.conditions.healing.active}} disabled {{/unless}}>
-          </div>
-          <div></div>
-          <div></div>
 
           <div class="cell grid-full"><div class="cell--title"><label>{{localize "DX3rd.BattleStatus"}}</label></div></div>
 
           <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Defeated"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.defeated.active" {{#if system.conditions.defeated.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
           <div class="cell grid-4 space-between"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.ActionEnd"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.action_end.active" {{#if system.conditions.action_end.active}} checked {{/if}} data-dtype="Boolean"/></label></div>
-          <div class="cell grid-4">
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.ActionDelay"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.action_delay.active" {{#if system.conditions.action_delay.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.action_delay.value" value="{{#if system.conditions.action_delay.active}}{{system.conditions.action_delay.value}}{{/if}}" {{#unless system.conditions.action_delay.active}} disabled {{/unless}}>
           </div>
-          <div class="cell grid-4">
+          <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.ExtraTurn"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.extra-turn.active" {{#if system.conditions.extra-turn.active}} checked {{/if}} data-dtype="Boolean"/></label>
-            <div style="display:flex;align-items:center;gap:4px;">
+            <div class="inline-field__pair">
               <input type="text" name="system.conditions.extra-turn.value" value="{{#if system.conditions.extra-turn.active}}{{system.conditions.extra-turn.value}}{{/if}}" {{#unless system.conditions.extra-turn.active}} disabled {{/unless}} style="flex:1;text-align:center;">
               <span style="font-weight:bold;">/</span>
               <input type="text" name="system.conditions.extra-turn.max" value="{{#if system.conditions.extra-turn.active}}{{system.conditions.extra-turn.max}}{{/if}}" {{#unless system.conditions.extra-turn.active}} disabled {{/unless}} style="flex:1;text-align:center;">
@@ -1102,14 +1100,14 @@
 
           {{#if isEnemy}}
           <div class="cell grid-full"><div class="cell--title"><label>{{localize "DX3rd.DetailedAttributes"}}</label></div></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.MeleeAttack"}}</span></label><input type="text" value="{{add system.attributes.attack.value system.attributes.attack.melee}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.RangedAttack"}}</span></label><input type="text" value="{{add system.attributes.attack.value system.attributes.attack.ranged}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.MeleeDamageRoll"}}</span></label><input type="text" value="{{add system.attributes.damage_roll.value system.attributes.damage_roll.melee}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.RangedDamageRoll"}}</span></label><input type="text" value="{{add system.attributes.damage_roll.value system.attributes.damage_roll.ranged}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Armor"}}</span></label><input type="text" value="{{system.attributes.armor.value}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Guard"}}</span></label><input type="text" value="{{system.attributes.guard.value}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Penetrate"}}</span></label><input type="text" value="{{system.attributes.penetrate.value}}" disabled></div>
-          <div class="cell grid-4 no-flex"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Reduce"}}</span></label><input type="text" value="{{system.attributes.reduce.value}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.MeleeAttack"}}</span></label><input type="text" value="{{add system.attributes.attack.value system.attributes.attack.melee}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.RangedAttack"}}</span></label><input type="text" value="{{add system.attributes.attack.value system.attributes.attack.ranged}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.MeleeDamageRoll"}}</span></label><input type="text" value="{{add system.attributes.damage_roll.value system.attributes.damage_roll.melee}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.RangedDamageRoll"}}</span></label><input type="text" value="{{add system.attributes.damage_roll.value system.attributes.damage_roll.ranged}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Armor"}}</span></label><input type="text" value="{{system.attributes.armor.value}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Guard"}}</span></label><input type="text" value="{{system.attributes.guard.value}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Penetrate"}}</span></label><input type="text" value="{{system.attributes.penetrate.value}}" disabled></div>
+          <div class="cell grid-4 inline-field inline-field--readout"><label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Reduce"}}</span></label><input type="text" value="{{system.attributes.reduce.value}}" disabled></div>
           {{/if}}
         </section>
       </div>

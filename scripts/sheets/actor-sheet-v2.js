@@ -28,6 +28,7 @@
       actions: {
         attackRoll: DX3rdActorSheetV2._onAttackRoll,
         backtrack: DX3rdActorSheetV2._onBacktrack,
+        enterScene: DX3rdActorSheetV2._onEnterScene,
         editEnemyStat: DX3rdActorSheetV2._onEditEnemyStat,
         editAbility: DX3rdActorSheetV2._onEditAbility,
         useStock: DX3rdActorSheetV2._onUseStock,
@@ -83,6 +84,10 @@
       prepared.isSimple = simple;
       prepared.canEdit = actorData.hasOwnerPermission(actor);
       prepared.actorDocument = actor;
+      // 헤더 등장 버튼 문구: CRC 스테이지가 켜져 있으면 공포 판정까지 포함한다(씬 컨트롤 도구와 동일 규칙).
+      prepared.enterSceneLabel = game.settings.get('dx3rd-emanim', 'stageCRC')
+        ? 'DX3rd.EnterUrgePanic'
+        : 'DX3rd.EnterUrge';
       return prepared;
     }
 
@@ -569,6 +574,16 @@
         return;
       }
       await window.DX3rdBacktrackWorkflow.start(this.document);
+    }
+
+    /** 헤더의 등장/충동 버튼. 씬 컨트롤의 같은 도구와 동일한 다이얼로그를 이 액터 기준으로 연다. */
+    static async _onEnterScene(event, target) {
+      event.preventDefault();
+      if (typeof dx3rdOpenEnterSceneDialog !== 'function') {
+        ui.notifications.error('dx3rdOpenEnterSceneDialog를 찾을 수 없습니다.');
+        return;
+      }
+      dx3rdOpenEnterSceneDialog(this.document);
     }
 
     static async _onEditEnemyStat(event, target) {

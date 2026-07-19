@@ -1182,48 +1182,15 @@ window.DX3rdComboHandler = {
             .filter(formula => formula && formula !== '0')
             .join(' + ') || '0';
         
-        // 공격 타입 확인
-        let attackType = null;
-        if (item.type === 'weapon') {
-            attackType = item.system.type || null; // 'melee' or 'ranged'
-        } else if (item.type === 'vehicle') {
-            attackType = 'melee'; // 비클은 항상 melee
-        } else if (item.system?.attackRoll && item.system.attackRoll !== '-') {
-            attackType = item.system.attackRoll; // 'melee' or 'ranged'
-        }
-        
-        // 공격 타입에 맞는 attack 보너스 계산
-        let actorAttack = actor.system.attributes.attack?.value || 0;
-        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
-        let actorAttackFormula = attackFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
-            actorAttack += actor.system.attributes.attack.melee;
-            actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
-            actorAttack += actor.system.attributes.attack.ranged;
-            actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
-        actorAttack += window.DX3rdUniversalHandler?.getFistAttackBonus?.(actor, item) || 0;
+        // 공격 타입/액터 보너스 산출 (명중·데미지 시점과 동일 경로)
+        const bonuses = window.DX3rdUniversalHandler.resolveAttackBonuses(actor, item);
 
-        // 공격 타입에 맞는 damage_roll 보너스 계산
-        let actorDamageRoll = actor.system.attributes.damage_roll?.value || 0;
-        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
-        let actorDamageRollFormula = damageRollFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
-            actorDamageRoll += actor.system.attributes.damage_roll.melee;
-            actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
-            actorDamageRoll += actor.system.attributes.damage_roll.ranged;
-            actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        
         const preservedValues = {
-            actorAttack: actorAttack,
-            actorAttackFormula: actorAttackFormula,
-            actorDamageRoll: actorDamageRoll,
-            actorDamageRollFormula: actorDamageRollFormula,
-            actorPenetrate: actor.system.attributes.penetrate?.value || 0
+            actorAttack: bonuses.actorAttack,
+            actorAttackFormula: bonuses.actorAttackFormula,
+            actorDamageRoll: bonuses.actorDamageRoll,
+            actorDamageRollFormula: bonuses.actorDamageRollFormula,
+            actorPenetrate: bonuses.actorPenetrate
         };
         
         // 아이템 타입별 공격력 키 설정

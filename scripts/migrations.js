@@ -4,7 +4,7 @@
 
 (function() {
     // 현재까지 정의된 마이그레이션 단계 수. 새 마이그레이션을 추가할 때마다 +1.
-    const CURRENT_MIGRATION = 2;
+    const CURRENT_MIGRATION = 3;
 
     Hooks.once('init', function() {
         game.settings.register('dx3rd-emanim', 'systemMigrationVersion', {
@@ -30,6 +30,8 @@
             if (version < 1) await migrateActorSchemaV1();
             // v2: 아이템 base 템플릿의 죽은 system.name 제거
             if (version < 2) await migrateItemSchemaV2();
+            // v3: 아무도 읽지 않던 conditions.lostHP / conditions.healing 제거
+            if (version < 3) await migrateConditionsV3();
 
             await game.settings.set('dx3rd-emanim', 'systemMigrationVersion', CURRENT_MIGRATION);
             console.log('DX3rd | 데이터 마이그레이션 완료');
@@ -128,5 +130,48 @@
         }
 
         console.log(`DX3rd | 아이템 스키마 정리: ${cleaned}개 아이템의 죽은 system.name 제거`);
+    }
+
+    /**
+     * v3: conditions.lostHP / conditions.healing 제거.
+     * 시트에 입력칸만 있고 읽는 코드가 전무했던 죽은 필드다.
+     * HP 증감은 아이템 확장(heal/damage)이 universal-healing 경로로 직접 처리하므로
+     * 이 값들은 어떤 계산에도 쓰이지 않았다.
+     * 같은 conditions 아래여도 action_end/action_delay/extra-turn은 전투 상태 머신이
+     * 실제로 읽으므로 건드리지 않는다.
+     */
+    async function migrateConditionsV3() {
+        const deadKeys = ['lostHP', 'healing'];
+        const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
+        let cleaned = 0;
+
+        for (const actor of game.actors) {
+            if (actor.type !== 'character' && actor.type !== 'enemy') continue;
+
+            // _source를 봐야 한다. actor.system은 template.json 병합 결과라
+            // 스키마에서 뺀 지금은 실제 저장 여부를 알 수 없다.
+            const conditions = actor._source?.system?.conditions;
+            if (!conditions) continue;
+
+            const present = deadKeys.filter(key => Object.prototype.hasOwnProperty.call(conditions, key));
+            if (present.length === 0) continue;
+
+            try {
+                if (ForcedDeletion) {
+                    const conditionsUpdate = {};
+                    for (const key of present) conditionsUpdate[key] = new ForcedDeletion();
+                    await actor.update({ system: { conditions: conditionsUpdate } }, { render: false });
+                } else {
+                    const update = {};
+                    for (const key of present) update[`system.conditions.-=${key}`] = null;
+                    await actor.update(update, { diff: false, render: false });
+                }
+                cleaned++;
+            } catch (e) {
+                console.error(`DX3rd | conditions 마이그레이션 실패: ${actor.name} (${actor.id})`, e);
+            }
+        }
+
+        console.log(`DX3rd | conditions 정리: ${cleaned}개 액터의 죽은 lostHP/healing 제거`);
     }
 })();

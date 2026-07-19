@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "1.9.9",
+  "version": "2.0.0",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/application-compat.js",
@@ -102,6 +102,8 @@
     "scripts/migrations-applied-ae.js",
     "scripts/compendium-sync.js",
     "scripts/socket-document-handlers.js",
+    "scripts/chat/chat-ui.js",
+    "scripts/ui/scene-controls.js",
     "scripts/main.js"
   ],
   "styles": [

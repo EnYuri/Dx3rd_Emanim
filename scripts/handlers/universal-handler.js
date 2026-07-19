@@ -715,13 +715,6 @@
     },
 
     /**
-     * @deprecated Use processItemUsageCost instead
-     */
-    async addEncroachment(actor, item) {
-      await this.processItemUsageCost(actor, item);
-    },
-
-    /**
      * Ensure an item becomes active when allowed by its disable setting.
      * Rule: if system.active.disable !== 'notCheck' then set system.active.state = true
      * Optionally re-render the owning actor sheet.
@@ -2067,15 +2060,91 @@ window.DX3rdUniversalHandler.handleEncroachRequest = async function(requestData)
   }
 };
 
+/** 무기 이름이 맨손(Fist)인지 판정한다. `맨손` 또는 `[맨손]`을 포함하면 참. */
+window.DX3rdUniversalHandler.isFistWeaponName = function(name) {
+  if (!name) return false;
+  const fistName = game.i18n.localize('DX3rd.Fist');
+  return name === fistName || name.includes(`[${fistName}]`);
+};
+
 /** 데미지 산출 시 맨손(Fist) 무기에만 적용되는 공격력 보너스(attrs.attack.fist). 맨손 아님/비무기면 0. */
 window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
   try {
     if (!item || item.type !== 'weapon' || !actor) return 0;
-    const fistName = game.i18n.localize('DX3rd.Fist');
-    const isFist = item.name === fistName || item.name.includes(`[${fistName}]`);
-    if (!isFist) return 0;
+    if (!this.isFistWeaponName(item.name)) return 0;
     return Number(actor.system?.attributes?.attack?.fist) || 0;
   } catch (e) { return 0; }
+};
+
+/**
+ * 아이템의 공격 타입(melee/ranged)을 판별한다.
+ * weapon은 자체 type, vehicle은 항상 melee, 그 외는 attackRoll 필드를 따른다.
+ * @returns {'melee'|'ranged'|null}
+ */
+window.DX3rdUniversalHandler.resolveAttackType = function(item) {
+  if (!item) return null;
+  if (item.type === 'weapon') return item.system?.type || null;
+  if (item.type === 'vehicle') return 'melee';
+  if (item.system?.attackRoll && item.system.attackRoll !== '-') return item.system.attackRoll;
+  return null;
+};
+
+/**
+ * 액터의 공격력/데미지 굴림/관통 보너스를 공격 타입에 맞춰 합산한다.
+ * 명중 판정 시점(executeAttackRoll)과 데미지 굴림 시점(handleDamageRoll), 콤보 경로가
+ * 모두 이 함수를 거쳐야 두 시점의 값이 갈라지지 않는다.
+ * @param {object} [options]
+ * @param {string} [options.attackType]     공격 타입을 직접 지정(미지정 시 아이템에서 판별).
+ * @param {string} [options.fistWeaponName] 맨손 보너스를 아이템이 아닌 이 무기 이름으로 판정한다.
+ *                                          이펙트/콤보가 weapon-for-attack으로 무기를 고른 경우 사용.
+ * @returns {{attackType: string|null, actorAttack: number, actorAttackFormula: string,
+ *            actorDamageRoll: number, actorDamageRollFormula: string, actorPenetrate: number}}
+ */
+window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, options = {}) {
+  const attackType = options.attackType ?? this.resolveAttackType(item);
+  const attrs = actor?.system?.attributes || {};
+
+  // 공격 타입에 맞는 attack 보너스 계산
+  let actorAttack = attrs.attack?.value || 0;
+  const attackFormulas = attrs.attack?.rollFormula || {};
+  let actorAttackFormula = attackFormulas._ || '';
+  if (attackType === 'melee' && attrs.attack?.melee) {
+    actorAttack += attrs.attack.melee;
+    actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
+  } else if (attackType === 'ranged' && attrs.attack?.ranged) {
+    actorAttack += attrs.attack.ranged;
+    actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
+  }
+  // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
+  if (options.fistWeaponName !== undefined) {
+    // 선택 무기 기준 판정(이펙트/콤보가 weapon-for-attack으로 맨손을 고른 경우)
+    if (this.isFistWeaponName(options.fistWeaponName)) {
+      actorAttack += Number(attrs.attack?.fist) || 0;
+    }
+  } else {
+    actorAttack += this.getFistAttackBonus(actor, item);
+  }
+
+  // 공격 타입에 맞는 damage_roll 보너스 계산
+  let actorDamageRoll = attrs.damage_roll?.value || 0;
+  const damageRollFormulas = attrs.damage_roll?.rollFormula || {};
+  let actorDamageRollFormula = damageRollFormulas._ || '';
+  if (attackType === 'melee' && attrs.damage_roll?.melee) {
+    actorDamageRoll += attrs.damage_roll.melee;
+    actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
+  } else if (attackType === 'ranged' && attrs.damage_roll?.ranged) {
+    actorDamageRoll += attrs.damage_roll.ranged;
+    actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
+  }
+
+  return {
+    attackType,
+    actorAttack,
+    actorAttackFormula,
+    actorDamageRoll,
+    actorDamageRollFormula,
+    actorPenetrate: attrs.penetrate?.value || 0
+  };
 };
 
 /** 자원소비량 n 입력 다이얼로그(0~max). 취소 시 null. */

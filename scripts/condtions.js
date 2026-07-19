@@ -9,10 +9,9 @@
 // 취소 시 메시지 출력 방지를 위한 플래그
 let _cancellingCondition = false;
 
-/** 액터만 스피커로 반환 (token 미지정 → GM 포함 모든 클라이언트에서 액터 초상화 사용, lichsoma-speaker-selecter 호환) */
+/** 액터만 스피커로 반환. 구현은 DX3rdRuntimeUtils에 있다. */
 function getActorOnlySpeaker(actor) {
-  const s = ChatMessage.getSpeaker({ actor });
-  return { ...s, token: null, scene: null };
+  return window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
 }
 
 /**

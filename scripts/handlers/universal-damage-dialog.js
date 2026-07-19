@@ -32,43 +32,13 @@
         // 현재 값들 사용 (비활성화 훅 실행 후의 값)
         weaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
-        // 공격 타입 확인
-        let attackType = null;
-        if (item.type === 'weapon') {
-          attackType = item.system.type || null; // 'melee' or 'ranged'
-        } else if (item.type === 'vehicle') {
-          attackType = 'melee'; // 비클은 항상 melee
-        } else if (item.system?.attackRoll && item.system.attackRoll !== '-') {
-          attackType = item.system.attackRoll; // 'melee' or 'ranged'
-        }
-        
-        // 공격 타입에 맞는 attack 보너스 계산
-        actorAttack = actor.system.attributes.attack?.value || 0;
-        const attackFormulas = actor.system.attributes.attack?.rollFormula || {};
-        actorAttackFormula = attackFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.attack?.melee) {
-          actorAttack += actor.system.attributes.attack.melee;
-          actorAttackFormula = [actorAttackFormula, attackFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.attack?.ranged) {
-          actorAttack += actor.system.attributes.attack.ranged;
-          actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
-        actorAttack += this.getFistAttackBonus(actor, item);
-
-        // 공격 타입에 맞는 damage_roll 보너스 계산
-        actorDamageRoll = actor.system.attributes.damage_roll?.value || 0;
-        const damageRollFormulas = actor.system.attributes.damage_roll?.rollFormula || {};
-        actorDamageRollFormula = damageRollFormulas._ || '';
-        if (attackType === 'melee' && actor.system.attributes.damage_roll?.melee) {
-          actorDamageRoll += actor.system.attributes.damage_roll.melee;
-          actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
-        } else if (attackType === 'ranged' && actor.system.attributes.damage_roll?.ranged) {
-          actorDamageRoll += actor.system.attributes.damage_roll.ranged;
-          actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
-        }
-        
-        actorPenetrate = actor.system.attributes.penetrate?.value || 0;
+        // 공격 타입/액터 보너스 산출 (명중 판정 시점과 동일 경로)
+        const bonuses = this.resolveAttackBonuses(actor, item);
+        actorAttack = bonuses.actorAttack;
+        actorAttackFormula = bonuses.actorAttackFormula;
+        actorDamageRoll = bonuses.actorDamageRoll;
+        actorDamageRollFormula = bonuses.actorDamageRollFormula;
+        actorPenetrate = bonuses.actorPenetrate;
       }
       
       // 데미지 산출 다이얼로그 표시 (롤 결과와 보존된 값들 포함)

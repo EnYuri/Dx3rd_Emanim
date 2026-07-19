@@ -62,6 +62,17 @@ async function promptRoisSelection({ title, content }) {
     });
 }
 
+/**
+ * 스펠 표(재액/재앙/파국) 공통 메타데이터.
+ * 세 표는 로컬라이즈 키 / 효과 키 접두사 / 효과 지속시간만 다르고 생성 절차가 동일하다.
+ * 설명 텍스트 키는 `${i18n}Text${결과번호}` 규약을 따른다.
+ */
+const SPELL_TABLES = {
+    disaster:    { i18n: 'DX3rd.SpellDisaster',    keyPrefix: 'spell_disaster',    disable: 'scene' },
+    calamity:    { i18n: 'DX3rd.SpellCalamity',    keyPrefix: 'spell_calamity',    disable: 'scene' },
+    catastrophe: { i18n: 'DX3rd.SpellCatastrophe', keyPrefix: 'spell_catastrophe', disable: 'session' }
+};
+
 window.DX3rdSpellHandler = {
     async handle(actorId, itemId, getTarget) {
         const actor = game.actors.get(actorId);
@@ -529,7 +540,7 @@ window.DX3rdSpellHandler = {
         // 특정 결과에 대한 효과 적용
         if (result === 3) {
             // 3번: 행동치 -2
-            await this.createSpellDisasterEffect(actor, 3, {
+            await this.createSpellTableEffect(actor, 'disaster', 3, {
                 init: -2
             });
         } else if (result === 4) {
@@ -537,7 +548,7 @@ window.DX3rdSpellHandler = {
             await this.handleSpellDisaster4(actor, item);
         } else if (result === 8) {
             // 8번: 마술 주사위 -1
-            await this.createSpellDisasterEffect(actor, 8, {
+            await this.createSpellTableEffect(actor, 'disaster', 8, {
                 cast_dice: -1
             });
         } else if (result === 9) {
@@ -553,53 +564,78 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Create spell disaster applied effect
+     * 스펠 표 결과에 따른 applied 효과를 생성한다. 같은 이름의 효과가 이미 있으면 중복 적용하지 않는다.
      * @param {Actor} actor
-     * @param {number} resultNumber - Disaster table result number
-     * @param {Object} attributes - Effect attributes (e.g., {init: -2})
+     * @param {'disaster'|'calamity'|'catastrophe'} kind - 표 종류 (SPELL_TABLES 참조)
+     * @param {number} resultNumber - 표 결과 번호
+     * @param {Object} attributes - 효과 속성 (예: {init: -2})
      */
-    async createSpellDisasterEffect(actor, resultNumber, attributes) {
+    async createSpellTableEffect(actor, kind, resultNumber, attributes) {
+        const table = SPELL_TABLES[kind];
+        if (!table) throw new Error(`DX3rd | Unknown spell table kind: ${kind}`);
+
         try {
-            // 효과 이름
-            const effectName = `${game.i18n.localize('DX3rd.SpellDisaster')}(${resultNumber})`;
-            
+            const effectName = `${game.i18n.localize(table.i18n)}(${resultNumber})`;
+
             // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(actor)
                 : (actor.system?.attributes?.applied || {});
-            let alreadyExists = false;
 
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.name === effectName) {
-                    alreadyExists = true;
-                    break;
-                }
-            }
+            const alreadyExists = Object.values(appliedEffects)
+                .some(appliedEffect => appliedEffect && appliedEffect.name === effectName);
 
             if (alreadyExists) {
                 ui.notifications.info(`${effectName} 효과가 이미 적용되어 있습니다.`);
                 return;
             }
 
-            // 고유 키 생성
-            const effectKey = `spell_disaster_${resultNumber}_${Date.now()}`;
-
-            // applied 효과 데이터 생성
-            const effectData = {
+            // 네이티브 ActiveEffect 로 저장
+            await window.DX3rdAppliedEffects.set(actor, `${table.keyPrefix}_${resultNumber}_${Date.now()}`, {
                 name: effectName,
                 source: actor.name,
-                disable: 'scene', // 장면 종료 시 제거
+                disable: table.disable,
                 img: 'icons/svg/aura.svg',
                 attributes: attributes
-            };
-
-            // 네이티브 ActiveEffect 로 저장
-            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
+            });
 
             ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
-            
+
         } catch (error) {
-            console.error("DX3rd | Error in createSpellDisasterEffect:", error);
+            console.error(`DX3rd | Error in createSpellTableEffect(${kind}):`, error);
+            throw error;
+        }
+    },
+
+    /**
+     * 스펠 표 결과에 따른 레코드 아이템을 생성하고 기본침식률을 올린다.
+     * @param {Actor} actor
+     * @param {'disaster'|'calamity'|'catastrophe'} kind - 표 종류 (SPELL_TABLES 참조)
+     * @param {number} resultNumber - 표 결과 번호
+     * @param {number} encroachmentValue - 상승시킬 기본침식률
+     * @param {string} [description] - 설명 텍스트. 생략 시 표 기본 문구를 쓴다.
+     */
+    async createSpellTableRecord(actor, kind, resultNumber, encroachmentValue = 1, description = null) {
+        const table = SPELL_TABLES[kind];
+        if (!table) throw new Error(`DX3rd | Unknown spell table kind: ${kind}`);
+
+        try {
+            const label = game.i18n.localize(table.i18n);
+
+            await actor.createEmbeddedDocuments('Item', [{
+                name: label,
+                type: 'record',
+                system: {
+                    description: description || game.i18n.localize(`${table.i18n}Text${resultNumber}`),
+                    exp: 0,
+                    encroachment: encroachmentValue
+                }
+            }]);
+
+            ui.notifications.info(`${label} 레코드가 추가되었고, 기본침식률이 ${encroachmentValue} 증가했습니다.`);
+
+        } catch (error) {
+            console.error(`DX3rd | Error in createSpellTableRecord(${kind}):`, error);
             throw error;
         }
     },
@@ -688,12 +724,12 @@ window.DX3rdSpellHandler = {
         // 특정 결과에 대한 효과 적용
         if (result === 1) {
             // 1번: 이동력 절반
-            await this.createSpellCalamityEffect(actor, 1, {
+            await this.createSpellTableEffect(actor, 'calamity', 1, {
                 move_half: true
             });
         } else if (result === 4) {
             // 4번: 기본침식률 영구적으로 +1 (레코드 아이템 생성)
-            await this.createSpellCalamityRecord(actor, 4);
+            await this.createSpellTableRecord(actor, 'calamity', 4);
         } else if (result === 5) {
             // 5번: 혀가 꼬부라진다 (count 라운드 동안 마술 사용 불가)
             // countValue는 이미 위에서 1d10으로 계산됨
@@ -702,7 +738,7 @@ window.DX3rdSpellHandler = {
                 const countRoll = await new Roll("1d10").roll();
                 countValue = countRoll.total;
             }
-            await this.createSpellCalamityEffect(actor, 5, {
+            await this.createSpellTableEffect(actor, 'calamity', 5, {
                 spell_disabled: true,
                 spell_disabled_count: countValue
             });
@@ -779,12 +815,12 @@ window.DX3rdSpellHandler = {
             // 특정 결과에 대한 효과 적용
             if (result === 1) {
                 // 1번: 이동력 절반
-                await this.createSpellCalamityEffect(actor, 1, {
+                await this.createSpellTableEffect(actor, 'calamity', 1, {
                     move_half: true
                 });
             } else if (result === 4) {
                 // 4번: 기본침식률 영구적으로 +1 (레코드 아이템 생성)
-                await this.createSpellCalamityRecord(actor, 4);
+                await this.createSpellTableRecord(actor, 'calamity', 4);
             } else if (result === 5) {
                 // 5번: 혀가 꼬부라진다 (count 라운드 동안 마술 사용 불가)
                 if (countValue === null) {
@@ -795,7 +831,7 @@ window.DX3rdSpellHandler = {
                         countValue = countRoll.total;
                     }
                 }
-                await this.createSpellCalamityEffect(actor, 5, {
+                await this.createSpellTableEffect(actor, 'calamity', 5, {
                     spell_disabled: true,
                     spell_disabled_count: countValue
                 });
@@ -902,10 +938,10 @@ window.DX3rdSpellHandler = {
                 const countRoll = await new Roll("1d10").roll();
                 countValue = countRoll.total;
             }
-            await this.createSpellCatastropheRecord(actor, 2, countValue, resultText);
+            await this.createSpellTableRecord(actor, 'catastrophe', 2, countValue, resultText);
         } else if (result === 3) {
             // 3번: 시나리오 동안 마술 사용 불가
-            await this.createSpellCatastropheEffect(actor, 3, {
+            await this.createSpellTableEffect(actor, 'catastrophe', 3, {
                 spell_disabled: true
             });
         } else if (result === 5) {
@@ -928,170 +964,6 @@ window.DX3rdSpellHandler = {
 
         // 매크로 호출
         await executeMacrosByPrefix(`spell-catastrophe-${result}-macro`);
-    },
-
-    /**
-     * Create spell calamity applied effect
-     * @param {Actor} actor
-     * @param {number} resultNumber - Calamity table result number
-     * @param {Object} attributes - Effect attributes
-     */
-    async createSpellCalamityEffect(actor, resultNumber, attributes) {
-        try {
-            // 효과 이름
-            const effectName = `${game.i18n.localize('DX3rd.SpellCalamity')}(${resultNumber})`;
-            
-            // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
-            const appliedEffects = window.DX3rdAppliedEffects?.collect
-                ? window.DX3rdAppliedEffects.collect(actor)
-                : (actor.system?.attributes?.applied || {});
-            let alreadyExists = false;
-            
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.name === effectName) {
-                    alreadyExists = true;
-                    break;
-                }
-            }
-            
-            if (alreadyExists) {
-                ui.notifications.info(`${effectName} 효과가 이미 적용되어 있습니다.`);
-                return;
-            }
-            
-            // 고유 키 생성
-            const effectKey = `spell_calamity_${resultNumber}_${Date.now()}`;
-
-            // applied 효과 데이터 생성
-            const effectData = {
-                name: effectName,
-                source: actor.name,
-                disable: 'scene', // 장면 종료 시 제거
-                img: 'icons/svg/aura.svg',
-                attributes: attributes
-            };
-
-            // 네이티브 ActiveEffect 로 저장
-            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
-
-            ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
-            
-        } catch (error) {
-            console.error("DX3rd | Error in createSpellCalamityEffect:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Create spell calamity record item
-     * @param {Actor} actor
-     * @param {number} resultNumber - Calamity table result number
-     */
-    async createSpellCalamityRecord(actor, resultNumber, encroachmentValue = 1) {
-        try {
-            // 레코드 아이템 데이터 생성
-            const recordData = {
-                name: game.i18n.localize('DX3rd.SpellCalamity'),
-                type: 'record',
-                system: {
-                    description: game.i18n.localize(`DX3rd.SpellCalamityText${resultNumber}`),
-                    exp: 0,
-                    encroachment: encroachmentValue
-                }
-            };
-
-            // 레코드 아이템 생성
-            await actor.createEmbeddedDocuments('Item', [recordData]);
-
-            ui.notifications.info(`${game.i18n.localize('DX3rd.SpellCalamity')} 레코드가 추가되었고, 기본침식률이 ${encroachmentValue} 증가했습니다.`);
-            
-        } catch (error) {
-            console.error("DX3rd | Error in createSpellCalamityRecord:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Create spell catastrophe record item
-     * @param {Actor} actor
-     * @param {number} resultNumber - Catastrophe table result number
-     * @param {number} encroachmentValue - Encroachment value to add
-     * @param {string} description - Description text (with placeholders replaced)
-     */
-    async createSpellCatastropheRecord(actor, resultNumber, encroachmentValue, description) {
-        try {
-            // 레코드 아이템 데이터 생성
-            const recordData = {
-                name: game.i18n.localize('DX3rd.SpellCatastrophe'),
-                type: 'record',
-                system: {
-                    description: description || game.i18n.localize(`DX3rd.SpellCatastropheText${resultNumber}`),
-                    exp: 0,
-                    encroachment: encroachmentValue
-                }
-            };
-
-            // 레코드 아이템 생성
-            await actor.createEmbeddedDocuments('Item', [recordData]);
-
-            ui.notifications.info(`${game.i18n.localize('DX3rd.SpellCatastrophe')} 레코드가 추가되었고, 기본침식률이 ${encroachmentValue} 증가했습니다.`);
-            
-        } catch (error) {
-            console.error("DX3rd | Error in createSpellCatastropheRecord:", error);
-            throw error;
-        }
-    },
-
-    /**
-     * Create spell catastrophe applied effect
-     * @param {Actor} actor
-     * @param {number} resultNumber - Catastrophe table result number
-     * @param {Object} attributes - Effect attributes
-     */
-    async createSpellCatastropheEffect(actor, resultNumber, attributes) {
-        try {
-            // 효과 이름
-            const effectName = `${game.i18n.localize('DX3rd.SpellCatastrophe')}(${resultNumber})`;
-            
-            // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
-            const appliedEffects = window.DX3rdAppliedEffects?.collect
-                ? window.DX3rdAppliedEffects.collect(actor)
-                : (actor.system?.attributes?.applied || {});
-            let alreadyExists = false;
-            
-            for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
-                if (appliedEffect && appliedEffect.name === effectName) {
-                    alreadyExists = true;
-                    break;
-                }
-            }
-            
-            if (alreadyExists) {
-                ui.notifications.info(`${effectName} 효과가 이미 적용되어 있습니다.`);
-                return;
-            }
-            
-            // 고유 키 생성
-            const effectKey = `spell_catastrophe_${resultNumber}_${Date.now()}`;
-
-            // applied 효과 데이터 생성
-            const effectData = {
-                name: effectName,
-                source: actor.name,
-                disable: 'session', // 시나리오 종료 시 제거
-                img: 'icons/svg/aura.svg',
-                attributes: attributes
-            };
-
-            // 네이티브 ActiveEffect 로 저장
-            await window.DX3rdAppliedEffects.set(actor, effectKey, effectData);
-
-            ui.notifications.info(`${effectName} 효과가 적용되었습니다.`);
-            
-        } catch (error) {
-            console.error("DX3rd | Error in createSpellCatastropheEffect:", error);
-            throw error;
-        }
     },
 
     /**

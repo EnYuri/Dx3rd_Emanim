@@ -16,6 +16,11 @@ function baseContext(extra = {}) {
     ...extra
   });
   context.window = context;
+  // debug-log.js는 system.json scripts[0]이라 런타임에서 window.DX3rdDebug의 존재가
+  // 항상 보장된다. 그래서 프로덕션 코드 225곳이 가드 없이 window.DX3rdDebug.log(...)를
+  // 부른다. 그 전제를 하네스에서도 재현해야 하므로 실제 모듈을 그대로 싣는다
+  // (스텁이 아니라 실물이라, 조기 반환 동작까지 함께 검증된다).
+  load(context, 'scripts/core/debug-log.js');
   return context;
 }
 
