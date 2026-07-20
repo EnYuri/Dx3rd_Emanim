@@ -17,16 +17,20 @@
 
     // 인스턴스별 상태(사용자/런타임이 조작한 값). 교체 후 되살린다.
     const PRESERVE = [
-        'system.active.state',   // 토글 버프 on/off
-        'system.used.state',     // 사용 횟수 소진 카운트
-        'system.equipment'       // 장착 여부(무기/방어구/비클)
+        'system.active.state',        // 토글 버프 on/off
+        'system.used.state',          // 사용 횟수 소진 카운트
+        'system.attack-used.state',   // 무기 공격 횟수 소진 카운트(무기 외 타입엔 없어 자동 무시)
+        'system.equipment'            // 장착 여부(무기/방어구/비클)
     ];
 
     // 이펙트/사이오닉의 습득 레벨은 플레이어가 성장시킨 인스턴스 데이터다.
     // max/upgrade 등 규칙 메타데이터는 보존하지 않아 컴펜디움 최신값을 받게 한다.
+    // 소모품/기타 아이템의 수량은 플레이어가 구입·소비한 인스턴스 값이므로 보존한다.
     const TYPE_PRESERVE = {
         effect: ['system.level.init'],
-        psionic: ['system.level.init']
+        psionic: ['system.level.init'],
+        once: ['system.quantity'],
+        etc: ['system.quantity']
     };
 
     // D/E 로이스는 공식 데이터 갱신 대상이지만, 일반 로이스는 플레이어 관계
