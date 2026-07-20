@@ -93,6 +93,58 @@ test('extension grouping preserves condition source lifetimes', () => {
   assert.deepEqual(grouped.filter(bucket => bucket.type === 'condition').map(bucket => bucket.duration).sort(), ['round', 'turn']);
 });
 
+test('created weapon amount evaluates the source effect level formula', async () => {
+  const context = baseContext({
+    game: { i18n: { localize: () => '(임시)' } }
+  });
+  context.DX3rdUniversalHandler = {};
+  context.DX3rdFormulaEvaluator = {
+    getItemLevel: () => 2,
+    evaluate: formula => formula === '[level]+1' ? 3 : Number(formula) || 0
+  };
+  load(context, 'scripts/handlers/universal-extensions.js');
+
+  const created = [];
+  const actor = {
+    createEmbeddedDocuments: async (_type, documents) => {
+      created.push(...documents);
+      return documents;
+    }
+  };
+  const result = await context.DX3rdUniversalHandler.createWeaponItems(actor, {
+    name: '일본도', type: 'melee', skill: 'melee', add: '-1', attack: '5', guard: '3', range: '지근', amount: '[level]+1'
+  }, { type: 'effect', img: 'sword.svg', system: { level: { value: 2 } } });
+
+  assert.equal(created.length, 3);
+  assert.equal(result.length, 3);
+  assert.equal(created[0].name, '일본도(임시)');
+});
+
+test('runtime number prompt clamps variable HP input to the configured maximum', async () => {
+  let dialogConfig;
+  const context = baseContext({
+    foundry: {
+      applications: { api: { DialogV2: { wait: async config => { dialogConfig = config; return config; } } } },
+      utils: { escapeHTML: value => String(value) }
+    },
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { error: () => {} } }
+  });
+  load(context, 'scripts/handlers/universal-dialogs.js');
+
+  await context.DX3rdUniversalNumberPromptV2({
+    title: '변동 소비', label: '소비 HP', defaultValue: 9, maxValue: 3
+  });
+  assert.match(dialogConfig.content, /value="3"/);
+  assert.match(dialogConfig.content, /max="3"/);
+
+  const confirm = dialogConfig.buttons.find(button => button.action === 'confirm');
+  const result = confirm.callback(null, {
+    form: { querySelector: () => ({ value: '99' }) }
+  });
+  assert.equal(result, 3);
+});
+
 test('socket router ignores a repeated requestId', async () => {
   let ready;
   let listener;
@@ -209,6 +261,7 @@ test('every emitted literal socket type has a registered contract', () => {
 
 test('AfterMain queue serializes concurrent writes and retains only failures', async () => {
   const store = { afterMainQueue: [] };
+  let encroachProcessed = 0;
   const gm = { id: 'gm', isGM: true, active: true };
   const actor = { id: 'a1', uuid: 'Actor.a1', name: '테스트', items: new Map() };
   const users = {
@@ -239,7 +292,8 @@ test('AfterMain queue serializes concurrent writes and retains only failures', a
   context.fromUuid = async uuid => uuid === actor.uuid ? actor : null;
   context.DX3rdUniversalHandler = {
     executeHealExtensionNow: async () => {},
-    executeDamageExtensionNow: async () => { throw new Error('expected failure'); }
+    executeDamageExtensionNow: async () => { throw new Error('expected failure'); },
+    executeEncroachExtensionNow: async () => { encroachProcessed++; }
   };
   load(context, 'scripts/core/runtime-utils.js');
   load(context, 'scripts/socket-router.js');
@@ -247,15 +301,17 @@ test('AfterMain queue serializes concurrent writes and retains only failures', a
 
   await Promise.all([
     context.DX3rdUniversalHandler.addToAfterMainQueue(actor, { amount: 1 }, null, 'heal', { queueId: 'q1' }),
-    context.DX3rdUniversalHandler.addToAfterMainQueue(actor, { amount: 2 }, null, 'damage', { queueId: 'q2' })
+    context.DX3rdUniversalHandler.addToAfterMainQueue(actor, { amount: 2 }, null, 'damage', { queueId: 'q2' }),
+    context.DX3rdUniversalHandler.addToAfterMainQueue(actor, { fixed: true, value: '2' }, null, 'encroach', { queueId: 'q-enc' })
   ]);
   await context.DX3rdUniversalHandler.addToAfterMainQueue(actor, { amount: 99 }, null, 'heal', { queueId: 'q1' });
-  assert.equal(store.afterMainQueue.length, 2);
+  assert.equal(store.afterMainQueue.length, 3);
   assert.equal('actor' in store.afterMainQueue[0], false);
   assert.equal('item' in store.afterMainQueue[0], false);
 
   const result = await context.DX3rdUniversalHandler.processAfterMainQueue();
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), { processed: 1, failed: 1 });
+  assert.deepEqual(JSON.parse(JSON.stringify(result)), { processed: 2, failed: 1 });
+  assert.equal(encroachProcessed, 1);
   assert.equal(store.afterMainQueue.length, 1);
   assert.equal(store.afterMainQueue[0].queueId, 'q2');
   assert.equal(store.afterMainQueue[0].blocked, true);

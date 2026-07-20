@@ -187,6 +187,9 @@
         "init": 0,
         "value": ""
       },
+      "hp": {
+        "value": ""
+      },
       "level": {
         "init": 1,
         "max": 1,
@@ -517,10 +520,10 @@
         "applyMode": "onUse"
       },
       "used": {
-        "state": false,
+        "state": 0,
         "max": 1,
         "level": false,
-        "disable": "notCheck"
+        "disable": "session"
       },
       "effect": {
         "disable": "notCheck",

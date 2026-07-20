@@ -291,7 +291,11 @@
           
           // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
           let displayMax = Number(usedMax) || 0;
-          if (usedLevel && item.type === 'effect') {
+          // 일회용은 보유 수량 자체가 이번 시나리오의 사용 가능 횟수다.
+          // 시트에서 수량 변경 직후 max 동기화가 누락된 오래된 월드 문서도 올바르게 판정한다.
+          if (item.type === 'once') {
+            displayMax = Number(item.system?.quantity) || 1;
+          } else if (usedLevel && item.type === 'effect') {
             // 이펙트 아이템의 경우 침식률에 따른 레벨 수정이 적용된 수치 사용
             const baseLevel = Number(item.system?.level?.init) || 0;
             const upgrade = item.system?.level?.upgrade || false;
@@ -446,6 +450,7 @@
             .filter(entry => entry.type === 'damage')
             .map(entry => entry.data)
             .find(data => data?.runtimePrompt && effectMatches('damage', data)) || null;
+          let runtimeSourceItem = runtimeCfg ? item : null;
           if (!runtimeCfg && item.type === 'combo') {
             for (const effectId of this.normalizeEffectIds(item)) {
               const eff = actor.items.get(effectId);
@@ -454,7 +459,10 @@
                 .filter(entry => entry.type === 'damage')
                 .map(entry => entry.data)
                 .find(data => data?.runtimePrompt) || null;
-              if (runtimeCfg) break;
+              if (runtimeCfg) {
+                runtimeSourceItem = eff;
+                break;
+              }
             }
           }
           if (runtimeCfg) {
@@ -462,10 +470,17 @@
               || (runtimeCfg.runtimeConsumeHP
                 ? game.i18n.localize('DX3rd.RuntimeConsumeHP')
                 : game.i18n.localize('DX3rd.RuntimeInput'));
+            const rawMax = String(runtimeCfg.runtimeMax ?? '').trim();
+            let maxValue = null;
+            if (rawMax && rawMax !== '-') {
+              const evaluatedMax = Number(this.evaluateFormulaForExtension(rawMax, runtimeSourceItem || item, actor));
+              if (Number.isFinite(evaluatedMax) && evaluatedMax >= 0) maxValue = Math.floor(evaluatedMax);
+            }
             const entered = await window.DX3rdUniversalNumberPromptV2({
               title: item.name,
               label,
-              defaultValue: Number(runtimeCfg.runtimeDefault) || 0
+              defaultValue: Number(runtimeCfg.runtimeDefault) || 0,
+              maxValue
             });
             if (entered === null || entered === undefined) {
               window.DX3rdDebug.log('DX3rd | Item use canceled at runtime input prompt');
@@ -516,6 +531,13 @@
           for (const effectId of effectIds) {
             const effectItem = actor.items.get(effectId);
             if (!effectItem) continue;
+
+            // 콤보는 멤버 이펙트를 개별 handleItemUse로 통과시키지 않으므로,
+            // 이펙트 자체의 system.hp 비용도 여기서 명시적으로 합산한다.
+            const memberHpCost = String(effectItem.system?.hp?.value ?? '0').trim();
+            if (memberHpCost !== '0' && memberHpCost !== '' && memberHpCost !== '-') {
+              hpCostList.push({ raw: memberHpCost, source: `effect:${effectItem.name}:system.hp` });
+            }
             
             const effectExtend = effectItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
             for (const entry of (window.DX3rdItemEffectAdapter?.extensionEntries?.(effectExtend) || []).filter(entry => entry.type === 'damage')) {
@@ -584,13 +606,14 @@
         
         // 2. 침식률 처리 (모든 아이템)
         const encAddRaw = String(item.system?.encroach?.value ?? '0').trim();
+        const hasEncroachmentCost = encAddRaw !== '0' && encAddRaw !== '' && encAddRaw !== '-';
         // "침식률(없음)" 타입: 이 액터는 침식률이 오르지 않는다(_preUpdate 가드와 동일).
         // 주 경로에서는 굴림·가산·메시지를 건너뛰고 미상승만 표기한다.
         const noEncroach = actor.system?.attributes?.encroachment?.type === 'none';
 
-        if (noEncroach && encAddRaw !== '0' && encAddRaw !== '') {
+        if (noEncroach && hasEncroachmentCost) {
           costMessages.push(`${game.i18n.localize('DX3rd.Encroachment')} +0 (${game.i18n.localize('DX3rd.NoEncroachNote')})`);
-        } else if (encAddRaw !== '0' && encAddRaw !== '') {
+        } else if (hasEncroachmentCost) {
           const dicePattern = /(\d+)\s*d(\d*)/i;
           const isDiceFormula = dicePattern.test(encAddRaw) || /[dD]/.test(encAddRaw);
           
@@ -1943,6 +1966,25 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
 window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor, encData, item = null) {
   if (!actor || !actor.id) { ui.notifications.error('액터 정보가 유효하지 않습니다.'); return; }
   const { max = '', selfMult = 1, target = 'targetToken' } = encData || {};
+
+  // 고정 자기 비용. afterMain 큐에서도 같은 실행기를 사용해 "메인 프로세스 종료 후"
+  // 침식 상승을 즉시 비용으로 앞당기지 않는다.
+  const fixedRaw = String(encData?.value ?? encData?.formula ?? encData?.amount ?? '').trim();
+  if (encData?.fixed === true && target === 'self' && fixedRaw && fixedRaw !== '-') {
+    if (actor.system?.attributes?.encroachment?.type === 'none') return;
+    const normalized = fixedRaw.replace(/(\d+)\s*[dD]\s*(?!\d)/g, '$1d10').replace(/D/g, 'd');
+    const isDice = /\d+d\d+/i.test(normalized);
+    const roll = isDice ? await new Roll(normalized).roll() : null;
+    const amount = roll ? Number(roll.total) || 0 : Number(normalized) || 0;
+    const current = Number(actor.system?.attributes?.encroachment?.value ?? 0);
+    await actor.update({'system.attributes.encroachment.value': current + amount});
+    const diceHTML = roll ? `<div class="dx3rd-mt-4">${await roll.render()}</div>` : '';
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({actor}),
+      content: `<div class="dx3rd-encroach"><b>${item?.name || ''}</b><br>${game.i18n.localize('DX3rd.Encroachment')} +${amount}${isDice ? ` (${normalized})` : ''}${diceHTML}</div>`
+    });
+    return;
+  }
 
   // 입력 상한(max 공식) 평가
   const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;

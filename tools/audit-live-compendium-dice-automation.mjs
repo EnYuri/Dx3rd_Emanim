@@ -18,6 +18,13 @@ const dicePattern = /(?:\d+|\[[^\]]+\])\s*[dD]\s*\d+/;
 
 function collectModelData(document) {
   const data = [];
+  for (const [key, value] of [
+    ["system.attack", document.system?.attack],
+    ["system.add", document.system?.add],
+    ["system.guard", document.system?.guard],
+    ["system.hp.value", document.system?.hp?.value],
+    ["system.encroach.value", document.system?.encroach?.value],
+  ]) data.push({ field: key, value });
   for (const [id, attribute] of Object.entries(document.system?.attributes || {})) {
     data.push({ field: `system.attributes.${attribute?.key || id}`, value: attribute?.value });
   }
@@ -25,9 +32,15 @@ function collectModelData(document) {
     data.push({ field: `system.effect.attributes.${attribute?.key || id}`, value: attribute?.value });
   }
   for (const [type, extension] of Object.entries(document.flags?.["dx3rd-emanim"]?.itemExtend || {})) {
-    for (const key of ["formulaDice", "formulaAdd", "encroachFixed", "hpCost", "healTo"]) {
-      data.push({ field: `flags.itemExtend.${type}.${key}`, value: extension?.[key] });
+    const entries = Array.isArray(extension) ? extension : [extension];
+    for (let index = 0; index < entries.length; index++) {
+      for (const key of ["formulaDice", "formulaAdd", "encroachFixed", "hpCost", "healTo"]) {
+        data.push({ field: `flags.itemExtend.${type}.${index}.${key}`, value: entries[index]?.[key] });
+      }
     }
+  }
+  for (let index = 0; index < (document.system?.macros || []).length; index++) {
+    data.push({ field: `system.macros.${index}.command`, value: document.system.macros[index]?.command });
   }
   return data.filter(entry => {
     const value = String(entry.value ?? "").trim();

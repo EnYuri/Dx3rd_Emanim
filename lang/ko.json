@@ -369,6 +369,7 @@
   "DX3rd.Default": "기본값",
   "DX3rd.RuntimeInput": "사용 시 수치 입력",
   "DX3rd.RuntimeInputLabelPlaceholder": "입력 라벨 (예: 소비 HP)",
+  "DX3rd.RuntimeInputLimit": "입력 상한",
   "DX3rd.RuntimeConsumeHP": "입력값만큼 HP 소모",
 
   "DX3rd.Spell": "술식",
@@ -476,6 +477,7 @@
   "DX3rd.Protect": "방어구",
   "DX3rd.Vehicle": "비클",
   "DX3rd.Connection": "커넥션",
+  "DX3rd.SkillNotFound": "판정에 사용할 기능을 찾을 수 없습니다.",
   "DX3rd.Item": "아이템",
   "DX3rd.Etc": "기타",
   "DX3rd.Once": "일회용",

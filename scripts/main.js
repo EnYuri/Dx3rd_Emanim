@@ -306,9 +306,20 @@ Hooks.once('init', async function() {
         know_renegade:   { name: '지식: 레니게이드', base: 'mind' },
         know_engineering:{ name: '지식: 기계공학',  base: 'mind' },
         know_occult:     { name: '지식: 오컬트',    base: 'mind' },
+        know_general:    { name: '지식:',            base: 'mind' },
         drive_bike:      { name: '운전: 2륜',       base: 'body' },
+        drive_car:       { name: '운전: 4륜',       base: 'body' },
+        drive_aircraft:  { name: '운전: 항공기',    base: 'body' },
+        drive_ship:      { name: '운전: 선박',      base: 'body' },
+        drive_horse:     { name: '운전: 말',        base: 'body' },
+        drive_spacecraft:{ name: '운전: 우주선',    base: 'body' },
+        drive_multitank: { name: '운전: 다각전차',  base: 'body' },
+        drive_walker:    { name: '운전: 다족병기',  base: 'body' },
+        drive_general:   { name: '운전:',            base: 'body' },
+        info_general:    { name: '정보:',            base: 'social' },
         ars_music:       { name: '예술: 음악',      base: 'sense' }
     };
+    window.DX3rdDefaultCategorySkills = DEFAULT_CATEGORY_SKILLS;
     game.settings.register('dx3rd-emanim', 'customSkills', {
         name: 'Custom Skills',
         hint: '커스텀 스킬 설정을 저장합니다.',
@@ -556,7 +567,16 @@ Hooks.once('ready', () => {
 });
 
 // 스크립트 로딩 체크
-Hooks.once('ready', function() {
+Hooks.once('ready', async function() {
+    // 기존 월드가 customSkills를 이미 저장한 경우 setting.default 변경만으로 새 표준 기능이
+    // 추가되지 않는다. 사용자 정의 항목은 보존하고 누락된 공식 키만 GM이 보충한다.
+    if (game.user.isGM && window.DX3rdDefaultCategorySkills) {
+        const current = game.settings.get('dx3rd-emanim', 'customSkills') || {};
+        const merged = {...window.DX3rdDefaultCategorySkills, ...current};
+        if (Object.keys(merged).length !== Object.keys(current).length) {
+            await game.settings.set('dx3rd-emanim', 'customSkills', merged);
+        }
+    }
     if (!window.DX3rdSkillCreateDialog || !window.DX3rdSkillEditDialog) {
         console.error('Double Cross 3rd | 스킬 다이얼로그 클래스가 로드되지 않았습니다.');
         ui.notifications.error('Double Cross 3rd | 시스템 초기화 중 오류가 발생했습니다.');

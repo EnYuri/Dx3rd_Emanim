@@ -44,6 +44,8 @@
       system.used.disable ??= 'notCheck';
       system.add ??= '0';
       system.attack ??= '0';
+      system.hp ??= {value: ''};
+      system.hp.value ??= '';
       system.exp ??= {own: false, upgrade: false};
       system.exp.own ??= false;
       system.exp.upgrade ??= false;

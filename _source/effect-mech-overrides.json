@@ -1812,5 +1812,127 @@
         }
       ]
     }
+  },
+  "노도의 선풍": {
+    "attributes": [
+      {
+        "key": "attack",
+        "label": "attack",
+        "value": "[소비HP]*3"
+      }
+    ],
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeMax": "[level]",
+        "runtimeLabel": "소비 HP (최대 [LV])",
+        "runtimeDefault": "0"
+      }
+    }
+  },
+  "블러드 코트": {
+    "attributes": [
+      {
+        "key": "guard",
+        "label": "guard",
+        "value": "[소비HP]*2"
+      }
+    ],
+    "active": {
+      "state": false,
+      "disable": "round",
+      "runTiming": "instant"
+    },
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeMax": "[level]",
+        "runtimeLabel": "소비 HP (최대 [LV])",
+        "runtimeDefault": "0"
+      }
+    }
+  },
+  "붉은 검": {
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeMax": "[level]*2",
+        "runtimeLabel": "소비 HP (최대 [LV×2])",
+        "runtimeDefault": "0"
+      },
+      "weapon": {
+        "name": "붉은 검",
+        "type": "melee",
+        "skill": "melee",
+        "add": "0",
+        "attack": "[소비HP]+8",
+        "guard": "0",
+        "range": "지근",
+        "amount": "1",
+        "fist": false,
+        "activate": true
+      }
+    }
+  },
+  "붉은 갑주": {
+    "itemExtend": {
+      "damage": {
+        "runtimePrompt": true,
+        "runtimeConsumeHP": true,
+        "runtimeMax": "[level]*3",
+        "runtimeLabel": "소비 HP (최대 [LV×3])",
+        "runtimeDefault": "0"
+      },
+      "protect": {
+        "name": "붉은 갑주",
+        "dodge": "0",
+        "init": "0",
+        "armor": "[소비HP]*2",
+        "activate": true
+      }
+    }
+  },
+  "생명흡수": {
+    "getTarget": true,
+    "itemExtend": {
+      "damage": {
+        "formulaAdd": "[level]*3",
+        "target": "targetToken",
+        "timing": "afterDamage",
+        "ignoreReduce": true,
+        "conditionalFormula": false,
+        "hpCost": "0",
+        "hpCostActivate": false,
+        "activate": true
+      },
+      "heal": {
+        "formulaAdd": "[level]*3",
+        "healTo": "",
+        "encroachFixed": "",
+        "timing": "afterDamage",
+        "target": "self",
+        "resurrect": false,
+        "rivival": false,
+        "activate": true
+      }
+    }
+  },
+  "세포사멸": {
+    "getTarget": true,
+    "itemExtend": {
+      "damage": {
+        "formulaAdd": "[level]*5",
+        "target": "targetToken",
+        "timing": "instant",
+        "ignoreReduce": true,
+        "conditionalFormula": false,
+        "hpCost": "0",
+        "hpCostActivate": false,
+        "activate": true
+      }
+    }
   }
 }

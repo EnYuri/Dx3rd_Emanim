@@ -725,6 +725,7 @@
                     runtimePrompt: this._checked('input[name="runtimePrompt"]', root),
                     runtimeLabel: this._value('input[name="runtimeLabel"]', root),
                     runtimeDefault: this._value('input[name="runtimeDefault"]', root),
+                    runtimeMax: this._value('input[name="runtimeMax"]', root),
                     runtimeConsumeHP: this._checked('input[name="runtimeConsumeHP"]', root)
                 };
             }

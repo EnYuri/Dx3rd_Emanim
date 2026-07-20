@@ -17,36 +17,20 @@ window.DX3rdConnectionHandler = {
             return;
         }
         
-        // Connection의 skill 가져오기
+        // 판정 기능이 없는 특수 커넥션은 인라인 자동화만 실행하고 끝낸다.
         const skillKey = item.system?.skill || '-';
         if (!skillKey || skillKey === '-') {
-            ui.notifications.warn("Connection의 스킬이 설정되지 않았습니다.");
-            return;
+            return true;
         }
         
-        // 스킬 데이터 가져오기
-        const attributes = ['body', 'sense', 'mind', 'social'];
-        let skillData = null;
-        let skillName = '';
-        
-        if (attributes.includes(skillKey)) {
-            // 능력치
-            skillData = actor.system.attributes[skillKey];
-            skillName = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
-        } else {
-            // 스킬
-            skillData = actor.system.attributes.skills?.[skillKey];
-            if (skillData) {
-                skillName = skillData.name;
-                if (skillName && skillName.startsWith('DX3rd.')) {
-                    skillName = game.i18n.localize(skillName);
-                }
-            }
-        }
+        // 공용 해석기는 액터에 전문 기능이 없어도 계통의 연결 능력치로 폴백한다.
+        const resolved = window.DX3rdUniversalHandler?.resolveStatAndLabel(actor, item) || {};
+        const skillData = resolved.stat || null;
+        const skillName = resolved.label || '';
         
         if (!skillData) {
-            ui.notifications.warn("스킬을 찾을 수 없습니다.");
-            return;
+            ui.notifications.warn(game.i18n.localize('DX3rd.SkillNotFound'));
+            return false;
         }
         
         // 토큰 자동 선택
@@ -94,6 +78,7 @@ window.DX3rdConnectionHandler = {
                 null  // predefinedDifficulty (null로 설정하여 사용자가 입력)
             );
         }
+        return true;
     }
 };
 })();

@@ -361,13 +361,13 @@
       }
 
       // 일반 웨폰 생성
-      const amount = parseInt(data.amount) || 1;
       const itemName = `${data.name}${game.i18n.localize('DX3rd.TemporaryItem')}`;
       const createdItems = [];
       
       // 아이템의 레벨 가져오기 (없으면 1) - 침식률 보정을 동적으로 반영
       const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;
       const itemForFormula = { type: item?.type || 'effect', system: { level: { value: itemLevel } } };
+      const amount = Math.max(1, Math.floor(this.evaluateFormulaForExtension(data.amount || '1', itemForFormula, actor)) || 1);
       
       
       const evaluatedAdd = this.evaluateFormulaForExtension(data.add, itemForFormula, actor);

@@ -635,6 +635,20 @@
     const equippedOn = equipmentChange === true;
     const equippedOff = equipmentChange === false;
 
+    // 장비가 제공하는 상태(현재는 비행)는 장착 여부가 원본이다. 같은 상태를 제공하는
+    // 다른 장비가 남아 있으면 한 장비를 해제해도 상태를 끄지 않는다.
+    if (equippedOn || equippedOff) {
+      const changedStatuses = item.getFlag?.(SCOPE, 'equipmentStatuses') || [];
+      for (const statusId of changedStatuses) {
+        const shouldBeActive = actor.items.some(candidate =>
+          candidate.system?.equipment === true
+          && (candidate.getFlag?.(SCOPE, 'equipmentStatuses') || []).includes(statusId));
+        if (actor.statuses?.has(statusId) !== shouldBeActive) {
+          await actor.toggleStatusEffect(statusId, {active: shouldBeActive});
+        }
+      }
+    }
+
     // 장비 보너스(system.attributes)는 actor.prepareData가 active.state를 기준으로 소비한다.
     // 활성화 액션으로 묶인 장비의 장착 상태를 이 원본 상태와 동기화하고, true 갱신에서
     // 다시 들어온 훅 한 번만 나머지 활성화 효과를 실행한다.

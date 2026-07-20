@@ -1,7 +1,7 @@
 // DX3rd 런타임에서 Foundry 문서에 의존하지 않는 순수 유틸리티.
 // 브라우저 전역으로 노출해 classic script 로딩을 유지하고, Node 테스트에서도 VM으로 검증한다.
 (function() {
-  const AFTER_MAIN_TYPES = new Set(['heal', 'damage', 'condition', 'statusClear']);
+  const AFTER_MAIN_TYPES = new Set(['heal', 'damage', 'condition', 'statusClear', 'encroach']);
 
   function isPlainObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;

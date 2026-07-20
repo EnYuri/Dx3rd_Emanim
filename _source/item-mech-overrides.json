@@ -1,5 +1,11 @@
 {
   "weapons": {
+    "추한 어순": {
+      "encroach": {
+        "init": 0,
+        "value": "3d10"
+      }
+    },
     "시저 리퍼": {
       "attributes": [
         {

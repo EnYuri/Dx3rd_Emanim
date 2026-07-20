@@ -83,6 +83,8 @@
       else await handler.executeConditionExtensionNow(actor, entry.data, item);
     } else if (entry.type === 'statusClear') {
       await handler.executeStatusClearExtension(actor, entry.data, item);
+    } else if (entry.type === 'encroach') {
+      await handler.executeEncroachExtensionNow(actor, entry.data, item);
     }
   }
 
