@@ -917,6 +917,11 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
+                    {{#if item.showActiveToggle}}<input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>{{/if}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
                     {{#unless (or (eq item.system.type "D") (eq item.system.type "M") (eq item.system.type "E"))}}
                     {{#if item.system.sublimation}}
                       <button type="button" class="btn-sublimation sublimation-used" data-action="sublimation">{{localize "DX3rd.Sublimation"}}</button>

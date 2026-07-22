@@ -192,6 +192,14 @@
     margin-bottom: 0;
 }
 
+/* 로이스: 긍정/부정/타이터스/승화 라벨은 기본 .cell--title(justify-content:center)로
+   가운데 정렬한다. 체크박스(.checkbox-addon, absolute right:0)는 라벨을 기준점으로 삼아야
+   타이터스+승화처럼 라벨 두 개가 한 셀에 들어가는 경우 각 체크박스가 자기 라벨 우측에
+   붙는다. 라벨에 position:relative 를 주지 않으면 두 체크박스가 .cell 우측 끝에서 겹친다. */
+.application.sheet.dx3rd-emanim.item.rois-sheet-v2 .sheet-attributes .cell--title {
+    position: relative;
+}
+
 /* 이펙트 해설 그리드의 제목은 체크박스 유무와 관계없이 셀 정중앙에 고정한다.
    난이도/레벨/대상의 보조 토글은 오른쪽 가장자리에 두어 제목의 시각 중심을 흔들지 않는다. */
 .application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .cell {

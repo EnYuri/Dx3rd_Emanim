@@ -474,6 +474,9 @@
     // 대상 효과는 효과 적용 경로로 실행하므로 모두 숨긴다.
     function usesSelfEffectActiveToggle(item) {
         if (!item || ["weapon", "protect", "vehicle"].includes(item.type)) return false;
+        // 로이스(D로이스 등)는 timing 필드가 없다. 자체 상시 버프(attributes)가 저작돼 있으면
+        // 활성/비활성 토글을 노출한다. 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
+        if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes);
         if (item.system?.timing !== "always") return false;
         // 백병/사격 공격 이펙트는 지속 버프가 아니라 즉시 공격력 보정 채널이므로 토글을 숨긴다.
         const attackRoll = item.system?.attackRoll;
