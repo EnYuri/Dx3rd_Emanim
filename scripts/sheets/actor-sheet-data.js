@@ -472,11 +472,27 @@
     // 활성 토글은 장착/사용과 별개로 유지되는 '상시 자기 효과'에만 의미가 있다.
     // 장비는 equipment 체크가 원본이고, 상시가 아닌 아이템은 사용 액션이 발동점이며,
     // 대상 효과는 효과 적용 경로로 실행하므로 모두 숨긴다.
+    // 발동형 로이스: 좌클릭 '사용'으로 발동한다(효과/사용형 아이템과 동일한 UX).
+    //  - 임베드 매크로(roisActivate 등)를 가졌거나,
+    //  - 자기 버프 attributes 가 있으면서 소멸 타이밍(active.disable)이 지정된 경우(major 등, 발동 후 소멸).
+    // 상시 버프(active.disable 이 '-'/'notCheck')는 발동형이 아니라 상시 토글로 다룬다.
+    function roisHasActivation(item) {
+        if (!item || item.type !== "rois") return false;
+        const macros = item.system?.macros;
+        if (Array.isArray(macros) && macros.some(m => m && m.command)) return true;
+        if (hasUsableEffectAttributes(item.system?.attributes)) {
+            const disable = item.system?.active?.disable ?? "-";
+            if (disable !== "-" && disable !== "notCheck") return true;
+        }
+        return false;
+    }
+
     function usesSelfEffectActiveToggle(item) {
         if (!item || ["weapon", "protect", "vehicle"].includes(item.type)) return false;
-        // 로이스(D로이스 등)는 timing 필드가 없다. 자체 상시 버프(attributes)가 저작돼 있으면
-        // 활성/비활성 토글을 노출한다. 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
-        if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes);
+        // 로이스(D로이스 등)는 timing 필드가 없다. 자체 '상시' 버프(attributes)가 저작돼 있으면
+        // 활성/비활성 토글을 노출한다. 발동형(매크로/소멸타이밍)은 좌클릭 사용으로 발동하므로 제외한다.
+        // 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
+        if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes) && !roisHasActivation(item);
         if (item.system?.timing !== "always") return false;
         // 백병/사격 공격 이펙트는 지속 버프가 아니라 즉시 공격력 보정 채널이므로 토글을 숨긴다.
         const attackRoll = item.system?.attackRoll;
@@ -506,6 +522,7 @@
 
         // 렌더 전용 플래그다. Item 문서 데이터에는 저장되지 않는다.
         item.showActiveToggle = usesSelfEffectActiveToggle(item);
+        item.showRoisUse = roisHasActivation(item);
         if (item.system.used.disable === "notCheck") {
             item.system.used.displayMax = 0;
             if (item.system.used.level !== false) item.system.used.level = false;
@@ -661,6 +678,7 @@
         updateActorSyndromeSelection,
         hasUsableEffectAttributes,
         usesSelfEffectActiveToggle,
+        roisHasActivation,
         showStatRoll,
         openComboBuilder,
         buildItemDragData,

@@ -2335,9 +2335,12 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 
 .dx3rd-item-chat .protect-unequip-btn {
     background: none;
-    border: 1px solid #888;
+    /* 고정 회색(#888) 대신 상속 색을 쓰고 테두리도 currentColor 로 맞춰, 카드 밝기에
+       자동 대응. muted 느낌은 opacity 로 주고 hover 에서 또렷해지게 한다. */
+    border: 1px solid currentColor;
     border-radius: 3px;
-    color: #888;
+    color: inherit;
+    opacity: 0.6;
     font-size: 0.75em;
     padding: 1px 8px;
     cursor: pointer;
@@ -2345,8 +2348,7 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 }
 
 .dx3rd-item-chat .protect-unequip-btn:hover:not(:disabled) {
-    border-color: #ccc;
-    color: #ccc;
+    opacity: 1;
 }
 
 .dx3rd-item-chat .protect-unequip-btn:disabled {
@@ -2362,7 +2364,9 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 }
 
 .dx3rd-item-chat .item-type {
-    color: #888;
+    /* 고정 회색(#888) 대신 상속 색 + opacity 로 카드 밝기에 자동 대응. */
+    color: inherit;
+    opacity: 0.55;
     font-size: 0.6em;
     margin-left: 8px;
 }
@@ -2513,8 +2517,11 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 .dx3rd-item-chat .item-description {
     margin-top: 8px;
     border-top: 1px solid #AAA;
-    color: gray;
-    font-size: smaller;
+    /* 색을 고정하지 않고 카드 텍스트 색을 상속받아, 밝은/어두운 카드에 자동 대응한다.
+       muted(옅은) 느낌은 고정 회색 대신 opacity 로 줘서 라이트/다크 양쪽에서 성립하게 한다. */
+    color: inherit;
+    opacity: 0.7;
+    font-size: 12px;
     padding: 6px 6px 0px 6px;
 }
 
@@ -2525,7 +2532,8 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
 }
 
 .dx3rd-item-chat .description-content {
-    color: gray;
+    /* 부모 .item-description 의 상속 색 + opacity 를 그대로 따른다(고정 회색 제거). */
+    color: inherit;
     line-height: 1.4;
 }
 

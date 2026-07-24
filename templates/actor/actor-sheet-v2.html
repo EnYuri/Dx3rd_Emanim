@@ -906,7 +906,11 @@
               {{#each actor.roisList as |item|}}
                 <li class="item flexrow {{#if item.system.titus}} titus {{/if}}" data-item-id="{{item.id}}" draggable="true">
                   <h4 class="item-name">
+                    {{#if item.showRoisUse}}
+                    <span class="echo-item rois-use" data-action="useRois" style="float:left;cursor:pointer;" title="{{item.name}} - {{localize "DX3rd.Use"}}"><img src="{{item.img}}" title="{{item.name}} - {{localize "DX3rd.Use"}}" width="37" height="37" style="vertical-align:middle;margin-right:10px;"></span>
+                    {{else}}
                     <span class="echo-item" data-action="itemToChat" style="float:left;cursor:pointer;"><img src="{{item.img}}" title="{{item.name}}" width="37" height="37" style="vertical-align:middle;margin-right:10px;"></span>
+                    {{/if}}
                     <span class="item-label" data-action="toggleDesc">[{{item.system.type}}] {{item.name}}<br>
                       <span style="color:gray;font-size:0.7em;">
                         <span class="rois-emotion rois-emotion-positive{{#if item.system.positive.state}} rois-emotion-active{{/if}}">{{localize "DX3rd.Positive"}} : {{item.system.positive.feeling}}{{#unless item.system.positive.feeling}}-{{/unless}}</span>
@@ -953,7 +957,11 @@
               {{#each actor.memoryList as |item|}}
                 <li class="item flexrow" data-item-id="{{item.id}}" draggable="true">
                   <h4 class="item-name">
+                    {{#if item.showRoisUse}}
+                    <span class="echo-item rois-use" data-action="useRois" style="float:left;cursor:pointer;" title="{{item.name}} - {{localize "DX3rd.Use"}}"><img src="{{item.img}}" title="{{item.name}} - {{localize "DX3rd.Use"}}" width="37" height="37" style="vertical-align:middle;margin-right:10px;"></span>
+                    {{else}}
                     <span class="echo-item" data-action="itemToChat" style="float:left;cursor:pointer;"><img src="{{item.img}}" title="{{item.name}}" width="37" height="37" style="vertical-align:middle;margin-right:10px;"></span>
+                    {{/if}}
                     <span class="item-label" data-action="toggleDesc">[{{item.system.type}}] {{item.name}}<br>
                       <span style="color:gray;font-size:0.7em;">
                         <span class="rois-emotion rois-emotion-positive{{#if item.system.positive.state}} rois-emotion-active{{/if}}">{{localize "DX3rd.Positive"}} : {{item.system.positive.feeling}}{{#unless item.system.positive.feeling}}-{{/unless}}</span>

@@ -1830,6 +1830,10 @@
               await handler.handleTitus(actorId, itemId);
             } else if (roisAction === 'sublimation') {
               await handler.handleSublimation(actorId, itemId);
+            } else if (roisAction === 'activate') {
+              // 발동형 로이스(D로이스 등): 매크로/자기효과/코스트/사용횟수는 위 공용 파이프라인에서
+              // 이미 실행됐다. RoisHandler.handle 은 티투스/승화 전용이므로 여기서 호출하면
+              // 매크로가 이중 실행되고 D로이스에 의미 없는 titus 플래그가 켜진다 → 호출하지 않는다.
             } else {
               await handler.handle(actorId, itemId, getTarget, options);
             }

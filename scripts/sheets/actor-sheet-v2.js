@@ -48,6 +48,7 @@
         titus: DX3rdActorSheetV2._onTitus,
         sublimation: DX3rdActorSheetV2._onSublimation,
         useItem: DX3rdActorSheetV2._onUseItem,
+        useRois: DX3rdActorSheetV2._onUseRois,
         applyEffect: DX3rdActorSheetV2._onApplyEffect
       }
     };
@@ -457,6 +458,14 @@
     static async _onUseItem(event, target) {
       event.preventDefault();
       await this._useItemFromTarget(target);
+    }
+
+    // 발동형 로이스(D로이스 등)의 좌클릭 사용. 효과/사용형 아이템과 동일하게
+    // 공용 사용 파이프라인(코스트·자기효과·매크로·사용횟수)을 태우되, roisAction='activate'로
+    // 티투스/승화 전용 핸들러 재진입을 막는다(매크로 이중 실행 방지).
+    static async _onUseRois(event, target) {
+      event.preventDefault();
+      await this._useItemFromTarget(target, 'activate');
     }
 
     static async _onItemToChat(event, target) {
