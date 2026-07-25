@@ -86,7 +86,8 @@
 
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
-      if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
+      const changedName = this._getChangedFieldName(event);
+      if (changedName?.endsWith('.value') && (changedName.startsWith('system.attributes.') || changedName.startsWith('system.effect.attributes.'))) {
         this._validateFormulaInput(changed);
       }
 
@@ -97,7 +98,7 @@
       }
       // disable 를 notCheck 로 "바꾸는 순간"에만 active.state 를 끈다(V1 _onActiveDisableChange 와 동일).
       // 매 서브밋마다 끄면 notCheck 아이템은 시트에서 활성화를 켤 수 없다.
-      if (changed?.name === 'system.active.disable' && submitData.system.active?.disable === 'notCheck') {
+      if (changedName === 'system.active.disable' && submitData.system.active?.disable === 'notCheck') {
         submitData.system.active.state = false;
       }
       return submitData;

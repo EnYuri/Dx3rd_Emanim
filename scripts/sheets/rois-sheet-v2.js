@@ -92,7 +92,7 @@
 
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
-      const changedName = changed?.name;
+      const changedName = this._getChangedFieldName(event);
       if (changedName?.endsWith('.value') && changedName.startsWith('system.attributes.')) {
         this._validateFormulaInput(changed);
       }

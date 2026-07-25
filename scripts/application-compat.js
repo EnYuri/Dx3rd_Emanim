@@ -66,6 +66,30 @@
         return task;
     }
 
+    /**
+     * 서브밋 데이터에서 값이 undefined 인 키를 재귀적으로 제거하고, 제거한 경로 목록을 돌려준다.
+     * 부분 업데이트에서 undefined 는 "그 필드를 건드리지 않음"과 같은 뜻이지만,
+     * DataModel 검증은 "키가 존재하는데 값이 undefined" 인 경우를 `may not be undefined`
+     * 실패로 처리해 서브밋 전체를 취소한다(폼 컨트롤이 값을 내놓지 못한 순간에 발생).
+     * @param {object} data
+     * @param {string} [prefix]
+     * @returns {string[]} 제거된 키 경로
+     */
+    function pruneUndefinedValues(data, prefix = '') {
+        const dropped = [];
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return dropped;
+        for (const [key, value] of Object.entries(data)) {
+            const path = prefix ? `${prefix}.${key}` : key;
+            if (value === undefined) {
+                delete data[key];
+                dropped.push(path);
+            } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+                dropped.push(...pruneUndefinedValues(value, path));
+            }
+        }
+        return dropped;
+    }
+
     function getCapabilities() {
         const applications = globalThis.foundry?.applications;
         return Object.freeze({
@@ -87,6 +111,7 @@
         on,
         toJQuery,
         requestRender,
+        pruneUndefinedValues,
         getCapabilities
     });
 })();

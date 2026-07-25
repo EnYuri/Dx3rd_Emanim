@@ -16,7 +16,7 @@
     _prepareSubmitData(event, form, formData, updateData) {
       const data = super._prepareSubmitData(event, form, formData, updateData);
       if (data.system.used?.disable !== 'notCheck'
-          && ['system.quantity', 'system.used.disable'].includes(event?.target?.name)) {
+          && ['system.quantity', 'system.used.disable'].includes(this._getChangedFieldName(event))) {
         data.system.used.max = Number(data.system.quantity) || 1;
       }
       return data;

@@ -10,6 +10,22 @@
 
   Object.assign(window.DX3rdUniversalHandler, {
     /**
+     * 판정 롤에 항으로 실을 다이스식을 검증한다.
+     * 굴리지 않고 문자열째 넘기므로, 잘못된 수식은 판정 롤 전체를 깨뜨린다.
+     * 굴려서 숫자로 접던 시절엔 try/catch 가 흡수하던 자리라 검증을 여기로 옮겼다.
+     * @param {string} formula - 검사할 수식 (빈 값이면 그대로 '')
+     * @param {string} kind - 로그용 필드 이름
+     * @returns {string} 유효하면 원문, 아니면 '' (해당 항을 버린다)
+     */
+    validateRollTerm(formula, kind) {
+      if (!formula) return '';
+      if (Roll.validate(formula)) return formula;
+      console.warn(`DX3rd | invalid roll term (${kind}): ${formula}`);
+      ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${formula}`);
+      return '';
+    },
+
+    /**
      * 공격 롤 실행 (무기/비클/이펙트/콤보/사이오닉 등)
      * @param {Actor} actor - 공격하는 액터
      * @param {Item} item - 공격 아이템
@@ -18,8 +34,9 @@
      * @param {number} dice - 주사위 개수
      * @param {number} critical - 크리티컬 값
      * @param {number} add - 가산치
+     * @param {string} rollType - 'major' | 'reaction' | 'dodge' (판정 타입별 행동 수식 선택용)
      */
-    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null) {
+    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null, rollType = 'major') {
       try {
         // 대상 확인 (다시 가져오기)
         const targets = Array.from(game.user.targets);
@@ -47,8 +64,10 @@
         // 행동 시점 판정 수식: prepareData에서 원문만 보존하고, 여기서 정확히 한 번 굴린다.
         const actionProfile = actor.system.attributes.actionRollFormula || {};
         const typedProfile = actionProfile[rollType] || {};
+        const buildActionFormula = (kind) =>
+          [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
         const rollActionFormula = async (kind) => {
-          const formula = [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
+          const formula = buildActionFormula(kind);
           if (!formula) return { total: 0, text: '' };
           try {
             const result = await (new Roll(formula)).evaluate();
@@ -59,37 +78,30 @@
             return { total: 0, text: `${kind}: ${formula} → 0` };
           }
         };
-        const [formulaDice, formulaAdd, formulaCritical] = await Promise.all([
-          rollActionFormula('dice'), rollActionFormula('add'), rollActionFormula('critical')
+        // 다이스 개수/크리티컬은 판정식을 조립하기 전에 값이 확정돼야 하므로 여기서 굴린다.
+        // 수정치(add)는 굴리지 않는다 — 아래 판정 롤의 항으로 그대로 실어야
+        // 채팅 카드가 "10dx7 + 10d10"처럼 다이스식 그대로 보인다.
+        const [formulaDice, formulaCritical] = await Promise.all([
+          rollActionFormula('dice'), rollActionFormula('critical')
         ]);
+        const addDiceFormula = this.validateRollTerm(buildActionFormula('add'), 'add');
         const rolledDice = dice + formulaDice.total;
         const rolledCritical = critical + formulaCritical.total;
-        const rolledAdd = add + formulaAdd.total;
         // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
         // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
         const autoFailByPool = rolledDice <= 0;
         const finalDice = Math.max(1, rolledDice);
 
-        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
-        let add2 = rolledAdd;
+        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 롤에 항으로 실어 카드에서 함께 공개한다.
+        const add2 = add;
         const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        const dxRollFormula = actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : '');
-        if (dxRollFormula) {
-          try {
-            const dr = await (new Roll(dxRollFormula)).evaluate();
-            add2 += Number(dr.total) || 0;
-            await dr.toMessage({
-              speaker: ChatMessage.getSpeaker({ actor }),
-              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollFormula}) → +${dr.total}`
-            });
-          } catch (e) { console.warn('DX3rd | dxroll failed', e); }
-        }
+        const dxRollFormula = this.validateRollTerm(
+          actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : ''), 'dxroll');
         // 무기 명중 수정치의 다이스는 판정 버튼을 누른 지금 한 번만 같은 Roll에 포함한다.
         // 결과는 사전 다이얼로그가 아니라 명중 롤 카드의 Foundry 항별 결과로 공개된다.
         const weaponAddFormula = weaponBonus?.addFormula;
-        const rollFormula = weaponAddFormula
-          ? `${finalDice}dx${Math.max(2, rolledCritical)} + ${add2} + ${weaponAddFormula}`
-          : `${finalDice}dx${Math.max(2, rolledCritical)} + ${add2}`;
+        const rollFormula = [`${finalDice}dx${Math.max(2, rolledCritical)}`, String(add2),
+          addDiceFormula, dxRollFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
@@ -1010,7 +1022,7 @@
             
             // 무기/비클 공격인 경우 별도 처리 (난이도 없음)
             if (item && (item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null) {
-              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula);
+              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t);
             } else if (isAttackRoll) {
               // attackRoll이 melee/ranged인 경우 공격 판정으로 처리 (난이도 없음)
               // 무기 아이템에서 시작한 임시 콤보인지 확인
@@ -1022,7 +1034,7 @@
                 if (weaponToken) {
                   weaponToken.control({ releaseOthers: true });
                   dlg.close();
-                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula);
+                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t);
                   return;
                 }
               }

@@ -224,6 +224,22 @@ function getGMSpeaker() {
 }
 
 /**
+ * 프로세스 전환 알림을 채팅에 남긴다.
+ * 라운드/전투 시작·종료 메시지와 같은 서식(dx3rd-combat-msg)을 쓴다.
+ * 프로세스 전환은 GM 클라이언트에서만 일어나므로 여기서도 GM만 발신한다
+ * (다른 클라이언트가 같은 전환을 관측해도 메시지가 중복되지 않도록).
+ * @param {string} labelKey - 'DX3rd.SetupProcess' 등 i18n 키
+ * @param {object} [speaker] - 생략 시 GM 스피커
+ */
+async function announceCombatProcess(labelKey, speaker = null) {
+  if (!game.user.isGM) return;
+  await ChatMessage.create({
+    content: `<h3 class="dx3rd-combat-msg">${game.i18n.localize(labelKey)}</h3>`,
+    speaker: speaker ?? getGMSpeaker(),
+  });
+}
+
+/**
  * 특정 접두사로 시작하는 모든 매크로 실행
  * @param {string} prefix - 매크로 이름 접두사
  */
@@ -739,6 +755,11 @@ async function startMainProcessFromInitiative(combat) {
     // 매 메인 프로세스 시작 시 이전 액션 표시를 초기화한다.
     await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
 
+    // 메인 프로세스 메시지 (누구의 메인인지 드러나도록 해당 액터가 말한다)
+    await announceCombatProcess('DX3rd.MainProcess', nextCombatant.actor
+      ? ChatMessage.getSpeaker({ actor: nextCombatant.actor, token: null })
+      : { alias: nextCombatant.name });
+
     showTurnActor(nextCombatant.actor?.img ?? "", nextCombatant.name);
     window.DX3rdSocketRouter.emit({type: 'showTurnActor', imgSrc: nextCombatant.actor?.img ?? "", actorName: nextCombatant.name});
     await executeMacrosByPrefix('main-process-macro-');
@@ -790,7 +811,10 @@ async function executeInitiativeProcess(combat, pendingCombatantId = null) {
     combatantId: null,
     pendingCombatantId
   });
-  
+
+  // 이니셔티브 프로세스 메시지
+  await announceCombatProcess('DX3rd.InitiativeProcess');
+
   // 이니셔티브 프로세스 매크로 실행
   await executeMacrosByPrefix('init-process-macro-');
   
@@ -1001,7 +1025,10 @@ async function handleCombatUpdate(combat, changes, options, userId) {
       content: `<h3 class="dx3rd-combat-msg">${roundText} ${currentRound}</h3>`,
       speaker: getGMSpeaker(),
     });
-    
+
+    // 셋업 프로세스 메시지
+    await announceCombatProcess('DX3rd.SetupProcess');
+
     // 셋업 프로세스 매크로 실행
     await executeMacrosByPrefix('setup-process-macro-');
   }
@@ -1015,7 +1042,10 @@ async function handleCombatUpdate(combat, changes, options, userId) {
       combatantId: null,
       needsRoundAdvance: requestedProcess.needsRoundAdvance
     });
-    
+
+    // 클린업 프로세스 메시지
+    await announceCombatProcess('DX3rd.CleanupProcess');
+
     // 클린업 프로세스 매크로 실행
     await executeMacrosByPrefix('cleanup-process-macro-');
 

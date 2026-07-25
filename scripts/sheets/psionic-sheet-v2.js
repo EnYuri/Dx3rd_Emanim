@@ -86,7 +86,7 @@
       foundry.utils.setProperty(data, 'system.level.init', level.init);
       foundry.utils.setProperty(data, 'system.level.max', level.max);
       if (data.system?.level) delete data.system.level.value;
-      if (event?.target?.name === 'system.level.init') {
+      if (this._getChangedFieldName(event) === 'system.level.init') {
         foundry.utils.setProperty(data, 'system.level.value', level.value);
       }
 

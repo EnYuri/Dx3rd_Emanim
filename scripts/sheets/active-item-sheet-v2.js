@@ -205,7 +205,8 @@
 
     _prepareSubmitData(event, form, formData, updateData) {
       const changed = event?.target;
-      if (changed?.name?.endsWith('.value') && (changed.name.startsWith('system.attributes.') || changed.name.startsWith('system.effect.attributes.'))) {
+      const changedName = this._getChangedFieldName(event);
+      if (changedName?.endsWith('.value') && (changedName.startsWith('system.attributes.') || changedName.startsWith('system.effect.attributes.'))) {
         this._validateFormulaInput(changed);
       }
       const data = super._prepareSubmitData(event, form, formData, updateData);
@@ -216,7 +217,7 @@
       // disable 를 notCheck 로 "바꾸는 순간"에만 active.state 를 끈다(V1 _onActiveDisableChange 와 동일).
       // 매 서브밋마다 끄면 notCheck(자동해제 없는 상시) 아이템은 시트에서 활성화 자체를 켤 수 없고,
       // 다른 값만 바꿔도 토글이 즉시 꺼진다. 변경 대상이 active.disable 일 때로 한정한다.
-      if (changed?.name === 'system.active.disable' && data.system.active?.disable === 'notCheck') {
+      if (changedName === 'system.active.disable' && data.system.active?.disable === 'notCheck') {
         data.system.active.state = false;
       }
       return data;

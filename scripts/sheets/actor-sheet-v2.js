@@ -76,6 +76,23 @@
       }
     };
 
+    /**
+     * 값이 undefined 인 키가 섞이면 DataModel 검증이 `may not be undefined` 로 실패해
+     * 서브밋 전체가 취소된다. 부분 업데이트에서 undefined 는 "미변경"과 같으므로 제거한다.
+     * (아이템 시트 DX3rdItemSheetV2._processFormData 와 동일한 방어)
+     */
+    _processFormData(event, form, formData) {
+      const data = super._processFormData(event, form, formData);
+      const dropped = compat.pruneUndefinedValues?.(data) ?? [];
+      if (dropped.length) {
+        console.warn(`DX3rd | 값이 없는 폼 필드를 서브밋에서 제외했습니다: ${dropped.join(', ')}`, {
+          sheet: this.constructor.name,
+          actor: this.document?.uuid
+        });
+      }
+      return data;
+    }
+
     async _prepareContext(options) {
       const context = await super._prepareContext(options);
       const actor = this.document;
