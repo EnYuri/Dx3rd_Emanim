@@ -72,7 +72,6 @@
       listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
       listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
-      listen('blur', '.difficulty-input', event => this._validateDifficulty(event));
       listen('change', '[data-target-field="system.getTarget"]', event => {
         this.item.update({'system.getTarget': event.target.checked});
       });
@@ -133,15 +132,6 @@
     async _normalizeRoll(value) {
       const update = itemSheetData.getRollChangeUpdate(value);
       if (Object.keys(update).length) await this.item.update(update);
-    }
-
-    async _validateDifficulty(event) {
-      const value = event.target.value.trim();
-      if (!value) return;
-      if (itemSheetData.isRollDifficultyValueValid(this.item, value)) return;
-      event.target.value = '';
-      await this.item.update({'system.difficulty': ''});
-      ui.notifications.warn(itemSheetData.getRollDifficultyValidationMessage(this.item));
     }
 
     async _updateMacro(event, property) {

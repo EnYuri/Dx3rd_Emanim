@@ -879,104 +879,6 @@
         },
 
         /**
-         * 어트리뷰트 이벤트 리스너 설정
-         * @param {HTMLElement|jQuery} html - HTML 요소
-         * @param {Object} sheet - 시트 객체
-         */
-        setupAttributeListeners(html, sheet) {
-            const dom = window.DX3rdApplicationCompat;
-
-            // 어트리뷰트 생성 버튼
-            dom.on(html, 'click', 'a[data-action="create"][data-type="attributes"]', async (event, button) => {
-                event.preventDefault();
-                const position = button.dataset.pos || 'main';
-                
-                try {
-                    sheet._isAddingAttribute = true;
-                    await window.DX3rdAttributeManager.createAttribute(sheet.item, position);
-                    await sheet.render(false);
-                } catch (error) {
-                    console.error("DX3rd | Attribute creation failed", error);
-                } finally {
-                    sheet._isAddingAttribute = false;
-                }
-            });
-
-            // 어트리뷰트 삭제 버튼
-            dom.on(html, 'click', '.attributes-list a[data-action="delete"]', async (event, button) => {
-                event.preventDefault();
-                const row = button.closest('.attribute');
-                const attributeKey = row?.dataset.attribute;
-                const position = button.closest('.attributes-list')?.dataset.pos || 'main';
-
-                if (attributeKey) {
-                    try {
-                        await window.DX3rdAttributeManager.deleteAttribute(sheet.item, attributeKey, position);
-                        await sheet.render(false);
-                    } catch (error) {
-                        console.error("DX3rd | Attribute deletion failed", error);
-                    }
-                }
-            });
-
-            // 어트리뷰트 키 변경 시 라벨 업데이트만 (저장하지 않음)
-            dom.on(html, 'change', '.attribute-key', async (event, keySelect) => {
-                const row = keySelect.closest('.attribute');
-                const position = row?.closest('.attributes-list')?.dataset.pos || 'main';
-                
-                // 드롭다운 생성만 하고 저장하지 않음
-                // attribute-key는 드롭다운에서 라벨 선택 시 함께 저장됨
-                await window.DX3rdAttributeManager.updateAttributeLabel(row, sheet.item, position);
-            });
-
-            // 즉시 저장을 위한 변경 이벤트 리스너 (attribute-key 제외)
-            dom.on(html, 'change', 'input[name^="system."], select[name^="system."], textarea[name^="system."]', async (event, element) => {
-                if (sheet._isAddingAttribute) return;
-
-                const name = element.getAttribute('name');
-                let value = element.value;
-
-                // attribute-key는 드롭다운에서 라벨 선택 시 저장되므로 제외
-                if (name && name.startsWith('system.') && !name.endsWith('.key')) {
-                    // 모든 어트리뷰트 값은 결정 수식만 허용한다. 순환 참조 검증은 메인 탭에만 적용한다.
-                    if (name.includes('.value') && (name.startsWith('system.attributes.') || name.startsWith('system.effect.attributes.'))) {
-                        const row = element.closest('.attribute');
-                        const labelName = name.replace('.value', '.label');
-                        const keyName = name.replace('.value', '.key');
-                        const labelElement = dom.query(row, `[name="${labelName}"]`);
-                        const keyElement = dom.query(row, `[name="${keyName}"]`);
-                        const labelValue = labelElement?.value;
-                        const keyValue = keyElement?.value;
-                        
-                        const formulaValidation = window.DX3rdFormulaEvaluator.validateDeterministicFormula(value, keyValue);
-                        if (!formulaValidation.valid) {
-                            ui.notifications.warn(formulaValidation.message);
-                        }
-
-                        if (formulaValidation.valid && labelValue && name.startsWith('system.attributes.')) {
-                            const validation = window.DX3rdFormulaEvaluator.validateCircularReference(value, labelValue, sheet.item?.actor, keyValue);
-                            if (!validation.valid) {
-                                ui.notifications.warn(validation.message);
-                                // value 초기화
-                                element.value = '';
-                                event.preventDefault();
-                                return;
-                            }
-                        }
-                    }
-                    
-                    try {
-                        const updateData = {};
-                        updateData[name] = value;
-                        await sheet.item.update(updateData);
-                    } catch (error) {
-                        console.error("DX3rd | Immediate update failed", error);
-                    }
-                }
-            });
-        },
-
-        /**
          * 시트 렌더링 후 어트리뷰트 라벨 초기화
          * @param {HTMLElement|jQuery} html - HTML 요소
          * @param {Object} item - 아이템 객체
@@ -1059,7 +961,11 @@
             // 무기 추가 버튼
             cleanups.push(dom.on(html, 'click', '.add-weapon', async (event, button) => {
                 event.preventDefault();
-                const weaponId = dom.query(button.closest('.add-skills'), '#actor-weapon')?.value;
+                // 무기 선택 영역의 래퍼 클래스는 시트마다 다르다(.add-skills / .dx3rd-weapon-picker).
+                // 어느 쪽도 못 찾으면 시트 루트에서 직접 찾는다.
+                const picker = button.closest('.add-skills, .dx3rd-weapon-picker') || button.parentElement;
+                const weaponSelect = dom.query(picker, '#actor-weapon') || dom.query(html, '#actor-weapon');
+                const weaponId = weaponSelect?.value;
                 
                 if (!weaponId || weaponId === '-') {
                     ui.notifications.warn("추가할 무기를 선택해주세요.");
@@ -1134,6 +1040,32 @@
                     console.error('DX3rd | WeaponTabManager - delete weapon failed', error);
                     ui.notifications.error("무기 삭제에 실패했습니다.");
                 }
+            }));
+
+            // 무기 편집 버튼 - 콤보/이펙트/사이오닉 시트의 무기 행에서 원본 무기 시트를 연다.
+            // (이펙트 행의 편집은 각 시트가 .combo-item:not(.weapon-item) 로 따로 배선한다.)
+            cleanups.push(dom.on(html, 'click', '.weapon-item .item-control.item-edit', (event, button) => {
+                event.preventDefault();
+                const weaponId = button.closest('.item')?.dataset.itemId;
+
+                if (!weaponId) {
+                    ui.notifications.warn("편집할 무기를 찾을 수 없습니다.");
+                    return;
+                }
+
+                // 가상(월드) 무기는 실제 문서가 아니므로 열 시트가 없다.
+                if (window.DX3rdVirtualWeapons?.isVirtual?.(weaponId)) {
+                    ui.notifications.info("가상 무기는 편집할 수 없습니다.");
+                    return;
+                }
+
+                const weaponItem = sheet.item.actor?.items.get(weaponId);
+                if (!weaponItem) {
+                    ui.notifications.warn("무기 아이템을 찾을 수 없습니다.");
+                    return;
+                }
+
+                weaponItem.sheet.render(true);
             }));
             return cleanups;
         }

@@ -80,7 +80,9 @@
           <div class="cell grid-4 space-between">
             <label class="cell--title">
               <span style="flex-grow: 1; text-align: center;">{{localize "DX3rd.Difficulty"}}</span>
-              <input type="checkbox" class="cell--crit difficulty-check" name="system.roll-check" {{#unless (eq system.roll "-")}} checked {{/unless}}>
+              {{!-- 상태는 system.roll 로만 저장한다. name 을 주면 스키마에 없는 system.roll-check 가
+                    매 서브밋마다 되살아나고, 같은 change 에서 _toggleDifficulty 의 갱신과 경합한다. --}}
+              <input type="checkbox" class="cell--crit difficulty-check" {{#unless (eq system.roll "-")}} checked {{/unless}}>
             </label>
             <div class="rt-field" data-rt="difficulty" style="display:flex;gap:4px;align-items:center;">
               <select class="rt-option" style="flex:1 1 auto;">

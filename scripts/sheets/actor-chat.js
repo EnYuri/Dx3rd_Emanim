@@ -168,10 +168,13 @@
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         itemData.attackRoll = currentItem.system.attackRoll || '-';
                         
-                        // 콤보 시트의 getData()에서 계산된 값들 가져오기
-                        if (currentItem.sheet) {
+                        // 콤보의 파생 표시값(다이스/크리티컬/수정치/공격력/침식치)은 콤보 시트가
+                        // 컨텍스트를 만들 때와 같은 계산이다. 예전에는 sheet.getData()로 가져왔지만
+                        // AppV2 시트에는 getData()가 없어 항상 catch로 떨어져 전부 0으로 표시됐다.
+                        // 시트 인스턴스를 만들지 말고 계산 모듈을 직접 호출한다.
+                        if (window.DX3rdComboData) {
                             try {
-                                const sheetData = await currentItem.sheet.getData();
+                                const sheetData = await window.DX3rdComboData.prepareSheetData({system: {}}, currentItem, this.actor);
                                 itemData.dice = sheetData.system?.dice?.value || 0;
                                 itemData.critical = sheetData.system?.critical?.value || 10;
                                 itemData.add = sheetData.system?.add?.value || 0;
@@ -179,6 +182,8 @@
                                 itemData.encroach = sheetData.system?.encroach?.value || 0;
                                 itemData.attackLabel = sheetData.attackLabel || game.i18n.localize('DX3rd.Attack');
                             } catch (e) {
+                                // 조용히 0으로 떨어지면 표시가 틀린 것을 알아챌 수 없다.
+                                console.warn('DX3rd | 콤보 채팅 파생값 계산 실패', currentItem?.name, e);
                                 itemData.dice = 0;
                                 itemData.critical = 10;
                                 itemData.add = 0;

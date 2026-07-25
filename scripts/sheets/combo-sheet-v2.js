@@ -46,7 +46,6 @@
       listen('change', 'select[name="system.skill"]', event => this._updateBaseAttribute(event.target.value));
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
       listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
-      listen('blur', '.difficulty-input', event => this._validateDifficulty(event));
       listen('input', 'input[name="system.limit"]', event => this._validateLimit(event));
 
       // 사정거리/대상/난이도 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
@@ -160,15 +159,6 @@
     async _toggleDifficulty(checked) {
       await this.item.update(comboData.getDifficultyToggleUpdate(this.item, checked));
       this.render(false);
-    }
-
-    async _validateDifficulty(event) {
-      const value = event.target.value.trim();
-      if (!value) return;
-      if (comboData.isDifficultyValueValid(this.item, value)) return;
-      event.target.value = '';
-      await this.item.update({'system.difficulty': ''});
-      ui.notifications.warn(comboData.getDifficultyValidationMessage(this.item));
     }
 
     _validateLimit(event) {

@@ -588,34 +588,6 @@
     };
   }
 
-  function isDifficultyValueValid(item, value) {
-    if (!value) return true;
-
-    const rollValue = item.system?.roll || '-';
-    const competitionText = game.i18n.localize('DX3rd.Competition');
-    const referenceText = game.i18n.localize('DX3rd.Reference');
-    const freepassText = game.i18n.localize('DX3rd.Freepass');
-
-    if (rollValue === '-') return value === freepassText || value === '-';
-
-    const numValue = Number(value);
-    return (Number.isInteger(numValue) && numValue >= 1)
-      || value === competitionText
-      || value === referenceText;
-  }
-
-  function getDifficultyValidationMessage(item) {
-    const rollValue = item.system?.roll || '-';
-    const competitionText = game.i18n.localize('DX3rd.Competition');
-    const referenceText = game.i18n.localize('DX3rd.Reference');
-    const freepassText = game.i18n.localize('DX3rd.Freepass');
-
-    if (rollValue === '-') {
-      return `판정이 비활성화된 경우 난이도는 "${freepassText}" 또는 "-"만 입력할 수 있습니다.`;
-    }
-    return `판정이 활성화된 경우 난이도는 1 이상의 정수, "${competitionText}", 또는 "${referenceText}"만 입력할 수 있습니다.`;
-  }
-
   function isLimitValueValid(value) {
     return !value || /^(-|\d+|\d+%)$/.test(value);
   }
@@ -1205,8 +1177,6 @@
     removeRegisteredEffect,
     updateBaseAttributeForSkill,
     getDifficultyToggleUpdate,
-    isDifficultyValueValid,
-    getDifficultyValidationMessage,
     isLimitValueValid
   };
 })();

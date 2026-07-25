@@ -14,8 +14,6 @@
         submitOnChange: true
       },
       actions: {
-        createAttribute: DX3rdActiveItemSheetV2._onCreateAttribute,
-        deleteAttribute: DX3rdActiveItemSheetV2._onDeleteAttribute,
         macroAdd: DX3rdActiveItemSheetV2._onMacroAdd,
         macroDelete: DX3rdActiveItemSheetV2._onMacroDelete,
         editEffect: DX3rdActiveItemSheetV2._onEditEffect,
@@ -48,8 +46,6 @@
       system.macros = itemSheetData.getEmbeddedMacros(this.item);
       context.macroTimings = ['instant', 'afterSuccess', 'afterDamage', 'afterMain', 'onInvoke'];
       context.worldMacros = itemSheetData.getWorldMacroOptions();
-      // 사용 횟수 설정을 즉시 효과 탭 상단에 얹을지. 자체 설정 탭이 있는 타입
-      // (effect 의 action 탭, spell/psionic/combo 의 action 탭)은 그쪽이 담당하므로 중복 노출하지 않는다.
       context.showUsageSettings = ['weapon', 'protect', 'vehicle', 'etc', 'once'].includes(this.item.type);
       context.effectView = effectAdapter.prepareSheetContext(this.item);
       this._effectAddKinds ??= {};
@@ -100,8 +96,6 @@
         const family = event.target.dataset.family;
         if (family) this._effectAddKinds[family] = event.target.value;
       });
-      listen('change', '.modifier-scope-select', event => this._moveModifier(event));
-      listen('change', '.modifier-config-scope', event => this._switchModifierConfig(event));
 
       // 레거시 단일 매크로 필드(system.macro) → 임베드 행(kind:'macro') 1회 이관
       itemSheetData.migrateLegacyMacroField(this.item);
@@ -122,27 +116,6 @@
       if (!id) return;
       await effectAdapter.toggleEffect(this.item, id, event.target.checked);
       this.render(false);
-    }
-
-    async _moveModifier(event) {
-      const row = compat.closest(event.target, '.attribute', this.element);
-      const attributeKey = row?.dataset.attribute;
-      const source = row?.dataset.pos;
-      const target = event.target.value;
-      if (!attributeKey || !source || source === target) return;
-      this._modifierConfigScope = target;
-      event.target.disabled = true;
-      const moved = await effectAdapter.moveModifier(this.item, attributeKey, source, target);
-      if (!moved) event.target.value = source;
-      this.render(false);
-    }
-
-    _switchModifierConfig(event) {
-      const scope = event.target.value;
-      this._modifierConfigScope = scope;
-      compat.queryAll(this.element, '.dx3rd-modifier-config-pane').forEach(pane => {
-        pane.hidden = pane.dataset.scope !== scope;
-      });
     }
 
     _validateFormulaInput(input) {
@@ -238,20 +211,6 @@
       return data;
     }
 
-    static async _onCreateAttribute(event, target) {
-      event.preventDefault();
-      await manager.createAttribute(this.item, target.dataset.pos || 'main');
-      this.render(false);
-    }
-
-    static async _onDeleteAttribute(event, target) {
-      event.preventDefault();
-      const row = compat.closest(target, '.attribute', this.element);
-      const list = compat.closest(target, '.attributes-list', this.element);
-      if (!row?.dataset.attribute) return;
-      await manager.deleteAttribute(this.item, row.dataset.attribute, list?.dataset.pos || 'main');
-      this.render(false);
-    }
   }
   window.DX3rdActiveItemSheetV2 = DX3rdActiveItemSheetV2;
 })();
