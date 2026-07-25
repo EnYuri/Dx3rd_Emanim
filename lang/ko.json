@@ -160,6 +160,8 @@
   "DX3rd.ReduceRoll": "경감 굴림",
   "DX3rd.ReduceRollDice": "피해 경감 추가 d10",
   "DX3rd.Armor": "장갑",
+  "DX3rd.ArmorRoll": "장갑 굴림",
+  "DX3rd.DiceNotRollableField": "{field}: 굴릴 시점이 없는 값이라 다이스 수식을 쓸 수 없습니다. 이대로 저장하면 0으로 처리됩니다.",
   "DX3rd.Init": "행동치",
   "DX3rd.Move": "이동",
   "DX3rd.BattleMove": "전투이동",

@@ -416,23 +416,22 @@
 
             // === Armor 계산 ===
             let armorBonus = 0;
-            
-            // 장착된 프로텍트의 armor 값 추가 (equippedProtects는 상단에서 1회 계산)
-            for (const protect of equippedProtects) {
-                if (protect.system?.armor) {
-                    const armorValue = window.DX3rdFormulaEvaluator.evaluate(protect.system.armor, protect, this);
-                    armorBonus += armorValue;
-                }
-            }
-            
-            // 장착된 비클의 armor 값 추가 (equippedVehicles는 상단에서 1회 계산)
-            for (const vehicle of equippedVehicles) {
-                if (vehicle.system?.armor) {
-                    const armorValue = window.DX3rdFormulaEvaluator.evaluate(vehicle.system.armor, vehicle, this);
-                    armorBonus += armorValue;
-                }
-            }
-            
+            // 장비 고유 필드(protect/vehicle 의 system.armor)에 쓴 다이스식은 어트리뷰트 채널이
+            // 아니라 리더(R)가 보지 못한다. 여기서 따로 모아 valueFormula 에 합류시킨다 —
+            // 그러지 않으면 evaluate()가 0을 돌려줘 입력한 값이 조용히 사라진다.
+            const equipmentArmorFormulas = [];
+            const addEquipmentArmor = (equipment) => {
+                if (!equipment?.system?.armor) return;
+                const F = window.DX3rdFormulaEvaluator;
+                const prepared = F.prepareRollFormula(equipment.system.armor, equipment, this);
+                if (F.hasDice(prepared)) equipmentArmorFormulas.push(`(${prepared})`);
+                else armorBonus += F.evaluate(equipment.system.armor, equipment, this);
+            };
+
+            // 장착된 프로텍트/비클의 armor 값 추가 (equippedProtects/Vehicles는 상단에서 1회 계산)
+            for (const protect of equippedProtects) addEquipmentArmor(protect);
+            for (const vehicle of equippedVehicles) addEquipmentArmor(vehicle);
+
             // 활성 아이템 + applied 의 armor 보너스
             armorBonus += R.sum('armor');
 
@@ -440,6 +439,10 @@
             // 최소값 보정: armor는 최소 0
             if (attrs.armor.value < 0) attrs.armor.value = 0;
             if (attrs.armor.value < attrs.armor.min) attrs.armor.value = attrs.armor.min;
+            // 값 필드에 직접 쓴 다이스식([레벨]d10 등)은 여기서 굴리지 않고 보존한다.
+            // 방어 다이얼로그가 피격 확정 시 한 번 굴려 고정치에 얹는다.
+            attrs.armor.valueFormula = [R.actionDiceFormula('armor')._, ...equipmentArmorFormulas]
+                .filter(Boolean).join(' + ');
 
             // === Guard 계산 ===
             let guardBonus = 0;
@@ -455,6 +458,7 @@
             if (attrs.guard.value < attrs.guard.min) attrs.guard.value = attrs.guard.min;
             attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
+            attrs.guard.valueFormula = R.actionDiceFormula('guard')._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
 
             // === DxRoll 계산(달성치에 +[N]D10) — 판정 시 Nd10 굴려 달성치(add)에 가산 ===
             const dxRoll = R.sum('dxroll');
@@ -470,6 +474,9 @@
             // 최소값 보정: penetrate는 최소 0
             if (attrs.penetrate.value < 0) attrs.penetrate.value = 0;
             if (attrs.penetrate.value < attrs.penetrate.min) attrs.penetrate.value = attrs.penetrate.min;
+            // 관통 다이스식: 명중 판정 시점에 굴려(resolveAttackBonusesRolled) 숫자로 굳힌 뒤
+            // 데미지 창·방어 창까지 그 숫자로 넘어간다. 방어 측에서 다시 굴리지 않는다.
+            attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;
 
             // === Reduce 계산 ===
             const reduceBonus = R.sum('reduce');
@@ -481,6 +488,7 @@
             if (attrs.reduce.value < attrs.reduce.min) attrs.reduce.value = attrs.reduce.min;
             attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
+            attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;   // 경감치 필드에 쓴 다이스식(방어 확정 시 굴림)
 
             // 이니셔티브 계산 (sense.total * 2 + mind.total + 아이템/적용 효과 보너스)
             let initBonus = 0;
@@ -1243,14 +1251,8 @@
          */
         _indexAppliedEffects(appliedEffects) {
             const byKey = {};
-            const actionFormulaKeys = new Set([
-                'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
-                'dice', 'add', 'critical',
-                'major_dice', 'major_add', 'major_critical',
-                'reaction_dice', 'reaction_add', 'reaction_critical',
-                'dodge_dice', 'dodge_add', 'dodge_critical',
-                'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
-            ]);
+            // 행동/방어 시점 굴림 키는 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
+            const isRollTimeKey = (key) => window.DX3rdFormulaEvaluator.isRollTimeKey(key);
             for (const eff of Object.values(appliedEffects || {})) {
                 if (!eff || !eff.attributes) continue;
                 if (eff._disabled) continue; // 비활성화(disabled) 토글된 applied 효과는 계산 제외
@@ -1261,7 +1263,7 @@
                     const label = isObj ? attrValue.label : null;
                     const raw = (isObj && 'value' in attrValue) ? attrValue.value : attrValue;
                     const val = (typeof raw === 'boolean') ? 0
-                              : (actionFormulaKeys.has(key) && window.DX3rdFormulaEvaluator.hasDice(String(raw ?? '')))
+                              : (isRollTimeKey(key) && window.DX3rdFormulaEvaluator.hasDice(String(raw ?? '')))
                                 ? raw
                                 : window.DX3rdFormulaEvaluator.evaluate(raw);
                     (byKey[key] = byKey[key] || []).push({ label, val });
@@ -1677,17 +1679,22 @@
                 attrs.armor.base = attrs.armor.value || 0;
             }
             attrs.armor.value = Math.max(0, (attrs.armor.base || 0) + armorBonus);
+            // 값 필드에 직접 쓴 다이스식은 굴리지 않고 보존 → 방어 다이얼로그가 확정 시 한 번 굴린다.
+            attrs.armor.valueFormula = R.actionDiceFormula('armor')._;
             attrs.guard.value = Math.max(0, guardBonus);
             attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
+            attrs.guard.valueFormula = R.actionDiceFormula('guard')._;
             if (!attrs.dxroll) attrs.dxroll = { value: 0 };
             attrs.dxroll.value = Math.max(0, dxRoll);    // (하위호환 잔존) 순수 개수 합
             attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
             attrs.penetrate.value = Math.max(0, penetrateBonus);
+            attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;   // 명중 판정 시점에 굴림
             attrs.reduce.value = Math.max(0, reduceBonus);
             attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
+            attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;
 
             // === 회피치 계산 (base + 보정치) ===
             // 닷지 달성치 보정치 (dodge_add 또는 dodge_achievement) — 활성 아이템 + applied 단일 경로

@@ -46,7 +46,8 @@
         const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
         // 공격 타입/액터 보너스 산출 (데미지 굴림 시점과 동일 경로)
-        const bonuses = this.resolveAttackBonuses(actor, item);
+        // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다(방어 창은 그 숫자만 받는다).
+        const bonuses = await this.resolveAttackBonusesRolled(actor, item);
 
         const preservedValues = {
           actorAttack: bonuses.actorAttack,
@@ -1143,7 +1144,8 @@
         
         if (isAttackRoll) {
           // 맨손 보너스는 weapon-for-attack으로 고른 무기 이름 기준으로 판정한다.
-          const bonuses = this.resolveAttackBonuses(actor, item, {
+          // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다.
+          const bonuses = await this.resolveAttackBonusesRolled(actor, item, {
             attackType: item.system.attackRoll,
             fistWeaponName: weaponBonus?.weaponName || ''
           });
@@ -1163,8 +1165,10 @@
         // [육체]/[백병]/[레벨] 참조는 prepareData 단계에서 이미 현재 액터 값으로 치환되어 있다.
         const actionProfile = actor.system.attributes.actionRollFormula || {};
         const typedProfile = actionProfile[rollType] || {};
+        const buildActionFormula = (kind) =>
+          [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
         const rollActionFormula = async (kind) => {
-          const formula = [actionProfile[kind], typedProfile[kind], statRollFormula?.[kind]].filter(Boolean).join(' + ');
+          const formula = buildActionFormula(kind);
           if (!formula) return { total: 0, text: '' };
           try {
             const result = await (new Roll(formula)).evaluate();
@@ -1175,11 +1179,13 @@
             return { total: 0, text: `${kind}: ${formula} → 0` };
           }
         };
-        const [formulaDice, formulaAdd, formulaCritical] = await Promise.all([
-          rollActionFormula('dice'), rollActionFormula('add'), rollActionFormula('critical')
+        // 다이스 개수/크리티컬만 미리 굴린다(판정식 조립에 값이 필요). 수정치(add) 다이스식은
+        // 굴리지 않고 아래 판정 롤의 항으로 실어 카드에 "10dx7 + 10d10"으로 노출한다.
+        const [formulaDice, formulaCritical] = await Promise.all([
+          rollActionFormula('dice'), rollActionFormula('critical')
         ]);
+        const addDiceFormula = this.validateRollTerm(buildActionFormula('add'), 'add');
         dice += formulaDice.total;
-        add += formulaAdd.total;
         critical = Math.max(2, critical + formulaCritical.total);
         // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
         // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
@@ -1189,25 +1195,15 @@
         // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
         const autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
-        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 시 Nd10 굴려 달성치(add)에 가산하고 채팅 공개.
-        let add2 = add;
+        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 롤에 항으로 실어 카드에서 함께 공개한다.
+        const add2 = add;
         const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        const dxRollFormula = actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : '');
-        if (dxRollFormula) {
-          try {
-            const dr = await (new Roll(dxRollFormula)).evaluate();
-            add2 += Number(dr.total) || 0;
-            await dr.toMessage({
-              speaker: ChatMessage.getSpeaker({ actor }),
-              flavor: `${game.i18n.localize('DX3rd.DxRoll')} (${dxRollFormula}) → +${dr.total}`
-            });
-          } catch (e) { console.warn('DX3rd | dxroll failed', e); }
-        }
+        const dxRollFormula = this.validateRollTerm(
+          actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : ''), 'dxroll');
         // 콤보/이펙트 공격도 무기에서 넘겨 받은 다이스 명중 수정치를 동일한 판정 롤에 보존한다.
         const weaponAddFormula = weaponBonus?.addFormula;
-        const rollFormula = weaponAddFormula
-          ? `${finalDice}dx${critical} + ${add2} + ${weaponAddFormula}`
-          : `${finalDice}dx${critical} + ${add2}`;
+        const rollFormula = [`${finalDice}dx${critical}`, String(add2),
+          addDiceFormula, dxRollFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 

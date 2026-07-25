@@ -2943,6 +2943,15 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     transform: translate(-50%, 0) !important; /* 가로 중앙 정렬, 상단 기준 */
 }
 
+/* 방어 다이얼로그: 확정 시 굴릴 보류 다이스식 표시(빈 값이면 자리를 차지하지 않는다) */
+.defense-dialog .dx3rd-formula-preview {
+    font-size: 12px;
+    opacity: 0.85;
+}
+.defense-dialog .dx3rd-formula-preview:empty {
+    display: none;
+}
+
 /* 충동 판정 다이얼로그 / 장면 등장 전용 다이얼로그 스타일 */
 #dx3rd-urge-dialog,
 #dx3rd-scene-enter-dialog {

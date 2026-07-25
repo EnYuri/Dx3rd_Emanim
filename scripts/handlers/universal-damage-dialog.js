@@ -33,7 +33,9 @@
         weaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
         // 공격 타입/액터 보너스 산출 (명중 판정 시점과 동일 경로)
-        const bonuses = this.resolveAttackBonuses(actor, item);
+        // 명중 판정을 거치지 않고 바로 데미지를 굴리는 경로다. 관통 다이스식은
+        // 여기가 가장 이른 확정 시점이므로 여기서 굴려 숫자로 굳힌다.
+        const bonuses = await this.resolveAttackBonusesRolled(actor, item);
         actorAttack = bonuses.actorAttack;
         actorAttackFormula = bonuses.actorAttackFormula;
         actorDamageRoll = bonuses.actorDamageRoll;
@@ -606,29 +608,83 @@
       }
       
       // 방어 다이얼로그 데이터 준비
+      // 무기 가드치는 아이템 고유 필드(system.guard)라 어트리뷰트 채널을 안 탄다.
+      // 예전에는 템플릿 값을 그대로 parseInt 해서 "2d10"이면 2로 잘리고 "[레벨]"은 0이 됐다.
+      // 여기서 고정치와 다이스식으로 갈라 두고, 다이스는 확인 시 가드 굴림에 합류시킨다.
+      const F = window.DX3rdFormulaEvaluator;
       const weaponList = targetActor.items.filter(item => item.type === 'weapon')
-        .sort((a, b) => {
-          const guardA = a.system.guard || 0;
-          const guardB = b.system.guard || 0;
-          if (guardA !== guardB) {
-            return guardB - guardA; // 가드치 높은 순
-          }
-          return 0; // 가드치가 같으면 원래 순서 유지
-        });
+        .map(weapon => {
+          const raw = weapon.system.guard;
+          const prepared = F.prepareRollFormula(raw, weapon, targetActor);
+          const isDice = F.hasDice(prepared);
+          const guardFixed = isDice ? 0 : (Number(F.evaluate(raw, weapon, targetActor)) || 0);
+          return {
+            id: weapon.id,
+            name: weapon.name,
+            guardFixed,
+            guardFormula: isDice ? prepared : '',
+            guardLabel: isDice ? prepared : String(guardFixed)
+          };
+        })
+        // 가드치 높은 순(같으면 원래 순서 유지). 다이스식은 고정치가 0이라 뒤로 간다.
+        .sort((a, b) => b.guardFixed - a.guardFixed);
       const guard = targetActor.system.attributes.guard?.value || 0;
-      // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
-      const guardRollN = Number(targetActor.system.attributes.guard?.roll || 0);
-      const guardRollFormula = targetActor.system.attributes.guard?.rollFormula || (guardRollN > 0 ? `${guardRollN}d10` : '');
       const armor = targetActor.system.attributes.armor?.value || 0;
       const reduce = targetActor.system.attributes.reduce?.value || 0;
-      const reduceRollN = Number(targetActor.system.attributes.reduce?.roll || 0);
-      const reduceRollFormula = targetActor.system.attributes.reduce?.rollFormula || (reduceRollN > 0 ? `${reduceRollN}d10` : '');
+      // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
+      // 굴림 필드(guard_roll/reduce_roll)와 값 필드에 직접 쓴 다이스식(valueFormula)은
+      // 굴리는 시점이 같으므로 하나의 수식으로 합쳐 표시·굴림 채널을 단일화한다.
+      const deferredDefenseFormula = (attrKey) => {
+        const attr = targetActor.system.attributes[attrKey] || {};
+        const countN = Number(attr.roll || 0);
+        const fromRollField = attr.rollFormula || (countN > 0 ? `${countN}d10` : '');
+        return [fromRollField, attr.valueFormula].filter(Boolean).join(' + ');
+      };
+      let guardRollFormula = deferredDefenseFormula('guard');
+      let armorRollFormula = deferredDefenseFormula('armor');
+      let reduceRollFormula = deferredDefenseFormula('reduce');
       const currentHP = targetActor.system.attributes.hp?.value || 0;
       const maxHP = targetActor.system.attributes.hp?.max || 0;
-      
+
+      /**
+       * 체크된 무기들의 가드치를 고정분/다이스식으로 갈라 읽는다.
+       * 실시간 표시(root)와 확정 계산(form)이 같은 규칙을 쓰게 한 곳에 둔다.
+       * @param {Element} scope - 조회 기준 요소
+       * @returns {{fixed: number, formula: string}}
+       */
+      const readCheckedWeaponGuard = (scope) => {
+        let fixed = 0;
+        const formulas = [];
+        for (const checkbox of (scope?.querySelectorAll('.weapon-checkbox:checked') || [])) {
+          fixed += parseInt(checkbox.dataset.guard) || 0;
+          if (checkbox.dataset.guardFormula) formulas.push(`(${checkbox.dataset.guardFormula})`);
+        }
+        return {fixed, formula: formulas.join(' + ')};
+      };
+
+      /**
+       * 방어 계산 단일 정의. 실시간 표시와 확정 계산이 같은 식을 쓰도록 한 곳에 둔다.
+       * (확정 시 굴리는 다이스를 표시값에서 단순히 빼면 커버링 배수·가드 선언·장갑 관통
+       *  클램프를 통과하지 못해 실제 룰과 어긋난다.)
+       */
+      const calcDefenseDamage = ({ guard: guardValue, weaponGuard = 0, guardChecked = true,
+                                   armor: armorValue, reduce: reduceValue,
+                                   covering = 0, reactionSuccess = false }) => {
+        if (reactionSuccess) return 0;
+        const effectiveGuard = guardChecked ? (guardValue + weaponGuard) : 0;
+        // 장갑무시 적용: 장갑치는 음수가 될 수 없음
+        const effectiveArmor = Math.max(0, armorValue - penetrate);
+        if (covering > 0) {
+          // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
+          const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
+          return Math.max(0, (intermediateDamage * (covering + 1)) - reduceValue);
+        }
+        // 일반 상황: 데미지 - 가드 - 장갑 - 경감
+        return Math.max(0, damage - effectiveGuard - effectiveArmor - reduceValue);
+      };
+
       // 실제 데미지 계산 (초기값) - 일반 상황 기준
-      const effectiveArmor = Math.max(0, armor - penetrate);
-      const realDamage = Math.max(0, damage - guard - effectiveArmor - reduce);
+      const realDamage = calcDefenseDamage({ guard, armor, reduce });
       const attackResultValue = Number(attackResult) || 0;
       const reactionItems = attackResultValue > 0
         ? await this.getDefenseReactionItems(targetActor)
@@ -646,6 +702,7 @@
         guardCheck: '',
         weaponList: weaponList,
         armor: armor,
+        armorRollFormula,
         penetrate: penetrate,
         reduce: reduce,
         reduceRollFormula,
@@ -676,42 +733,60 @@
             default: true,
             callback: async (event, button) => {
               const form = button.form;
-              const displayedDamage = parseInt(form?.querySelector('#realDamage')?.textContent) || 0;
-              let guardRoll = null;
-              let reduceRoll = null;
-              let dynamicDefense = 0;
-              try {
-                if (guardRollFormula) {
-                  guardRoll = await (new Roll(guardRollFormula)).evaluate();
-                  dynamicDefense += Number(guardRoll.total) || 0;
+              const num = (selector) => parseInt(form?.querySelector(selector)?.value) || 0;
+              // 확정 시점에 보류된 다이스식을 각각 한 번씩 굴린다.
+              const rollDeferred = async (formula, kind) => {
+                if (!formula) return null;
+                try {
+                  return await (new Roll(formula)).evaluate();
+                } catch (error) {
+                  console.warn(`DX3rd | Deferred defense roll failed (${kind}): ${formula}`, error);
+                  return null;
                 }
-                if (reduceRollFormula) {
-                  reduceRoll = await (new Roll(reduceRollFormula)).evaluate();
-                  dynamicDefense += Number(reduceRoll.total) || 0;
-                }
-              } catch (error) {
-                console.warn('DX3rd | Deferred defense roll failed', error);
-              }
-              const finalDamage = Math.max(0, displayedDamage - dynamicDefense);
+              };
+              const guardChecked = form?.querySelector('#guard-check')?.checked || false;
+              const reactionSuccess = form?.querySelector('#reaction-success')?.checked || false;
+              // 선택한 무기의 가드 다이스식도 같은 가드 굴림에 합류시킨다.
+              const weaponGuard = readCheckedWeaponGuard(form);
+              const guardFormula = [guardRollFormula, weaponGuard.formula].filter(Boolean).join(' + ');
+              // 결과에 쓰이지 않을 굴림은 아예 하지 않는다 — 굴리면 채팅에 "가드 굴림 +9" 같은
+              // 줄이 남아 실제로 깎이지 않은 값이 깎인 것처럼 보인다.
+              const [guardRoll, armorRoll, reduceRoll] = reactionSuccess ? [null, null, null] : [
+                await rollDeferred(guardChecked ? guardFormula : '', 'guard'),
+                await rollDeferred(armorRollFormula, 'armor'),
+                await rollDeferred(reduceRollFormula, 'reduce')
+              ];
+              // 굴린 값은 각 항에 얹어 방어식을 다시 계산한다(가드 선언/장갑 관통/커버링 배수 반영).
+              const coveringValue = num('#covering');
+              const finalDamage = calcDefenseDamage({
+                guard: num('#guard') + (Number(guardRoll?.total) || 0),
+                weaponGuard: weaponGuard.fixed,
+                guardChecked,
+                armor: num('#armor') + (Number(armorRoll?.total) || 0),
+                reduce: num('#reduce') + (Number(reduceRoll?.total) || 0),
+                covering: coveringValue,
+                reactionSuccess
+              });
               const newHP = Math.max(0, currentHP - finalDamage);
               const hpChange = currentHP - newHP; // 실제 HP 변동량
-              
+
               await targetActor.update({
                 'system.attributes.hp.value': newHP
               });
-              
-              // 커버링 정보 확인
-              const coveringValue = parseInt(form?.querySelector('#covering')?.value) || 0;
+
               let chatMessage = `HP-${hpChange}`;
-              
+
               if (coveringValue > 0) {
                 chatMessage += ` (${game.i18n.localize('DX3rd.Covering')}: ${coveringValue})`;
               }
-              
+
               // 채팅 메시지 출력 (스피커는 대상 액터)
-              const guardRollHTML = guardRoll ? await guardRoll.render() : '';
-              const reduceRollHTML = reduceRoll ? await reduceRoll.render() : '';
-              const defenseRollContent = `${guardRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.GuardRoll')}: ${guardRollFormula} → +${guardRoll.total}</div>${guardRollHTML}</div>` : ''}${reduceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.ReduceRoll')}: ${reduceRollFormula} → +${reduceRoll.total}</div>${reduceRollHTML}</div>` : ''}`;
+              const rollDetail = async (roll, formula, labelKey) => roll
+                ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize(labelKey)}: ${formula} → +${roll.total}</div>${await roll.render()}</div>`
+                : '';
+              const defenseRollContent = (await rollDetail(guardRoll, guardFormula, 'DX3rd.GuardRoll'))
+                + (await rollDetail(armorRoll, armorRollFormula, 'DX3rd.ArmorRoll'))
+                + (await rollDetail(reduceRoll, reduceRollFormula, 'DX3rd.ReduceRoll'));
               await ChatMessage.create({
                 speaker: ChatMessage.getSpeaker({ actor: targetActor }),
                 content: `<div class="dx3rd-item-chat"><div>${chatMessage}</div>${defenseRollContent}</div>`,
@@ -1227,6 +1302,19 @@
       }
 
       const getNumberValue = (selector) => parseInt(root.querySelector(selector)?.value) || 0;
+      // 보류 다이스식을 액터에서 다시 읽어 변수와 표시를 동기화한다(방어 중 효과 발동 대응).
+      const refreshDeferredFormulas = () => {
+        guardRollFormula = deferredDefenseFormula('guard');
+        armorRollFormula = deferredDefenseFormula('armor');
+        reduceRollFormula = deferredDefenseFormula('reduce');
+        const setPreview = (selector, formula) => {
+          const el = root.querySelector(selector);
+          if (el) el.textContent = formula ? `+ ${formula}` : '';
+        };
+        setPreview('#guard-formula-preview', guardRollFormula);
+        setPreview('#armor-formula-preview', armorRollFormula);
+        setPreview('#reduce-formula-preview', reduceRollFormula);
+      };
       const getReactionSuccess = () => root.querySelector('#reaction-success')?.checked || false;
       const updateReactionStatus = (success) => {
         const status = root.querySelector('#reaction-status');
@@ -1250,46 +1338,25 @@
         updateDamage();
       };
       const updateWeaponGuard = () => {
-        let weaponGuard = 0;
-        root.querySelectorAll('.weapon-checkbox:checked').forEach(checkbox => {
-          weaponGuard += parseInt(checkbox.dataset.guard) || 0;
-        });
+        const {fixed, formula} = readCheckedWeaponGuard(root);
         const totalGuard = root.querySelector('#total-guard');
-        if (totalGuard) totalGuard.textContent = String(weaponGuard);
-        return weaponGuard;
+        if (totalGuard) totalGuard.textContent = formula ? `${fixed} + ${formula}` : String(fixed);
+        return fixed;
       };
 
       // 실시간 데미지 계산 업데이트
       const updateDamage = () => {
-        const actorGuardValue = getNumberValue('#guard');
-        const guardChecked = root.querySelector('#guard-check')?.checked || false;
-        const armorValue = getNumberValue('#armor');
-        const reduceValue = getNumberValue('#reduce');
-        const coveringValue = getNumberValue('#covering');
-
-        // 무기 가드값 합산
-        const weaponGuardTotal = updateWeaponGuard();
-
-        // 총 가드값 = 액터 가드 + 무기 가드
-        const totalGuardValue = actorGuardValue + weaponGuardTotal;
-        const effectiveGuard = guardChecked ? totalGuardValue : 0;
-
-        // 장갑무시 적용: 장갑치는 음수가 될 수 없음
-        const effectiveArmor = Math.max(0, armorValue - penetrate);
-
-        let calculatedDamage;
-
-        if (getReactionSuccess()) {
-          calculatedDamage = 0;
-        } else if (coveringValue > 0) {
-          // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
-          const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
-          const multiplier = coveringValue + 1; // 1이면 2배, 2면 3배
-          calculatedDamage = Math.max(0, (intermediateDamage * multiplier) - reduceValue);
-        } else {
-          // 일반 상황: 데미지 - 가드 - 장갑 - 경감
-          calculatedDamage = Math.max(0, damage - effectiveGuard - effectiveArmor - reduceValue);
-        }
+        // 보류된 다이스식(가드/장갑/경감)은 여기서 굴리지 않는다 — 확인 버튼에서 한 번만 굴려
+        // 같은 calcDefenseDamage 로 최종 계산한다. 그래서 표시값은 고정치 기준이다.
+        const calculatedDamage = calcDefenseDamage({
+          guard: getNumberValue('#guard'),
+          weaponGuard: updateWeaponGuard(),
+          guardChecked: root.querySelector('#guard-check')?.checked || false,
+          armor: getNumberValue('#armor'),
+          reduce: getNumberValue('#reduce'),
+          covering: getNumberValue('#covering'),
+          reactionSuccess: getReactionSuccess()
+        });
 
         const realDamageElement = root.querySelector('#realDamage');
         if (realDamageElement) realDamageElement.textContent = String(calculatedDamage);
@@ -1400,6 +1467,9 @@
             if (armorInput) armorInput.value = targetActor.system.attributes.armor?.value || 0;
             const reduceInput = root.querySelector('#reduce');
             if (reduceInput) reduceInput.value = targetActor.system.attributes.reduce?.value || 0;
+            // 방어 중 발동한 효과가 다이스식 보정을 걸었을 수 있다. 고정치뿐 아니라
+            // 확정 시 굴릴 보류 수식도 다시 읽어야 그 효과가 실제로 반영된다.
+            refreshDeferredFormulas();
             updateDamage();
           }
         });

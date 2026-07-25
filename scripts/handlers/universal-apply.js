@@ -12,6 +12,21 @@
 
   Object.assign(window.DX3rdUniversalHandler, {
     /**
+     * 실제로 적용할 값이 하나라도 있는 어트리뷰트 맵인지.
+     * 시트는 사용자가 추가한 빈 행(key '-' / 값 공백)을 그대로 저장하므로,
+     * "행이 있다"는 것만으로는 걸 게 있다는 뜻이 아니다. 이 구분을 하지 않으면
+     * 자기 버프뿐인 이펙트(대상 탭이 비어 있음)를 콤보로 대상에게 써도
+     * 보정이 하나도 없는 빈 AE(더미)가 대상에게 씌워진다.
+     * @param {Object} attributes - system.effect.attributes 또는 system.attributes
+     * @returns {boolean}
+     */
+    hasUsableAttribute(attributes) {
+      return Object.values(attributes || {}).some(attribute =>
+        attribute?.key && attribute.key !== '-' && String(attribute.value ?? '').trim() !== ''
+      );
+    },
+
+    /**
      * Apply item effects to targeted actors if conditions are met.
      * Conditions: system.getTarget is true AND system.effect.disable !== 'notCheck'
      * @param {Actor} actor - The actor using the item
@@ -44,8 +59,14 @@
           return;
         }
 
-        // 대상 탭의 어트리뷰트 가져오기 (비어있어도 계속 진행)
+        // 대상 탭의 어트리뷰트. 걸 값이 하나도 없으면 여기서 끝낸다 —
+        // 자기 버프만 있는 이펙트(대상 탭 비어 있음)를 콤보로 대상에게 사용해도
+        // 빈 AE가 대상에게 붙지 않도록 한다.
         const targetAttributes = item.system.effect?.attributes || {};
+        if (!this.hasUsableAttribute(targetAttributes)) {
+          window.DX3rdDebug.log('DX3rd | applyToTargets skipped (no usable target attribute):', item.name);
+          return;
+        }
 
         let targetActors = [];
         
@@ -197,16 +218,9 @@
 
         // 피해·방어·판정 시점 굴림 필드는 대상 효과(AE)로 옮겨도 원 수식을 보존한다.
         // prepareData에서 수치 0으로 동결하면 안 되며, 각 소비부가 실제 행동 시 Roll로 한 번 굴린다.
-        const actionRollKeys = new Set([
-          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
-          'dice', 'add', 'critical',
-          'major_dice', 'major_add', 'major_critical',
-          'reaction_dice', 'reaction_add', 'reaction_critical',
-          'dodge_dice', 'dodge_add', 'dodge_critical',
-          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
-        ]);
+        // 키 목록은 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
         const prepared = window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, item, item.actor);
-        const evaluated = actionRollKeys.has(key) && window.DX3rdFormulaEvaluator.hasDice(prepared)
+        const evaluated = window.DX3rdFormulaEvaluator.isRollTimeKey(key) && window.DX3rdFormulaEvaluator.hasDice(prepared)
           ? prepared
           : window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, item.actor);
         // 동일 key 의 서로 다른 label(fist/melee/ranged, 스킬별 stat_*)이 덮어쓰지 않도록 저장 키를 key:label 조합으로 사용
@@ -216,6 +230,15 @@
           label: rawLabel,
           value: evaluated
         };
+      }
+
+      // 소켓으로 받은 페이로드까지 포함해, 실제 보정이 하나도 남지 않았으면 AE를 만들지 않는다.
+      // 단 같은 아이템의 AE가 이미 걸려 있었다면 지운다 — 예전에는 빈 AE로 덮어써서
+      // 무효화됐으므로, 그냥 return 하면 옛 보정이 남는 것으로 동작이 바뀐다.
+      if (Object.keys(appliedEffect.attributes).length === 0) {
+        window.DX3rdDebug.log('DX3rd | _applyItemAttributes skipped (nothing to apply):', item.name, '→', targetActor.name);
+        if (existingEff) await window.DX3rdAppliedEffects.remove(targetActor, appliedKey);
+        return;
       }
 
       // 효과 추가 (네이티브 ActiveEffect 로 저장)
@@ -291,13 +314,10 @@
         return false;
       }
 
-      const hasUsableAttribute = attributes => Object.values(attributes || {}).some(attribute =>
-        attribute?.key && attribute.key !== '-' && String(attribute.value ?? '').trim() !== ''
-      );
       const targetAttributes = item.system?.effect?.attributes || {};
       const selfAttributes = item.system?.attributes || {};
-      const hasTargetEffect = hasUsableAttribute(targetAttributes);
-      const hasSelfEffect = hasUsableAttribute(selfAttributes);
+      const hasTargetEffect = this.hasUsableAttribute(targetAttributes);
+      const hasSelfEffect = this.hasUsableAttribute(selfAttributes);
       const includesSelf = targets.some(target => target.actor?.id === actor.id);
 
       if (!hasTargetEffect && !hasSelfEffect) {
@@ -350,8 +370,9 @@
         
         // 효과 데이터 확인
         const targetAttributes = itemData.effect?.attributes || {};
-        
-        if (!targetAttributes || Object.keys(targetAttributes).length === 0) {
+
+        // 빈 행만 있는 경우도 "걸 게 없음"으로 본다(빈 AE 방지).
+        if (!this.hasUsableAttribute(targetAttributes)) {
           return;
         }
 
@@ -395,11 +416,11 @@
       let appliedKey = `applied_${itemData.id || itemData.name}_${Date.now()}`;
 
       // 기존 AE 확인 (같은 아이템 ID면 키 유지하고 덮어쓰기)
-      if (itemData.id) {
-        const existingEff = targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === itemData.id);
-        if (existingEff) {
-          appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
-        }
+      const existingEff = itemData.id
+        ? targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === itemData.id)
+        : null;
+      if (existingEff) {
+        appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
       }
 
       // 출처 아이템의 디스크립션 추출 (itemData: 채팅/카드 등에서 온 경우)
@@ -430,18 +451,12 @@
         if (!attributeName || attributeName === '-') continue;
 
         // 채팅 카드 등의 직렬화 경로도 발동형 롤 수식은 숫자로 동결하지 않는다.
-        const actionRollKeys = new Set([
-          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
-          'dice', 'add', 'critical',
-          'major_dice', 'major_add', 'major_critical',
-          'reaction_dice', 'reaction_add', 'reaction_critical',
-          'dodge_dice', 'dodge_add', 'dodge_critical',
-          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
-        ]);
+        // 키 목록은 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
         const prepared = window.DX3rdFormulaEvaluator?.prepareRollFormula
           ? window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, null, actor)
           : String(attrData.value ?? '0');
-        const evaluated = actionRollKeys.has(attrData.key) && window.DX3rdFormulaEvaluator?.hasDice?.(prepared)
+        const evaluated = window.DX3rdFormulaEvaluator?.isRollTimeKey?.(attrData.key)
+          && window.DX3rdFormulaEvaluator?.hasDice?.(prepared)
           ? prepared
           : (window.DX3rdFormulaEvaluator?.evaluate
             ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, null, actor)
@@ -453,6 +468,14 @@
           label: attributeName,
           value: evaluated
         };
+      }
+
+      // 실제 보정이 하나도 남지 않았으면 AE를 만들지 않는다(빈 더미 AE 방지).
+      // 이미 걸려 있던 같은 아이템의 AE는 지운다(빈 AE로 덮어쓰던 기존 무효화 동작 유지).
+      if (Object.keys(appliedEffect.attributes).length === 0) {
+        window.DX3rdDebug.log('DX3rd | _applyEffectDataToActor skipped (nothing to apply):', itemData.name, '→', targetActor.name);
+        if (existingEff) await window.DX3rdAppliedEffects.remove(targetActor, appliedKey);
+        return;
       }
 
       // 효과 추가 (네이티브 ActiveEffect 로 저장)

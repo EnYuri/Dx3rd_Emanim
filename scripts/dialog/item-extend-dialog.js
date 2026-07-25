@@ -218,6 +218,10 @@
                 else this._saveCurrentTab();
             }, {signal: this._listeners.signal});
 
+            // 보정 값 칸: 타이핑 중에도 검증 상태를 갱신한다(굴릴 시점이 없는 필드에 다이스식 경고).
+            this._on(root, 'input.attribute-value', 'input', (event, target) => this._validateModifierValue(target));
+            this._refreshModifierValidation();
+
             this._on(root, '[data-action="createModifierAttribute"]', 'click', async (event, target) => {
                 event.preventDefault();
                 const item = this._resolveItem();
@@ -327,7 +331,29 @@
             if (input.classList.contains('attribute-key')) {
                 const row = input.closest('.attribute');
                 await attributeManager?.updateAttributeLabel?.(row, item, row?.dataset.pos || 'main');
+                // 키가 바뀌면 같은 행의 값이 여전히 유효한지 다시 본다
+                // (예: reduce → hp 로 바꾸면 그 자리의 다이스식은 이제 0으로 흡수된다).
+                this._validateModifierValue(this._query('.attribute-value', row));
             }
+            if (input.classList.contains('attribute-value')) this._validateModifierValue(input);
+        }
+
+        /**
+         * 보정 값 칸 하나를 검증해 입력칸에 상태를 남긴다.
+         * 저장 자체는 막지 않는다 — 다이스식은 문법상 정상이고, 다만 굴릴 시점이 없는
+         * 필드에서는 0으로 흡수된다는 사실을 눈에 보이게 하는 것이 목적이다.
+         */
+        _validateModifierValue(input) {
+            if (!input) return;
+            const key = this._query('.attribute-key', input.closest('.attribute'))?.value;
+            const result = window.DX3rdFormulaEvaluator.validateDeterministicFormula(input.value, key);
+            window.DX3rdFormulaEvaluator.setInputValidationState(input, result);
+        }
+
+        /** 렌더 직후 보정 행 전체를 한 번 검증한다. */
+        _refreshModifierValidation() {
+            // 헤더에도 같은 클래스의 <span> 이 있으므로 입력 칸으로 한정한다.
+            this._queryAll('input.attribute-value').forEach(input => this._validateModifierValue(input));
         }
 
         get _root() {

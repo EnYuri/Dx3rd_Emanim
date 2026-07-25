@@ -33,10 +33,51 @@
          * 저장 단계 검증. 다이스 수식은 Foundry Roll 문법의 정상적인 일부이므로
          * 여기서는 변환하거나 거부하지 않는다. 실제 굴림은 evaluateRoll()을 호출한
          * 행동 경로에서만 일어난다.
+         *
+         * 다만 굴릴 시점이 없는 필드(HP·행동치 등 시트에 상시 표시되는 파생치)는
+         * prepareData 가 다이스식을 0으로 흡수한다. 예전에는 그게 아무 표시 없이
+         * 일어나서 "분명 적었는데 아무 일도 안 일어난다"로 보였다. 저장은 그대로
+         * 허용하되(입력 자체를 막지는 않는다) 그 사실만 입력칸에 남긴다.
+         * @see ROLL_TIME_KEYS
          */
         validateDeterministicFormula: function(formula, attributeKey = null) {
             if (formula === null || formula === undefined || formula === '') return { valid: true };
+            if (attributeKey && attributeKey !== '-' && !this.isRollTimeKey(attributeKey)
+                && this.hasDice(String(formula))) {
+                const fieldName = window.DX3rdAttributeLocalizer?.localize?.(attributeKey) ?? attributeKey;
+                return {
+                    valid: false,
+                    message: this.getValidationMessage('DX3rd.DiceNotRollableField', { field: fieldName })
+                };
+            }
             return { valid: true };
+        },
+
+        /**
+         * "행동 시점에 굴리는" 어트리뷰트 키 목록 — 다이스식을 숫자로 동결하지 않고 원문으로 보존한다.
+         * 여기 없는 키는 시트에 상시 표시되는 결정론적 파생치(hp/init/이동력 등)라서
+         * 다이스식을 넣어도 prepareData가 0으로 흡수한다(액터 갱신마다 값이 흔들리면 안 되므로).
+         *
+         * 이 목록은 actor.js(_indexAppliedEffects) / universal-apply.js / dx3rd-applied-toggle.js가
+         * 각자 복제해 갖고 있었고, 한 곳만 고치면 채널마다 동작이 갈렸다(reduce/guard/armor 누락 사고).
+         * 반드시 이 상수 한 곳만 수정할 것.
+         */
+        ROLL_TIME_KEYS: new Set([
+            'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+            // 방어 시점(방어 다이얼로그)에 굴리는 값 필드
+            'guard', 'armor', 'reduce',
+            // 관통은 공격자 값이라 명중 판정 시점에 굴려 숫자로 굳혀 방어 창까지 넘긴다
+            'penetrate',
+            'dice', 'add', 'critical',
+            'major_dice', 'major_add', 'major_critical',
+            'reaction_dice', 'reaction_add', 'reaction_critical',
+            'dodge_dice', 'dodge_add', 'dodge_critical',
+            'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
+        ]),
+
+        /** key 가 행동 시점 굴림 대상인지. @see ROLL_TIME_KEYS */
+        isRollTimeKey: function(key) {
+            return this.ROLL_TIME_KEYS.has(key);
         },
 
         hasDice: function(formula) {

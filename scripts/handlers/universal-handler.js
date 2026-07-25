@@ -2144,7 +2144,8 @@ window.DX3rdUniversalHandler.resolveAttackType = function(item) {
  * @param {string} [options.fistWeaponName] 맨손 보너스를 아이템이 아닌 이 무기 이름으로 판정한다.
  *                                          이펙트/콤보가 weapon-for-attack으로 무기를 고른 경우 사용.
  * @returns {{attackType: string|null, actorAttack: number, actorAttackFormula: string,
- *            actorDamageRoll: number, actorDamageRollFormula: string, actorPenetrate: number}}
+ *            actorDamageRoll: number, actorDamageRollFormula: string,
+ *            actorPenetrate: number, actorPenetrateFormula: string}}
  */
 window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, options = {}) {
   const attackType = options.attackType ?? this.resolveAttackType(item);
@@ -2189,8 +2190,31 @@ window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, option
     actorAttackFormula,
     actorDamageRoll,
     actorDamageRollFormula,
-    actorPenetrate: attrs.penetrate?.value || 0
+    actorPenetrate: attrs.penetrate?.value || 0,
+    // 관통 다이스식(굴리지 않은 원문). 숫자로 굳히려면 resolveAttackBonusesRolled 를 쓴다.
+    actorPenetrateFormula: attrs.penetrate?.rollFormula || ''
   };
+};
+
+/**
+ * resolveAttackBonuses + 관통 다이스식을 "지금" 한 번 굴려 숫자로 굳힌 결과.
+ * 관통은 공격자 값이지만 소비는 방어 창(장갑과 상쇄)에서 일어난다. 방어 시점에 굴리면
+ * 공격자의 다이스를 방어자 클라이언트가 굴리게 되므로, 명중 판정 시점에 굴려
+ * actorPenetrate 숫자에 접어 넣고 이후 경로(채팅 버튼·소켓)는 기존대로 숫자만 나른다.
+ * @returns {Promise<Object>} resolveAttackBonuses 결과 + penetrateRoll(굴렸다면 Roll)
+ */
+window.DX3rdUniversalHandler.resolveAttackBonusesRolled = async function(actor, item, options = {}) {
+  const bonuses = this.resolveAttackBonuses(actor, item, options);
+  if (!bonuses.actorPenetrateFormula) return bonuses;
+  try {
+    const roll = await (new Roll(bonuses.actorPenetrateFormula)).evaluate();
+    bonuses.actorPenetrate += Number(roll.total) || 0;
+    bonuses.penetrateRoll = roll;
+  } catch (error) {
+    console.warn(`DX3rd | penetrate roll failed: ${bonuses.actorPenetrateFormula}`, error);
+    ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${bonuses.actorPenetrateFormula}`);
+  }
+  return bonuses;
 };
 
 /** 자원소비량 n 입력 다이얼로그(0~max). 취소 시 null. */

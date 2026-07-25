@@ -63,14 +63,8 @@
       else {
         const prepared = EV?.prepareRollFormula?.(a.value, item, actor) ?? String(a.value ?? '0');
         // 행동 시점에 굴려야 하는 보정은 AE에도 원 수식을 보존한다.
-        value = [
-          'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
-          'dice', 'add', 'critical',
-          'major_dice', 'major_add', 'major_critical',
-          'reaction_dice', 'reaction_add', 'reaction_critical',
-          'dodge_dice', 'dodge_add', 'dodge_critical',
-          'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
-        ].includes(a.key) && EV?.hasDice?.(prepared)
+        // 키 목록은 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
+        value = EV?.isRollTimeKey?.(a.key) && EV?.hasDice?.(prepared)
           ? prepared
           : (Number(EV?.evaluate(a.value, item, actor)) || 0);
       }

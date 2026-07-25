@@ -1183,7 +1183,8 @@ window.DX3rdComboHandler = {
             .join(' + ') || '0';
         
         // 공격 타입/액터 보너스 산출 (명중·데미지 시점과 동일 경로)
-        const bonuses = window.DX3rdUniversalHandler.resolveAttackBonuses(actor, item);
+        // 관통 다이스식은 이 판정 시점에 굴려 숫자로 굳힌다.
+        const bonuses = await window.DX3rdUniversalHandler.resolveAttackBonusesRolled(actor, item);
 
         const preservedValues = {
             actorAttack: bonuses.actorAttack,
