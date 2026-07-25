@@ -40,6 +40,11 @@
     {{#if showEffectSettings}}
     <section class="content-section" id="effectSettings-content">
         <div class="form-grid">
+            <div class="form-label">{{localize "DX3rd.HP"}} {{localize "DX3rd.Cost"}}</div>
+            <div><input type="text" name="effectSettingsHpValue" value="{{item.system.hp.value}}" placeholder="0"></div>
+            <div></div>
+            <div></div>
+
             <div class="form-label">{{localize "DX3rd.ResourceCostEnabled"}}</div>
             <div style="display:flex;align-items:center;justify-content:center;">
                 <input type="checkbox" name="effectSettingsResourceEnabled" {{#if item.system.resourceCost.enabled}}checked{{/if}}>

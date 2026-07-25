@@ -344,6 +344,11 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
 
     /**
      * Override _sortCombatants to implement custom tie-breaking rules
+     *
+     * 전투 순서 규칙의 단일 소스다. combat.turns 가 이 결과이고, 다음 행동자 선정
+     * (getPendingMainCombatants → startMainProcessFromInitiative)도 그 순서를 그대로
+     * 따른다. 순서 판단을 다른 곳에서 다시 구현하지 말 것.
+     *
      * @param {Combatant} a
      * @param {Combatant} b
      * @returns {number}
@@ -713,39 +718,15 @@ async function startMainProcessFromInitiative(combat) {
   // 라운드 도중에 바뀐 【행동치】는 다음 셋업까지 미뤄야 하기 때문이다.
   // (자기 순서를 뒤로 미루는 변경만 메인 종료 시점에 개별 반영된다.)
 
-  // 행동 종료하지 않은 액터 중 가장 높은 이니셔티브 찾기
-  let candidates = [];
-
+  // 후보와 그 순서는 combat.turns 를 그대로 따른다. turns 는 DX3rdCombat._sortCombatants
+  // (이니셔티브 → 액터 타입 → EXTRA TURN → 감각 → 정신 → 이름)로 정렬된 목록이므로,
+  // 여기서 동점자 규칙을 다시 구현하면 두 곳이 조용히 어긋난다.
+  const candidates = getPendingMainCombatants(combat);
   const alreadyDone = getMainDone(combat);
-  for (const combatant of combat.combatants) {
-    if (!isMainEligible(combatant)) continue;
-    // 이번 라운드에 이미 메인을 마친 전투원은 후보에서 뺀다.
-    if (alreadyDone.has(combatant.id)) continue;
-    candidates.push({ combatant, init: combatant.initiative ?? -Infinity, actor: combatant.actor });
-  }
-
-  candidates.sort((a, b) => {
-    if (a.init !== b.init) return b.init - a.init;
-    if (!a.actor || !b.actor) return 0;
-    const actorTypePriority = {PlayerCharacter: 1, Enemy: 2, Ally: 3, Troop: 4, NPC: 5};
-    const aPriority = actorTypePriority[a.actor.system?.actorType] ?? 99;
-    const bPriority = actorTypePriority[b.actor.system?.actorType] ?? 99;
-    if (aPriority !== bPriority) return aPriority - bPriority;
-    const aExtraTurn = a.actor.system?.conditions?.['extra-turn']?.active ?? false;
-    const bExtraTurn = b.actor.system?.conditions?.['extra-turn']?.active ?? false;
-    if (aExtraTurn !== bExtraTurn) return aExtraTurn ? 1 : -1;
-    const aSense = a.actor.system?.attributes?.sense?.total ?? 0;
-    const bSense = b.actor.system?.attributes?.sense?.total ?? 0;
-    if (aSense !== bSense) return bSense - aSense;
-    const aMind = a.actor.system?.attributes?.mind?.total ?? 0;
-    const bMind = b.actor.system?.attributes?.mind?.total ?? 0;
-    if (aMind !== bMind) return bMind - aMind;
-    return a.combatant.name.localeCompare(b.combatant.name);
-  });
 
   const pendingCombatantId = combat.getFlag('dx3rd-emanim', 'currentProcess')?.pendingCombatantId;
-  const nextCombatant = candidates.find(candidate => candidate.combatant.id === pendingCombatantId)?.combatant
-    || (candidates.length > 0 ? candidates[0].combatant : null);
+  const nextCombatant = candidates.find(candidate => candidate.id === pendingCombatantId)
+    ?? candidates[0] ?? null;
   if (nextCombatant !== null) {
     const turnIndex = combat.turns.findIndex(t => t.id === nextCombatant.id);
     await combat.update({ turn: turnIndex });

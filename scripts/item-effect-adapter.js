@@ -352,15 +352,18 @@
       {value: 'attack', label: actionLabel('attack')}
     ];
     const immediateAddOptions = DIRECT_TYPES.map(type => ({value: type, label: directTitle(type)}));
-    // 지속 효과도 상태이상과 마찬가지로 같은 종류를 계속 추가할 수 있다.
-    // 기존 보정 행이 있다는 이유로 선택지를 숨기지 않는다.
+    // 지속 효과 카드는 종류당 한 장뿐인 것이 있다(지속 효과 보정은 아이템당 한 장이고,
+    // 추가 버튼은 그 카드에 보정 줄을 더할 뿐이다). 이미 만들어진 종류는 선택지를 지우지 않고
+    // "추가됨"으로 비활성화해, 눌러도 새 카드가 안 생기는 혼란을 없앤다.
+    const addedLabel = localize('DX3rd.AlreadyAdded');
     const persistentAddOptions = [
-      {value: 'modifiers', label: localize('DX3rd.PersistentModifiers')},
-      {value: 'condition', label: localize('DX3rd.Condition')}
-    ];
+      {value: 'modifiers', label: localize('DX3rd.PersistentModifiers'), disabled: modifierOverview.totalCount > 0},
+      {value: 'condition', label: localize('DX3rd.Condition'), disabled: false}
+    ].map(option => option.disabled ? {...option, label: `${option.label} (${addedLabel})`} : option);
     return {
       immediate, persistent, modifierOverview, actionOptions,
       immediateAddOptions, persistentAddOptions,
+      persistentAddDisabled: persistentAddOptions.every(option => option.disabled),
       persistentConditionCount: persistent.filter(card => card.id.startsWith('condition.') || card.id.startsWith('card.')).length,
       immediateActiveCount: immediate.filter(card => card.active).length,
       persistentActiveCount: (modifierOverview.active ? 1 : 0)

@@ -23,7 +23,7 @@
         weapon: {width: 520, height: 390},
         protect: {width: 500, height: 310},
         vehicle: {width: 520, height: 360},
-        effectSettings: {width: 560, height: 450},
+        effectSettings: {width: 560, height: 500},
         modifiers: {width: 600, height: 470}
     };
 
@@ -168,9 +168,15 @@
             await super._onRender(context, options);
             const root = this._root;
             if (!root) return;
+            // root(this.element)는 재렌더에도 같은 노드로 유지된다. 이전 렌더에서 붙인 위임
+            // 리스너를 끊지 않으면 render(false) 한 번마다 한 벌씩 쌓여, 버튼 한 번 클릭이
+            // N번 실행되고 그 안에서 다시 render 가 돌아 기하급수로 늘어난다
+            // (보정 행 무한 추가·클라이언트 전반의 렉). 렌더마다 통째로 갈아끼운다.
+            this._listeners?.abort();
+            this._listeners = new AbortController();
             root.classList.toggle('effect-card-editor', this._focusedEditor);
 
-            root.addEventListener('submit', event => event.preventDefault());
+            root.addEventListener('submit', event => event.preventDefault(), {signal: this._listeners.signal});
             this._on(root, '.top-tab', 'click', (event, target) => {
                 event.preventDefault();
                 this.switchTopTab(target.dataset.tab);
@@ -210,7 +216,7 @@
                 if (!event.target.matches('input, select, textarea')) return;
                 if (this.currentSubTab === 'modifiers') this._saveModifierInput(event.target);
                 else this._saveCurrentTab();
-            });
+            }, {signal: this._listeners.signal});
 
             this._on(root, '[data-action="createModifierAttribute"]', 'click', async (event, target) => {
                 event.preventDefault();
@@ -287,6 +293,8 @@
         async close(options = {}) {
             clearTimeout(this._positionSaveTimer);
             this._saveWindowPosition();
+            this._listeners?.abort();
+            this._listeners = null;
             return super.close(options);
         }
 
@@ -339,7 +347,7 @@
                 const target = event.target?.closest?.(selector);
                 if (!target || !root.contains(target)) return;
                 handler.call(this, event, target);
-            });
+            }, {signal: this._listeners?.signal});
         }
 
         _value(selector, root = this._root) {
@@ -819,6 +827,7 @@
                 if (sub === 'effectSettings') {
                     if (item.type !== 'effect') return;
                     await item.update({
+                        'system.hp.value': this._value('input[name="effectSettingsHpValue"]'),
                         'system.comboSkill': this._value('select[name="effectSettingsComboSkill"]'),
                         'system.comboBase': this._value('select[name="effectSettingsComboBase"]'),
                         'system.active.applyMode': this._value('select[name="effectSettingsApplyMode"]'),

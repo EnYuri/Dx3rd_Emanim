@@ -3,10 +3,11 @@
     <header class="dx3rd-effect-section-header">
       <div><i class="fas fa-layer-group"></i> {{localize "DX3rd.PersistentEffects"}}</div>
       <div class="dx3rd-effect-add-control">
+        {{!-- 이미 추가된 종류는 목록에 남기되 비활성화한다(눌러도 새 카드가 안 생기는 혼란 방지). --}}
         <select class="effect-kind-select" data-family="persistent" aria-label="{{localize 'DX3rd.EffectKind'}}">
-          {{#each effectView.persistentAddOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.persistentAddKind)}}selected{{/if}}>{{option.label}}</option>{{/each}}
+          {{#each effectView.persistentAddOptions as |option|}}<option value="{{option.value}}" {{#if option.disabled}}disabled{{/if}} {{#if (eq option.value ../effectView.persistentAddKind)}}selected{{/if}}>{{option.label}}</option>{{/each}}
         </select>
-        <button type="button" data-action="addEffectCard" data-family="persistent" title="{{localize 'DX3rd.AddEffect'}}"><i class="fas fa-plus"></i></button>
+        <button type="button" data-action="addEffectCard" data-family="persistent" title="{{localize 'DX3rd.AddEffect'}}" {{#if effectView.persistentAddDisabled}}disabled{{/if}}><i class="fas fa-plus"></i></button>
       </div>
     </header>
 

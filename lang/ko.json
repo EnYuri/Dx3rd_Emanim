@@ -962,6 +962,7 @@
   "DX3rd.NoModifiersConfigured": "등록된 지속 효과가 없습니다.",
   "DX3rd.EffectKind": "효과 종류",
   "DX3rd.AddEffect": "효과 추가",
+  "DX3rd.AlreadyAdded": "추가됨",
   "DX3rd.RemoveEffect": "효과 삭제",
   "DX3rd.NoImmediateEffects": "등록된 즉시 효과가 없습니다.",
   "DX3rd.NoPersistentEffects": "등록된 지속 효과가 없습니다.",

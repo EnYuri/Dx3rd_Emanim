@@ -60,7 +60,11 @@
     async _onRender(context, options) {
       await super._onRender(context, options);
       await attributes.initializeAttributeLabels(this.element, this.item);
-      compat.on(this.element, 'input', '.attribute-value', (event, target) => this._validateFormulaInput(target));
+      // this.element 는 재렌더에도 유지되므로 이전 렌더의 리스너를 끊어야 누적되지 않는다.
+      this._eventListeners?.abort();
+      this._eventListeners = new AbortController();
+      compat.on(this.element, 'input', '.attribute-value',
+        (event, target) => this._validateFormulaInput(target), {signal: this._eventListeners.signal});
       this._refreshFormulaValidation();
     }
 

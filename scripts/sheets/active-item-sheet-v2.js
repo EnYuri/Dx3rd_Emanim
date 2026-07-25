@@ -49,14 +49,24 @@
       context.showUsageSettings = ['weapon', 'protect', 'vehicle', 'etc', 'once'].includes(this.item.type);
       context.effectView = effectAdapter.prepareSheetContext(this.item);
       this._effectAddKinds ??= {};
-      context.effectView.immediateAddKind = this._effectAddKinds.immediate
-        || context.effectView.immediateAddOptions[0]?.value || '';
-      context.effectView.persistentAddKind = this._effectAddKinds.persistent
-        || context.effectView.persistentAddOptions[0]?.value || '';
+      context.effectView.immediateAddKind = DX3rdActiveItemSheetV2._addKind(
+        this._effectAddKinds.immediate, context.effectView.immediateAddOptions);
+      context.effectView.persistentAddKind = DX3rdActiveItemSheetV2._addKind(
+        this._effectAddKinds.persistent, context.effectView.persistentAddOptions);
       if (['main', 'sub'].includes(this._modifierConfigScope)) {
         context.effectView.modifierOverview.initialScope = this._modifierConfigScope;
       }
       return context;
+    }
+
+    /**
+     * 드롭다운에 남길 선택값. 기억해 둔 종류가 이미 추가되어 비활성이면
+     * 첫 번째 추가 가능한 종류로 내린다(비활성 항목이 선택된 채로 남지 않게).
+     */
+    static _addKind(remembered, options = []) {
+      const usable = options.filter(option => !option.disabled);
+      if (usable.some(option => option.value === remembered)) return remembered;
+      return usable[0]?.value || '';
     }
 
     /**
@@ -170,7 +180,8 @@
       const family = target.dataset.family;
       const select = this.element?.querySelector(`.effect-kind-select[data-family="${family}"]`);
       const kind = select?.value;
-      if (!kind) return;
+      // 이미 추가된 종류(비활성 항목)는 눌러도 아무것도 만들지 않는다.
+      if (!kind || select?.selectedOptions?.[0]?.disabled) return;
       this._effectAddKinds ??= {};
       this._effectAddKinds[family] = kind;
       if (family === 'persistent' && kind === 'modifiers') {
