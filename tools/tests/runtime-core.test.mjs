@@ -429,3 +429,175 @@ test('compendium sync follows once/etc reclassification without touching same-na
   assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), oldKit), null);
   assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), newKit).type, 'once');
 });
+
+// applied-toggle 하네스: 토글 AE 동기화의 경합/배치/상시 자동활성을 실물 모듈로 검증한다.
+// AE 저장소와 setMany 완료 시점을 테스트가 직접 통제해, 콤보가 멤버를 연달아 켜는
+// 실제 타이밍(쓰기 도중 다음 토글 도착)을 재현한다.
+// vm 컨텍스트에서 만든 배열/객체는 프로토타입이 달라 deepStrictEqual 이 참조 비교로 실패한다.
+const plain = value => JSON.parse(JSON.stringify(value));
+
+function toggleContext() {
+  const hooks = {};
+  const gm = { id: 'gm1', isGM: true, active: true };
+  const users = [gm];
+  const effects = [];
+  const writes = [];
+  let gate = null;
+
+  const actor = {
+    id: 'a1',
+    name: '테스트 액터',
+    type: 'character',
+    documentName: 'Actor',
+    items: [],
+    effects,
+    system: { attributes: {} },
+    testUserPermission: () => true,
+    async deleteEmbeddedDocuments(_type, ids) {
+      for (const id of ids) {
+        const index = effects.findIndex(effect => effect.id === id);
+        if (index >= 0) effects.splice(index, 1);
+      }
+      writes.push({ op: 'delete', count: ids.length });
+    },
+    async updateEmbeddedDocuments(type, updates) {
+      writes.push({ op: 'updateItems', count: updates.length });
+      for (const update of updates) {
+        const item = actor.items.find(i => i.id === update._id);
+        if (item && 'system.active.state' in update) item.system.active.state = update['system.active.state'];
+      }
+      return updates;
+    }
+  };
+
+  const context = baseContext({
+    Hooks: {
+      on: (name, callback) => { (hooks[name] ??= []).push(callback); },
+      once: (name, callback) => { (hooks[name] ??= []).push(callback); }
+    },
+    game: { user: gm, users, actors: [actor], i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {}, error: () => {} } },
+    foundry: { utils: { flattenObject: object => object, hasProperty: () => true } }
+  });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula: value => String(value ?? '0'),
+    isRollTimeKey: () => false,
+    hasDice: () => false,
+    evaluate: value => Number(value) || 0
+  };
+  context.DX3rdAppliedEffects = {
+    set: async () => { throw new Error('setMany 가 있으면 개별 set 을 쓰면 안 된다'); },
+    setMany: async (_actor, entries) => {
+      writes.push({ op: 'setMany', keys: entries.map(([key]) => key) });
+      if (gate) await gate;
+      for (const [key, payload] of entries) {
+        effects.push({
+          id: `ae_${key}`,
+          disabled: false,
+          getFlag: (_scope, field) => (field === 'appliedKey' ? key : payload)
+        });
+      }
+      return entries.length;
+    }
+  };
+  load(context, 'scripts/dx3rd-applied-toggle.js');
+
+  const addItem = (id, { type = 'effect', state = false, attributes = {}, timing = '-' } = {}) => {
+    const item = {
+      id, name: id, img: 'i.png', type, parent: actor,
+      system: { active: { state }, attributes, timing },
+      async update(changes) {
+        if ('system.active.state' in changes) item.system.active.state = changes['system.active.state'];
+        writes.push({ op: 'updateItem', id });
+        for (const callback of hooks.updateItem || []) callback(item);
+      }
+    };
+    actor.items.push(item);
+    return item;
+  };
+
+  return {
+    context, actor, effects, writes, hooks, addItem,
+    toggle: window => window,
+    hold: () => { let release; gate = new Promise(resolve => { release = resolve; }); return () => { gate = null; release(); }; },
+    appliedKeys: () => effects.map(effect => effect.getFlag('dx3rd-emanim', 'appliedKey')).sort()
+  };
+}
+
+test('applied toggle sync replans after an in-flight write so late toggles are not dropped', async () => {
+  const fixture = toggleContext();
+  const { context, addItem } = fixture;
+  const first = addItem('e1', { attributes: { a0: { key: 'add', value: '2' } } });
+  const second = addItem('e2', { attributes: { a0: { key: 'attack', value: '3' } } });
+
+  // 첫 멤버를 켜고 AE 쓰기를 진행 중 상태로 붙잡는다(콤보의 순차 토글 재현).
+  first.system.active.state = true;
+  const release = fixture.hold();
+  const inflight = context.DX3rdAppliedToggle.sync(fixture.actor);
+  await Promise.resolve();
+
+  // 쓰기가 끝나기 전에 두 번째 멤버가 켜진다 → 진행 중 계획에는 없다.
+  second.system.active.state = true;
+  const late = context.DX3rdAppliedToggle.sync(fixture.actor);
+  release();
+  await inflight;
+  await late;
+
+  // 예전 동작: 진행 중 Promise 만 기다려 e2 의 AE 가 없는 상태로 공격값을 읽었다.
+  assert.deepEqual(plain(fixture.appliedKeys()), ['toggle:e1', 'toggle:e2']);
+});
+
+test('applied toggle writes all toggled effects in one batched call', async () => {
+  const fixture = toggleContext();
+  const { context, addItem } = fixture;
+  addItem('e1', { state: true, attributes: { a0: { key: 'add', value: '2' } } });
+  addItem('e2', { state: true, attributes: { a0: { key: 'add', value: '3' } } });
+  addItem('e3', { state: true, attributes: { a0: { key: 'add', value: '4' } } });
+
+  await context.DX3rdAppliedToggle.sync(fixture.actor);
+
+  const batches = fixture.writes.filter(write => write.op === 'setMany');
+  assert.equal(batches.length, 1, 'AE 쓰기는 1회 왕복이어야 한다');
+  assert.deepEqual(plain(batches[0].keys).sort(), ['toggle:e1', 'toggle:e2', 'toggle:e3']);
+  assert.deepEqual(plain(fixture.appliedKeys()), ['toggle:e1', 'toggle:e2', 'toggle:e3']);
+});
+
+test('always-on effects imported from a compendium are activated on creation', async () => {
+  const fixture = toggleContext();
+  const { context, addItem, hooks } = fixture;
+  // 시트가 활성 토글을 그리는 기준과 같은 단일 소스를 쓴다.
+  context.DX3rdActorSheetData = {
+    usesSelfEffectActiveToggle: item => item.system?.timing === 'always'
+      && Object.values(item.system?.attributes || {}).some(a => a?.key && a.key !== '-' && String(a.value ?? '') !== '')
+  };
+
+  // 컴펜디움 빌드는 전부 active.state=false 다(_source/build-effects.mjs).
+  const always = addItem('e1', { timing: 'always', attributes: { a0: { key: 'add', value: '2' } } });
+  const major = addItem('e2', { timing: 'major', attributes: { a0: { key: 'add', value: '2' } } });
+
+  for (const callback of hooks.createItem || []) callback(always);
+  for (const callback of hooks.createItem || []) callback(major);
+  await new Promise(resolve => setTimeout(resolve, 0)); // 같은 틱 배치 플러시 대기
+
+  assert.equal(always.system.active.state, true, '상시 이펙트는 취득만으로 켜져야 한다');
+  assert.equal(major.system.active.state, false, '상시가 아닌 이펙트는 건드리지 않는다');
+  // 같은 틱에 온 생성은 액터당 1회 배치로 켜야 한다(임포트 시 아이템 수만큼 왕복 방지).
+  assert.equal(fixture.writes.filter(write => write.op === 'updateItems').length, 1);
+});
+
+test('always-on repair activates every stale import in one batch per actor', async () => {
+  const fixture = toggleContext();
+  const { context, addItem } = fixture;
+  context.DX3rdActorSheetData = {
+    usesSelfEffectActiveToggle: item => item.system?.timing === 'always'
+  };
+  addItem('e1', { timing: 'always' });
+  addItem('e2', { timing: 'always' });
+  addItem('e3', { timing: 'major' });
+
+  const result = await context.DX3rdAppliedToggle.activateAlwaysOn(fixture.actor);
+
+  assert.deepEqual(plain(result), { scanned: 2, activated: 2 });
+  assert.equal(fixture.writes.filter(write => write.op === 'updateItems').length, 1, '액터당 1회 배치');
+  assert.equal(fixture.actor.items.find(i => i.id === 'e3').system.active.state, false);
+});

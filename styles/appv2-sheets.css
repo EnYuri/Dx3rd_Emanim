@@ -316,6 +316,17 @@
     grid-column: span 5;
 }
 
+/* 복수 기능 이펙트(〈백병〉〈사격〉 등)의 선택 가능 기능 표시 */
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > .dx3rd-skill-choices-hint {
+    color: #9fb4c7;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > span {
     align-items: center;
     color: #d2d2d2;

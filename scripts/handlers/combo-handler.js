@@ -328,8 +328,7 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (attack combo; counted at damage roll)');
         }
 
-        const effectItems = [];
-        const toggleBoundMembers = [];
+        const memberItems = [];
         for (const effectId of effectIds) {
             if (!effectId || effectId === '-') continue;
             const effectItem = actor.items.get(effectId);
@@ -337,15 +336,24 @@ window.DX3rdComboHandler = {
                 console.warn('DX3rd | ComboHandler - Effect item not found:', effectId);
                 continue;
             }
-            window.DX3rdDebug.log('DX3rd | ComboHandler - Processing effect item:', effectItem.name, 'ID:', effectId);
+            memberItems.push(effectItem);
+        }
 
-            // 포함된 이펙트의 사용 횟수 증가 (notCheck가 아닌 경우)
-            const effectUsedDisable = effectItem.system?.used?.disable || 'notCheck';
-            if (effectUsedDisable !== 'notCheck') {
-                const currentEffectUsedState = effectItem.system?.used?.state || 0;
-                await effectItem.update({ 'system.used.state': currentEffectUsedState + 1 });
-                window.DX3rdDebug.log('DX3rd | ComboHandler - Effect used count increased:', effectItem.name, currentEffectUsedState, '→', currentEffectUsedState + 1);
-            }
+        // 포함된 이펙트의 사용 횟수 증가 (notCheck가 아닌 경우) — 멤버 수만큼 개별 update 를 하면
+        // 그 수만큼 DB 왕복 + 액터 재파생 + 시트 재렌더가 연쇄돼 콤보 발동이 눈에 띄게 느려진다.
+        // 콤보는 하나의 사용 행위이므로 카운터는 한 번에 올린다(멤버 처리 전에 전원 반영).
+        const usedUpdates = memberItems
+            .filter(effectItem => (effectItem.system?.used?.disable || 'notCheck') !== 'notCheck')
+            .map(effectItem => ({ _id: effectItem.id, 'system.used.state': (effectItem.system?.used?.state || 0) + 1 }));
+        if (usedUpdates.length) {
+            await actor.updateEmbeddedDocuments('Item', usedUpdates);
+            window.DX3rdDebug.log('DX3rd | ComboHandler - Effect used counts increased (batched):', usedUpdates.length);
+        }
+
+        const effectItems = [];
+        const toggleBoundMembers = [];
+        for (const effectItem of memberItems) {
+            window.DX3rdDebug.log('DX3rd | ComboHandler - Processing effect item:', effectItem.name, 'ID:', effectItem.id);
 
             // 이펙트 즉시 처리
             try {

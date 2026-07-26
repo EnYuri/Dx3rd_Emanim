@@ -401,18 +401,20 @@
         return window.DX3rdRoisHandler.handleTitus(actor.id, item.id);
     }
 
-    // 아이템을 채팅으로 출력하기 전 게이트(권한 + 사용횟수 소진). 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
+    // 아이템을 채팅으로 출력하기 전 게이트(권한만). 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
     // raw 전송(_sendItemToChat → DX3rdActorChat)은 외부 호출자(combat-ui/action-ui)도 직접 쓰므로
     // 여기서는 게이트 판정만 반환하고 전송은 시트가 수행한다.
+    //
+    // 사용횟수 소진은 여기서 막지 않는다. 채팅 출력은 "정보 표시"(좌클릭 이름 / 우클릭 메뉴)이고
+    // 실제 사용이 아니다 — 소진된 이펙트의 카드조차 못 띄우면 효과문·사정거리를 확인할 수 없다.
+    // 소진 차단은 실제 사용 경로(UniversalHandler.handleItemUse 의 사용횟수 체크)가 담당하므로,
+    // 카드의 '사용' 버튼을 눌러도 여기 게이트 없이 정상적으로 거절된다.
     function checkItemChatGate(actor, item) {
         if (!actor || !item) {
             return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
         }
         if (!actor.isOwner && !game.user.isGM) {
             return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
-        }
-        if (window.DX3rdItemExhausted?.isItemExhausted(item)) {
-            return { ok: false, level: "warn", message: format("DX3rd.ItemExhausted", {name: item.name}) };
         }
         return { ok: true };
     }

@@ -35,6 +35,14 @@
       system.actorSkills = actor?.system?.attributes?.skills || {};
       system.skillOptions = window.DX3rdSkillManager.getSkillSelectOptions('effect', system.actorSkills, actor?.type);
 
+      // 원본이 〈백병〉〈사격〉처럼 복수 기능을 허용하는 이펙트는 대표 기능 하나만 system.skill에 들어간다.
+      // 드롭다운만 보면 나머지 선택지를 알 수 없으므로 전체 선택지를 함께 표시한다.
+      // (콤보 조합 시에는 combo-data.effectSkillChoices가 이 목록에서 기능을 고른다.)
+      const skillChoices = Array.isArray(system.skillChoices) ? system.skillChoices : [];
+      system.skillChoicesLabel = skillChoices.length > 1
+        ? skillChoices.map(key => system.skillOptions.find(o => o.value === key)?.label || key).join(' / ')
+        : '';
+
       system.level = itemSheetData.prepareEffectLevelData(this.item, actor, this.item.system.level || {});
 
       system.used ??= {};

@@ -162,6 +162,33 @@
       .map(([key]) => key);
   }
 
+  /**
+   * 기존 AE 를 새 payload 로 덮어쓰는 갱신 데이터. set/setMany 공용.
+   * flags 는 문서 업데이트 시 딥 머지된다. 편집으로 제거된 attribute 키(예: a0)가
+   * 잔존해 이중 적용되지 않도록, 새 payload 에 없는 기존 키는 명시적으로 삭제한다.
+   */
+  function buildUpdateData(existing, data, preserveDisabled) {
+    const prevAttrs = existing.getFlag(SCOPE, 'applied')?.attributes || {};
+    const nextAttrs = data.flags[SCOPE].applied.attributes || {};
+    const attrDeletions = {};
+    for (const k of Object.keys(prevAttrs)) {
+      if (!(k in nextAttrs)) attrDeletions[`flags.${SCOPE}.applied.attributes.-=${k}`] = null;
+    }
+    return {
+      name: data.name,
+      img: data.img,
+      description: data.description,
+      // 토글 이펙트의 수식 재평가(sync)는 임시 비활성화 상태를 바꾸지 않는다.
+      // 일반 set 호출은 지금까지와 같이 갱신 시 활성화한다.
+      disabled: preserveDisabled ? existing.disabled : false,
+      showIcon: data.showIcon,
+      statuses: data.statuses,
+      'system.changes': data.system.changes,
+      [`flags.${SCOPE}.applied`]: data.flags[SCOPE].applied,
+      ...attrDeletions
+    };
+  }
+
   /** applied 버프를 생성/갱신(upsert). */
   async function set(actor, appliedKey, payload, {preserveDisabled = false} = {}) {
     if (!actor || !appliedKey) return null;
@@ -169,27 +196,7 @@
     const existing = getEffect(actor, appliedKey);
     try {
       if (existing) {
-        // flags 는 문서 업데이트 시 딥 머지된다. 편집으로 제거된 attribute 키(예: a0)가
-        // 잔존해 이중 적용되지 않도록, 새 payload 에 없는 기존 키는 명시적으로 삭제한다.
-        const prevAttrs = existing.getFlag(SCOPE, 'applied')?.attributes || {};
-        const nextAttrs = data.flags[SCOPE].applied.attributes || {};
-        const attrDeletions = {};
-        for (const k of Object.keys(prevAttrs)) {
-          if (!(k in nextAttrs)) attrDeletions[`flags.${SCOPE}.applied.attributes.-=${k}`] = null;
-        }
-        await existing.update({
-          name: data.name,
-          img: data.img,
-          description: data.description,
-          // 토글 이펙트의 수식 재평가(sync)는 임시 비활성화 상태를 바꾸지 않는다.
-          // 일반 set 호출은 지금까지와 같이 갱신 시 활성화한다.
-          disabled: preserveDisabled ? existing.disabled : false,
-          showIcon: data.showIcon,
-          statuses: data.statuses,
-          'system.changes': data.system.changes,
-          [`flags.${SCOPE}.applied`]: data.flags[SCOPE].applied,
-          ...attrDeletions
-        });
+        await existing.update(buildUpdateData(existing, data, preserveDisabled));
         return existing;
       }
       const [created] = await actor.createEmbeddedDocuments('ActiveEffect', [data]);
@@ -197,6 +204,35 @@
     } catch (e) {
       console.error('DX3rd | DX3rdAppliedEffects.set 실패:', appliedKey, e);
       return null;
+    }
+  }
+
+  /**
+   * 여러 applied 버프를 DB 왕복 2회(갱신 1 + 생성 1)로 upsert. set() 과 동일한 조립을 쓴다.
+   * 콤보처럼 이펙트 여러 개를 한 번에 켜는 경로에서 AE 를 하나씩 쓰면 그 수만큼
+   * 액터 재파생·시트 재렌더가 연쇄돼 눈에 보이는 버벅임이 된다.
+   * @param {Actor} actor
+   * @param {Array<[string, object]>} entries - [appliedKey, payload] 쌍 배열
+   * @returns {Promise<number>} 쓰기(갱신+생성) 건수
+   */
+  async function setMany(actor, entries = [], {preserveDisabled = false} = {}) {
+    if (!actor || !entries?.length) return 0;
+    const creates = [];
+    const updates = [];
+    for (const [appliedKey, payload] of entries) {
+      if (!appliedKey) continue;
+      const data = buildAEData(actor, appliedKey, payload);
+      const existing = getEffect(actor, appliedKey);
+      if (existing) updates.push({ _id: existing.id, ...buildUpdateData(existing, data, preserveDisabled) });
+      else creates.push(data);
+    }
+    try {
+      if (updates.length) await actor.updateEmbeddedDocuments('ActiveEffect', updates);
+      if (creates.length) await actor.createEmbeddedDocuments('ActiveEffect', creates);
+      return updates.length + creates.length;
+    } catch (e) {
+      console.error('DX3rd | DX3rdAppliedEffects.setMany 실패:', e);
+      return 0;
     }
   }
 
@@ -369,6 +405,7 @@
     getEffect,
     getEffectsByItem,
     set,
+    setMany,
     setDisabled,
     toggleDisabled,
     getToggleSourceItem,

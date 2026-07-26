@@ -185,6 +185,20 @@
     return lists[0].filter(skill => lists.every(list => list.includes(skill)));
   }
 
+  // 조합 자격 위반은 "경고만 하고 진행"이 원칙이다(validateComboCombination은 차단하지 않는다).
+  // 따라서 기능이 서로 충돌해 교집합이 비어도 후보를 비워두면 안 된다 — 비우면 콤보의
+  // 판정 기능/공격판정/공격력이 전부 미계산으로 남아, 경고만 하겠다는 원칙과 달리
+  // 사실상 사용 불가한 콤보가 된다. 교집합이 없으면 합집합을 후보로 내려 사용자가 고르게 한다.
+  function getComboSkillCandidates(effects) {
+    const compatible = getCompatibleSkillChoices(effects);
+    if (compatible.length) return compatible;
+    const union = [];
+    for (const list of effects.map(effectSkillChoices)) {
+      for (const skill of list) if (!union.includes(skill)) union.push(skill);
+    }
+    return union;
+  }
+
   // 콤보의 판정 기능(skill/base)·공격판정(attackRoll)·공격력을 "조합 우선순위"로 재계산.
   //
   // 우선순위(항상 재계산): 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추(ranged→사격, melee→백병).
@@ -213,11 +227,20 @@
     //   "명중판정을 〈RC〉/사격/정신 등으로 변경"한다고 재정의하는 특수 이펙트는 기계 판별 불가하므로,
     //   전용 필드 system.comboSkill(조합시 기능 변경)을 두어 우선 신호로 쓰고 기능 항목을 폴백한다.
     let skill = null;
-    const compatibleSkills = getCompatibleSkillChoices(effects);
+    const compatibleSkills = getComboSkillCandidates(effects);
     // B: 이펙트 지정 기능 — 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백.
     //   단 skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 "이펙트를 사용한 판정에만
     //   조합되는 순수 수정치" 센티넬이므로 콤보의 판정 기능 소스에서 제외한다(별도 attribute로 해소됨).
-    if (compatibleSkills.length) skill = compatibleSkills.includes(cs.skill) ? cs.skill : compatibleSkills[0];
+    //   또한 원본이 〈백병〉〈사격〉처럼 복수 기능을 허용하는 이펙트(skillChoices 2개 이상)는 이펙트가
+    //   기능을 하나로 "지정"한 것이 아니므로 이펙트 우선 규칙이 걸리지 않는다. 이 경우 조합된 무기의
+    //   기능/종별이 선택지 안에 있으면 그것으로 확정한다(권총과 조합한 콤보가 백병 판정이 되는 것을 방지).
+    if (compatibleSkills.length === 1) {
+      skill = compatibleSkills[0];
+    } else if (compatibleSkills.length > 1) {
+      const weaponSignal = [...weapons.map(w => w.system?.skill), ...weapons.map(w => w.system?.type)]
+        .find(sig => !isEmptyComboField(sig) && compatibleSkills.includes(sig));
+      skill = weaponSignal || (compatibleSkills.includes(cs.skill) ? cs.skill : compatibleSkills[0]);
+    }
     // C: 무기 명시 기능
     if (!skill) {
       const wpnSkill = weapons.find(w => !isEmptyComboField(w.system?.skill));
@@ -418,15 +441,22 @@
     const skillLists = effects.map(effectSkillChoices).filter(a => a.length);
     if (skillLists.length > 1 && getCompatibleSkillChoices(effects).length === 0) warnings.push('DX3rd.ComboSkillMismatch');
 
-    // 공격 유형 충돌(백병 vs 사격) — 명시 attackRoll 또는 기능/조합기능 신호로 판별.
-    const attackTypes = new Set();
+    // 공격 유형 충돌(백병 vs 사격) — 이펙트마다 "허용 공격 유형"을 구해 교집합이 비면 충돌.
+    //   원본이 〈백병〉〈사격〉인 이펙트는 양쪽 모두 허용하므로 그 자체로는 충돌 신호가 아니다
+    //   (단일 이펙트만 넣어도 경고가 뜨던 원인). 명시 attackRoll/comboSkill이 있으면 그것이 유형을 확정한다.
+    let allowedAttack = null; // null = 아직 유형 제약 없음
     for (const e of effects) {
       const es = e.system || {};
-      for (const sig of [es.attackRoll, es.comboSkill, ...(es.skillChoices || []), es.skill]) {
-        if (sig === 'melee' || sig === 'ranged') attackTypes.add(sig);
-      }
+      const explicit = [es.attackRoll, es.comboSkill].find(v => v === 'melee' || v === 'ranged');
+      const allowed = explicit
+        ? [explicit]
+        : (es.skillChoices?.length ? es.skillChoices : [es.skill]).filter(v => v === 'melee' || v === 'ranged');
+      if (!allowed.length) continue;
+      allowedAttack = allowedAttack === null
+        ? new Set(allowed)
+        : new Set(allowed.filter(v => allowedAttack.has(v)));
     }
-    if (attackTypes.has('melee') && attackTypes.has('ranged')) warnings.push('DX3rd.ComboAttackTypeConflict');
+    if (allowedAttack !== null && allowedAttack.size === 0) warnings.push('DX3rd.ComboAttackTypeConflict');
 
     return warnings;
   }
@@ -1128,7 +1158,8 @@
     // 액터 스킬 데이터 추가
     itemSheetData.prepareSkillOptions(item, data, 'combo', {includeActorType: true});
     const effects = getEffectIds(item).map(id => actor?.items.get(id)).filter(Boolean);
-    data.comboSkillChoices = getCompatibleSkillChoices(effects);
+    // 충돌 조합(백병+사격 등)에서도 후보를 남겨 기능 드롭다운이 비지 않게 한다(경고만 하고 진행).
+    data.comboSkillChoices = getComboSkillCandidates(effects);
     if (data.comboSkillChoices.length) data.system.skillOptions = data.system.skillOptions.filter(o => o.value === '-' || data.comboSkillChoices.includes(o.value));
 
     // Description 에디터를 위한 데이터 추가 (helpers.js 사용)

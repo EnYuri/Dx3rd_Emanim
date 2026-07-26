@@ -1104,26 +1104,13 @@ window.DX3rdChatToggleManager = {
             const damage = dx3rdReadData(button, 'damage');
             const penetrate = dx3rdReadData(button, 'penetrate');
             const attackResult = Number(button.dataset.attackResult) || 0;
-            
-            // 권한 체크
+
             const actor = game.actors.get(actorId);
             if (!actor) {
                 console.warn('DX3rd | Actor not found:', actorId);
                 return;
             }
-            
-            if (!actor.isOwner && !game.user.isGM) {
-                console.warn('DX3rd | User lacks permission to use this actor\'s actions');
-                return;
-            }
-            
-            // 액터의 토큰 자동 선택
-            const previousToken = canvas.tokens?.controlled?.[0] || null;
-            const actorToken = canvas.tokens?.placeables.find(t => t.actor?.id === actor.id);
-            if (actorToken) {
-                actorToken.control({ releaseOthers: true });
-            }
-            
+
             // 아이템 가져오기 (임시 콤보 확인)
             let item = null;
             if (itemId) {
@@ -1143,65 +1130,18 @@ window.DX3rdChatToggleManager = {
                 }
             }
             
-            // 타겟 체크
-            const targets = Array.from(game.user.targets);
-            if (targets.length === 0) {
-                ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
-                // 이전 토큰 복원
-                if (previousToken && canvas.tokens) {
-                    previousToken.control({ releaseOthers: true });
-                }
-                return;
-            }
-            
-            // Hatred 상태이상 체크 (타겟에 hatred.target이 포함되어야 함)
-            const hatredActive = actor.system?.conditions?.hatred?.active || false;
-            const hatredTarget = actor.system?.conditions?.hatred?.target || '';
-            
-            if (hatredActive && hatredTarget) {
-              // 현재 타겟 중에 hatred.target이 있는지 확인
-              const hasHatredTarget = targets.some(t => {
-                const targetName = t.actor?.name || t.name;
-                return targetName === hatredTarget;
-              });
-              
-              if (!hasHatredTarget) {
-                // 에러 메시지 출력 (로컬라이즈 키에서 {target} 플레이스홀더 치환)
-                const hatredMessage = game.i18n.localize('DX3rd.MustAttackHatredTarget').replace('{target}', hatredTarget);
-                const hatredSpeaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
-                await ChatMessage.create({
-                  speaker: hatredSpeaker,
-                  content: `<div style="color: #ff6b6b;"><strong>${game.i18n.localize('DX3rd.Hatred')}: ${hatredMessage}</strong></div>`
-                });
-                
-                // 이전 토큰 복원
-                if (previousToken && canvas.tokens) {
-                  previousToken.control({ releaseOthers: true });
-                }
-                return;
-              }
-            }
-            
             // 콤보 afterDamage 데이터 가져오기
             const comboAfterDamageData = message.getFlag('dx3rd-emanim', 'comboAfterDamage');
-            
-            // UniversalHandler의 데미지 적용 함수 호출
-            // comboAfterDamageData를 전달하여 방어 다이얼로그 콜백에서 처리
-            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageApply) {
-                await window.DX3rdUniversalHandler.handleDamageApply(actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult);
-            }
 
-            // 증오 자동 회복은 명중판정 시점(onAttackRollComplete)으로 이관됨.
-            // 룰상 성공 여부와 무관하게 회복되므로, 빗나가 데미지 버튼을 누르지 않는 경우도 커버해야 한다.
-            // 위 hatred 대상 강제 체크(3595)는 잘못된 대상에 데미지 적용을 막는 안전망으로 유지.
+            // 권한/토큰/타겟/증오 게이트 + 적용은 공용 경로(runDamageApply)에 위임한다 —
+            // 데미지 산출 창 확정 직후의 자동 적용과 동일한 판정을 쓴다.
+            const applied = await window.DX3rdUniversalHandler?.runDamageApply?.({
+                actor, item, damage, penetrate, attackResult, comboAfterDamageData
+            });
+            if (!applied) return;
 
             // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
             await message.setFlag('dx3rd-emanim', 'damageApplyCompleted', true);
-            
-            // 이전 토큰 복원
-            if (previousToken && canvas.tokens) {
-                previousToken.control({ releaseOthers: true });
-            }
         });
         
         // 공격 롤 버튼 클릭 리스너 등록 (무기/비클 전용)

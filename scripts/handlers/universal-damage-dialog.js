@@ -212,6 +212,11 @@
         return;
       }
 
+      // 산출 창 확정이 곧 적용 확정이다 — 굴림 결과를 여기 담아두고 창이 닫힌 뒤 자동 적용한다.
+      // 다이얼로그 콜백 안에서 적용하면 방어 다이얼로그(GM이 대상 소유자인 경우)가
+      // 아직 열려 있는 산출 창 위에 겹쳐 뜬다.
+      let pendingApply = null;
+
       await DialogV2.wait({
         window: {
           title: game.i18n.localize('DX3rd.CalcDamage')
@@ -312,8 +317,15 @@
                   }
                 }
                 
-                await ChatMessage.create(messageData);
-                
+                const damageMessage = await ChatMessage.create(messageData);
+
+                pendingApply = {
+                  message: damageMessage,
+                  damage: damageRoll.total,
+                  penetrate: finalPenetrate,
+                  attackResult: attackRollResult
+                };
+
               } catch (error) {
                 console.error('DX3rd | Damage roll failed:', error);
                 ui.notifications.error('데미지 롤 중 오류가 발생했습니다.');
@@ -323,6 +335,84 @@
         ],
         classes: ["dx3rd-emanim", "damage-dialog"]
       });
+
+      // 데미지 롤 = 굴림 + 적용을 한 번에. 카드의 '데미지 적용' 버튼은 남겨 두어
+      // (완료 표시) 대상을 바꿔 다시 적용하는 경로로 계속 쓸 수 있게 한다.
+      // 호출부(handleDamageRoll)가 이 함수를 await 하지 않으므로 — afterSuccess 익스텐션이
+      // 산출 창을 기다리지 않게 하려는 기존 순서다 — 여기서 예외를 삼켜 unhandled rejection 을 막는다.
+      if (pendingApply) {
+        try {
+          const applied = await this.runDamageApply({
+            actor, item,
+            damage: pendingApply.damage,
+            penetrate: pendingApply.penetrate,
+            attackResult: pendingApply.attackResult,
+            comboAfterDamageData
+          });
+          if (applied) {
+            await pendingApply.message?.setFlag('dx3rd-emanim', 'damageApplyCompleted', true);
+          }
+        } catch (error) {
+          console.error('DX3rd | Damage auto-apply failed:', error);
+          ui.notifications.error('데미지 적용 중 오류가 발생했습니다.');
+        }
+      }
+    },
+
+    /**
+     * 데미지 적용 실행부(게이트 포함). 채팅의 '데미지 적용' 버튼과 데미지 산출 창 확정 직후의
+     * 자동 적용이 같은 경로를 쓰도록 분리했다 — 게이트(권한/타겟/증오)를 한 곳에만 둔다.
+     * 타겟은 호출 시점의 game.user.targets 를 읽는다(버튼 경로와 동일).
+     * @returns {Promise<boolean>} 실제로 적용을 진행했으면 true (게이트에서 막히면 false)
+     */
+    async runDamageApply({actor, item, damage, penetrate, attackResult = 0, comboAfterDamageData = null} = {}) {
+      if (!actor) return false;
+
+      // 권한 체크
+      if (!actor.isOwner && !game.user.isGM) {
+        console.warn('DX3rd | User lacks permission to use this actor\'s actions');
+        return false;
+      }
+
+      // 액터의 토큰 자동 선택
+      const previousToken = canvas.tokens?.controlled?.[0] || null;
+      const actorToken = canvas.tokens?.placeables.find(t => t.actor?.id === actor.id);
+      if (actorToken) actorToken.control({ releaseOthers: true });
+
+      const restoreToken = () => {
+        if (previousToken && canvas.tokens) previousToken.control({ releaseOthers: true });
+      };
+
+      // 타겟 체크
+      const targets = Array.from(game.user.targets);
+      if (targets.length === 0) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
+        restoreToken();
+        return false;
+      }
+
+      // Hatred 상태이상 체크 (타겟에 hatred.target이 포함되어야 함)
+      const hatredActive = actor.system?.conditions?.hatred?.active || false;
+      const hatredTarget = actor.system?.conditions?.hatred?.target || '';
+      if (hatredActive && hatredTarget) {
+        const hasHatredTarget = targets.some(t => (t.actor?.name || t.name) === hatredTarget);
+        if (!hasHatredTarget) {
+          const hatredMessage = game.i18n.localize('DX3rd.MustAttackHatredTarget').replace('{target}', hatredTarget);
+          await ChatMessage.create({
+            speaker: window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor),
+            content: `<div style="color: #ff6b6b;"><strong>${game.i18n.localize('DX3rd.Hatred')}: ${hatredMessage}</strong></div>`
+          });
+          restoreToken();
+          return false;
+        }
+      }
+
+      // 증오 자동 회복은 명중판정 시점(onAttackRollComplete)으로 이관됨.
+      // 룰상 성공 여부와 무관하게 회복되므로, 빗나가 데미지 버튼을 누르지 않는 경우도 커버해야 한다.
+      // 위 hatred 대상 강제 체크는 잘못된 대상에 데미지 적용을 막는 안전망으로 유지.
+      await this.handleDamageApply(actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult);
+      restoreToken();
+      return true;
     },
 
     /**

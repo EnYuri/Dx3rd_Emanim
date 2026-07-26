@@ -58,6 +58,10 @@
     const EV = window.DX3rdFormulaEvaluator;
     for (const [storeK, a] of Object.entries(map)) {
       if (!a || a.key === undefined || a.key === null || a.key === '-') continue;
+      // 시트는 사용자가 추가한 빈 행(값 공백)을 그대로 저장한다. 값이 비어 있으면 걸 보정이 없다 —
+      // 통과시키면 evaluate가 0으로 떨어져 "보정 0짜리" 항목만 남는다(universal-apply의
+      // hasUsableAttribute와 같은 기준). 존재 플래그형(boolean)은 값 자체가 의미이므로 예외.
+      if (typeof a.value !== 'boolean' && String(a.value ?? '').trim() === '') continue;
       let value;
       if (typeof a.value === 'boolean') value = a.value;           // 존재 플래그형(move_half 등)
       else {
@@ -97,7 +101,17 @@
     const add = (item) => {
       const key = `${KEY_PREFIX}${item.id}`;
       if (desired.has(key)) return;
-      desired.set(key, buildPayload(item, actor));
+      const payload = buildPayload(item, actor);
+      // 자기 보정(system.attributes)이 하나도 없는 아이템은 AE를 만들지 않는다.
+      // 대상 전용 이펙트(대상 탭 system.effect.attributes 만 채워진 것)도 사용 시
+      // active.state 는 켜진다(runTiming/disable 게이트만 보는 활성화 경로들 —
+      // handleItemUse·activateItem·채팅 afterSuccess/afterDamage 버튼). 그걸 그대로
+      // payload 로 만들면 걸 값이 0개인 더미 AE 가 시전자 본인에게 씌워진다.
+      // 토글 상태의 단일 소스는 item.system.active.state 이므로(AE 존재 여부가 아님)
+      // 여기서 빼도 활성 표시·콤보 지속 판정은 영향이 없다.
+      // 기존에 생긴 더미는 syncPlan 의 toDelete 가 다음 동기화에서 지운다(self-heal).
+      if (!Object.keys(payload.attributes).length) return;
+      desired.set(key, payload);
     };
     const toggled = (actor.items || []).filter(i =>
       i.system?.active?.state === true && TOGGLE_TYPES.includes(i.type));
@@ -145,37 +159,80 @@
     return { toDelete, toSet };
   }
 
-  /** 액터의 토글 AE 집합을 현재 토글 상태에 맞춰 upsert/remove. */
-  async function sync(actor) {
-    if (!actor) return false;
-    if (syncing.has(actor.id)) return syncing.get(actor.id);
-    if (actor.type !== 'character' && actor.type !== 'enemy') return false;
-    if (!isResponsible(actor)) return false;
-    if (!window.DX3rdAppliedEffects?.set) return false;
-
-    const { toDelete, toSet } = syncPlan(actor);
-
-    if (!toDelete.length && !toSet.length) return false; // no-op → 훅 캐스케이드 방지
-
-    const task = (async () => {
+  /** 계획 1회 실행. AE 쓰기는 한 번에 몰아서 한다(아이템 수만큼의 재파생·재렌더 방지). */
+  function runPlan(actor, { toDelete, toSet }) {
+    return (async () => {
       try {
         if (toDelete.length) {
           await actor.deleteEmbeddedDocuments('ActiveEffect', toDelete, { render: false });
         }
-        for (const [key, payload] of toSet) {
+        if (toSet.length) {
           // 능력치/레벨 변경에 따른 payload 재평가는 AE의 임시 비활성화를 되돌리지 않는다.
-          await window.DX3rdAppliedEffects.set(actor, key, payload, {preserveDisabled: true});
+          if (window.DX3rdAppliedEffects.setMany) {
+            await window.DX3rdAppliedEffects.setMany(actor, toSet, {preserveDisabled: true});
+          } else {
+            for (const [key, payload] of toSet) {
+              await window.DX3rdAppliedEffects.set(actor, key, payload, {preserveDisabled: true});
+            }
+          }
         }
         return true;
       } catch (e) {
         console.error('DX3rd | applied-toggle sync 실패:', actor?.name, e);
         return false;
+      }
+    })();
+  }
+
+  // 재계획 패스 상한. 정상적으로는 2패스(진행 중 대기 → 최신 재계획)면 수렴한다.
+  // 쓰기 중에 도착한 훅은 아래 훅 가드에서 버려지므로, 그 변경을 줍는 것은 이 재계획
+  // 패스의 책임이다 — 콤보 멤버를 한 번에 여러 개 켜면 멤버 수만큼 패스가 필요할 수 있다.
+  const MAX_SYNC_PASSES = 6;
+
+  /**
+   * 액터의 토글 AE 집합을 현재 토글 상태에 맞춰 upsert/remove.
+   *
+   * 진행 중 동기화가 있으면 "그것만 기다리고 끝내면 안 된다" — 계획(syncPlan)은 시작
+   * 시점에 고정되므로 그 뒤에 켜진 이펙트는 반영되지 않는다. 콤보가 멤버 이펙트를
+   * 연달아 켜는 경로(combo-handler processInstantExtensions)에서 이 차이가 그대로
+   * 버그가 됐다: 첫 멤버의 sync 만 기다린 뒤 공격값을 읽어, 나머지 멤버의 보정이
+   * 조용히 빠진다(훅 타이밍에 따라 간헐 재현). → 완료를 기다린 뒤 최신 상태로 재계획한다.
+   */
+  async function sync(actor) {
+    if (!actor) return false;
+    if (actor.type !== 'character' && actor.type !== 'enemy') return false;
+    if (!isResponsible(actor)) return false;
+    if (!window.DX3rdAppliedEffects?.set) return false;
+
+    // 명시 호출이 이 액터를 지금 처리하므로 대기 중인 훅 타이머는 불필요하다.
+    // (남겨도 빈 계획으로 no-op 하지만, 판정 직후 불필요한 재계획을 줄인다)
+    const pendingTimer = hookSyncTimers.get(actor.id);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      hookSyncTimers.delete(actor.id);
+    }
+
+    let changed = false;
+    for (let pass = 0; pass < MAX_SYNC_PASSES; pass++) {
+      const inflight = syncing.get(actor.id);
+      if (inflight) {
+        await inflight.catch(() => false);
+        continue; // 최신 상태로 다시 계획
+      }
+      const plan = syncPlan(actor);
+      if (!plan.toDelete.length && !plan.toSet.length) return changed; // no-op → 훅 캐스케이드 방지
+      // 진행 표식은 이 함수가 걸고 이 함수가 지운다. runPlan 안에서 지우면 쓰기가 전부
+      // 동기 반환된 경우 set() 보다 delete 가 먼저 일어나 표식이 영구히 남는다.
+      const task = runPlan(actor, plan);
+      syncing.set(actor.id, task);
+      try {
+        changed = (await task) || changed;
       } finally {
         syncing.delete(actor.id);
       }
-    })();
-    syncing.set(actor.id, task);
-    return task;
+    }
+    console.warn('DX3rd | applied-toggle sync did not settle within', MAX_SYNC_PASSES, 'passes:', actor?.name);
+    return changed;
   }
 
   /**
@@ -199,6 +256,115 @@
     return { scanned, changed };
   }
 
+  // ---------------------------------------------------------------------------
+  // '상시' 이펙트의 취득 시 자동 활성화
+  //
+  // 컴펜디움 아이템은 전부 active.state=false 로 빌드된다(_source/build-effects.mjs).
+  // 그래서 「상시」 타이밍 이펙트를 임포트하면 지속 보정이 꺼진 채로 들어오고, 시트에서
+  // 직접 체크하지 않으면 룰상 항상 켜져 있어야 할 효과가 조용히 빠진다. 더 나쁜 것은
+  // 그 이펙트를 콤보에 넣어 쓰면 발동 시점에 켜지면서 그 사용에만 반영되는 것처럼 보여,
+  // "간헐적으로 가산이 안 된다"로 관측된다는 점이다.
+  //
+  // 판정 기준은 시트가 활성 토글을 그리는 기준과 반드시 같아야 한다
+  // (actor-sheet-data usesSelfEffectActiveToggle 단일 소스). 어긋나면 토글도 없이
+  // 자동으로만 켜지는 아이템이 생긴다.
+  // 개입은 생성 시 1회뿐이다 — 사용자가 끈 상태는 그대로 유지된다.
+  // ---------------------------------------------------------------------------
+  function isAlwaysOnCandidate(item) {
+    if (!item || item.system?.active?.state === true) return false;
+    const predicate = window.DX3rdActorSheetData?.usesSelfEffectActiveToggle;
+    if (typeof predicate !== 'function') return false;
+    try {
+      return !!predicate(item);
+    } catch (e) {
+      console.warn('DX3rd | always-on 판정 실패:', item?.name, e);
+      return false;
+    }
+  }
+
+  /** 액터별 상시 활성화 대기 큐. 같은 틱에 도착한 생성들을 한 번의 배치로 켠다. */
+  const alwaysOnPending = new Map();
+
+  function ownedItemById(actor, id) {
+    return actor.items?.get?.(id) ?? (actor.items || []).find?.(item => item.id === id) ?? null;
+  }
+
+  /**
+   * 상시 후보면 배치 큐에 넣고 true. 액터 임포트/컴펜디움 다중 드래그는 createItem 을
+   * 아이템 수만큼 발생시키므로, 하나씩 update 하면 그 수만큼 DB 왕복 + 재파생이 돈다.
+   */
+  function queueAlwaysOn(item) {
+    const actor = item?.parent;
+    if (!actor || actor.documentName !== 'Actor') return false;
+    if (actor.type !== 'character' && actor.type !== 'enemy') return false;
+    if (!isAlwaysOnCandidate(item)) return false;
+    if (!isResponsible(actor)) return false;
+
+    let entry = alwaysOnPending.get(actor.id);
+    if (!entry) {
+      entry = { actor, ids: new Set() };
+      alwaysOnPending.set(actor.id, entry);
+      Promise.resolve().then(() => flushAlwaysOn(actor.id));
+    }
+    entry.ids.add(item.id);
+    return true;
+  }
+
+  async function flushAlwaysOn(actorId) {
+    const entry = alwaysOnPending.get(actorId);
+    if (!entry) return 0;
+    alwaysOnPending.delete(actorId);
+
+    // 큐에 들어간 뒤 삭제/수동 활성된 아이템은 여기서 탈락시킨다.
+    const updates = [...entry.ids]
+      .map(id => ownedItemById(entry.actor, id))
+      .filter(item => isAlwaysOnCandidate(item))
+      .map(item => ({ _id: item.id, 'system.active.state': true }));
+    if (!updates.length) return 0;
+    try {
+      await entry.actor.updateEmbeddedDocuments('Item', updates);
+      window.DX3rdDebug.log('DX3rd | always-on effects auto-activated:', updates.length, '→', entry.actor.name);
+      return updates.length;
+    } catch (e) {
+      console.error('DX3rd | always-on 자동 활성화 실패:', entry.actor?.name, e);
+      return 0;
+    }
+  }
+
+  /**
+   * 이미 꺼진 채로 임포트된 상시 이펙트 일괄 보정.
+   * 자동 실행하지 않는다 — GM이 콘솔에서
+   * `window.DX3rdAppliedToggle.activateAlwaysOn()`(전체) 또는
+   * `window.DX3rdAppliedToggle.activateAlwaysOn(actor)`(단일)로 실행한다.
+   */
+  async function activateAlwaysOn(actor = null) {
+    const actors = actor ? [actor] : Array.from(game.actors || []);
+    if (!actor && !game.user?.isGM) {
+      ui.notifications?.warn('DX3rd | GM만 상시 이펙트 전체 보정을 실행할 수 있습니다.');
+      return { scanned: 0, activated: 0 };
+    }
+    let scanned = 0;
+    let activated = 0;
+    for (const a of actors) {
+      if (a.type !== 'character' && a.type !== 'enemy') continue;
+      const targets = (a.items || []).filter(isAlwaysOnCandidate);
+      scanned += targets.length;
+      if (!targets.length) continue;
+      if (!isResponsible(a)) continue;
+      try {
+        // 아이템 하나씩 켜면 그 수만큼 재파생·훅이 돈다 → 액터 단위 배치 1회.
+        await a.updateEmbeddedDocuments('Item', targets.map(i => ({ _id: i.id, 'system.active.state': true })));
+        activated += targets.length;
+      } catch (e) {
+        console.error('DX3rd | 상시 이펙트 일괄 활성화 실패:', a?.name, e);
+        continue;
+      }
+      await sync(a);
+    }
+    console.log(`DX3rd | AlwaysOn repair: ${activated}/${scanned} effects activated.`);
+    return { scanned, activated };
+  }
+
   /** GM 설정 메뉴용 읽기 전용 전체 검사. */
   function auditAll() {
     const result = { scanned: 0, actors: 0, createOrUpdate: 0, remove: 0, rows: [] };
@@ -215,8 +381,29 @@
     return result;
   }
 
+  // ---------------------------------------------------------------------------
+  // 훅 유발 동기화는 짧게 합친다(액터당 1개 타이머).
+  //
+  // 콤보는 멤버 이펙트를 await 로 하나씩 켜므로, 훅이 즉시 sync 하면 아이템마다 AE 를
+  // 1건씩 쓰게 된다(실측: 3멤버 = create ActiveEffect ×3 = 라운드트립 3회 + 재파생 3회).
+  // 짧게 미루면 그 쓰기들이 콤보의 명시적 `await sync(actor)`(combo-handler) 한 번으로
+  // 모여 setMany 배치 1회가 된다. 명시 호출은 지연 없이 즉시 실행되므로 판정 직전의
+  // 보장은 그대로다 — 훅 sync 는 원래부터 fire-and-forget 이라 완료를 기다리는 곳이 없다.
+  // ---------------------------------------------------------------------------
+  const HOOK_SYNC_DELAY_MS = 50;
+  const hookSyncTimers = new Map();
+
+  function requestSync(actor) {
+    if (!actor) return;
+    const prev = hookSyncTimers.get(actor.id);
+    if (prev) clearTimeout(prev);
+    hookSyncTimers.set(actor.id, setTimeout(() => {
+      hookSyncTimers.delete(actor.id);
+      sync(actor);
+    }, HOOK_SYNC_DELAY_MS));
+  }
+
   Hooks.on('updateActor', (actor, changed) => {
-    if (syncing.has(actor.id)) return;
     // payload 는 actor.system 스탯/스킬/레벨만 참조한다(evaluatedAttrs). system 밖 변경
     // (flags/토큰/이름/이미지/소유권)은 payload 에 영향을 줄 수 없으므로 재평가를 스킵한다
     // — 전투 중 토큰 이동·플래그 갱신 등 핫패스에서 desiredPayloads 전량 재계산 비용 제거.
@@ -224,25 +411,28 @@
     if (!foundry.utils.hasProperty(changed, 'system')) return;
     // 무관 경로(예: attributes.hp)만 바뀐 변경은 재평가해도 전량 no-op → 스킵(전투 HP 핫패스 제거).
     if (!systemChangeAffectsPayload(changed)) return;
-    sync(actor);
+    requestSync(actor);
   });
   Hooks.on('updateItem', (item) => {
     const a = item.parent;
-    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+    if (isToggleSourceItem(item) && a?.documentName === 'Actor') requestSync(a);
   });
   Hooks.on('createItem', (item) => {
     const a = item.parent;
-    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+    if (a?.documentName !== 'Actor') return;
+    // 상시 이펙트는 취득만으로 켜져 있어야 한다. 켠 뒤의 AE 반영은 updateItem 훅이 잇는다.
+    if (queueAlwaysOn(item)) return;
+    if (isToggleSourceItem(item)) requestSync(a);
   });
   Hooks.on('deleteItem', (item) => {
     const a = item.parent;
-    if (isToggleSourceItem(item) && a?.documentName === 'Actor' && !syncing.has(a.id)) sync(a);
+    if (isToggleSourceItem(item) && a?.documentName === 'Actor') requestSync(a);
   });
   // 월드 준비 중 전체 액터를 순회해 AE를 생성·삭제하지 않는다.
   // 이후 아이템/액터 변경 훅은 필요한 해당 액터만 즉시 동기화한다.
   Hooks.once('ready', () => window.DX3rdDebug.log('DX3rd | AppliedToggle startup sweep skipped; explicit repair is available.'));
 
-  window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, syncAll, auditAll, desiredPayloads, isResponsible };
+  window.DX3rdAppliedToggle = { SCOPE, KEY_PREFIX, TOGGLE_TYPES, sync, syncAll, auditAll, desiredPayloads, isResponsible, activateAlwaysOn, isAlwaysOnCandidate };
 
   window.DX3rdDebug.log('DX3rd | AppliedToggle sync loaded');
 })();
