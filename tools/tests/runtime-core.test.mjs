@@ -380,3 +380,52 @@ test('chat message flags take precedence and legacy messages are classified', ()
     flags: { 'dx3rd-emanim': { comboAfterDamage: { itemId: 'i1' }, messageType: 'healing' } }
   });
 });
+
+test('compendium sync follows once/etc reclassification without touching same-name decoys', () => {
+  const context = baseContext({
+    Hooks: { once: () => {} },
+    game: { i18n: { localize: key => key } }
+  });
+  load(context, 'scripts/compendium-sync.js');
+  const { resolveSource } = context.window.DX3rdCompendiumSync;
+
+  // 컴펜디움: 응급치료 키트는 etc → once로 재분류됐고, 돌팔매는 이펙트로만 존재한다.
+  const pack = [
+    { type: 'once', name: '응급치료 키트' },
+    { type: 'etc', name: '의료 트렁크' },
+    { type: 'effect', name: '돌팔매' },
+    { type: 'once', name: '만능약' },
+    { type: 'etc', name: '만능약' }        // 동명이물: 두 타입으로 존재
+  ];
+  const index = new Map(pack.map(doc => [`${doc.type}|${doc.name}`, doc]));
+  const nameTypes = new Map();
+  for (const doc of pack) {
+    if (!nameTypes.has(doc.name)) nameTypes.set(doc.name, new Set());
+    nameTypes.get(doc.name).add(doc.type);
+  }
+
+  const item = (id, name, type) => ({ id, name, type });
+  const actorOf = (...items) => ({ items });
+
+  // 정확 매칭은 그대로 우선한다.
+  const trunk = item('i1', '의료 트렁크', 'etc');
+  assert.equal(resolveSource(index, nameTypes, actorOf(trunk), trunk).type, 'etc');
+
+  // 재분류된 소모품은 별칭으로 따라가 최신 데이터를 받는다.
+  const kit = item('i2', '응급치료 키트', 'etc');
+  assert.equal(resolveSource(index, nameTypes, actorOf(kit), kit).type, 'once');
+
+  // 이펙트가 생성한 무기는 이름이 같아도 매칭되지 않는다(별칭 대상 타입이 아님).
+  const sling = item('i3', '돌팔매', 'weapon');
+  assert.equal(resolveSource(index, nameTypes, actorOf(sling), sling), null);
+
+  // 컴펜디움에 같은 이름이 두 타입으로 있으면 모호하므로 건드리지 않는다.
+  const ambiguous = item('i4', '만능약', 'combo');
+  assert.equal(resolveSource(index, nameTypes, actorOf(ambiguous), ambiguous), null);
+
+  // 액터가 이미 재분류 후 타입의 사본을 갖고 있으면 중복 교체하지 않는다.
+  const oldKit = item('i5', '응급치료 키트', 'etc');
+  const newKit = item('i6', '응급치료 키트', 'once');
+  assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), oldKit), null);
+  assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), newKit).type, 'once');
+});

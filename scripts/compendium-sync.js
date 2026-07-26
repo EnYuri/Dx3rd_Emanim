@@ -33,6 +33,16 @@
         etc: ['system.quantity']
     };
 
+    // 컴펜디움에서 아이템의 타입이 재분류되면 `type|name` 정확 매칭이 끊겨, 그 사본은
+    // 몇 번을 동기화해도 낡은 채로 남는다(예: 응급치료 키트가 etc → once로 이동).
+    // once/etc는 둘 다 소모품·기타 아이템으로 스키마가 호환되므로 상호 별칭을 허용한다.
+    // 이 목록을 넓히지 말 것: weapon/effect처럼 이름만 같고 실체가 다른 조합(이펙트가
+    // 생성한 무기, 플레이어가 만든 콤보)까지 매칭되면 멀쩡한 인스턴스를 덮어쓴다.
+    const TYPE_ALIASES = {
+        once: ['etc'],
+        etc: ['once']
+    };
+
     // D/E 로이스는 공식 데이터 갱신 대상이지만, 일반 로이스는 플레이어 관계
     // 데이터이므로 이름이 우연히 컴펜디움 항목과 같아도 덮어쓰지 않는다.
     function isSyncEligible(item) {
@@ -139,8 +149,11 @@
     const itemFingerprint = (item) => stableStringify(comparable(item.toObject()));
 
     // 컴펜디움 인덱스: `${type}|${name}` → 컴펜디움 문서
+    // nameTypes는 이름 하나가 몇 종류의 타입으로 존재하는지를 담는다. 별칭 매칭이
+    // 동명이물을 집어오지 않도록 판정하는 데 쓴다.
     async function buildIndex() {
         const index = new Map();
+        const nameTypes = new Map();
         const duplicates = [];
         const missingPacks = [];
         for (const packName of PACKS) {
@@ -160,20 +173,43 @@
                     });
                 }
                 index.set(key, doc);
+                if (!nameTypes.has(doc.name)) nameTypes.set(doc.name, new Set());
+                nameTypes.get(doc.name).add(doc.type);
             }
         }
-        return { index, dupes: duplicates.length, duplicates, missingPacks };
+        return { index, nameTypes, dupes: duplicates.length, duplicates, missingPacks };
+    }
+
+    // 임베디드 아이템에 대응하는 컴펜디움 문서를 찾는다. 정확 매칭이 우선이고,
+    // 실패했을 때만 TYPE_ALIASES로 재분류를 따라간다. 별칭은 다음을 모두 만족할 때만
+    // 적용해, 이름이 겹치는 별개 문서를 덮어쓰지 않는다.
+    //   - 컴펜디움에서 그 이름이 단 하나의 타입으로만 존재할 것(동명이물 배제)
+    //   - 같은 액터가 별칭 타입의 사본을 이미 갖고 있지 않을 것(중복 교체 배제)
+    function resolveSource(index, nameTypes, actor, item) {
+        const exact = index.get(`${item.type}|${item.name}`);
+        if (exact) return exact;
+        const types = nameTypes.get(item.name);
+        if (!types || types.size !== 1) return null;
+        for (const alias of TYPE_ALIASES[item.type] || []) {
+            const src = index.get(`${alias}|${item.name}`);
+            if (!src) continue;
+            const hasExactSibling = actor.items.some(other =>
+                other.id !== item.id && other.name === item.name && other.type === alias);
+            if (hasExactSibling) return null;
+            return src;
+        }
+        return null;
     }
 
     // 드라이 스캔: 실제 갱신 대상 계획 수집. 동일/보존 상태만 다른 항목은 제외한다.
     // [{actor, matches:[{item: Item, fingerprint: string}, ...]}, ...]
-    function scan(index) {
+    function scan(index, nameTypes) {
         const plan = [];
         for (const actor of game.actors) {
             const matches = [];
             for (const item of actor.items) {
                 if (!isSyncEligible(item)) continue;
-                const src = index.get(`${item.type}|${item.name}`);
+                const src = resolveSource(index, nameTypes, actor, item);
                 if (src && needsReplacement(item, src)) {
                     matches.push({ item, fingerprint: itemFingerprint(item) });
                 }
@@ -184,8 +220,8 @@
     }
 
     // 읽기 전용 감사. 실제 동기화에 쓰일 최종 데이터와 현재 아이템을 비교한다.
-    function audit(index) {
-        const plan = scan(index);
+    function audit(index, nameTypes) {
+        const plan = scan(index, nameTypes);
         const result = {
             plan,
             matched: 0,
@@ -202,7 +238,7 @@
             const unmatched = [];
             for (const item of actor.items) {
                 if (!isSyncEligible(item)) continue;
-                const src = index.get(`${item.type}|${item.name}`);
+                const src = resolveSource(index, nameTypes, actor, item);
                 if (!src) {
                     result.unmatched++;
                     unmatched.push({ name: item.name, type: item.type });
@@ -269,7 +305,7 @@
     }
 
     // 실제 적용: 액터별로 삭제 후 재생성(keepId).
-    async function apply(index, plan) {
+    async function apply(index, nameTypes, plan) {
         let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0, stale = 0;
         for (const { actor, matches } of plan) {
             const createData = [];
@@ -285,8 +321,11 @@
                     continue;
                 }
                 if (!isSyncEligible(item)) continue;
-                const src = index.get(`${item.type}|${item.name}`);
+                const src = resolveSource(index, nameTypes, actor, item);
                 if (!src) continue;
+                if (src.type !== item.type) {
+                    console.warn(`DX3rd | 컴펜디움 동기화 타입 재분류: ${actor.name} / ${item.name} (${item.type} → ${src.type})`);
+                }
                 const oldObj = item.toObject();
                 const data = prepareReplacement(item, src);
                 deleteIds.push(item.id);
@@ -330,8 +369,8 @@
             return;
         }
         ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
-        const { index, dupes, duplicates, missingPacks } = await buildIndex();
-        const result = audit(index);
+        const { index, nameTypes, dupes, duplicates, missingPacks } = await buildIndex();
+        const result = audit(index, nameTypes);
         const runtime = runtimeAudit();
         const rows = result.rows.map(row => {
             const changes = row.changes.map(change =>
@@ -372,8 +411,8 @@
         }
         ui.notifications.info(game.i18n.localize('DX3rd.CompendiumSyncScanning'));
 
-        const { index, dupes } = await buildIndex();
-        const plan = scan(index);
+        const { index, nameTypes, dupes } = await buildIndex();
+        const plan = scan(index, nameTypes);
         const totalItems = plan.reduce((n, p) => n + p.matches.length, 0);
         if (!totalItems) {
             ui.notifications.info(game.i18n.localize('DX3rd.CompendiumSyncNone'));
@@ -396,7 +435,7 @@
         });
         if (!confirmed) return;
 
-        const res = await apply(index, plan);
+        const res = await apply(index, nameTypes, plan);
         const msg = format('DX3rd.CompendiumSyncComplete', res);
         if (res.failed || res.stale) {
             const notices = [];
@@ -415,8 +454,8 @@
             return;
         }
         ui.notifications.info(localize('DX3rd.CompendiumSyncScanning'));
-        const { index, dupes } = await buildIndex();
-        const plan = scan(index);
+        const { index, nameTypes, dupes } = await buildIndex();
+        const plan = scan(index, nameTypes);
         const runtime = runtimeAudit();
         const totalItems = plan.reduce((n, p) => n + p.matches.length, 0);
         if (!totalItems && !runtimeHasWork(runtime)) {
@@ -435,7 +474,7 @@
             window: { title: localize('DX3rd.CompendiumSyncHubTitle') }, content, modal: true
         });
         if (!confirmed) return;
-        const compendium = totalItems ? await apply(index, plan) : { actorsChanged: 0, itemsChanged: 0, failed: 0 };
+        const compendium = totalItems ? await apply(index, nameTypes, plan) : { actorsChanged: 0, itemsChanged: 0, failed: 0 };
         const repaired = await repairRuntime();
         ui.notifications.info(format('DX3rd.FullSyncComplete', {
             actors: compendium.actorsChanged,
@@ -535,5 +574,5 @@
         });
     });
 
-    window.DX3rdCompendiumSync = { open, openItemSync, openAudit, openHub, openAppliedToggleRepair, buildIndex, scan, audit, apply, runtimeAudit };
+    window.DX3rdCompendiumSync = { open, openItemSync, openAudit, openHub, openAppliedToggleRepair, buildIndex, resolveSource, scan, audit, apply, runtimeAudit };
 })();
