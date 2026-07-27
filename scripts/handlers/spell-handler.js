@@ -170,20 +170,25 @@ window.DX3rdSpellHandler = {
         const castRollFormula = actor.system?.attributes?.cast?.rollFormula || {};
         const eibonDice = Number(actor.system?.attributes?.cast?.eibon ?? 0);
 
+        // 세 칸 모두 직접 수정할 수 있다. 마술 주사위 칸은 (에이본 포함) 최종 개수를 뜻하고,
+        // 굴림 시점에 여기 적힌 값을 그대로 쓴다.
+        // 주사위/수정은 굴림식에서 산술로 쓰이므로 type=number로 정수만 받는다(다이스식 불가).
+        // 발동치는 아이템 데이터가 숫자가 아닐 수도 있어 text로 두고 입력값만 검사한다.
+        const overrideHint = l('DX3rd.RollFieldOverrideHint');
         const content = `
             <div class="dx3rd-casting-dialog">
                 <div class="dx3rd-row dx3rd-3col">
                     <div>
                         <div class="label">${diceLabel}</div>
-                        <input type="text" name="dice" value="${castDice}" data-dtype="Number" readonly>
+                        <input type="number" name="dice" value="${castDice}" data-dtype="Number" title="${overrideHint}">
                     </div>
                     <div>
                         <div class="label">${addLabel}</div>
-                        <input type="text" name="add" value="${castAdd}" data-dtype="Number" readonly>
+                        <input type="number" name="add" value="${castAdd}" data-dtype="Number" title="${overrideHint}">
                     </div>
                     <div>
                         <div class="label">${diffLabel}</div>
-                        <input type="text" name="difficulty" value="${difficulty}" data-dtype="String" readonly>
+                        <input type="text" name="difficulty" value="${difficulty}" data-dtype="String" title="${overrideHint}">
                     </div>
                 </div>
                 <div class="dx3rd-row dx3rd-8col" style="margin-top:8px;">
@@ -216,15 +221,34 @@ window.DX3rdSpellHandler = {
                     label: rollLabel,
                     default: true,
                     callback: async (event, button) => {
-                        const useEibon = button.form?.elements?.eibon?.checked || false;
-                        const useAngel = button.form?.elements?.angel?.checked || false;
-                        
+                        const form = button.form;
+                        const useEibon = form?.elements?.eibon?.checked || false;
+                        const useAngel = form?.elements?.angel?.checked || false;
+
+                        // 잠금을 풀었으므로 굴림 값은 상수가 아니라 입력칸에서 읽는다.
+                        // 숫자가 아니면 원래 값으로 되돌려 오타 하나에 판정이 0이 되지 않게 한다.
+                        const readNumber = (name, fallback) => {
+                            const raw = String(form?.elements?.[name]?.value ?? '').trim();
+                            const parsed = Number(raw);
+                            if (raw === '' || !Number.isFinite(parsed)) return fallback;
+                            return parsed;
+                        };
+                        const dialogDice = Math.trunc(readNumber('dice', castDice + (useEibon ? eibonDice : 0)));
+                        const dialogAdd = Math.trunc(readNumber('add', castAdd));
+
+                        const rawDifficulty = String(form?.elements?.difficulty?.value ?? '').trim();
+                        let finalDifficulty = difficulty;
+                        if (rawDifficulty !== '') {
+                            if (Number.isFinite(Number(rawDifficulty))) finalDifficulty = rawDifficulty;
+                            else ui.notifications.warn(l('DX3rd.InvokeValueInvalid'));
+                        }
+
                         await this.performCastingRoll(actor, item, {
-                            castDice,
-                            castAdd,
+                            dialogDice,
+                            castAdd: dialogAdd,
                             castRollFormula,
                             eibonDice,
-                            difficulty,
+                            difficulty: finalDifficulty,
                             useEibon,
                             useAngel,
                             getTarget
@@ -242,6 +266,14 @@ window.DX3rdSpellHandler = {
                 root.querySelector('#angel-checkbox')?.addEventListener('change', () => {
                     this.updateDiceDisplay(root, castDice, eibonDice);
                 });
+                // 직접 고친 칸은 색으로 표시한다(마술 주사위 칸은 에이본 표시 색과 겹치므로 제외).
+                for (const name of ['add', 'difficulty']) {
+                    const el = root.querySelector(`input[name="${name}"]`);
+                    const original = el?.value ?? '';
+                    el?.addEventListener('input', () => {
+                        el.classList.toggle('dx3rd-overridden', el.value.trim() !== original.trim());
+                    });
+                }
             }
         });
     }
@@ -251,20 +283,31 @@ window.DX3rdSpellHandler = {
         const diceInput = root.querySelector('input[name="dice"]');
         if (!diceInput) return;
         
+        // 잠금을 푼 뒤로 이 칸은 "최종 마술주사위 개수"를 뜻한다. 에이본 체크 시에도
+        // "5 + 2" 같은 문자열이 아니라 합계를 넣어야 사용자가 그 값을 이어서 고칠 수 있다.
+        // 체크를 토글하면 자동 계산값으로 되돌아가므로 직접 고친 값은 여기서 덮인다.
         if (useEibon && eibonDice > 0) {
             // 에이본의 금주법이 체크된 경우: 마술주사위 + 에이본의 주사위(빨간색)
-            const totalDice = castDice + eibonDice;
-            diceInput.value = `${castDice} + ${eibonDice}`;
+            diceInput.value = castDice + eibonDice;
+            diceInput.title = `${castDice} + ${eibonDice} (${game.i18n.localize('DX3rd.EibonDice')})`;
             diceInput.style.color = '#ff8a80';
         } else {
             // 에이본의 금주법이 체크되지 않은 경우: 기본 마술주사위
             diceInput.value = castDice;
+            diceInput.title = game.i18n.localize('DX3rd.RollFieldOverrideHint');
             diceInput.style.color = '#f5f5f5';
         }
     }
     ,
+    /**
+     * 마술 굴림 실행
+     * @param {Object} options
+     *   - dialogDice: 다이얼로그의 마술 주사위 칸에서 확정된 최종 개수(에이본 포함, 사용자 수정 반영)
+     *   - castAdd: 마술 수정치(사용자 수정 반영)
+     *   - eibonDice: DS 제거 옵션 산출용 에이본 주사위 수
+     */
     async performCastingRoll(actor, item, options) {
-        const { castDice, castAdd, castRollFormula = {}, eibonDice, difficulty, useEibon, useAngel, getTarget } = options;
+        const { dialogDice, castAdd, castRollFormula = {}, eibonDice, difficulty, useEibon, useAngel, getTarget } = options;
 
         // cast_* 다이스식은 마술 굴림 버튼을 누른 지금 한 번만 굴린다.
         const rollFormulaBonus = async (kind) => {
@@ -283,11 +326,10 @@ window.DX3rdSpellHandler = {
             rollFormulaBonus('dice'), rollFormulaBonus('add')
         ]);
 
-        // 주사위 개수 계산
-        let totalDice = castDice + formulaDice.total;
-        if (useEibon) {
-            totalDice += eibonDice;
-        }
+        // 주사위 개수 계산: dialogDice에 에이본 주사위가 이미 포함되어 있으므로 여기서 다시 더하지 않는다.
+        // cast_dice 다이스식(굴림 결과)만 지금 더한다 — 다이얼로그가 보여줄 수 없는 값이다.
+        // 0개 이하는 ds 다이스텀이 만들 수 없는 식이라 최소 1개는 굴린다(직접 입력 방어).
+        const totalDice = Math.max(1, dialogDice + formulaDice.total);
 
         // DS 제거 옵션 구성
         let dsOptions = [];

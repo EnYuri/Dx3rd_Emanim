@@ -846,22 +846,29 @@
       const addSign = weaponBonus && weaponBonus.add >= 0 ? '+' : '';
       const attackSourceLabel = weaponBonus?.sourceLabel || game.i18n.localize('DX3rd.Weapon');
       
+      // 상단 칸은 최종 판정치이며 직접 수정할 수 있다(자동 계산 덮어쓰기).
+      // 하단 칸은 자동 계산에 더하는 수정치이고, 그쪽을 만지면 덮어쓰기가 풀린다.
+      // 다이스/크리티컬은 판정식 조립에 쓰는 정수라 type=number로 두어 "1d10" 같은 입력을
+      // 브라우저 단계에서 막는다(정수로 잘려 조용히 1이 되는 사고 방지).
+      // 수정치는 판정 롤의 항으로 그대로 실리므로 다이스식을 받는다.
+      const overrideHint = game.i18n.localize('DX3rd.RollFieldOverrideHint');
+      const addHint = game.i18n.localize('DX3rd.RollAddOverrideHint');
       const content = `
         <div class="dx3rd-casting-dialog">
           <div class="dx3rd-row dx3rd-3col">
             <div>
               <div class="label">${game.i18n.localize('DX3rd.Dice')}</div>
-              <input type="text" class="dx-dice-display" value="${effectiveStat.dice || 0}" disabled>
+              <input type="number" class="dx-dice-display" value="${effectiveStat.dice || 0}" title="${overrideHint}">
               <input type="number" class="dx-dice-input" value="0" placeholder="추가">
             </div>
             <div>
               <div class="label">${game.i18n.localize('DX3rd.Critical')}</div>
-              <input type="text" class="dx-critical-display" value="${effectiveStat.critical || defaultCritical}" disabled>
+              <input type="number" class="dx-critical-display" value="${effectiveStat.critical || defaultCritical}" title="${overrideHint}">
               <input type="number" class="dx-critical-input" value="0" placeholder="수정">
             </div>
             <div>
               <div class="label">${game.i18n.localize('DX3rd.Add')}</div>
-              <input type="text" class="dx-add-display" value="${effectiveStat.add || 0}" disabled>
+              <input type="text" class="dx-add-display" value="${effectiveStat.add || 0}" title="${addHint}">
               <input type="number" class="dx-add-input" value="0" placeholder="추가">
             </div>
           </div>
@@ -927,12 +934,34 @@
       const addDisplay = root.querySelector('.dx-add-display');
       const addInput = root.querySelector('.dx-add-input');
 
+      // 직접 수정(덮어쓰기) 상태. 표시 칸은 "최종 판정치"이므로 사용자가 손으로 고치면
+      // 그 값이 자동 계산(기본값 + 수정치 + 패널티)을 대신한다.
+      // 판정 타입이 바뀌면 기준값 자체가 달라지므로 덮어쓰기는 무효로 본다.
+      const overrides = { dice: null, critical: null, add: null };
+      let overrideRollType = null;
+      // 마지막으로 표시에 반영한 판정 타입. 호버 아웃 시 .selected 가 지워져도
+      // 수정치 입력이 어느 타입 기준으로 계산되는지 잃지 않게 따로 들고 있는다.
+      let currentRollType = specificRollType || null;
+
+      const applyDisplay = (el, value, overridden) => {
+        if (!el) return;
+        // 사용자가 지금 타이핑 중인 칸은 덮어쓰지 않는다(커서·중간 입력 보존).
+        if (document.activeElement !== el) el.value = value;
+        el.classList.toggle('dx3rd-overridden', overridden);
+      };
+
       // 현재 선택된 타입의 기본값 업데이트 함수
       const updateDisplayValues = (t) => {
         const data = effectiveStat[t] || { dice: effectiveStat.dice||0, critical: effectiveStat.critical||defaultCritical, add: effectiveStat.add||0 };
         const baseDice = data.dice || 0;
         const baseCrit = data.critical || defaultCritical;
         const baseAdd = data.add || 0; // effectiveStat.add가 이미 무기 보너스가 적용된 값
+
+        if (overrideRollType && overrideRollType !== t) {
+          overrides.dice = overrides.critical = overrides.add = null;
+          overrideRollType = null;
+        }
+        currentRollType = t;
 
         // 사용자 입력값 가져오기
         const diceModifier = parseInt(diceInput?.value) || 0;
@@ -941,26 +970,78 @@
 
         // 기본값 + 입력값 + 공포 패널티 표시 (의존 패널티는 이미 effectiveStat.dice에 적용됨)
         // 룰(rule-section:39-41): 실제 판정치를 그대로 표시(0 이하면 자동실패 예고). 하한 클램프 없음.
-        const displayDice = baseDice + diceModifier + fearPenalty;
-        if (diceDisplay) diceDisplay.value = displayDice;
-        if (critDisplay) critDisplay.value = baseCrit + critModifier;
-        if (addDisplay) addDisplay.value = baseAdd + addModifier + distastePenalty;
+        const finalDice = overrides.dice ?? (baseDice + diceModifier + fearPenalty);
+        const finalCrit = overrides.critical ?? (baseCrit + critModifier);
+        const finalAdd = overrides.add ?? (baseAdd + addModifier + distastePenalty);
 
-        return { baseDice: baseDice + fearPenalty, baseCrit, baseAdd: baseAdd + distastePenalty };
+        applyDisplay(diceDisplay, finalDice, overrides.dice !== null);
+        applyDisplay(critDisplay, finalCrit, overrides.critical !== null);
+        applyDisplay(addDisplay, finalAdd, overrides.add !== null);
+
+        return { finalDice, finalCrit, finalAdd };
       };
 
       // 입력 필드 변경 시 디스플레이 업데이트
       const updateSelectedDisplay = () => {
-        const selectedBtn = root.querySelector('.roll-type-btn.selected');
-        if (selectedBtn) {
-          updateDisplayValues(selectedBtn.dataset.rollType);
-        }
+        const t = root.querySelector('.roll-type-btn.selected')?.dataset.rollType || currentRollType;
+        if (t) updateDisplayValues(t);
       };
-      diceInput?.addEventListener('input', updateSelectedDisplay);
-      critInput?.addEventListener('input', updateSelectedDisplay);
-      addInput?.addEventListener('input', updateSelectedDisplay);
+      // 수정치 칸을 만지면 "자동 계산으로 돌아가겠다"는 뜻이므로 해당 항목의 덮어쓰기를 해제한다.
+      const bindModifier = (el, key) => el?.addEventListener('input', () => {
+        overrides[key] = null;
+        updateSelectedDisplay();
+      });
+      bindModifier(diceInput, 'dice');
+      bindModifier(critInput, 'critical');
+      bindModifier(addInput, 'add');
+
+      // 표시 칸 직접 수정 → 최종 판정치 덮어쓰기 (비우면 자동 계산 복귀)
+      // allowFormula: 수정치는 정수가 아니면 다이스식으로 보고 문자열째 보관한다.
+      //   (판정 롤의 항으로 실리므로 "3+1d10"처럼 기존 값에 이어 붙일 수 있다.)
+      const bindOverride = (el, key, allowFormula = false) => {
+        if (!el) return;
+        el.addEventListener('input', () => {
+          const raw = el.value.trim();
+          if (raw === '') {
+            overrides[key] = null;
+          } else if (/^[+-]?\d+$/.test(raw)) {
+            overrides[key] = Number(raw);
+            overrideRollType = currentRollType;
+          } else if (allowFormula) {
+            overrides[key] = raw; // 유효성은 blur/굴림 시점에 확인(타이핑 중엔 경고하지 않는다)
+            overrideRollType = currentRollType;
+          } else {
+            return; // '-'만 찍은 중간 상태 등은 무시
+          }
+          updateSelectedDisplay();
+        });
+        // 포커스를 잃으면 표시를 실제 적용값으로 정규화한다. 그러지 않으면 칸에는 '-'가,
+        // 판정에는 자동 계산값이 쓰이는 불일치가 눈에 보이지 않는다.
+        el.addEventListener('blur', () => {
+          if (typeof overrides[key] === 'string' && !Roll.validate(overrides[key])) {
+            ui.notifications.warn(`${game.i18n.localize('DX3rd.RollAddFormulaInvalid')}: ${overrides[key]}`);
+            overrides[key] = null;
+          }
+          updateSelectedDisplay();
+        });
+      };
+      bindOverride(diceDisplay, 'dice');
+      bindOverride(critDisplay, 'critical');
+      bindOverride(addDisplay, 'add', true);
 
       const btns = Array.from(root.querySelectorAll('.roll-type-btn'));
+
+      // 입력칸에서 Enter를 누르면 DialogV2의 기본 버튼(닫기)이 눌려 판정이 날아간다.
+      // 칸을 편집할 수 있게 된 이상 Enter는 "지금 표시 중인 타입으로 굴린다"로 받는다.
+      for (const el of [diceDisplay, diceInput, critDisplay, critInput, addDisplay, addInput,
+                        root.querySelector('.dx-difficulty')]) {
+        el?.addEventListener('keydown', ev => {
+          if (ev.key !== 'Enter') return;
+          ev.preventDefault();
+          const target = btns.find(b => b.dataset.rollType === currentRollType && !b.disabled) || btns.find(b => !b.disabled);
+          target?.click();
+        });
+      }
 
       // 특정 타입만 있는 경우 자동으로 선택 및 표시
       if (specificRollType && btns.length === 1) {
@@ -991,25 +1072,26 @@
         btn.addEventListener('click', async ev => {
             const t = ev.currentTarget.dataset.rollType;
             
-            // updateDisplayValues를 호출하여 현재 표시값 가져오기 (공포 패널티 포함)
-            const { baseDice, baseCrit, baseAdd } = updateDisplayValues(t);
-            
-            // 사용자 입력 추가
-            const diceModifier = parseInt(diceInput?.value) || 0;
-            const critModifier = parseInt(critInput?.value) || 0;
-            const addModifier = parseInt(addInput?.value) || 0;
-            
-            // 최종 계산 (baseDice에 이미 공포 패널티가 포함됨)
+            // 표시값 = 최종 판정치. 수정치·패널티·직접 수정(덮어쓰기)이 모두 반영된 값이다.
             // 룰(rule-section:39-41): 하한 없이 원 판정치를 전달 → 롤 실행부가 0 이하면 자동실패 처리
-            const finalDice = baseDice + diceModifier;
-            const finalCrit = Math.max(2, baseCrit + critModifier);
-            const finalAdd = baseAdd + addModifier;
-            
+            const values = updateDisplayValues(t);
+            const finalDice = values.finalDice;
+            const finalCrit = Math.max(2, values.finalCrit);
+            const finalAdd = values.finalAdd;
+
+            // 수정치에 다이스식을 넣고 blur 없이 바로 굴린 경우(Enter 등). 깨진 식을 그대로
+            // 판정 롤에 실으면 롤 전체가 실패하므로, 조용히 다른 값으로 굴리지 않고 여기서 멈춘다.
+            if (typeof finalAdd === 'string' && !Roll.validate(finalAdd)) {
+              ui.notifications.warn(`${game.i18n.localize('DX3rd.RollAddFormulaInvalid')}: ${finalAdd}`);
+              return;
+            }
+
             window.DX3rdDebug.log('DX3rd | Roll button clicked - values:', {
               rollType: t,
-              baseDice,
-              diceModifier,
               finalDice,
+              finalCrit,
+              finalAdd,
+              overrides,
               fearPenalty
             });
             

@@ -277,6 +277,9 @@
   "DX3rd.CriticalMin": "크리티컬 하한치",
   "DX3rd.Fumble": "펌블",
   "DX3rd.PoolZero": "판정치 0 이하",
+  "DX3rd.RollFieldOverrideHint": "직접 입력하면 자동 계산값 대신 이 값으로 굴립니다. (비우면 자동 계산으로 복귀)",
+  "DX3rd.RollAddOverrideHint": "직접 입력하면 자동 계산값 대신 이 값으로 굴립니다. 다이스식도 됩니다(예: 3+1d10). (비우면 자동 계산으로 복귀)",
+  "DX3rd.RollAddFormulaInvalid": "수정치 수식을 굴릴 수 없습니다",
 
   "DX3rd.MajorDice": "메이저 다이스",
   "DX3rd.MajorAdd": "메이저 수정치",
@@ -412,6 +415,7 @@
   "DX3rd.CastingDice": "마술 주사위",
   "DX3rd.CastingAdd": "마술 수정",
   "DX3rd.EibonDice": "에이본의 주사위",
+  "DX3rd.InvokeValueInvalid": "발동치는 숫자로 입력해주세요. 원래 값으로 굴립니다.",
 
   "DX3rd.SpellResult": "마술 굴림 결과",
   "DX3rd.OverflowDice": "폭주 주사위",

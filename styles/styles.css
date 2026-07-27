@@ -2765,6 +2765,17 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
   border-radius: 4px;
   height: 26px;
 }
+/* 판정/마술 다이얼로그: 자동 계산값을 손으로 덮어쓴 칸 표시.
+   같은 파일의 `.application.dialog.dx3rd-emanim input`(클래스 3개)에 밀리지 않도록
+   루트 클래스를 함께 걸어 명시도를 올린다. AppV1 폴백(.app.window-app)도 함께 선언. */
+.dx3rd-emanim.dialog.dx3rd-casting-dialog input.dx3rd-overridden,
+.dx3rd-emanim.dialog.dx3rd-rolling-dialog input.dx3rd-overridden,
+.dx3rd-emanim.window-app.dx3rd-casting-dialog input.dx3rd-overridden,
+.dx3rd-emanim.window-app.dx3rd-rolling-dialog input.dx3rd-overridden {
+  color: #ffd54f;
+  border-color: #a1873c;
+  background: #241f10;
+}
 .dx3rd-rolling-dialog .dialog-buttons .dialog-button {
   background: #2a2a2a;
   color: #f5f5f5;

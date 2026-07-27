@@ -601,3 +601,202 @@ test('always-on repair activates every stale import in one batch per actor', asy
   assert.equal(fixture.writes.filter(write => write.op === 'updateItems').length, 1, '액터당 1회 배치');
   assert.equal(fixture.actor.items.find(i => i.id === 'e3').system.active.state, false);
 });
+
+// 판정 다이얼로그(showStatRollDialog)는 실제 DOM 없이는 돌 수 없다. DialogV2.element을
+// 가짜 루트로 갈아끼워, 잠금 해제한 표시 칸의 "직접 수정 = 최종 판정치 덮어쓰기" 배선을 검증한다.
+// (칸이 실제로 열려 있는지는 content HTML을 함께 확인한다.)
+function fakeElement(value = '') {
+  const listeners = new Map();
+  const classes = new Set();
+  let raw = String(value);
+  return {
+    // 실제 input.value는 무엇을 넣어도 문자열이 된다. 그 강제 변환까지 흉내내야
+    // 코드가 문자열/숫자를 섞어 다루는 실수를 테스트가 놓치지 않는다.
+    get value() { return raw; },
+    set value(next) { raw = String(next); },
+    title: '',
+    disabled: false,
+    dataset: {},
+    classList: {
+      add: name => classes.add(name),
+      remove: name => classes.delete(name),
+      contains: name => classes.has(name),
+      toggle: (name, on) => { if (on) classes.add(name); else classes.delete(name); }
+    },
+    addEventListener: (type, fn) => {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(fn);
+    },
+    async fire(type, event = {}) {
+      for (const fn of listeners.get(type) || []) await fn({ currentTarget: this, preventDefault: () => {}, ...event });
+    },
+    // 사용자 입력: 값을 넣고 input 이벤트를 흘린다.
+    async input(next) { this.value = next; await this.fire('input'); }
+  };
+}
+
+function rollDialogContext(stat) {
+  const fields = {
+    '.dx-dice-display': fakeElement(0), '.dx-dice-input': fakeElement(0),
+    '.dx-critical-display': fakeElement(0), '.dx-critical-input': fakeElement(0),
+    '.dx-add-display': fakeElement(0), '.dx-add-input': fakeElement(0),
+    '.dx-difficulty': fakeElement('')
+  };
+  const buttons = ['major', 'reaction', 'dodge'].map(type => {
+    const button = fakeElement();
+    button.dataset.rollType = type;
+    button.click = () => button.fire('click');
+    return button;
+  });
+  const root = {
+    querySelector: selector => {
+      if (selector === '.roll-type-btn.selected') return buttons.find(b => b.classList.contains('selected')) || null;
+      return fields[selector] || null;
+    },
+    querySelectorAll: selector => (selector === '.roll-type-btn' ? buttons : [])
+  };
+
+  let content = '';
+  class DialogV2 {
+    constructor(config) { content = config.content; this.element = root; }
+    async render() { return this; }
+    close() { this.closed = true; }
+  }
+
+  const rolls = [];
+  const warnings = [];
+  const context = baseContext({
+    document: { activeElement: null },
+    foundry: { applications: { api: { DialogV2 } }, utils: { deepClone: structuredClone } },
+    // 수정치 다이스식 검증에 쓰는 최소 Roll.validate. Foundry처럼 "3+"(연산자로 끝나는 식)은
+    // 반드시 거부해야 한다 — 항 사이 연산자만 허용하는 형태로 좁힌다.
+    Roll: { validate: formula => /^\s*\d+(d\d+)?(\s*[-+*/]\s*\d+(d\d+)?)*\s*$/.test(formula) },
+    game: {
+      i18n: { localize: key => key },
+      settings: { get: (_scope, key) => (key === 'defaultCritical' ? 10 : '') },
+      user: { targets: new Set() }
+    },
+    canvas: { tokens: { placeables: [] } },
+    ui: { notifications: { warn: message => warnings.push(message), error: () => {} } }
+  });
+  // 모듈이 같은 객체에 executeStatRoll을 믹스인하므로, 스텁은 로드 후에 덮어써야 한다.
+  context.DX3rdUniversalHandler = {};
+  load(context, 'scripts/handlers/universal-roll-dialog.js');
+  context.DX3rdUniversalHandler.executeStatRoll =
+    async (_actor, dice, critical, add) => { rolls.push({ dice, critical, add }); };
+
+  const actor = { id: 'a1', isOwner: true, items: [], system: { attributes: {}, conditions: {} } };
+  const open = () => context.DX3rdUniversalHandler.showStatRollDialog(actor, stat, '백병');
+  return { fields, buttons, rolls, warnings, open, contentHtml: () => content };
+}
+
+test('roll dialog fields are unlocked and a direct edit overrides the computed pool', async () => {
+  const fixture = rollDialogContext({
+    name: '백병', dice: 5, critical: 10, add: 0,
+    major: { dice: 5, critical: 10, add: 3 },
+    reaction: { dice: 4, critical: 9, add: 1 },
+    dodge: { dice: 6, critical: 10, add: 0 }
+  });
+  await fixture.open();
+
+  // 잠금이 실제로 풀렸는지: 표시 칸에 disabled가 남아 있으면 안 된다.
+  const html = fixture.contentHtml();
+  assert.doesNotMatch(html, /class="dx-(dice|critical|add)-display"[^>]*disabled/);
+  assert.match(html, /class="dx-dice-display"[^>]*title="DX3rd.RollFieldOverrideHint"/);
+  // 다이스/크리티컬은 정수 칸이어야 한다. text로 두면 "1d10"이 조용히 1로 잘린다.
+  assert.match(html, /type="number" class="dx-dice-display"/);
+  assert.match(html, /type="number" class="dx-critical-display"/);
+
+  const [major, reaction] = fixture.buttons;
+  const { fields, rolls } = fixture;
+
+  // 1) 기본값: 메이저 5dx10+3
+  await major.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 5, critical: 10, add: 3 });
+
+  // 2) 아래 "추가" 칸은 자동 계산에 더한다.
+  await fields['.dx-dice-input'].input(2);
+  assert.equal(fields['.dx-dice-display'].value, '7');
+  await major.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 7, critical: 10, add: 3 });
+
+  // 3) 표시 칸 직접 수정이 자동 계산(수정치 포함)을 덮는다.
+  await fields['.dx-dice-display'].input(20);
+  assert.ok(fields['.dx-dice-display'].classList.contains('dx3rd-overridden'));
+  await major.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 20, critical: 10, add: 3 });
+
+  // 4) 판정 타입이 바뀌면 기준값이 달라지므로 덮어쓰기는 무효 (리액션 4+2 / 크리 9 / 수정 1)
+  await reaction.fire('mouseenter');
+  assert.equal(fields['.dx-dice-display'].value, '6');
+  assert.equal(fields['.dx-dice-display'].classList.contains('dx3rd-overridden'), false);
+  await reaction.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 6, critical: 9, add: 1 });
+
+  // 5) 크리티컬 직접 수정도 하한 2로 잠긴다(2 미만 입력 방어).
+  await major.fire('mouseenter');
+  await fields['.dx-critical-display'].input(1);
+  await major.fire('click');
+  assert.equal(rolls.at(-1).critical, 2);
+
+  // 6) 비우면 자동 계산으로 복귀한다.
+  await fields['.dx-critical-display'].input('');
+  await major.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 7, critical: 10, add: 3 });
+
+  // 7) 수정치 칸을 다시 만지면 그 항목의 덮어쓰기가 풀린다.
+  await fields['.dx-add-display'].input(99);
+  await fields['.dx-add-input'].input(5);
+  assert.equal(fields['.dx-add-display'].value, '8');
+  await major.fire('click');
+  assert.deepEqual(plain(rolls.at(-1)), { dice: 7, critical: 10, add: 8 });
+});
+
+test('roll dialog add field carries a dice formula through to the roll term', async () => {
+  const fixture = rollDialogContext({
+    name: '백병', dice: 5, critical: 10, add: 0,
+    major: { dice: 5, critical: 10, add: 3 },
+    reaction: { dice: 4, critical: 10, add: 0 },
+    dodge: { dice: 6, critical: 10, add: 0 }
+  });
+  await fixture.open();
+  const [major] = fixture.buttons;
+  const addDisplay = fixture.fields['.dx-add-display'];
+
+  // 표시된 3에 이어 붙이는 형태. 수정치는 판정 롤의 항으로 실리므로 문자열째 전달돼야 한다.
+  await addDisplay.input('3+1d10');
+  await major.fire('click');
+  assert.equal(fixture.rolls.at(-1).add, '3+1d10');
+  assert.equal(fixture.rolls.at(-1).dice, 5);
+
+  // 깨진 식은 조용히 다른 값으로 굴리지 않고 경고하고 멈춘다.
+  const before = fixture.rolls.length;
+  await addDisplay.input('3+');
+  await major.fire('click');
+  assert.equal(fixture.rolls.length, before, '깨진 식으로는 굴리지 않는다');
+  assert.equal(fixture.warnings.length, 1);
+
+  // 포커스를 잃으면 깨진 식을 버리고 표시를 자동 계산값으로 정규화한다.
+  await addDisplay.fire('blur');
+  assert.equal(addDisplay.value, '3');
+  await major.fire('click');
+  assert.equal(fixture.rolls.at(-1).add, 3);
+});
+
+test('roll dialog Enter key rolls the displayed type instead of closing the dialog', async () => {
+  const fixture = rollDialogContext({
+    name: '백병', dice: 5, critical: 10, add: 0,
+    major: { dice: 5, critical: 10, add: 0 },
+    reaction: { dice: 4, critical: 10, add: 0 },
+    dodge: { dice: 6, critical: 10, add: 0 }
+  });
+  await fixture.open();
+
+  // 마지막으로 표시된 타입(회피)이 Enter의 대상이 된다.
+  await fixture.buttons[2].fire('mouseenter');
+  await fixture.buttons[2].fire('mouseleave');
+  await fixture.fields['.dx-dice-display'].fire('keydown', { key: 'Enter' });
+
+  assert.equal(fixture.rolls.length, 1);
+  assert.equal(fixture.rolls[0].dice, 6);
+});
