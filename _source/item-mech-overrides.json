@@ -1,5 +1,8 @@
 {
   "weapons": {
+    "밀리오베인": {
+      "encroach": { "init": 0, "value": "3" }
+    },
     "추한 어순": {
       "encroach": {
         "init": 0,
@@ -240,6 +243,7 @@
       }
     },
     "레이징 아크": {
+      "encroach": { "init": 0, "value": "2" },
       "attributes": [
         {
           "key": "attack",
@@ -256,6 +260,7 @@
       }
     },
     "폴른 쉴드": {
+      "encroach": { "init": 0, "value": "2" },
       "attributes": [
         {
           "key": "guard",
@@ -373,6 +378,7 @@
       "getTarget": true
     },
     "토츠카 검": {
+      "encroach": { "init": 0, "value": "2" },
       "attributes": [
         {
           "key": "init",
@@ -431,6 +437,7 @@
       }
     },
     "조디악 웨폰": {
+      "encroach": { "init": 0, "value": "2" },
       "attributes": [
         {
           "key": "damage_roll",
@@ -963,6 +970,7 @@
       "getTarget": true
     },
     "히어로 슈터": {
+      "encroach": { "init": 0, "value": "1" },
       "attributes": [
         {
           "key": "attack",
@@ -1284,13 +1292,18 @@
       }
     },
     "마제스티 코트": {
-      "attributes": [
-        {
-          "key": "init",
-          "label": "init",
-          "value": "+3"
-        }
-      ],
+      "effect": {
+        "disable": "round",
+        "runTiming": "instant",
+        "attributes": [
+          {
+            "key": "init",
+            "label": "init",
+            "value": "+3"
+          }
+        ]
+      },
+      "getTarget": true,
       "active": {
         "state": false,
         "disable": "round",
@@ -1709,6 +1722,7 @@
       }
     },
     "귀인의 예장": {
+      "hp": { "value": "5" },
       "attributes": [
         {
           "key": "add",
@@ -1812,6 +1826,7 @@
       }
     },
     "어스름의 외투": {
+      "encroach": { "init": 0, "value": "2" },
       "attributes": [
         {
           "key": "guard",
@@ -1827,6 +1842,7 @@
       }
     },
     "EX 패스파인더": {
+      "encroach": { "init": 0, "value": "3" },
       "attributes": [
         {
           "key": "init",
@@ -2013,6 +2029,18 @@
     }
   },
   "items": {
+    "S랭크:스페셜리스트": {
+      "encroach": { "init": 0, "value": "2" }
+    },
+    "S랭크:서포터": {
+      "encroach": { "init": 0, "value": "3" }
+    },
+    "SS랭크": {
+      "encroach": { "init": 0, "value": "10" }
+    },
+    "A랭크:서포터": {
+      "encroach": { "init": 0, "value": "2" }
+    },
     "자동 복원 기구": {
       "used": {
         "state": 0,
@@ -3026,6 +3054,7 @@
       ]
     },
     "시냅스 부스터": {
+      "hp": { "value": "3" },
       "attributes": [
         {
           "key": "stat_dice",
@@ -3718,6 +3747,7 @@
       }
     },
     "미스틱 아이": {
+      "hp": { "value": "3" },
       "attributes": [
         {
           "key": "stat_dice",
@@ -4179,6 +4209,7 @@
       }
     },
     "무색의 마경": {
+      "hp": { "value": "4" },
       "used": {
         "state": 0,
         "max": 3,
@@ -4852,6 +4883,7 @@
       }
     },
     "출력강화장치": {
+      "hp": { "value": "5" },
       "attributes": [
         {
           "key": "add",
@@ -5523,6 +5555,18 @@
     }
   },
   "dlois": {
+    "No.83 한 줄기 희망": {
+      "encroach": { "init": 0, "value": "3" }
+    },
+    "No.63 조화자": {
+      "encroach": { "init": 0, "value": "1d10" }
+    },
+    "No.51 기억 탐색자": {
+      "encroach": { "init": 0, "value": "1d10" }
+    },
+    "No.32 크로노 트리거": {
+      "encroach": { "init": 0, "value": "1d10" }
+    },
     "No.38 나찰": {
       "attributes": [
         {
