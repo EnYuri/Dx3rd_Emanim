@@ -24,19 +24,26 @@
       <tr>
         <th>{{localize "DX3rd.Weapon"}}</th>
         <td colspan="4">
-          <div id="weapon-selection">
-            {{#each weaponList as |item id|}}
-            <label style="display: block; margin: 2px 0; cursor: pointer;">
-              <input type="checkbox" class="weapon-checkbox" data-guard="{{item.guardFixed}}" data-guard-formula="{{item.guardFormula}}" data-name="{{item.name}}" style="margin-right: 5px;">
-              {{item.name}} (가드: {{item.guardLabel}})
-            </label>
-            {{/each}}
-            {{#unless weaponList.length}}
-            <div style="color: #666; font-style: italic;">사용 가능한 무기가 없습니다</div>
-            {{/unless}}
+          {{!-- 무기 목록은 체크박스를 늘어놓지 않고 드롭다운 + 선택 칩으로 접는다.
+               무기를 많이 가진 캐릭터에서는 이 줄만으로 창이 화면을 넘어갔다.
+               가드는 여러 자루를 합산할 수 있으므로 고른 것은 칩으로 남겨 두고,
+               칩 안의 숨은 체크박스가 기존 합산 규칙(readCheckedWeaponGuard)을 그대로 탄다. --}}
+          <div id="weapon-selection" style="display: flex; gap: 4px; align-items: center;">
+            <select id="weapon-guard-select" style="flex: 1; min-width: 0;" {{#unless weaponList.length}}disabled{{/unless}}>
+              {{#if weaponList.length}}
+              <option value="">{{localize "DX3rd.SelectGuardWeapon"}}</option>
+              {{#each weaponList as |item|}}
+              <option value="{{item.id}}" data-guard="{{item.guardFixed}}" data-guard-formula="{{item.guardFormula}}" data-name="{{item.name}}">{{item.name}} ({{localize "DX3rd.Guard"}} {{item.guardLabel}})</option>
+              {{/each}}
+              {{else}}
+              <option value="">{{localize "DX3rd.NoGuardWeapon"}}</option>
+              {{/if}}
+            </select>
+            <button type="button" id="weapon-guard-add" title="{{localize 'DX3rd.AddGuardWeapon'}}" style="flex: 0 0 auto; width: auto;" {{#unless weaponList.length}}disabled{{/unless}}><i class="fas fa-plus"></i></button>
           </div>
+          <div id="weapon-guard-chosen" class="dx3rd-weapon-guard-chosen"></div>
           <div>
-            총 가드: <span id="total-guard">0</span>
+            {{localize "DX3rd.TotalGuard"}}: <span id="total-guard">0</span>
           </div>
         </td>
       </tr>

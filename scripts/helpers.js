@@ -1418,6 +1418,22 @@
     // 아이템 소진 여부 확인 유틸리티 함수
     window.DX3rdItemExhausted = {
         /**
+         * 소진된 것을 그래도 쓰게 둘 것인가(월드 설정 allowExhaustedUse).
+         * 소진 **판정**(isItemExhausted)과는 별개다 — 소진 여부는 그대로 계산해 표시하고,
+         * 이 값은 그것을 차단으로 이어 붙일지만 정한다. 그래서 시트의 소진 스타일이나
+         * 선언 목록의 잔여 회수 표시는 설정과 무관하게 계속 보인다.
+         * 설정이 등록되기 전(init 이전)이나 등록 실패 시에는 막지 않는 쪽으로 떨어진다.
+         * @returns {boolean} true 면 소진돼도 사용 가능(경고만)
+         */
+        allowExhaustedUse: function() {
+            try {
+                return game.settings.get('dx3rd-emanim', 'allowExhaustedUse') !== false;
+            } catch (error) {
+                return true;
+            }
+        },
+
+        /**
          * 아이템의 사용 횟수 소진 여부를 확인
          * @param {Object} item - 체크할 아이템
          * @returns {boolean} 소진 여부 (true: 소진됨, false: 사용 가능)

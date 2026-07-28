@@ -54,6 +54,19 @@ Hooks.once('init', async function() {
         }
     });
     
+    // 사용 횟수를 다 쓴 아이템·이펙트를 막을 것인가.
+    // 기본은 **막지 않는다** — 자동화가 아직 다듬어지는 중이라, 컴펜디움의 횟수 하나가
+    // 틀렸다는 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다.
+    // 대신 경고와 소진 표시는 그대로 남겨 GM 이 사실을 놓치지 않게 한다.
+    game.settings.register('dx3rd-emanim', 'allowExhaustedUse', {
+        name: 'DX3rd.AllowExhaustedUse',
+        hint: 'DX3rd.AllowExhaustedUseHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
     // 설정 등록: AfterMain 큐 (월드에 저장)
     // v13/v14 호환: type: Array는 v14에서 경고가 발생할 수 있으므로 방어적으로 처리
     game.settings.register('dx3rd-emanim', 'afterMainQueue', {
@@ -1205,8 +1218,10 @@ Hooks.once('ready', async function() {
                     const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
                     const usedState = currentItem?.system?.used?.state || 0;
                     const usedMax = currentItem?.system?.used?.max || 0;
-                    const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0;
-                    
+                    // 소진을 차단으로 이을지는 월드 설정이 정한다(기본: 잇지 않음).
+                    const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0
+                        && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false;
+
                     // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
                     const comboData = request.comboAfterDamageData;
                     if (comboData && damagedTargets.length > 0) {

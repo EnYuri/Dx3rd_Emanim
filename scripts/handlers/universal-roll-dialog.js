@@ -873,10 +873,11 @@
       const overrideHint = game.i18n.localize('DX3rd.RollFieldOverrideHint');
       const addHint = game.i18n.localize('DX3rd.RollAddOverrideHint');
 
-      // 「명중판정을 실행하기 직전에 선언할 것」류 장비를 이 창에서 바로 선언한다.
+      // 「명중판정을 실행하기 직전에 선언할 것」류 장비를 이 창에서 토글로 고른다.
       // 시트로 돌아가 이름 클릭 → 「사용」을 누르게 하면 콤보 공격 흐름에서 완전히 벗어난다.
       // 명중판정이면 공격력·장갑무시 계열까지 함께 낸다 — 룰상 그 선언 시점이 바로 여기이고,
       // 여기서 선언해 두면 데미지 산출이 액터에서 읽어 갈 때 이미 반영돼 있다.
+      // 실제 사용은 굴림 버튼을 누를 때(commit) 일어난다 — 굴리지 않고 닫으면 아무것도 소모되지 않는다.
       const declarable = window.DX3rdDeclaredEquipment?.collect(actor, isAttackRoll ? 'attack' : 'roll') || [];
       const declareSectionHtml = window.DX3rdDeclaredEquipment?.sectionHtml(declarable) || '';
 
@@ -1051,7 +1052,7 @@
           return null;
         }
       };
-      // 선언 직전의 원본 판정치. 매번 여기서부터의 차이를 재므로 여러 번 선언해도 누적된다.
+      // 확정 직전의 원본 판정치. 매번 여기서부터의 차이를 재므로 여러 번 확정해도 누적된다.
       const statBeforeDeclare = foundry.utils.deepClone(stat);
       const applyDeclaredDelta = () => {
         const fresh = rereadStat();
@@ -1074,7 +1075,17 @@
         foundry.utils.mergeObject(statBeforeDeclare, foundry.utils.deepClone(fresh), {inplace: true});
         updateSelectedDisplay();
       };
-      window.DX3rdDeclaredEquipment?.bind(root, actor, applyDeclaredDelta);
+      const declareControl = window.DX3rdDeclaredEquipment?.bind(root, actor);
+
+      /**
+       * 토글해 둔 장비를 실제로 사용하고, 그 보정을 표시·굴림에 반영한다.
+       * 굴림 버튼이 값을 읽기 **전에** 불러야 한다 — 그래야 이번 판정에 보정이 실린다.
+       */
+      const commitDeclarations = async () => {
+        if (!declareControl?.hasPending?.()) return;
+        const applied = await declareControl.commit();
+        if (applied.length) applyDeclaredDelta();
+      };
 
       // 표시 칸 직접 수정 → 최종 판정치 덮어쓰기 (비우면 자동 계산 복귀)
       // allowFormula: 수정치는 정수가 아니면 다이스식으로 보고 문자열째 보관한다.
@@ -1152,7 +1163,11 @@
         btn.addEventListener('mouseleave', hoverOut);
         btn.addEventListener('click', async ev => {
             const t = ev.currentTarget.dataset.rollType;
-            
+
+            // 토글해 둔 선언형 장비를 여기서 실제로 사용한다. 값을 읽기 전에 끝내야
+            // 그 보정이 이번 판정에 실린다(닫기만 하면 여기까지 오지 않아 소모도 없다).
+            await commitDeclarations();
+
             // 표시값 = 최종 판정치. 수정치·패널티·직접 수정(덮어쓰기)이 모두 반영된 값이다.
             // 룰(rule-section:39-41): 하한 없이 원 판정치를 전달 → 롤 실행부가 0 이하면 자동실패 처리
             const values = updateDisplayValues(t);

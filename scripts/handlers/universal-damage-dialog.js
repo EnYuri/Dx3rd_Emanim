@@ -814,6 +814,10 @@
         return;
       }
 
+      // 토글해 둔 선언형 장비의 실제 사용은 「확인」에서 일어난다. 배선은 render 이후라
+      // 여기서는 자리만 잡아 두고, 확정 콜백이 이 참조를 통해 commit 한다.
+      let declareControl = null;
+
       const dialog = new DialogV2({
         window: {
           title: `${game.i18n.localize('DX3rd.DefenseDamage')} (${attackerName})`
@@ -829,6 +833,12 @@
             default: true,
             callback: async (event, button) => {
               const form = button.form;
+              // 토글해 둔 장비를 여기서 실제로 사용한다. 폼 값을 읽기 전에 끝내야
+              // 가드/장갑/경감 보정이 이번 방어에 실린다(닫으면 여기까지 오지 않아 소모도 없다).
+              if (declareControl?.hasPending?.()) {
+                const applied = await declareControl.commit();
+                if (applied.length) await refreshDefenseValuesFromActor();
+              }
               const num = (selector) => parseInt(form?.querySelector(selector)?.value) || 0;
               // 확정 시점에 보류된 다이스식을 각각 한 번씩 굴린다.
               const rollDeferred = async (formula, kind) => {
@@ -1230,8 +1240,10 @@
                       const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
                       const usedState = currentItem?.system?.used?.state || 0;
                       const usedMax = currentItem?.system?.used?.max || 0;
-                      const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0;
-                      
+                      // 소진을 차단으로 이을지는 월드 설정이 정한다(기본: 잇지 않음).
+                      const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0
+                        && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false;
+
                       window.DX3rdDebug.log('DX3rd | Usage check:', {
                         itemName: currentItem.name,
                         usedDisable: usedDisable,
@@ -1384,11 +1396,13 @@
           guardCheckbox.checked = false;
         }
 
-        // 모든 무기 체크박스 비활성화 및 체크 해제
-        root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
-          checkbox.disabled = true;
-          checkbox.checked = false;
-        });
+        // 무기 가드 선택 자체를 잠근다(고른 무기가 있으면 치운다).
+        const weaponSelectEl = root.querySelector('#weapon-guard-select');
+        if (weaponSelectEl) { weaponSelectEl.disabled = true; weaponSelectEl.value = ''; }
+        const weaponAddEl = root.querySelector('#weapon-guard-add');
+        if (weaponAddEl) weaponAddEl.disabled = true;
+        const chosenEl = root.querySelector('#weapon-guard-chosen');
+        if (chosenEl) chosenEl.replaceChildren();
 
         // 총 가드값을 0으로 설정
         const totalGuard = root.querySelector('#total-guard');
@@ -1433,20 +1447,51 @@
 
         updateDamage();
       };
-      // 방어 중 발동한 효과(리액션 이펙트·임시 콤보)가 가드/장갑/경감을 바꿨을 수 있다.
+      // 방어 중 발동한 효과(리액션 이펙트·임시 콤보·선언형 장비)가 가드/장갑/경감을 바꿨을 수 있다.
       // 액터에서 다시 읽어 입력칸과 보류 수식을 동기화한다.
+      //
+      // 덮어쓰지 않고 **차분만 얹는다.** 효과가 준 것은 어차피 그 차분이고, 그냥 덮으면
+      // 플레이어가 직접 고쳐 둔 값(커버링 상황의 임의 장갑 등)이 조용히 지워진다.
+      // 아래 감시 훅 때문에 이 함수는 액터가 갱신될 때마다 불리므로, 그 위험이 실제로 있다.
+      let lastKnownDefense = { guard, armor, reduce };
       const refreshDefenseValuesFromActor = async () => {
-        await targetActor.prepareData();
-        const setValue = (selector, value) => {
-          const input = root.querySelector(selector);
-          if (input) input.value = value;
+        const current = {
+          guard: targetActor.system.attributes.guard?.value || 0,
+          armor: targetActor.system.attributes.armor?.value || 0,
+          reduce: targetActor.system.attributes.reduce?.value || 0
         };
-        setValue('#guard', targetActor.system.attributes.guard?.value || 0);
-        setValue('#armor', targetActor.system.attributes.armor?.value || 0);
-        setValue('#reduce', targetActor.system.attributes.reduce?.value || 0);
+        for (const key of ['guard', 'armor', 'reduce']) {
+          const delta = current[key] - lastKnownDefense[key];
+          if (!delta) continue;
+          const input = root.querySelector(`#${key}`);
+          if (input) input.value = String((parseInt(input.value) || 0) + delta);
+        }
+        lastKnownDefense = current;
         refreshDeferredFormulas();
         updateDamage();
       };
+
+      // 방어 수치를 올리는 리액션 이펙트(용린의 장갑 +[LV×10] 등)를 이 창의 드롭다운이
+      // 아니라 캐릭터 시트에서 직접 쓰는 사람이 많다. 드롭다운 경로에서만 갱신하면
+      // 그 사람들에게는 "이펙트를 썼는데 장갑이 그대로"로 보인다 — 창이 떠 있는 동안
+      // 액터 쪽 변화를 그냥 따라간다. 차분 방식이라 무관한 갱신(HP 변동 등)은 무해하다.
+      const defenseWatchers = [];
+      const unwatchDefense = () => {
+        for (const [hook, id] of defenseWatchers) Hooks.off(hook, id);
+        defenseWatchers.length = 0;
+      };
+      const watchDefenseSource = doc => {
+        // 창이 닫힌 뒤 남은 훅은 스스로 걷는다(닫기 훅을 놓쳐도 새지 않도록).
+        if (!dialog.rendered) return unwatchDefense();
+        const owner = doc?.documentName === 'Actor' ? doc : doc?.parent;
+        if (owner?.id === targetActor.id) refreshDefenseValuesFromActor();
+      };
+      for (const hook of ['updateActor', 'updateItem',
+        'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) {
+        defenseWatchers.push([hook, Hooks.on(hook, watchDefenseSource)]);
+      }
+      defenseWatchers.push(['closeDialogV2',
+        Hooks.on('closeDialogV2', app => { if (app === dialog) unwatchDefense(); })]);
       const updateWeaponGuard = () => {
         const {fixed, formula} = readCheckedWeaponGuard(root);
         const totalGuard = root.querySelector('#total-guard');
@@ -1474,34 +1519,85 @@
         if (lifeElement) lifeElement.textContent = String(Math.max(0, currentHP - calculatedDamage));
       };
 
-      // 선언형 장비: 누르면 자기 보정 AE 가 붙으므로, 리액션 이펙트를 발동했을 때와 똑같이
-      // 액터에서 가드/장갑/경감을 다시 읽어 오면 된다(전용 갱신 경로를 새로 만들지 않는다).
-      window.DX3rdDeclaredEquipment?.bind(root, targetActor, refreshDefenseValuesFromActor);
+      // 선언형 장비: 토글만 해 두고 「확인」에서 실제로 사용한다. 사용되면 자기 보정 AE 가
+      // 붙으므로, 리액션 이펙트를 발동했을 때와 똑같이 액터에서 가드/장갑/경감을 다시 읽어
+      // 오면 된다(전용 갱신 경로를 새로 만들지 않는다).
+      declareControl = window.DX3rdDeclaredEquipment?.bind(root, targetActor) || null;
 
       // 초기 데미지 계산 (berserk로 인해 가드가 변경되었을 수 있음)
       updateDamage();
 
-      // 무기 체크박스 변경 시 총 가드값 업데이트
-      root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', updateDamage);
+      // 가드에 쓸 무기는 드롭다운에서 골라 칩으로 쌓는다. 칩 안의 숨은 체크박스가
+      // 기존 합산 규칙을 그대로 타므로, 가드치를 읽는 곳은 readCheckedWeaponGuard 하나로 남는다.
+      const weaponSelect = root.querySelector('#weapon-guard-select');
+      const chosenWeapons = root.querySelector('#weapon-guard-chosen');
+      const addChosenWeapon = () => {
+        const option = weaponSelect?.selectedOptions?.[0];
+        if (!option?.value || !chosenWeapons) return;
+        // 같은 무기를 두 번 세지 않는다. 이미 담긴 것을 또 골랐을 때도 드롭다운은 비운다 —
+        // 그냥 두면 눌러도 아무 일이 없는 것처럼 보여, 담겼는지 아닌지 알 수 없다.
+        if (chosenWeapons.querySelector(`[data-item-id="${CSS.escape(option.value)}"]`)) {
+          weaponSelect.value = '';
+          return;
+        }
+
+        const chip = document.createElement('span');
+        chip.className = 'dx3rd-weapon-guard-chip';
+        chip.dataset.itemId = option.value;
+
+        const hidden = document.createElement('input');
+        hidden.type = 'checkbox';
+        hidden.className = 'weapon-checkbox';
+        hidden.checked = true;
+        hidden.hidden = true;
+        hidden.dataset.guard = option.dataset.guard || '0';
+        if (option.dataset.guardFormula) hidden.dataset.guardFormula = option.dataset.guardFormula;
+        hidden.dataset.name = option.dataset.name || '';
+
+        const label = document.createElement('span');
+        label.className = 'dx3rd-weapon-guard-name';
+        label.textContent = option.textContent.trim();
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'dx3rd-weapon-guard-remove';
+        remove.title = game.i18n.localize('DX3rd.RemoveGuardWeapon');
+        remove.innerHTML = '<i class="fas fa-times"></i>';
+
+        chip.append(hidden, label, remove);
+        chosenWeapons.appendChild(chip);
+        weaponSelect.value = '';
+        updateDamage();
+      };
+      root.querySelector('#weapon-guard-add')?.addEventListener('click', event => {
+        event.preventDefault();
+        addChosenWeapon();
+      });
+      chosenWeapons?.addEventListener('click', event => {
+        const button = event.target.closest('.dx3rd-weapon-guard-remove');
+        if (!button) return;
+        event.preventDefault();
+        button.closest('.dx3rd-weapon-guard-chip')?.remove();
+        updateDamage();
       });
 
       // 리셋 버튼
       root.querySelector('#reset')?.addEventListener('click', (event) => {
         event.preventDefault();
-        root.querySelectorAll('.weapon-checkbox').forEach(checkbox => {
-          checkbox.checked = false;
-        });
+        chosenWeapons?.replaceChildren();
+        if (weaponSelect) weaponSelect.value = '';
         const totalGuard = root.querySelector('#total-guard');
         if (totalGuard) totalGuard.textContent = '0';
+        // 되돌리는 것은 이 창에서 손댄 것(직접 입력·무기 체크)뿐이다. 창이 떠 있는 동안
+        // 실제로 발동한 효과의 보정까지 지우면, 침식까지 치르고 쓴 이펙트가 사라진다.
         const guardInput = root.querySelector('#guard');
-        if (guardInput) guardInput.value = guard;
+        if (guardInput) guardInput.value = lastKnownDefense.guard;
         const guardCheckbox = root.querySelector('#guard-check');
         if (guardCheckbox) guardCheckbox.checked = false;
         const armorInput = root.querySelector('#armor');
-        if (armorInput) armorInput.value = armor;
+        if (armorInput) armorInput.value = lastKnownDefense.armor;
         const reduceInput = root.querySelector('#reduce');
-        if (reduceInput) reduceInput.value = reduce;
+        if (reduceInput) reduceInput.value = lastKnownDefense.reduce;
         const coveringInput = root.querySelector('#covering');
         if (coveringInput) coveringInput.value = '0';
         const reactionInput = root.querySelector('#reaction-result');
@@ -1572,9 +1668,9 @@
 
         // 방어 중 발동한 효과가 다이스식 보정을 걸었을 수 있다. 고정치뿐 아니라
         // 확정 시 굴릴 보류 수식도 다시 읽어야 그 효과가 실제로 반영된다.
-        if (success && (item.system?.roll || '-') === '-') {
-          await refreshDefenseValuesFromActor();
-        }
+        // 판정이 붙은 이펙트(가드 굴림을 함께 하는 것들)도 마찬가지라 roll 로 가르지 않는다 —
+        // 가르면 그쪽만 보정이 사라진다. 감시 훅과 겹쳐 불려도 차분이 0이라 무해하다.
+        if (success) await refreshDefenseValuesFromActor();
       };
 
       // 등록된 리액션 이펙트/콤보만으로 부족할 때, 이 자리에서 임시 콤보를 조합해 쓴다.

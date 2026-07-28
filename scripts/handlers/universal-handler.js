@@ -28,8 +28,8 @@
             const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
             const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
 
-            // 공격 횟수가 소진된 무기는 제외
-            if (isAttackExhausted) {
+            // 공격 횟수가 소진된 무기는 제외 — 다만 소진을 차단으로 이을지는 월드 설정이 정한다.
+            if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
               continue;
             }
 
@@ -120,6 +120,46 @@
       if (skillKey.startsWith('drive_')) return 'body';
       if (skillKey.startsWith('ars_')) return 'sense';
       return null;
+    },
+
+    /**
+     * 사용 횟수 소진을 알린다. 소진 판정은 부르는 쪽이 하고, 여기서는 그것을
+     * **차단으로 이을지**만 정한다(월드 설정 allowExhaustedUse).
+     *
+     * 기본값(허용)에서는 막지 않고 경고만 남긴다 — 자동화가 아직 다듬어지는 중이라,
+     * 횟수 데이터 하나가 틀렸다는 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다.
+     * 그래도 알림과 채팅 기록은 남겨 GM 이 「원래는 못 쓰는 것을 썼다」를 놓치지 않게 하고,
+     * 시트의 소진 표시(isItemExhausted)는 설정과 무관하게 그대로 둔다.
+     *
+     * 콤보 멤버 소진과 아이템 자신의 소진이 같은 문구·같은 경로를 쓰도록 한 곳에 둔다.
+     * @param {Actor} actor
+     * @param {Item} item
+     * @param {string} detail  "사용 횟수 소진 (2/2)" 처럼 이미 조립된 사유
+     * @returns {Promise<boolean>} 계속 진행해도 되는가
+     */
+    async reportUsageExhausted(actor, item, detail) {
+      const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
+      const allowed = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
+      const speaker = ChatMessage.getSpeaker({ actor });
+
+      if (allowed) {
+        ui.notifications.warn(`${itemName}: ${detail} — ${game.i18n.localize('DX3rd.ExhaustedUseAllowed')}`);
+        await ChatMessage.create({
+          speaker,
+          content: `<div class="dx3rd-item-chat"><div class="dx3rd-warning"><strong>${itemName}</strong><br>${detail} — ${game.i18n.localize('DX3rd.ExhaustedUseAllowed')}</div></div>`
+        });
+        window.DX3rdDebug.log('DX3rd | Usage exhausted but allowed by setting:', itemName, detail);
+        return true;
+      }
+
+      ui.notifications.warn(`${itemName}: ${detail}`);
+      await ChatMessage.create({
+        speaker,
+        content: `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>${detail}</div></div>`,
+        style: CONST.CHAT_MESSAGE_STYLES.OTHER
+      });
+      window.DX3rdDebug.log('DX3rd | Item usage blocked - usage count exhausted:', itemName, detail);
+      return false;
     },
 
     /**
@@ -255,25 +295,8 @@
                     }
                     
                     if (effectDisplayMax <= 0 || effectUsedState >= effectDisplayMax) {
-                      // 아이템 이름에서 || 패턴 제거
-                      let itemName = item.name;
-                      const rubyPattern = /^(.+)\|\|(.+)$/;
-                      const match = itemName.match(rubyPattern);
-                      if (match) {
-                        itemName = match[1];
-                      }
-                      
-                      const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>포함된 이펙트 사용 횟수 소진: ${effect.name} (${effectUsedState}/${effectDisplayMax})</div></div>`;
-                      
-                      ChatMessage.create({
-                        speaker: ChatMessage.getSpeaker({ actor }),
-                        content: errorMsg,
-                        style: CONST.CHAT_MESSAGE_STYLES.OTHER
-                      });
-                      
-                      ui.notifications.warn(`${itemName}에 포함된 ${effect.name}의 사용 횟수가 소진되었습니다. (${effectUsedState}/${effectDisplayMax})`);
-                      window.DX3rdDebug.log('DX3rd | Combo usage blocked - included effect exhausted:', { effectName: effect.name, effectUsedState, effectUsedMax, effectUsedLevel, effectDisplayMax });
-                      return false;
+                      const detail = `${game.i18n.localize('DX3rd.ExhaustedIncludedEffect')}: ${effect.name} (${effectUsedState}/${effectDisplayMax})`;
+                      if (!await this.reportUsageExhausted(actor, item, detail)) return false;
                     }
                   }
                 }
@@ -313,27 +336,10 @@
             displayMax += baseLevel;
           }
           
-          // displayMax가 0이거나 usedState가 displayMax 이상이면 사용 불가
+          // displayMax가 0이거나 usedState가 displayMax 이상이면 소진
           if (displayMax <= 0 || usedState >= displayMax) {
-            // 아이템 이름에서 || 패턴 제거
-            let itemName = item.name;
-            const rubyPattern = /^(.+)\|\|(.+)$/;
-            const match = itemName.match(rubyPattern);
-            if (match) {
-              itemName = match[1]; // 메인 이름만 사용
-            }
-            
-            const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>사용 횟수 소진 (${usedState}/${displayMax})</div></div>`;
-            
-            ChatMessage.create({
-              speaker: ChatMessage.getSpeaker({ actor }),
-              content: errorMsg,
-              style: CONST.CHAT_MESSAGE_STYLES.OTHER
-            });
-            
-            ui.notifications.warn(`${itemName}의 사용 횟수가 모두 소진되었습니다. (${usedState}/${displayMax})`);
-            window.DX3rdDebug.log('DX3rd | Item usage blocked - usage count exhausted:', { usedState, usedMax, usedLevel, displayMax });
-            return false;
+            const detail = `${game.i18n.localize('DX3rd.ExhaustedUsageCount')} (${usedState}/${displayMax})`;
+            if (!await this.reportUsageExhausted(actor, item, detail)) return false;
           }
         }
         
@@ -1753,20 +1759,34 @@
       // 변동형 런타임 입력 스냅샷(재진입 대비): 사용 종료 시 복원해 잔류값이 다음 이펙트에 새지 않게 한다.
       const _prevRuntimeInput = actor._dx3rdRuntimeInput;
       try {
-      const usageAllowed = await this.processItemUsageCost(actor, item, {action});
-      if (!usageAllowed) {
-        window.DX3rdDebug.log('DX3rd | handleItemUse - Usage blocked by cost');
-        return false;
+      // 선언형 장비(「…선언하면」)를 그 무기로 공격하는 것만으로 소모하지 않는다.
+      // 회수·코스트·사용 카드는 판정 다이얼로그의 선언 토글이 확정할 때(action:'use')
+      // 한 번만 치른다 — 공격은 공격일 뿐이고, 쓸지 말지는 명중판정 직전에 고르는 것이
+      // 이 계열 장비의 전부다. 여기서도 걷으면 로켓 런처를 들고 평범하게 쏘기만 해도
+      // 시나리오 1회뿐인 회수가 사라지고, 정작 보정은 액션이 달라 붙지도 않는다.
+      // 판단 기준을 선언 UI 와 같은 함수(isDeclarable)로 두어 "목록에 뜨는 것 = 여기서
+      // 안 걷는 것"이 어긋날 수 없게 한다.
+      const declarationOnly = action === 'attack'
+        && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);
+
+      if (!declarationOnly) {
+        const usageAllowed = await this.processItemUsageCost(actor, item, {action});
+        if (!usageAllowed) {
+          window.DX3rdDebug.log('DX3rd | handleItemUse - Usage blocked by cost');
+          return false;
+        }
+
+        // 1.5. 사용 횟수 증가 (notCheck가 아닌 경우)
+        const usedDisable = item.system?.used?.disable || 'notCheck';
+        if (usedDisable !== 'notCheck') {
+          const currentUsedState = item.system?.used?.state || 0;
+          await item.update({ 'system.used.state': currentUsedState + 1 });
+          window.DX3rdDebug.log('DX3rd | handleItemUse - Used count increased:', currentUsedState, '→', currentUsedState + 1);
+        }
+      } else {
+        window.DX3rdDebug.log('DX3rd | handleItemUse - Declaration-only equipment: attack costs nothing', item.name);
       }
-      
-      // 1.5. 사용 횟수 증가 (notCheck가 아닌 경우)
-      const usedDisable = item.system?.used?.disable || 'notCheck';
-      if (usedDisable !== 'notCheck') {
-        const currentUsedState = item.system?.used?.state || 0;
-        await item.update({ 'system.used.state': currentUsedState + 1 });
-        window.DX3rdDebug.log('DX3rd | handleItemUse - Used count increased:', currentUsedState, '→', currentUsedState + 1);
-      }
-      
+
       // 2. instant 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
       // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
       const activeDisable = item.system?.active?.disable ?? '-';

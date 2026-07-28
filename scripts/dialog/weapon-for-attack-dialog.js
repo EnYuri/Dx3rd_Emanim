@@ -106,6 +106,7 @@
                     isVehicle: true,
                     sort: weapon.sort || 0,
                     attackExhausted: false,
+                    attackDisabled: false,
                     attackUsedState: 0,
                     attackUsedMax: 0
                 };
@@ -129,7 +130,10 @@
                 isVehicle: false,
                 isVirtual: !!weapon.isVirtualWeapon,
                 sort: weapon.sort || 0,
+                // 소진 표시(빨간 n/m)는 설정과 무관하게 그대로 두고, 체크박스를 잠글지만 가른다.
                 attackExhausted: isAttackExhausted,
+                attackDisabled: isAttackExhausted
+                    && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false,
                 attackUsedState: attackUsedState,
                 attackUsedMax: attackUsedMax
             };

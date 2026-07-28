@@ -8,10 +8,13 @@
  * (combo-handler.js), 콤보에 무기를 넣는 것만으로는 이 보정이 절대 붙지 않는다.
  *
  * 설계 두 가지:
- *  1) **버튼(즉시 선언)이지 체크박스가 아니다.** 누르면 그 자리에서 handleItemUse(action:'use') 가
- *     돌아 회수·침식이 정산되고 자기 보정 AE 가 붙는다. 룰상 선언은 되돌릴 수 없고, 무엇보다
- *     계산 경로가 실제 파이프라인 하나뿐이라 이중 가산이 생길 여지가 없다. 표시 수치를
- *     다이얼로그가 직접 더하는 방식이면 actor.prepareData 와 어긋날 자리가 생긴다.
+ *  1) **토글이고, 실제 사용은 판정을 확정할 때 일어난다.** 누르는 즉시 handleItemUse 를 돌리면
+ *     창을 닫기만 해도 회수·침식이 날아간다 — 굴리지 않은 판정에 값을 치르는 셈이라 곤란하다.
+ *     그래서 토글은 「이번 판정에 쓰겠다」는 표시만 남기고, 굴림 버튼이 commit() 을 부르는
+ *     시점에 비로소 handleItemUse(action:'use') 가 돌아 회수·침식이 정산되고 AE 가 붙는다.
+ *     계산 경로는 여전히 실제 파이프라인 하나뿐이라 이중 가산이 생길 자리가 없다 — 표시 수치를
+ *     다이얼로그가 직접 더하면 actor.prepareData 와 어긋나므로 그 방식은 쓰지 않는다.
+ *     대신 commit() 이 끝난 뒤 호출측이 판정치를 다시 읽어 표시와 굴림에 반영한다.
  *  2) **문맥별로 나눠 보여준다.** 명중 보정과 관통은 필요한 시점이 다르므로, 지금 이 창에서
  *     의미 있는 항목만 낸다. 아무것도 없으면 섹션 자체를 그리지 않는다.
  */
@@ -77,7 +80,8 @@
    * 기준은 handleItemUse 가 실제로 세는 것과 같아야 한다 — 그쪽은 used.disable 이 'notCheck'
    * 가 아닐 때만 used.state 를 올린다. 그리고 helpers 의 isItemExhausted 와 마찬가지로
    * **max 가 0이면 무제한이 아니라 소진**이다(횟수 체크를 켜 두고 상한을 안 적은 것).
-   * 여기가 유일한 게이트다 — handleItemUse 는 소진을 막지 않고 증가만 시킨다.
+   * 소진돼도 목록에서 지울지는 월드 설정(allowExhaustedUse)이 정한다 — 지우지 않을 때도
+   * 잔여 회수 표시는 그대로 두어, 「0회 남음」을 보고 누르는 것이 되게 한다.
    */
   function usesLeft(item) {
     const used = item.system?.used || {};
@@ -115,17 +119,19 @@
     // 남의 액터에는 선언 버튼을 내주지 않는다 — handleItemUse 가 아이템을 갱신하므로
     // 소유권이 없으면 눌러도 실패한다(방어 다이얼로그는 GM 화면에도 뜰 수 있다).
     if (actor.isOwner === false) return [];
+    const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
     return (actor.items || [])
       .filter(item => isDeclarable(item)
         && attributeEntries(item.system.attributes).some(entry => keys.has(entry.key))
         && !alreadyDeclared(actor, item)
-        && usesLeft(item).left > 0)
+        && (allowExhausted || usesLeft(item).left > 0))
       .map(item => {
         const uses = usesLeft(item);
         return {
           id: item.id, name: item.name, img: item.img,
           summary: summarize(item, keys),
-          limited: uses.limited, left: uses.left, max: uses.max
+          limited: uses.limited, left: uses.left, max: uses.max,
+          exhausted: uses.limited && uses.left <= 0
         };
       });
   }
@@ -140,10 +146,14 @@
   function sectionHtml(entries) {
     if (!entries.length) return '';
     const rows = entries.map(entry => {
-      const count = entry.limited
-        ? `<span class="dx3rd-declare-uses">${game.i18n.format('DX3rd.DeclareUsesLeft', {count: entry.left})}</span>`
-        : '';
-      return `<button type="button" class="dx3rd-declare-button" data-item-id="${escapeHtml(entry.id)}">
+      // 소진된 것도(설정이 허용하면) 목록에 남는다. 「소진」을 붙여 두어, 눌러도 되지만
+      // 원래는 못 쓰는 것이라는 사실이 버튼 위에서 바로 보이게 한다.
+      const count = entry.exhausted
+        ? `<span class="dx3rd-declare-uses is-exhausted">${localize('DX3rd.Exhausted')}</span>`
+        : (entry.limited
+          ? `<span class="dx3rd-declare-uses">${game.i18n.format('DX3rd.DeclareUsesLeft', {count: entry.left})}</span>`
+          : '');
+      return `<button type="button" class="dx3rd-declare-button${entry.exhausted ? ' is-exhausted' : ''}" aria-pressed="false" data-item-id="${escapeHtml(entry.id)}">
         <span class="dx3rd-declare-name">${escapeHtml(entry.name)}</span>
         <span class="dx3rd-declare-summary">${escapeHtml(entry.summary)}</span>
         ${count}
@@ -156,40 +166,80 @@
   }
 
   /**
-   * 버튼 배선. 클릭 = 즉시 선언(되돌릴 수 없음).
+   * 토글 배선. 클릭은 선택/해제만 하고, 실제 사용은 commit() 에서 일어난다.
    * @param {HTMLElement} root  섹션을 포함하는 DOM
    * @param {Actor} actor
-   * @param {Function} [onDeclared]  선언이 끝난 뒤 호출(표시 수치 갱신용). item 을 받는다.
+   * @param {Function} [onToggle]  선택이 바뀔 때마다 호출(선택된 item 배열을 받는다).
+   * @returns {{selected: Function, commit: Function, hasPending: Function}}
+   *   commit() 은 선택된 항목을 차례로 실제 사용하고, 사용에 성공한 item 배열을 돌려준다.
+   *   판정을 굴리지 않고 창을 닫으면 commit() 이 불리지 않으므로 아무것도 소모되지 않는다.
    */
-  function bind(root, actor, onDeclared) {
-    if (!root || !actor) return;
-    for (const button of root.querySelectorAll('.dx3rd-declare-button')) {
-      button.addEventListener('click', async event => {
+  function bind(root, actor, onToggle) {
+    const chosen = new Map();
+    const noop = { selected: () => [], commit: async () => [], hasPending: () => false };
+    if (!root || !actor) return noop;
+
+    const buttons = Array.from(root.querySelectorAll('.dx3rd-declare-button'));
+    if (!buttons.length) return noop;
+
+    for (const button of buttons) {
+      button.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
+        // commit 이 끝난 버튼은 잠긴다 — 같은 판정에서 두 번 소모되지 않도록.
         if (button.disabled) return;
         const item = actor.items.get(button.dataset.itemId);
         if (!item) return;
-        // 연타로 두 번 소모되는 것을 막는다 — handleItemUse 는 await 사이에 재진입할 수 있다.
-        button.disabled = true;
+        const on = !chosen.has(item.id);
+        if (on) chosen.set(item.id, item);
+        else chosen.delete(item.id);
+        button.classList.toggle('selected', on);
+        button.setAttribute('aria-pressed', String(on));
+        onToggle?.(Array.from(chosen.values()));
+      });
+    }
+
+    /**
+     * 선택한 장비를 실제로 사용한다. 판정 확정 시점에 한 번만 부른다.
+     * 한 항목이 실패해도 나머지는 계속 시도한다 — 이미 값을 치른 항목을 되돌릴 수는 없으므로,
+     * 중간에 멈추면 "일부만 적용된" 상태가 조용히 남는다. 실패는 개별로 알린다.
+     */
+    async function commit() {
+      const applied = [];
+      for (const [id, item] of chosen) {
+        const button = buttons.find(b => b.dataset.itemId === id);
+        if (button) button.disabled = true;
         try {
           // getTarget=false: 자기 보정이라 타겟이 필요 없다(요구하면 여기서 막힌다).
           // comboMode='normal': 무기의 공격/콤보 선택 메뉴를 건너뛴다.
           const used = await window.DX3rdUniversalHandler?.handleItemUse(
             actor.id, item.id, item.type, undefined, false, {action: 'use', comboMode: 'normal'});
-          if (used === false) { button.disabled = false; return; }
-          button.classList.add('declared');
-          button.querySelector('.dx3rd-declare-uses')?.remove();
-          const summary = button.querySelector('.dx3rd-declare-summary');
-          if (summary) summary.textContent = localize('DX3rd.Declared');
-          await onDeclared?.(item);
+          if (used === false) {
+            if (button) { button.disabled = false; button.classList.remove('selected'); button.setAttribute('aria-pressed', 'false'); }
+            continue;
+          }
+          applied.push(item);
+          if (button) {
+            button.classList.add('declared');
+            button.querySelector('.dx3rd-declare-uses')?.remove();
+            const summary = button.querySelector('.dx3rd-declare-summary');
+            if (summary) summary.textContent = localize('DX3rd.Declared');
+          }
         } catch (error) {
           console.error('DX3rd | 장비 선언 실패:', item?.name, error);
           ui.notifications.error(`${item?.name}: ${localize('DX3rd.Unable')}`);
-          button.disabled = false;
+          if (button) { button.disabled = false; button.classList.remove('selected'); button.setAttribute('aria-pressed', 'false'); }
         }
-      });
+      }
+      chosen.clear();
+      return applied;
     }
+
+    return {
+      selected: () => Array.from(chosen.values()),
+      hasPending: () => chosen.size > 0,
+      commit
+    };
   }
 
   window.DX3rdDeclaredEquipment = {

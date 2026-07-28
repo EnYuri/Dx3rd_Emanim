@@ -22,7 +22,8 @@
           <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="{{card.editor}}" data-effect-id="{{card.id}}" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
         </div>
         <div class="dx3rd-effect-card-meta">
-          <select class="effect-action-binding" data-effect-id="{{card.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">{{#each ../effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value card.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select>
+          {{!-- 카드마다 고를 수 있는 액션이 다르다(장비의 자기 보정에는 「공격」이 없다). --}}
+          <select class="effect-action-binding" data-effect-id="{{card.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">{{#each card.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value card.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select>
           <span class="dx3rd-effect-badge trigger">{{card.triggerLabel}}</span><span class="dx3rd-effect-badge target">{{card.targetLabel}}</span>
         </div>
       </article>

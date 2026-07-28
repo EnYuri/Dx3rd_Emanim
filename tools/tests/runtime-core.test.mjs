@@ -821,8 +821,8 @@ function selfChannelContext() {
 }
 
 // handleItemUse / combo-handler 가 공유하는 게이트를 그대로 재현한다.
-function useGate(adapter, item) {
-  const action = adapter.invocationAction(item, {});
+function useGate(adapter, item, options = {}) {
+  const action = adapter.invocationAction(item, options);
   const useMeansActivate = adapter.useMeansActivation(item);
   const matches = adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')
     || useMeansActivate;
@@ -858,8 +858,11 @@ const selfChannelCases = () => {
     ['방어구(장착 중 상시)',
       { type: 'protect', system: { attributes: attrs, active: active({ applyMode: 'toggle' }) } }, 'skip', false],
     // 「마이너 액션을 소비해서 선언하면 …」류 장비. 장착만으로 켜면 첫 소멸 훅 뒤 죽는다.
+    // 무기는 기본 발동이 '공격'인데, 선언형 보정은 공격에 딸려 붙으면 안 된다 —
+    // 쓸지 말지는 명중판정 직전에 고르는 것이 이 계열의 전부다. 선언(action:'use')일 때
+    // 걸리는 것은 바로 아래 테스트에서 따로 본다.
     ['무기(선언형)',
-      { type: 'weapon', system: { attributes: attrs, active: active({ applyMode: 'onUse', disable: 'major' }) } }, 'frozen', false],
+      { type: 'weapon', system: { attributes: attrs, active: active({ applyMode: 'onUse', disable: 'major' }) } }, 'skip', false],
     ['방어구(선언형)',
       { type: 'protect', system: { attributes: attrs, active: active({ applyMode: 'onUse', disable: 'reaction' }) } }, 'frozen', false],
     ['마술(spell)',
@@ -877,6 +880,14 @@ test('using an item activates self modifiers whose channel is activation', () =>
   for (const [label, item, expected] of selfChannelCases()) {
     assert.equal(useGate(adapter, item), expected, label);
   }
+
+  // 선언형 장비는 「공격」이 아니라 「선언」에서 걸린다. 판정 창의 선언 토글이 확정할 때
+  // action:'use' 로 부르는 경로가 바로 이것이라, 여기가 막히면 토글이 아무것도 못 한다.
+  const declared = { type: 'weapon',
+    system: { attributes: { a0: { key: 'add', value: '2' } },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' } } };
+  assert.equal(useGate(adapter, declared, { action: 'attack' }), 'skip', '공격만으로 선언형이 터지면 안 된다');
+  assert.equal(useGate(adapter, declared, { action: 'use' }), 'frozen', '선언하면 동결 채널로 걸려야 한다');
 });
 
 test('sheet toggle and the use gate never disagree about the activation channel', () => {
@@ -1200,8 +1211,9 @@ test('equipment self modifiers follow the authored channel, not the item type', 
   assert.equal(channel(equipmentItem({ type: 'weapon' }).item), 'activation');
   assert.equal(channel(equipmentItem({ type: 'protect' }).item), 'activation');
   assert.equal(channel(equipmentItem({ type: 'vehicle' }).item), 'activation');
-  // 선언형으로 저작하면 사용/공격 채널이어야 한다 — 장착만으로 켜지지 않는다.
-  assert.equal(channel(equipmentItem({ type: 'weapon', applyMode: 'onUse', disable: 'major' }).item), 'attack');
+  // 선언형으로 저작하면 선언(사용) 채널이어야 한다 — 장착만으로 켜지지 않고,
+  // 무기라고 해서 공격에 딸려 붙지도 않는다(그러면 쓸지 말지 고를 자리가 없다).
+  assert.equal(channel(equipmentItem({ type: 'weapon', applyMode: 'onUse', disable: 'major' }).item), 'use');
   assert.equal(channel(equipmentItem({ type: 'protect', applyMode: 'onUse', disable: 'reaction' }).item), 'use');
   // 카드에서 「활성화」를 명시하면 그것이 최우선이다.
   const explicit = equipmentItem({ type: 'weapon', applyMode: 'onUse', disable: 'major' }).item;
@@ -1410,10 +1422,21 @@ test('an authored on-use weapon fires on its declaration, not on every attack', 
   assert.equal(adapter.hasActionEffects(item, 'use'), true);
   assert.equal(adapter.hasActionEffects(item, 'attack'), false);
 
-  // action 미저작이면 무기 기본값 'attack' 으로 떨어진다(= 별도 선언 진입점이 열리지 않는다).
+  // applyMode 만 저작돼 있어도 선언형이다. 예전에는 무기 기본값 'attack' 으로 떨어져
+  // 별도 선언 진입점이 열리지 않았고, 그 무기로 공격하면 보정이 저절로 터졌다.
   const inferred = { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' };
-  assert.equal(build(inferred).modifierCards[0].action, 'attack');
-  assert.equal(adapter.hasActionEffects(makeItem(inferred, { key: 'attack', value: '+10' }), 'use'), false);
+  assert.equal(build(inferred).modifierCards[0].action, 'use');
+  assert.equal(adapter.hasActionEffects(makeItem(inferred, { key: 'attack', value: '+10' }), 'use'), true);
+  assert.equal(adapter.hasActionEffects(makeItem(inferred, { key: 'attack', value: '+10' }), 'attack'), false,
+    '공격만으로 선언형 보정이 붙으면 쓸지 말지 고를 자리가 없다');
+
+  // 「공격」으로 저작해 두었어도 선언으로 접는다 — 장비의 자기 보정에 그 갈래는 없다.
+  const authoredAttack = { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: 'attack' };
+  assert.equal(build(authoredAttack).modifierCards[0].action, 'use');
+  // 그러니 시트에서도 고를 수 없어야 한다. 남겨 두면 표시와 동작이 어긋난 채로 남는다.
+  // (vm 렐름 배열이라 deepEqual 은 구조가 같아도 실패한다 — 문자열로 본다.)
+  assert.equal(build(authoredAttack).modifierCards[0].actionOptions.map(o => o.value).join(','),
+    'activation,use');
 
   // 저작이 없는 기존 장비는 그대로 상시(장착이 상태의 원본)여야 한다.
   const legacy = build({ state: false, disable: 'scene', runTiming: 'instant' }).modifierCards[0];
@@ -1480,13 +1503,10 @@ test('only equipped, on-use, unspent equipment is offered for declaration', () =
   // 문맥이 다르면 내지 않는다 — 방어 창에 관통 버튼이 뜨면 누를 수 없는 버튼만 늘어난다.
   assert.equal(mod.collect(actorWith([ok]), 'defense').length, 0);
 
-  // 장착 안 함 / 상시 채널 / 소진 / notCheck 는 각각 제외된다.
+  // 장착 안 함 / 상시 채널 / notCheck 는 각각 제외된다.
   assert.equal(mod.collect(actorWith([declarableItem({ equipment: false })]), 'attack').length, 0);
   assert.equal(mod.collect(actorWith([declarableItem({ active: { applyMode: 'toggle', action: 'activation' } })]), 'attack').length, 0);
-  assert.equal(mod.collect(actorWith([declarableItem({ used: { state: 1, max: 1 } })]), 'attack').length, 0);
   assert.equal(mod.collect(actorWith([declarableItem({ active: { disable: 'notCheck' } })]), 'attack').length, 0);
-  // 횟수 체크를 켜 두고 상한이 0이면 무제한이 아니라 소진이다(helpers isItemExhausted 와 같은 규칙).
-  assert.equal(mod.collect(actorWith([declarableItem({ used: { max: 0 } })]), 'attack').length, 0);
   // used 체크 자체가 꺼져 있으면 무제한.
   const unlimited = mod.collect(actorWith([declarableItem({ used: { disable: 'notCheck' } })]), 'attack');
   assert.equal(unlimited[0].limited, false);
@@ -1496,6 +1516,30 @@ test('only equipped, on-use, unspent equipment is offered for declaration', () =
   assert.equal(mod.collect(declared, 'attack').length, 0);
   // 남의 액터에는 버튼을 내주지 않는다(방어 다이얼로그는 GM 화면에도 뜬다).
   assert.equal(mod.collect({ ...actorWith([ok]), isOwner: false }, 'attack').length, 0);
+});
+
+test('exhausted equipment stays on the list but is marked, unless the world blocks it', () => {
+  const context = declaredEquipmentContext();
+  const mod = context.DX3rdDeclaredEquipment;
+  // 횟수 체크를 켜 두고 상한이 0이면 무제한이 아니라 소진이다(helpers isItemExhausted 와 같은 규칙).
+  const spent = actorWith([declarableItem({ used: { state: 1, max: 1 } })]);
+  const zeroMax = actorWith([declarableItem({ used: { max: 0 } })]);
+
+  // 기본값(허용): 목록에 남되 소진 표시가 붙는다 — 「0회 남음」이 아니라 「소진」.
+  assert.equal(mod.collect(spent, 'attack').length, 1);
+  assert.equal(mod.collect(spent, 'attack')[0].exhausted, true);
+  assert.equal(mod.collect(zeroMax, 'attack')[0].exhausted, true);
+  const html = mod.sectionHtml(mod.collect(spent, 'attack'));
+  assert.match(html, /dx3rd-declare-button is-exhausted/, '소진된 것은 버튼에서 구별돼야 한다');
+  assert.match(html, /DX3rd\.Exhausted/);
+  assert.doesNotMatch(html, /DX3rd\.DeclareUsesLeft/, '소진이면 잔여 회수 대신 소진을 낸다');
+
+  // 설정을 끄면 예전처럼 목록에서 아예 빠진다.
+  context.DX3rdItemExhausted = { allowExhaustedUse: () => false };
+  assert.equal(mod.collect(spent, 'attack').length, 0);
+  assert.equal(mod.collect(zeroMax, 'attack').length, 0);
+  // 남은 회수가 있는 것은 설정과 무관하다.
+  assert.equal(mod.collect(actorWith([declarableItem()]), 'attack').length, 1);
 });
 
 test('damage-side declarations belong to the accuracy roll, not the damage window', () => {
@@ -1548,4 +1592,147 @@ test('every dialog declares through the same shared component', () => {
   const component = source('scripts/declared-equipment.js').replace(/\s+/g, ' ');
   assert.ok(component.includes("handleItemUse( actor.id, item.id, item.type, undefined, false, {action: 'use', comboMode: 'normal'})"),
     '선언은 action:use 로 실제 사용 파이프라인을 타야 한다 — AE 만 직접 걸면 회수·침식이 새어 나간다');
+
+  // 두 창 모두 굴림/확정 시점에 commit 해야 한다 — 토글만으로 소모되면 안 된다.
+  assert.match(source('scripts/handlers/universal-roll-dialog.js'), /await commitDeclarations\(\);/,
+    '판정 창은 굴림 버튼에서 확정해야 한다');
+  assert.match(damageFile, /await declareControl\.commit\(\)/,
+    '방어 창은 「확인」에서 확정해야 한다');
+
+  // 공격만으로는 회수도 침식도 나가지 않아야 한다. 게이트 판정은 선언 UI 와 같은
+  // 함수(isDeclarable)를 써야 "목록엔 뜨는데 이미 소모된" 어긋남이 생기지 않는다.
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.ok(handler.includes("const declarationOnly = action === 'attack' && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);"),
+    '선언형 장비의 공격은 비용·회수를 치르지 않아야 한다');
+  assert.ok(handler.includes('if (!declarationOnly) { const usageAllowed = await this.processItemUsageCost'),
+    '비용 처리와 사용 횟수 증가가 그 게이트 안에 있어야 한다');
+
+  // 방어 창은 다른 경로(시트에서 직접 사용)로 오른 방어 수치도 따라가야 한다.
+  assert.match(damageFile, /Hooks\.on\(hook, watchDefenseSource\)/,
+    '방어 창은 액터 쪽 변화를 감시해야 한다 — 드롭다운 경로만 갱신하면 시트 사용이 안 보인다');
+  assert.match(damageFile, /Hooks\.off\(hook, id\)/, '창이 닫히면 감시를 걷어야 한다');
+});
+
+test('the defense dialog folds guard weapons into one dropdown', () => {
+  // 무기를 많이 가진 캐릭터에서는 체크박스 목록만으로 창이 화면을 넘어갔다.
+  const template = source('templates/dialog/defense-dialog.html');
+  assert.match(template, /<select id="weapon-guard-select"/, '무기 선택은 드롭다운이어야 한다');
+  assert.equal(template.includes('<input type="checkbox" class="weapon-checkbox"'), false,
+    '템플릿이 체크박스를 다시 늘어놓으면 공간 절약이 무의미해진다');
+
+  // 합산 규칙은 하나로 남는다 — 칩 안의 숨은 체크박스가 기존 조회를 그대로 탄다.
+  const damageFile = source('scripts/handlers/universal-damage-dialog.js');
+  assert.equal((damageFile.match(/querySelectorAll\('\.weapon-checkbox:checked'\)/g) || []).length, 1,
+    '가드치를 읽는 곳은 readCheckedWeaponGuard 하나뿐이어야 한다');
+  assert.match(damageFile, /hidden\.className = 'weapon-checkbox'/);
+  assert.match(damageFile, /dx3rd-weapon-guard-remove/, '고른 무기는 다시 뺄 수 있어야 한다');
+  // 폭주는 무기 가드 자체를 잠근다.
+  assert.match(damageFile, /weaponSelectEl\.disabled = true/);
+});
+
+test('a spent item is warned about, not blocked, unless the world says otherwise', () => {
+  // 자동화가 다듬어지는 중이라, 횟수 데이터 하나가 틀렸다고 그 자리에서 못 쓰게 되면
+  // 세션이 멈춘다. 기본값은 허용이고, 막을지는 월드 설정이 정한다.
+  const main = source('scripts/main.js').replace(/\s+/g, ' ');
+  assert.ok(main.includes("game.settings.register('dx3rd-emanim', 'allowExhaustedUse', { name: 'DX3rd.AllowExhaustedUse'"),
+    '설정이 등록돼 있어야 한다');
+  assert.match(main, /allowExhaustedUse',[^}]*default: true/s, '기본값은 허용(ON)이다');
+
+  // 소진 판정과 차단은 분리돼 있어야 한다 — 표시는 설정과 무관하게 남는다.
+  const helpers = source('scripts/helpers.js').replace(/\s+/g, ' ');
+  assert.ok(helpers.includes("return game.settings.get('dx3rd-emanim', 'allowExhaustedUse') !== false;"),
+    '설정 조회는 공용 유틸 한 곳에 있어야 한다');
+  assert.match(helpers, /allowExhaustedUse: function\(\) \{\s*try \{/,
+    '설정 등록 전(init 이전) 호출에도 견뎌야 한다');
+
+  // 사용 경로의 두 소진 지점이 같은 보고 함수를 탄다.
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.equal((handler.match(/await this\.reportUsageExhausted\(actor, item, detail\)/g) || []).length, 2,
+    '콤보 멤버 소진과 아이템 자신의 소진이 같은 경로를 써야 한다');
+  assert.ok(handler.includes("const allowed = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;"),
+    '보고 함수가 차단 여부를 정한다');
+  assert.equal(handler.includes('사용 횟수가 모두 소진되었습니다'), false,
+    '옛 차단 문구가 남아 있으면 두 경로가 갈라진 것이다');
+
+  // 방어 창의 리액션 목록도 소진된 것을 지우지 않고 표시만 한다.
+  assert.match(source('scripts/handlers/universal-apply.js'),
+    /name: exhausted \? `\$\{name\} \(\$\{game\.i18n\.localize\('DX3rd\.Exhausted'\)\}\)` : name/,
+    '소진된 리액션은 이름에 소진 표시가 붙어야 한다');
+});
+
+/** bind() 를 돌리기 위한 최소 DOM 대역. 실제 버튼의 클릭/클래스/disabled 만 흉내낸다. */
+function fakeSection(ids) {
+  const buttons = ids.map(id => {
+    const classes = new Set();
+    return {
+      dataset: { itemId: id },
+      disabled: false,
+      _handlers: [],
+      classList: {
+        add: c => classes.add(c),
+        remove: c => classes.delete(c),
+        toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+        contains: c => classes.has(c)
+      },
+      setAttribute: () => {},
+      querySelector: () => null,
+      addEventListener: (_type, fn) => buttons.find(b => b.dataset.itemId === id)._handlers.push(fn),
+      click: () => buttons.find(b => b.dataset.itemId === id)._handlers
+        .forEach(fn => fn({ preventDefault() {}, stopPropagation() {} }))
+    };
+  });
+  return { root: { querySelectorAll: () => buttons }, buttons };
+}
+
+test('toggling costs nothing; only the roll commits the use', async () => {
+  const context = declaredEquipmentContext();
+  const used = [];
+  context.DX3rdUniversalHandler = { handleItemUse: async (_a, itemId) => { used.push(itemId); return true; } };
+
+  const item = declarableItem();
+  const actor = actorWith([item]);
+  actor.items.get = id => (id === item.id ? item : null);
+
+  const { root, buttons } = fakeSection([item.id]);
+  const control = context.DX3rdDeclaredEquipment.bind(root, actor);
+
+  // 토글만 해서는 아무것도 소모되지 않는다 — 굴리지 않고 닫는 경우가 바로 이 상태다.
+  buttons[0].click();
+  assert.equal(control.hasPending(), true);
+  assert.deepEqual(used, [], '토글 단계에서 handleItemUse 가 불리면 안 된다 — 창만 닫아도 회수가 날아간다');
+
+  // 다시 누르면 해제된다(즉시 선언이던 시절엔 되돌릴 수 없었다).
+  buttons[0].click();
+  assert.equal(control.hasPending(), false);
+
+  buttons[0].click();
+  const applied = await control.commit();
+  assert.deepEqual(used, [item.id], '확정 시점에 한 번만 사용해야 한다');
+  assert.equal(applied.length, 1);
+  assert.equal(buttons[0].classList.contains('declared'), true);
+  assert.equal(buttons[0].disabled, true, '확정된 버튼은 같은 판정에서 다시 눌리면 안 된다');
+
+  // 확정 후에는 선택이 비므로, 굴림을 두 번 눌러도 두 번 소모되지 않는다.
+  await control.commit();
+  assert.deepEqual(used, [item.id]);
+});
+
+test('a refused use releases the toggle instead of locking it', async () => {
+  const context = declaredEquipmentContext();
+  context.DX3rdUniversalHandler = { handleItemUse: async () => false };
+
+  const item = declarableItem();
+  const actor = actorWith([item]);
+  actor.items.get = id => (id === item.id ? item : null);
+
+  const { root, buttons } = fakeSection([item.id]);
+  const control = context.DX3rdDeclaredEquipment.bind(root, actor);
+  buttons[0].click();
+  const applied = await control.commit();
+
+  // 비용을 못 내 거부된 항목까지 잠가 버리면, 조건을 고친 뒤 다시 고를 수 없다.
+  // (applied 는 vm 렐름 배열이라 deepEqual 이 구조가 같아도 실패한다 — 길이로 본다.)
+  assert.equal(applied.length, 0);
+  assert.equal(buttons[0].disabled, false);
+  assert.equal(buttons[0].classList.contains('declared'), false);
 });

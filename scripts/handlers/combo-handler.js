@@ -1002,8 +1002,8 @@ window.DX3rdComboHandler = {
                     const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
                     const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
                     
-                    // 공격 횟수가 소진된 무기는 제외
-                    if (isAttackExhausted) {
+                    // 공격 횟수가 소진된 무기는 제외 — 차단 여부는 월드 설정이 정한다.
+                    if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
                         window.DX3rdDebug.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name} attack exhausted, skipping (${attackUsedState}/${attackUsedMax})`);
                         continue;
                     }

@@ -636,16 +636,22 @@
       if (!actor?.items) return [];
 
       const compendiumIndex = await this._getEffectsCompendiumIndex();
+      // 소진된 것을 목록에서 지울지는 월드 설정이 정한다. 남길 때는 이름 뒤에 「소진」을
+      // 붙여, 고를 수는 있지만 원래는 못 쓰는 것이라는 사실이 드롭다운에서 바로 보이게 한다.
+      const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
       const items = [];
       for (const item of actor.items) {
         const compendiumItem = compendiumIndex.get(this._cleanDefenseReactionName(item.name));
         if (!this._isDefenseReactionCandidate(item, compendiumItem)) continue;
-        if (window.DX3rdItemExhausted?.isItemExhausted(item)) continue;
+        const exhausted = window.DX3rdItemExhausted?.isItemExhausted(item) || false;
+        if (exhausted && !allowExhausted) continue;
 
+        const name = this._cleanDefenseReactionName(item.name);
         items.push({
           id: item.id,
           type: item.type,
-          name: this._cleanDefenseReactionName(item.name),
+          name: exhausted ? `${name} (${game.i18n.localize('DX3rd.Exhausted')})` : name,
+          exhausted,
           timing: item.system?.timing || compendiumItem?.system?.timing || '-'
         });
       }

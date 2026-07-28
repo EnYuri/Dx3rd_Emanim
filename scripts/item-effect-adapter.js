@@ -153,23 +153,31 @@
 
   function inferAction(item, kind, data = {}) {
     const explicit = normalizeAction(data?.action);
+
+    // 장비(무기/방어구/비클)의 자기 보정 버킷에는 성격이 다른 두 가지가 섞여 있다.
+    //  ① 상시 속성 — 「장비하고 있는 동안 …」(기타의 〈예술:음악〉 +1, 레이저 라이플의 관통).
+    //     장착이 상태의 원본이고 '사용 선언'이라는 개념 자체가 없다.
+    //  ② 선언형 일시 보정 — 「마이너 액션을 소비해서 선언하면 …」(볼트액션 라이플 명중 +5,
+    //     가드 실드의 가드치 +5). 선언해야 붙고 소멸 타이밍에 꺼진다.
+    // 타입만 보고 전부 ①로 단정하면 ②까지 장착만으로 켜졌다가, 첫 소멸 훅
+    // (disable-hooks 는 active.state 를 내린다)에 꺼진 뒤 장착 중인데도 재장착 전까지
+    // 다시 안 켜진다. 구분 축은 이미 applyMode 에 있으니 그것을 존중한다 —
+    // 장비의 template 기본값이 'toggle'(=①)이므로 명시 저작이 없는 기존 데이터의 동작은 그대로다.
+    //
+    // 갈래는 이 **둘뿐이고, 「공격 시」는 없다** — 있어서도 안 된다. 그 무기로 공격하는 것만으로
+    // ②까지 함께 터지면, 한 번뿐인 회수를 쓸지 말지 고를 자리가 사라진다(룰이 「명중판정을
+    // 실행하기 직전에 선언할 것」이라 그 선택이 곧 이 계열 장비의 전부다). 사용 여부는 판정
+    // 다이얼로그의 선언 토글이 정하고 그 토글은 action:'use' 로 확정하므로, 명시 저작이
+    // '공격'이어도 '사용'으로 접어 공격과 선언을 분리한다.
+    if (kind === 'selfModifiers' && ['weapon', 'protect', 'vehicle'].includes(item.type)) {
+      if (explicit) return explicit === 'activation' ? 'activation' : 'use';
+      const mode = data?.applyMode || item.system?.active?.applyMode || 'toggle';
+      return mode === 'onUse' ? 'use' : 'activation';
+    }
     if (explicit) return explicit;
 
     const timing = data?.timing || data?.runTiming || 'instant';
     if (kind === 'selfModifiers') {
-      // 장비(무기/방어구/비클)의 자기 보정 버킷에는 성격이 다른 두 가지가 섞여 있다.
-      //  ① 상시 속성 — 「장비하고 있는 동안 …」(기타의 〈예술:음악〉 +1, 레이저 라이플의 관통).
-      //     장착이 상태의 원본이고 '사용 선언'이라는 개념 자체가 없다.
-      //  ② 선언형 일시 보정 — 「마이너 액션을 소비해서 선언하면 …」(볼트액션 라이플 명중 +5,
-      //     가드 실드의 가드치 +5). 선언해야 붙고 소멸 타이밍에 꺼진다.
-      // 타입만 보고 전부 ①로 단정하면 ②까지 장착만으로 켜졌다가, 첫 소멸 훅
-      // (disable-hooks 는 active.state 를 내린다)에 꺼진 뒤 장착 중인데도 재장착 전까지
-      // 다시 안 켜진다. 구분 축은 이미 applyMode 에 있으니 그것을 존중한다 —
-      // 장비의 template 기본값이 'toggle'(=①)이므로 명시 저작이 없는 기존 데이터의
-      // 동작은 그대로다.
-      if (['weapon', 'protect', 'vehicle'].includes(item.type)) {
-        return (item.system?.active?.applyMode || 'toggle') === 'onUse' ? invocationAction(item) : 'activation';
-      }
       if ((item.system?.active?.applyMode || 'onUse') === 'toggle') return 'activation';
       // 기존 액터 시트에서 자기 보정만 가진 상시 비공격 이펙트는 이름 클릭으로 on/off하던
       // 지속 토글이었다. 명시 action이 없는 기존 데이터는 이 의미를 그대로 보존한다.
@@ -420,6 +428,18 @@
     //  ② 발동 시점 — 상시(활성화 채널) / 사용·공격 시(동결 채널). 자기 보정 카드의
     //     「발현 액션」이 정하지만 편집 창 안쪽에만 있어 아무도 저작하지 않았다.
     const isEquipment = ['weapon', 'protect', 'vehicle'].includes(item.type);
+    const actionOptions = [
+      {value: 'activation', label: actionLabel('activation')},
+      {value: 'use', label: actionLabel('use')},
+      {value: 'attack', label: actionLabel('attack')}
+    ];
+    // 장비의 자기 보정에는 「공격」을 내주지 않는다. inferAction 이 그것을 '사용'(선언)으로
+    // 접으므로, 고를 수 있게 두면 시트 표시와 실제 동작이 어긋난 채로 남는다.
+    const selfActionOptions = isEquipment
+      ? actionOptions.filter(option => option.value !== 'attack')
+      : actionOptions;
+    modifierOverview.selfActionOptions = selfActionOptions;
+    modifierOverview.targetActionOptions = actionOptions;
     const modifierCards = [];
     if (selfModifierCount) {
       // 켜고 끌 것이 있는 쪽은 활성화 채널뿐이다. 동결 채널(사용 시)의 상태는 AE 에 있고
@@ -430,6 +450,7 @@
       modifierCards.push({
         ...selfModifiers,
         editor: 'modifiers', count: selfModifierCount, toggleable: selfIsActivation,
+        actionOptions: selfActionOptions,
         // active(카드가 살아 있는가)는 여기서 손보지 않는다 — collectPersistent 가 채널별로
         // 이미 판정한다. 시트에서만 덧칠했더니 같은 카드가 hasActionEffects 에는 죽은 것으로
         // 보여, 선언형 무기의 「사용」 진입점이 열리지 않았다.
@@ -442,14 +463,10 @@
     if (targetModifierCount) {
       modifierCards.push({
         ...targetModifiers,
-        editor: 'modifiers', count: targetModifierCount, toggleable: false
+        editor: 'modifiers', count: targetModifierCount, toggleable: false,
+        actionOptions
       });
     }
-    const actionOptions = [
-      {value: 'activation', label: actionLabel('activation')},
-      {value: 'use', label: actionLabel('use')},
-      {value: 'attack', label: actionLabel('attack')}
-    ];
     const immediateAddOptions = DIRECT_TYPES.map(type => ({value: type, label: directTitle(type)}));
     // 지속 효과 카드는 종류당 한 장뿐인 것이 있다(지속 효과 보정은 아이템당 한 장이고,
     // 추가 버튼은 그 카드에 보정 줄을 더할 뿐이다). 이미 만들어진 종류는 선택지를 지우지 않고
