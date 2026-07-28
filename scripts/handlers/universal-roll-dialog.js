@@ -303,6 +303,11 @@
      *   - {boolean} isBookDecipher: 마도서 해독 콤보 여부
      *   - {Item} originalItem: 원본 아이템 (예: 마도서)
      *   - {Object} predefinedDifficulty: 미리 정의된 난이도 데이터
+     *   - {string} rollType: 판정 종류 강제 시드('dodge'/'reaction'). 방어 다이얼로그 등 호출 문맥이
+     *     이미 판정 종류를 알고 있을 때 쓴다. 지정하면 공격 판정은 붙이지 않는다.
+     *   - {boolean} getTarget: 대상 지정 필요 여부(기본 true). 리액션 콤보는 false.
+     *   - {Function} afterRollCallback: 판정 완료 콜백(임시 콤보 문서의 meta로 전달)
+     *   - {Function} afterUseCallback: 사용(발동) 직후 콜백(임시 콤보 문서의 meta로 전달)
      */
     // 콤보 빌더: 편집 가능한 임시 콤보 문서를 만들고 그 시트를 연다.
     // 사용/취소 시 문서는 자동 삭제되고, 저장 버튼을 누른 경우에만 영구 콤보로 남는다.
@@ -316,8 +321,14 @@
         ? options.preselectEffectIds.filter(Boolean)
         : [];
 
+      // 판정 종류를 호출 문맥이 지정한 경우(리액션 창의 임시 콤보 등). 방어 판정에는 공격 판정이
+      // 붙을 수 없으므로 무기 시드도 통째로 건너뛴다.
+      const forcedRoll = ['major', 'reaction', 'dodge', '-'].includes(options.rollType)
+        ? options.rollType : null;
+      const isDefenseSeed = forcedRoll === 'reaction' || forcedRoll === 'dodge';
+
       // 무기/비클 아이템만 무기 슬롯·공격 콤보 시드로 사용(연출용으로 넘어온 비무기 아이템은 무시)
-      const seedWeapon = (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle'))
+      const seedWeapon = (!isDefenseSeed && weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle'))
         ? weaponItem : null;
 
       // ---- 시드 값 계산(조합 우선순위: 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추) ----
@@ -331,10 +342,12 @@
       const seedEffects = preselectIds.map(id => actor.items.get(id)).filter(Boolean);
       const seedWeaponType = seedWeapon?.system?.type;
 
-      // 공격판정: 이펙트 attackRoll(melee/ranged) > 무기 type
-      const effAR = seedEffects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
+      // 공격판정: 이펙트 attackRoll(melee/ranged) > 무기 type. (방어 시드는 공격 판정 없음)
+      const effAR = isDefenseSeed
+        ? null
+        : seedEffects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
       if (effAR) attackRoll = effAR.system.attackRoll;
-      else if (seedWeaponType === 'melee' || seedWeaponType === 'ranged') attackRoll = seedWeaponType;
+      else if (!isDefenseSeed && (seedWeaponType === 'melee' || seedWeaponType === 'ranged')) attackRoll = seedWeaponType;
 
       // 기능: 이펙트 지정 기능 > 무기 명시 > 무기 type 유추. (스킬에서 시작한 값은 조합 신호가 있으면 그쪽이 이김)
       //   이펙트 지정 기능 = 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백. (룰 근거는 combo-data.js 참조)
@@ -387,12 +400,13 @@
           skill,
           base,
           // 기능 또는 공격판정이 있으면 명중/판정을 위해 메이저로 시작.
-          roll: (skill !== '-' || attackRoll !== '-') ? 'major' : '-',
+          // 호출 문맥이 판정 종류를 지정했으면(리액션/닷지) 그 값이 이긴다.
+          roll: forcedRoll || ((skill !== '-' || attackRoll !== '-') ? 'major' : '-'),
           attackRoll,
           effectIds,
           weapon: weaponSetting,
           weaponSelect,
-          getTarget: true,
+          getTarget: options.getTarget !== false,
           range: rangeValue,
           target: targetValue,
           encroach: { value: encroachValue },
@@ -403,12 +417,17 @@
 
       try {
         const [created] = await actor.createEmbeddedDocuments('Item', [comboItemData]);
-        // 마도서 등 호출 아이템이 제공한 일회성 판정 문맥은 임시 콤보가 살아 있는 동안 보존한다.
-        if (created && (options.originalItem || options.predefinedDifficulty || options.isBookDecipher)) {
+        // 마도서/방어 다이얼로그 등 호출 문맥이 제공한 일회성 판정 문맥은 임시 콤보가 살아 있는
+        // 동안 보존한다(문서에 직접 붙는 메모리 전용 필드 — 저장되지 않는다).
+        const hasMeta = options.originalItem || options.predefinedDifficulty || options.isBookDecipher
+          || options.afterRollCallback || options.afterUseCallback;
+        if (created && hasMeta) {
           created.meta = {
             originalItem: options.originalItem || null,
             predefinedDifficulty: options.predefinedDifficulty || null,
-            isBookDecipher: !!options.isBookDecipher
+            isBookDecipher: !!options.isBookDecipher,
+            afterRollCallback: typeof options.afterRollCallback === 'function' ? options.afterRollCallback : null,
+            afterUseCallback: typeof options.afterUseCallback === 'function' ? options.afterUseCallback : null
           };
         }
         // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
@@ -853,6 +872,14 @@
       // 수정치는 판정 롤의 항으로 그대로 실리므로 다이스식을 받는다.
       const overrideHint = game.i18n.localize('DX3rd.RollFieldOverrideHint');
       const addHint = game.i18n.localize('DX3rd.RollAddOverrideHint');
+
+      // 「명중판정을 실행하기 직전에 선언할 것」류 장비를 이 창에서 바로 선언한다.
+      // 시트로 돌아가 이름 클릭 → 「사용」을 누르게 하면 콤보 공격 흐름에서 완전히 벗어난다.
+      // 명중판정이면 공격력·장갑무시 계열까지 함께 낸다 — 룰상 그 선언 시점이 바로 여기이고,
+      // 여기서 선언해 두면 데미지 산출이 액터에서 읽어 갈 때 이미 반영돼 있다.
+      const declarable = window.DX3rdDeclaredEquipment?.collect(actor, isAttackRoll ? 'attack' : 'roll') || [];
+      const declareSectionHtml = window.DX3rdDeclaredEquipment?.sectionHtml(declarable) || '';
+
       const content = `
         <div class="dx3rd-casting-dialog">
           <div class="dx3rd-row dx3rd-3col">
@@ -897,6 +924,7 @@
             </div>
           </div>
           `}
+          ${declareSectionHtml}
           <hr style="margin: 12px 0; border: none; border-top: 1px solid #ccc;">
           <div class="type-row dx3rd-row ${specificRollType ? 'dx3rd-1col' : 'dx3rd-3col'}" style="margin-top:8px;">
             ${buttonHtml}
@@ -994,6 +1022,59 @@
       bindModifier(diceInput, 'dice');
       bindModifier(critInput, 'critical');
       bindModifier(addInput, 'add');
+
+      // 장비를 선언하면 액터에 자기 보정 AE 가 붙지만, effectiveStat 은 창을 열 때의 스냅샷이라
+      // 저절로 갱신되지 않는다(침식·공포·폭주 패널티가 140여 줄에 걸쳐 인라인으로 깎여 들어가
+      // 통째로 재도출할 수 없다). 그래서 선언 전 판정치와 선언 후 판정치의 **차이만** 얹는다.
+      // 원본 stat 을 어디서 읽었는지는 두 가지로 되찾는다.
+      //   ① 참조 동일성 — 대부분의 호출부는 actor.system.attributes[...] 를 그대로 넘긴다.
+      //      prepareData 가 돌면 객체가 갈리므로, 경로는 반드시 갱신 **전에** 찾아 둬야 한다.
+      //   ② resolveComboStat — 커스텀 base 처럼 새 객체를 조립해 넘기는 경우의 폴백.
+      const statPath = (() => {
+        const attrs = actor?.system?.attributes || {};
+        for (const [key, value] of Object.entries(attrs)) {
+          if (value === stat) return () => actor.system?.attributes?.[key];
+        }
+        for (const [key, value] of Object.entries(attrs.skills || {})) {
+          if (value === stat) return () => actor.system?.attributes?.skills?.[key];
+        }
+        return null;
+      })();
+      const rereadStat = () => {
+        const byPath = statPath?.();
+        if (byPath) return byPath;
+        if (!item) return null;
+        try {
+          return window.DX3rdComboHandler?.resolveComboStat?.(actor, item)?.stat || null;
+        } catch (error) {
+          window.DX3rdDebug.log('DX3rd | 선언 후 판정치 재도출 실패:', error);
+          return null;
+        }
+      };
+      // 선언 직전의 원본 판정치. 매번 여기서부터의 차이를 재므로 여러 번 선언해도 누적된다.
+      const statBeforeDeclare = foundry.utils.deepClone(stat);
+      const applyDeclaredDelta = () => {
+        const fresh = rereadStat();
+        if (!fresh) {
+          window.DX3rdDebug.log('DX3rd | 선언 보정을 표시에 반영하지 못했다(판정치 출처 불명) — 굴림 자체는 정상.');
+          return;
+        }
+        const bump = (targetNode, freshNode, baseNode) => {
+          if (!targetNode || !freshNode || !baseNode) return;
+          for (const key of ['dice', 'add', 'critical']) {
+            const delta = (Number(freshNode[key]) || 0) - (Number(baseNode[key]) || 0);
+            if (delta) targetNode[key] = (Number(targetNode[key]) || 0) + delta;
+          }
+        };
+        bump(effectiveStat, fresh, statBeforeDeclare);
+        for (const rollKey of ['major', 'reaction', 'dodge']) {
+          bump(effectiveStat[rollKey], fresh[rollKey], statBeforeDeclare[rollKey]);
+        }
+        // 차이를 다시 재지 않도록 기준을 옮긴다(두 번째 선언이 첫 번째 몫까지 또 더하는 것 방지).
+        foundry.utils.mergeObject(statBeforeDeclare, foundry.utils.deepClone(fresh), {inplace: true});
+        updateSelectedDisplay();
+      };
+      window.DX3rdDeclaredEquipment?.bind(root, actor, applyDeclaredDelta);
 
       // 표시 칸 직접 수정 → 최종 판정치 덮어쓰기 (비우면 자동 계산 복귀)
       // allowFormula: 수정치는 정수가 아니면 다이스식으로 보고 문자열째 보관한다.

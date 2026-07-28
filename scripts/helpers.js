@@ -1687,6 +1687,19 @@
             icon: isAttack ? 'fa-solid fa-crosshairs' : 'fa-solid fa-bolt',
             label: game.i18n.localize(isAttack ? 'DX3rd.EffectActionAttack' : 'DX3rd.EffectActionUse')
         }];
+        // 공격 아이템이라도 '사용' 액션에 묶인 효과가 있으면 별도 진입점을 낸다.
+        // 무기의 선언형 자기 보정(「마이너 액션을 소비해서 선언하면 …」 볼트액션 라이플,
+        // 「가드를 실행할 때 선언한다」 가드 실드)은 공격이 아니라 선언이 발동점인데,
+        // 메뉴에 공격/콤보/효과 적용밖에 없어 그 선언을 할 방법이 「효과 적용 → 자신」
+        // (자기 타겟팅 필요)뿐이었다 — 사용 횟수도 안 세고 침식 비용도 안 걷힌다.
+        // handleItemUse 는 이미 effectOnlyUse 로 이 액션을 지원한다(공격 굴림 없이 효과만).
+        if (isAttack && window.DX3rdItemEffectAdapter?.hasActionEffects?.(item, 'use')) {
+            entries.push({
+                value: 'use',
+                icon: 'fa-solid fa-bolt',
+                label: game.i18n.localize('DX3rd.EffectActionUse')
+            });
+        }
         if (allowCombo) {
             entries.push({
                 value: 'combo',

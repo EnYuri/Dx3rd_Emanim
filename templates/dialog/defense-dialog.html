@@ -76,15 +76,21 @@
             <span>{{localize "DX3rd.Achievement"}}: {{attackResult}}</span>
             <button type="button" id="basic-dodge-roll" style="margin-left: auto;">{{localize "DX3rd.BasicDodge"}}</button>
           </div>
-          <div id="reaction-selection" style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px;">
-            {{#each reactionItems as |item|}}
-            <button type="button" class="reaction-item-btn" data-item-id="{{item.id}}" data-item-type="{{item.type}}" title="{{item.timing}}">
-              {{item.name}}
-            </button>
-            {{/each}}
-            {{#unless reactionItems.length}}
-            <span style="color: #666; font-style: italic;">{{localize "DX3rd.NoDefenseReactionItem"}}</span>
-            {{/unless}}
+          <!-- 리액션 수단은 드롭다운 하나로 묶는다. 「임시 콤보」도 같은 목록의 항목이고,
+               나머지는 액터가 가진 이펙트/콤보를 타입별 optgroup 으로 나눈 것이다. -->
+          <div id="reaction-selection" style="display: flex; gap: 4px; align-items: center; margin-bottom: 6px;">
+            <select id="reaction-item-select" style="flex: 1; min-width: 0;">
+              <option value="">{{localize "DX3rd.SelectReactionItem"}}</option>
+              <option value="__instant-combo__">{{localize "DX3rd.InstantCombo"}}</option>
+              {{#each reactionGroups as |group|}}
+              <optgroup label="{{group.label}}">
+                {{#each group.items as |item|}}
+                <option value="{{item.id}}" title="{{item.timing}}">{{item.name}}</option>
+                {{/each}}
+              </optgroup>
+              {{/each}}
+            </select>
+            <button type="button" id="reaction-item-use" style="flex: 0 0 auto; width: auto;">{{localize "DX3rd.Use"}}</button>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
             <label for="reaction-result">{{localize "DX3rd.ReactionResult"}}</label>
@@ -102,4 +108,7 @@
       </tr>
 
     </table>
+    {{!-- 선언형 장비(가드/장갑/경감). 리액션 수단 드롭다운과 같은 자리에서 고르되,
+         이쪽은 판정이 아니라 방어 수치를 올리는 선언이라 표 아래 별도 섹션으로 둔다. --}}
+    {{{declareSection}}}
 </div>

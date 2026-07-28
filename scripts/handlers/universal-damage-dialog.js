@@ -192,6 +192,9 @@
       const dynamicDicePart = actorDamageRollFormula ? ` + (${actorDamageRollFormula})` : '';
       const dicePart = `[${attackRollResult} / 10 + 1 + ${actorDamageRoll}${dynamicDicePart}${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
       const addPart = `${baseDamageAddFormula}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
+      // 선언형 장비(로켓 런처의 장갑무시 등)는 여기가 아니라 명중판정 창에서 선언한다.
+      // 룰이 「명중판정을 실행하기 직전에 선언할 것」이므로, 맞은 걸 본 뒤 고르게 하면
+      // 빗나갔을 때 회수를 아끼는 자리가 생긴다 — declared-equipment.js 의 'attack' 문맥 참조.
       const templateData = {
         formula: `${dicePart} + ${addPart}`,
         actorPenetrate: actorPenetrate,
@@ -797,7 +800,10 @@
         reduce: reduce,
         reduceRollFormula,
         attackResult: attackResultValue,
-        reactionItems: reactionItems
+        reactionGroups: this.groupDefenseReactionItems(reactionItems),
+        // 「가드를 실행할 때 선언한다」(가드 실드·프로텍트 아머 등) — 방어자의 장비다.
+        declareSection: window.DX3rdDeclaredEquipment?.sectionHtml(
+          window.DX3rdDeclaredEquipment.collect(targetActor, 'defense')) || ''
       };
       
       const dialogContent = await foundry.applications.handlebars.renderTemplate('systems/dx3rd-emanim/templates/dialog/defense-dialog.html', templateData);
@@ -1427,6 +1433,20 @@
 
         updateDamage();
       };
+      // 방어 중 발동한 효과(리액션 이펙트·임시 콤보)가 가드/장갑/경감을 바꿨을 수 있다.
+      // 액터에서 다시 읽어 입력칸과 보류 수식을 동기화한다.
+      const refreshDefenseValuesFromActor = async () => {
+        await targetActor.prepareData();
+        const setValue = (selector, value) => {
+          const input = root.querySelector(selector);
+          if (input) input.value = value;
+        };
+        setValue('#guard', targetActor.system.attributes.guard?.value || 0);
+        setValue('#armor', targetActor.system.attributes.armor?.value || 0);
+        setValue('#reduce', targetActor.system.attributes.reduce?.value || 0);
+        refreshDeferredFormulas();
+        updateDamage();
+      };
       const updateWeaponGuard = () => {
         const {fixed, formula} = readCheckedWeaponGuard(root);
         const totalGuard = root.querySelector('#total-guard');
@@ -1453,6 +1473,10 @@
         const lifeElement = root.querySelector('#life');
         if (lifeElement) lifeElement.textContent = String(Math.max(0, currentHP - calculatedDamage));
       };
+
+      // 선언형 장비: 누르면 자기 보정 AE 가 붙으므로, 리액션 이펙트를 발동했을 때와 똑같이
+      // 액터에서 가드/장갑/경감을 다시 읽어 오면 된다(전용 갱신 경로를 새로 만들지 않는다).
+      window.DX3rdDeclaredEquipment?.bind(root, targetActor, refreshDefenseValuesFromActor);
 
       // 초기 데미지 계산 (berserk로 인해 가드가 변경되었을 수 있음)
       updateDamage();
@@ -1526,43 +1550,71 @@
         );
       });
 
-      root.querySelectorAll('.reaction-item-btn').forEach(button => {
-        button.addEventListener('click', async (event) => {
-          event.preventDefault();
-          const itemId = button.dataset.itemId;
-          const itemType = button.dataset.itemType;
-          const item = targetActor.items.get(itemId);
-          if (!item) {
-            ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
-            return;
-          }
+      // 등록된 리액션 이펙트/콤보를 그대로 발동한다.
+      const useRegisteredReaction = async (itemId) => {
+        const item = targetActor.items.get(itemId);
+        if (!item) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
+          return;
+        }
 
-          const success = await this.handleItemUse(
-            targetActor.id,
-            itemId,
-            itemType,
-            null,
-            item.system?.getTarget,
-            {
-              predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
-              afterRollCallback: ({ total }) => setReactionResult(total)
-            }
-          );
-
-          if (success && (item.system?.roll || '-') === '-') {
-            await targetActor.prepareData();
-            const guardInput = root.querySelector('#guard');
-            if (guardInput) guardInput.value = targetActor.system.attributes.guard?.value || 0;
-            const armorInput = root.querySelector('#armor');
-            if (armorInput) armorInput.value = targetActor.system.attributes.armor?.value || 0;
-            const reduceInput = root.querySelector('#reduce');
-            if (reduceInput) reduceInput.value = targetActor.system.attributes.reduce?.value || 0;
-            // 방어 중 발동한 효과가 다이스식 보정을 걸었을 수 있다. 고정치뿐 아니라
-            // 확정 시 굴릴 보류 수식도 다시 읽어야 그 효과가 실제로 반영된다.
-            refreshDeferredFormulas();
-            updateDamage();
+        const success = await this.handleItemUse(
+          targetActor.id,
+          itemId,
+          item.type,
+          null,
+          item.system?.getTarget,
+          {
+            predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
+            afterRollCallback: ({ total }) => setReactionResult(total)
           }
+        );
+
+        // 방어 중 발동한 효과가 다이스식 보정을 걸었을 수 있다. 고정치뿐 아니라
+        // 확정 시 굴릴 보류 수식도 다시 읽어야 그 효과가 실제로 반영된다.
+        if (success && (item.system?.roll || '-') === '-') {
+          await refreshDefenseValuesFromActor();
+        }
+      };
+
+      // 등록된 리액션 이펙트/콤보만으로 부족할 때, 이 자리에서 임시 콤보를 조합해 쓴다.
+      // 조합 결과의 판정은 afterRollCallback 으로 리액션 달성치 칸에 그대로 돌아오고,
+      // 판정 없는 가드계 이펙트는 afterUseCallback 이 가드/장갑/경감을 다시 읽어 반영한다.
+      const useInstantReactionCombo = async () => {
+        if (!targetActor.isOwner && !game.user.isGM) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.NoPermission'));
+          return;
+        }
+        // 회피 기능이 없는 액터(에너미 등)는 능력치 판정으로 시드한다.
+        const dodgeSkill = targetActor.system?.attributes?.skills?.evade ? 'evade' : 'body';
+        await this.openComboBuilder(targetActor, 'skill', dodgeSkill, null, {
+          rollType: 'dodge',
+          getTarget: false,
+          predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
+          afterRollCallback: ({ total }) => setReactionResult(total),
+          afterUseCallback: () => refreshDefenseValuesFromActor()
         });
+      };
+
+      const reactionUseButton = root.querySelector('#reaction-item-use');
+      reactionUseButton?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const select = root.querySelector('#reaction-item-select');
+        const selected = select?.value || '';
+        if (!selected) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.SelectReactionItem'));
+          return;
+        }
+
+        // 발동이 끝날 때까지 버튼을 잠가 연타로 두 번 발동되는 것을 막는다.
+        reactionUseButton.disabled = true;
+        try {
+          if (selected === '__instant-combo__') await useInstantReactionCombo();
+          else await useRegisteredReaction(selected);
+        } finally {
+          reactionUseButton.disabled = false;
+          if (select) select.value = '';
+        }
       });
     },
 

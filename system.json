@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "2.1.1",
+  "version": "2.1.2",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/application-compat.js",
@@ -22,6 +22,7 @@
     "scripts/virtual-weapons.js",
     "scripts/helpers.js",
     "scripts/item-effect-adapter.js",
+    "scripts/declared-equipment.js",
     "scripts/condtions.js",
     "scripts/dx3rd-applied-effects.js",
     "scripts/socket-router.js",

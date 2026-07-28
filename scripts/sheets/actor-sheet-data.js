@@ -489,21 +489,33 @@
         return false;
     }
 
-    function usesSelfEffectActiveToggle(item) {
-        if (!item || ["weapon", "protect", "vehicle"].includes(item.type)) return false;
-        // 로이스(D로이스 등)는 timing 필드가 없다. 자체 '상시' 버프(attributes)가 저작돼 있으면
-        // 활성/비활성 토글을 노출한다. 발동형(매크로/소멸타이밍)은 좌클릭 사용으로 발동하므로 제외한다.
-        // 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
-        if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes) && !roisHasActivation(item);
-        if (item.system?.timing !== "always") return false;
-        // 백병/사격 공격 이펙트는 지속 버프가 아니라 즉시 공격력 보정 채널이므로 토글을 숨긴다.
+    // 어댑터가 없을 때만 쓰는 폴백. 판정 규칙을 두 벌 유지하면 미묘하게 갈라져
+    // "토글도 없고 사용에도 안 걸리는" 이펙트가 생기므로, 평시에는 어댑터에게만 묻는다.
+    function activationSelfChannelFallback(item) {
+        if (item?.system?.active?.action === "activation") return true;
+        if ((item?.system?.active?.applyMode || "onUse") === "toggle") return true;
+        if (item?.type !== "effect" || item.system?.timing !== "always") return false;
         const attackRoll = item.system?.attackRoll;
         if (attackRoll && attackRoll !== "-") return false;
-        const hasSelfEffect = hasUsableEffectAttributes(item.system?.attributes);
-        const hasTargetEffect = hasUsableEffectAttributes(item.system?.effect?.attributes);
-        if (!hasSelfEffect || hasTargetEffect) return false;
-        return !window.DX3rdItemEffectAdapter
-            || window.DX3rdItemEffectAdapter.extensionActionMatches(item, "selfModifiers", item.system?.active || {}, "activation", item.system?.active?.runTiming || "instant");
+        return !hasUsableEffectAttributes(item.system?.effect?.attributes);
+    }
+
+    // 활성 토글은 자기 보정이 '활성화' 채널인 아이템에만 의미가 있다.
+    // 장비는 equipment 체크가 원본이고, 사용 액션이 발동점인 아이템이나 대상 효과는
+    // 각자의 경로로 실행하므로 모두 숨긴다. 상시가 아니어도 자기 보정을 '활성화'로
+    // 저작했다면 토글이 발동/해제 채널이다 — 소멸 타이밍이 '-'면 자동 해제가 없어
+    // 토글이 없으면 켠 뒤 끌 수가 없다.
+    // 발동형 로이스: 좌클릭 '사용'으로 발동한다(효과/사용형 아이템과 동일한 UX).
+    function usesSelfEffectActiveToggle(item) {
+        if (!item || ["weapon", "protect", "vehicle"].includes(item.type)) return false;
+        // 로이스(D로이스 등)는 timing 필드가 없어 어댑터의 상시 판정 밖에 있다. 자체 '상시'
+        // 버프(attributes)가 저작돼 있으면 토글을 노출하고, 발동형(매크로/소멸타이밍)은 제외한다.
+        // 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
+        if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes) && !roisHasActivation(item);
+        // 그릴 보정이 없으면 토글도 의미가 없다.
+        if (!hasUsableEffectAttributes(item.system?.attributes)) return false;
+        const adapter = window.DX3rdItemEffectAdapter;
+        return adapter ? adapter.usesActivationSelfChannel(item) : activationSelfChannelFallback(item);
     }
 
     function prepareItemDisplayDefaults(item, actor) {

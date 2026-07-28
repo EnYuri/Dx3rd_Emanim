@@ -749,7 +749,11 @@
         const activeDisable = item?.system?.active?.disable ?? '-';
         // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
         const skipToggle = item?.type === 'once' && activeDisable === '-';
-        if (activeDisable !== 'notCheck' && !skipToggle) {
+        // runTiming 게이트가 여기만 빠져 있었다. 자기 보정을 afterSuccess/afterDamage 로 저작한
+        // 마술을 캐스팅 시점에 미리 켜 버리고(각 타이밍의 활성화 지점 — chat-ui 발동 버튼,
+        // processCombo*, handleSuccessButton — 이 따로 있다) 저작한 순서가 무너진다.
+        const runTiming = item?.system?.active?.runTiming ?? 'instant';
+        if (runTiming === 'instant' && activeDisable !== 'notCheck' && !skipToggle) {
           await item.update({ 'system.active.state': true });
           if (actor?.sheet?.rendered) actor.sheet.render(true);
         }
@@ -1767,10 +1771,26 @@
       // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
       const activeDisable = item.system?.active?.disable ?? '-';
       const skipToggle = item.type === 'once' && activeDisable === '-';
-      const selfActionMatches = !window.DX3rdItemEffectAdapter
-        || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant');
-      if (selfActionMatches && item.system.active?.runTiming === 'instant' && !item.system.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
-        const toggled = await this.applySelfModifiers(actor, item);
+      const adapter = window.DX3rdItemEffectAdapter;
+      // 자기 보정 채널의 액션이 '활성화'로 잡히는 아이템(상시 이펙트 / applyMode='toggle' /
+      // 효과 카드에서 액션을 「활성화」로 지정)은 사용 액션('use'·'attack')과 액션이 달라
+      // 게이트를 통과하지 못했다. 그런데 같은 이펙트를 콤보 멤버로 넣으면 combo-handler 가
+      // 액션 게이트 없이 applySelfModifiers 를 부르므로 켜진다 — 단독 사용만 조용히
+      // 아무 일도 안 하는 비대칭이었고, 지속 효과가 꺼진 이펙트는 사용해도 계속 꺼진 채였다.
+      // → 직접 사용은 활성화를 포함하는 것으로 본다(판정은 어댑터 useMeansActivation 단일 기준).
+      const useMeansActivate = !!adapter?.useMeansActivation?.(item);
+      const selfActionMatches = !adapter
+        || adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')
+        || useMeansActivate;
+      // 「아직 걸 게 남았는가」는 채널마다 다르다 — 어댑터 selfModifiersPending 단일 기준.
+      // (활성화 채널: !active.state / 동결 채널: 사용할 때마다 새로 / notCheck: 적용 안 함)
+      const selfPending = adapter ? adapter.selfModifiersPending(item)
+        : (!item.system.active?.state && activeDisable !== 'notCheck');
+      if (selfActionMatches && item.system.active?.runTiming === 'instant' && selfPending && !skipToggle) {
+        // '활성화' 채널로 저작된 보정은 동결이 아니라 토글로 켠다. 시트 표시·콤보의 지속 판정
+        // (combo-data getPersistentEffectIds/calculateItemAttackBonus)이 active.state 를 읽으므로,
+        // 여기서 동결 AE만 걸면 "효과는 걸렸는데 여전히 비활성"인 상태가 그대로 남는다.
+        const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate });
         window.DX3rdDebug.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       

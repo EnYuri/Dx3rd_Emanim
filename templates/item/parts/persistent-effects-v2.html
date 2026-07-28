@@ -12,16 +12,21 @@
     </header>
 
     <div class="dx3rd-effect-card-grid">
-      {{#if effectView.modifierOverview.totalCount}}
-      <article class="dx3rd-effect-card {{#unless effectView.modifierOverview.active}}is-inactive{{/unless}}" data-effect-id="modifiers">
+      {{!-- 자기 보정과 대상 보정은 소멸 타이밍·발현 액션이 따로인 별개의 채널이다.
+            한 장으로 묶어 두면 어느 쪽 설정을 보고 있는지 시트에서 알 수 없다. --}}
+      {{#each effectView.modifierCards as |card|}}
+      <article class="dx3rd-effect-card {{#unless card.active}}is-inactive{{/unless}}" data-effect-id="{{card.id}}">
         <div class="dx3rd-effect-card-main">
-          {{#if effectView.modifierOverview.toggleable}}<label class="dx3rd-effect-presence" title="{{localize 'DX3rd.Active'}}"><input type="checkbox" class="effect-enabled-toggle" data-effect-id="modifiers" {{checked effectView.modifierOverview.selfActive}}><i class="fas fa-circle"></i></label>{{/if}}
-          <div class="dx3rd-effect-card-copy"><strong>{{localize "DX3rd.PersistentModifiers"}}</strong><small>{{effectView.modifierOverview.summary}}</small></div>
-          <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="modifiers" data-effect-id="modifiers" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
+          {{#if card.toggleable}}<label class="dx3rd-effect-presence" title="{{localize 'DX3rd.Active'}}"><input type="checkbox" class="effect-enabled-toggle" data-effect-id="{{card.id}}" {{checked card.active}}><i class="fas fa-circle"></i></label>{{/if}}
+          <div class="dx3rd-effect-card-copy"><strong>{{card.title}}</strong><small>{{card.summary}}</small></div>
+          <button type="button" class="dx3rd-effect-edit" data-action="editEffect" data-editor="{{card.editor}}" data-effect-id="{{card.id}}" title="{{localize 'DX3rd.Edit'}}"><i class="fas fa-pen"></i></button>
         </div>
-        <div class="dx3rd-effect-card-meta"><span class="dx3rd-effect-badge target">{{localize "DX3rd.ModifierScopeHint"}}</span></div>
+        <div class="dx3rd-effect-card-meta">
+          <select class="effect-action-binding" data-effect-id="{{card.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">{{#each ../effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value card.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select>
+          <span class="dx3rd-effect-badge trigger">{{card.triggerLabel}}</span><span class="dx3rd-effect-badge target">{{card.targetLabel}}</span>
+        </div>
       </article>
-      {{/if}}
+      {{/each}}
 
       {{#each effectView.persistent as |effect|}}
       {{#if (eq effect.kind "condition")}}

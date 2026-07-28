@@ -86,6 +86,9 @@
             this.itemId = dialogData.itemId;
             this.initialEditor = initialEditor;
             this.effectId = dialogData.effectId || null;
+            // 시트에서 자신/대상 보정 카드를 눌러 열면 그 채널의 설정 패널을 펴고 시작한다.
+            if (this.effectId === 'modifiers.self') this._modifierConfigScope = 'main';
+            else if (this.effectId === 'modifiers.target') this._modifierConfigScope = 'sub';
             this.currentTopTab = null;
             this.currentSubTab = null;
             this.tempFormData = {};

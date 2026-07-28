@@ -18,6 +18,10 @@
 
   const localize = key => game.i18n.localize(key);
   const hasEntries = value => value && typeof value === 'object' && Object.keys(value).length > 0;
+  // 실제로 적용되는 보정이 하나라도 있는가. 키가 비었거나 '-'인 껍데기 항목은 저장 형식상
+  // 흔하므로, 액션 판정은 hasEntries(키 존재)가 아니라 이쪽을 써야 시트 표시와 어긋나지 않는다.
+  const hasUsableEntries = value => Object.values(value || {}).some(entry =>
+    entry?.key && entry.key !== '-' && String(entry.value ?? '').trim() !== '');
   const normalizeAction = value => ACTIONS.has(value) ? value : null;
 
   function isAttackItem(item) {
@@ -102,21 +106,76 @@
     return invocationAction(item, options);
   }
 
+  /**
+   * 자기 보정을 '활성화' 액션으로 **명시 저작**했는가(상시 여부와 무관).
+   * 효과 카드에서 액션을 「활성화」로 고르면 updateAction 이 이 두 필드를 함께 쓴다.
+   */
+  function declaresActivationSelfModifiers(item) {
+    return normalizeAction(item?.system?.active?.action) === 'activation'
+      || (item?.system?.active?.applyMode || 'onUse') === 'toggle';
+  }
+
+  /**
+   * 자기 보정 채널이 '활성화'인가 — 즉 발동/해제가 active.state 토글로 이뤄지는가.
+   * 시트의 활성 체크박스, 직접 사용 게이트, 콤보 멤버 처리가 **모두 이 한 함수만** 본다.
+   * 규칙을 호출부에서 다시 쓰면 미묘하게 갈라져, 토글도 없고 사용에도 안 걸리는
+   * 이펙트가 생긴다(실제로 그 버그가 있었다).
+   */
+  function usesActivationSelfChannel(item) {
+    return !!item && inferAction(item, 'selfModifiers', item.system?.active || {}) === 'activation';
+  }
+
+  /**
+   * 아이템을 직접 사용/공격했을 때, 자기 보정을 동결이 아니라 토글로 켜야 하는가.
+   * 장비(무기/방어구/비클)는 장착 체크(system.equipment)가 활성 상태의 원본이므로 제외한다 —
+   * 사용만으로 켜면 미장착 장비의 보정이 살아난다.
+   */
+  function useMeansActivation(item) {
+    if (!item || ['weapon', 'protect', 'vehicle'].includes(item.type)) return false;
+    return usesActivationSelfChannel(item);
+  }
+
+  /**
+   * 지금 자기 보정을 걸어야 하는가(instant 발동점 공통 게이트).
+   * 단독 사용·콤보 멤버 두 경로가 `!active.state` 를 각자 복붙하고 있었는데, 그 조건은
+   * **활성화 채널에만** 맞는 판정이다. 활성화 채널은 active.state 가 곧 적용 상태이므로
+   * 이미 켜져 있으면 할 일이 없다. 반면 동결 채널(applyMode='onUse')의 상태는 AE 쪽에 있고
+   * active.state 와 무관하다 — 사용할 때마다 그 시점 값으로 새로 걸어야 한다.
+   * 둘을 같은 조건으로 막아 두면, 어쩌다 state 가 켜진 동결 채널 아이템(구버전 장착 훅이
+   * 켜 둔 선언형 장비, 시트 체크박스)은 사용해도 영영 아무 일도 하지 않는다.
+   */
+  function selfModifiersPending(item) {
+    if (!item) return false;
+    if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
+    if (usesActivationSelfChannel(item)) return item.system?.active?.state !== true;
+    return true;
+  }
+
   function inferAction(item, kind, data = {}) {
     const explicit = normalizeAction(data?.action);
     if (explicit) return explicit;
 
     const timing = data?.timing || data?.runTiming || 'instant';
     if (kind === 'selfModifiers') {
-      if (['weapon', 'protect', 'vehicle'].includes(item.type)) return 'activation';
+      // 장비(무기/방어구/비클)의 자기 보정 버킷에는 성격이 다른 두 가지가 섞여 있다.
+      //  ① 상시 속성 — 「장비하고 있는 동안 …」(기타의 〈예술:음악〉 +1, 레이저 라이플의 관통).
+      //     장착이 상태의 원본이고 '사용 선언'이라는 개념 자체가 없다.
+      //  ② 선언형 일시 보정 — 「마이너 액션을 소비해서 선언하면 …」(볼트액션 라이플 명중 +5,
+      //     가드 실드의 가드치 +5). 선언해야 붙고 소멸 타이밍에 꺼진다.
+      // 타입만 보고 전부 ①로 단정하면 ②까지 장착만으로 켜졌다가, 첫 소멸 훅
+      // (disable-hooks 는 active.state 를 내린다)에 꺼진 뒤 장착 중인데도 재장착 전까지
+      // 다시 안 켜진다. 구분 축은 이미 applyMode 에 있으니 그것을 존중한다 —
+      // 장비의 template 기본값이 'toggle'(=①)이므로 명시 저작이 없는 기존 데이터의
+      // 동작은 그대로다.
+      if (['weapon', 'protect', 'vehicle'].includes(item.type)) {
+        return (item.system?.active?.applyMode || 'toggle') === 'onUse' ? invocationAction(item) : 'activation';
+      }
       if ((item.system?.active?.applyMode || 'onUse') === 'toggle') return 'activation';
       // 기존 액터 시트에서 자기 보정만 가진 상시 비공격 이펙트는 이름 클릭으로 on/off하던
       // 지속 토글이었다. 명시 action이 없는 기존 데이터는 이 의미를 그대로 보존한다.
-      // 상시 조건은 시트가 토글 버튼을 그리는 기준(actor-sheet-data usesSelfEffectActiveToggle)과
-      // 반드시 일치해야 한다. 어긋나면 토글도 없고 사용에도 안 걸리는 이펙트가 생긴다.
       if (item.type === 'effect' && item.system?.timing === 'always' && !isAttackItem(item)
-        && hasEntries(item.system?.attributes)
-        && !hasEntries(item.system?.effect?.attributes)) return 'activation';
+        && hasUsableEntries(item.system?.attributes)
+        && !hasUsableEntries(item.system?.effect?.attributes)) return 'activation';
       return invocationAction(item);
     }
     if (timing === 'afterDamage') return 'attack';
@@ -300,7 +359,15 @@
     const cards = [
       descriptorBase(item, {
         id: 'modifiers.self', family: 'persistent', kind: 'selfModifiers', data: selfData,
-        active: hasEntries(system.attributes) && !!system.active?.state, title: localize('DX3rd.SelfModifiers'),
+        // 「살아 있는가」의 기준은 채널마다 다르다. 활성화 채널은 active.state 가 곧 적용
+        // 상태지만, 동결 채널(applyMode='onUse')의 상태는 AE 가 들고 있고 active.state 는
+        // 쓰지 않는다 — 저작돼 있으면 살아 있는 카드다(대상 보정 카드와 같은 판정).
+        // state 로 단정하면 시트에서 늘 회색이고, 그보다 나쁘게는 hasActionEffects 가
+        // false 를 반환해 무기 모드 메뉴의 「사용」 진입점이 통째로 닫힌다.
+        active: hasEntries(system.attributes) && (usesActivationSelfChannel(item)
+          ? !!system.active?.state
+          : (system.active?.disable ?? '-') !== 'notCheck'),
+        title: localize('DX3rd.SelfModifiers'),
         summary: localize('DX3rd.EffectModifierCount').replace('{count}', Object.keys(system.attributes || {}).length),
         target: 'self', editor: 'selfModifiers'
       }),
@@ -346,6 +413,38 @@
       initialScope: selfModifierCount > 0 ? 'main' : (targetModifierCount > 0 ? 'sub' : 'main'),
       summary: `${localize('DX3rd.Self')} ${selfModifierCount} / ${localize('DX3rd.Target')} ${targetModifierCount}`
     };
+    // 지속 효과 보정은 시트에서 두 장의 카드로 나눈다. 축이 두 개인데 한 장에 묶여 있었다:
+    //  ① 적용 대상 — 자신(system.attributes) / 대상(system.effect.attributes). 데이터는 원래
+    //     분리돼 있는데 카드가 하나라 "자신 N / 대상 M" 요약으로만 보였고, 소멸 타이밍·발현
+    //     액션도 채널마다 따로인 것이 드러나지 않았다.
+    //  ② 발동 시점 — 상시(활성화 채널) / 사용·공격 시(동결 채널). 자기 보정 카드의
+    //     「발현 액션」이 정하지만 편집 창 안쪽에만 있어 아무도 저작하지 않았다.
+    const isEquipment = ['weapon', 'protect', 'vehicle'].includes(item.type);
+    const modifierCards = [];
+    if (selfModifierCount) {
+      // 켜고 끌 것이 있는 쪽은 활성화 채널뿐이다. 동결 채널(사용 시)의 상태는 AE 에 있고
+      // active.state 는 쓰지 않는데도 체크박스를 내주면, 그걸 켠 아이템은 이중 가산되거나
+      // (장비 자체계산 + 동결 AE) 발동 게이트에 걸려 사용해도 아무 일이 없었다.
+      // 상시로 쓰고 싶으면 「발현 액션」을 '활성화'로 바꾸면 체크박스가 나타난다.
+      const selfIsActivation = usesActivationSelfChannel(item);
+      modifierCards.push({
+        ...selfModifiers,
+        editor: 'modifiers', count: selfModifierCount, toggleable: selfIsActivation,
+        // active(카드가 살아 있는가)는 여기서 손보지 않는다 — collectPersistent 가 채널별로
+        // 이미 판정한다. 시트에서만 덧칠했더니 같은 카드가 hasActionEffects 에는 죽은 것으로
+        // 보여, 선언형 무기의 「사용」 진입점이 열리지 않았다.
+        // 장비의 상시 채널은 '활성화 시'가 아니라 장착이 상태의 원본이다.
+        triggerLabel: isEquipment && selfModifiers.action === 'activation'
+          ? localize('DX3rd.EffectTriggerEquipped')
+          : selfModifiers.triggerLabel
+      });
+    }
+    if (targetModifierCount) {
+      modifierCards.push({
+        ...targetModifiers,
+        editor: 'modifiers', count: targetModifierCount, toggleable: false
+      });
+    }
     const actionOptions = [
       {value: 'activation', label: actionLabel('activation')},
       {value: 'use', label: actionLabel('use')},
@@ -361,7 +460,7 @@
       {value: 'condition', label: localize('DX3rd.Condition'), disabled: false}
     ].map(option => option.disabled ? {...option, label: `${option.label} (${addedLabel})`} : option);
     return {
-      immediate, persistent, modifierOverview, actionOptions,
+      immediate, persistent, modifierOverview, modifierCards, actionOptions,
       immediateAddOptions, persistentAddOptions,
       persistentAddDisabled: persistentAddOptions.every(option => option.disabled),
       persistentConditionCount: persistent.filter(card => card.id.startsWith('condition.') || card.id.startsWith('card.')).length,
@@ -464,7 +563,9 @@
 
   async function toggleEffect(item, id, active) {
     if (!item) return false;
-    if (id === 'modifiers') {
+    // 'modifiers' 는 자신/대상이 한 장이던 시절의 카드 id 다. 분리 후에도 남겨 둔다 —
+    // 켜고 끄는 대상은 어느 쪽이든 자기 보정(system.active.state) 하나뿐이다.
+    if (id === 'modifiers' || id === 'modifiers.self') {
       const selfCount = Object.keys(item.system?.attributes || {}).length;
       if (!selfCount) return false;
       await item.update({'system.active.state': !!active});
@@ -655,11 +756,21 @@
     // 장비 보너스(system.attributes)는 actor.prepareData가 active.state를 기준으로 소비한다.
     // 활성화 액션으로 묶인 장비의 장착 상태를 이 원본 상태와 동기화하고, true 갱신에서
     // 다시 들어온 훅 한 번만 나머지 활성화 효과를 실행한다.
-    const equipmentSelfActivation = ['weapon', 'protect', 'vehicle'].includes(item.type)
+    const isEquipment = ['weapon', 'protect', 'vehicle'].includes(item.type);
+    // 장착 해제는 채널과 무관하게 끈다. actor.prepareData 의 activeItems 는 active.state 만
+    // 보고 system.equipment 를 보지 않으므로, 선언(사용)으로 켜 둔 장비 보정이 벗은 뒤에도
+    // 남으면 그대로 새어 나간다.
+    if (isEquipment && equippedOff && item.system?.active?.state === true) {
+      await item.update({'system.active.state': false}, {dx3rdActivationFromEquipment: true});
+      return;
+    }
+    // 장착으로 켜는 것은 상시 채널(applyMode 'toggle')뿐이다 — 선언형(onUse)은
+    // 사용 시점에 handleItemUse 가 켠다(inferAction 의 장비 분기 주석 참조).
+    const equipmentSelfActivation = isEquipment
       && extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'activation', 'instant')
       && item.system?.active?.disable !== 'notCheck';
-    if ((equippedOn || equippedOff) && equipmentSelfActivation && item.system?.active?.state !== equippedOn) {
-      await item.update({'system.active.state': equippedOn}, {dx3rdActivationFromEquipment: true});
+    if (equippedOn && equipmentSelfActivation && item.system?.active?.state !== true) {
+      await item.update({'system.active.state': true}, {dx3rdActivationFromEquipment: true});
       return;
     }
     if (!activeOn && !equippedOn) return;
@@ -679,6 +790,7 @@
   window.DX3rdItemEffectAdapter = {
     ACTIONS, DIRECT_TYPES, PARTIALS,
     isAttackItem, effectAttackBonus, mergeAttackBonuses, invocationAction, eventAction, inferAction, triggerFor,
+    declaresActivationSelfModifiers, usesActivationSelfChannel, useMeansActivation, selfModifiersPending,
     collectImmediate, collectPersistent, prepareSheetContext, conditionEntries,
     extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, extensionEntries,
     hasActionEffects, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,

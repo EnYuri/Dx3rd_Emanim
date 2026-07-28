@@ -137,29 +137,41 @@
         } else {
           // instant, afterSuccess, 또는 forcedTargets가 있는 afterDamage: 즉시 적용
           for (const targetActor of targetActors) {
-            if (game.user.isGM) {
-              // GM은 직접 적용
-              await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
-            } else {
-              // 일반 유저는 소켓으로 전송
-              const payload = {
-                sourceActorId: actor.id,
-                itemId: item.id,
-                targetActorId: targetActor.id,
-                targetAttributes: targetAttributes
-              };
-              
-              window.DX3rdSocketRouter.emit({
-                type: 'applyItemAttributes',
-                payload: payload
-              });
-              window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
-            }
+            await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
           }
         }
       } catch (e) {
         console.error('DX3rd | UniversalHandler.applyToTargets failed', e);
       }
+    },
+
+    /**
+     * 대상 액터에 아이템 어트리뷰트를 적용하되, 쓸 권한이 있는 클라이언트가 실행하게 한다.
+     * 남의 액터에 AE 를 직접 만들면 권한 오류로 실패하므로, 쓸 수 없으면 소켓으로 넘긴다.
+     * 반대로 내가 소유한 대상(자기 자신 포함)은 로컬에서 처리한다 — GM 이 접속해 있지 않아도
+     * 적용되고, 사용 시점의 런타임 입력(actor._dx3rdRuntimeInput: [소비HP] 등)이
+     * 이 클라이언트에만 존재하므로 로컬 평가여야 값이 살아 있다.
+     * @param {Actor} actor - 사용 액터
+     * @param {Item} item - 사용 아이템
+     * @param {Actor} targetActor - 적용 대상
+     * @param {Object} targetAttributes - 적용할 어트리뷰트(원본 수식 그대로)
+     */
+    async dispatchItemAttributes(actor, item, targetActor, targetAttributes) {
+      if (!targetActor) return;
+      if (game.user.isGM || targetActor.isOwner) {
+        await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
+        return;
+      }
+      window.DX3rdSocketRouter.emit({
+        type: 'applyItemAttributes',
+        payload: {
+          sourceActorId: actor.id,
+          itemId: item.id,
+          targetActorId: targetActor.id,
+          targetAttributes: targetAttributes
+        }
+      });
+      window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
     },
 
     /**
@@ -177,10 +189,26 @@
         return;
       }
 
-      let appliedKey = `applied_${item.id}`;
+      // 한 아이템의 자기 보정(system.attributes)과 대상 보정(system.effect.attributes)은
+      // 소멸 타이밍(active.disable / effect.disable)도 의미도 다른 별개의 채널인데, 키가
+      // `applied_<itemId>` 하나뿐이라 **시전자가 자신을 타겟으로 잡으면 서로 덮어썼다** —
+      // handleItemUse 는 자기 보정(2단계) → 대상 보정(3단계) 순이므로 자기 버프가 조용히
+      // 사라지고 대상 쪽 수명만 남았다. 채널마다 키를 나누고 조회도 채널로 좁힌다.
+      const channel = opts.channel === 'self' ? 'self' : 'target';
+      let appliedKey = channel === 'self' ? `applied_self_${item.id}` : `applied_${item.id}`;
 
-      // 기존 AE 확인 (같은 아이템이면 키 유지하고 내용만 교체)
-      const existingEff = targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === item.id);
+      // 기존 AE 확인 (같은 아이템·같은 채널이면 키 유지하고 내용만 교체).
+      // 단 'toggle:' 파생 AE 는 DX3rdAppliedToggle 이 소유한다 — 같은 아이템에서 왔다는 이유로
+      // 그 키를 집어 덮어쓰면, 동결값이 다음 sync 에 되돌려지거나(payloadChanged) 걸 보정이
+      // 없을 때 아래 분기가 남의 토글 AE 를 지운다.
+      // 채널 표기가 없는 구버전 AE 는 대상 채널로 본다(그때는 대상 경로만 이 키를 만들었고,
+      // 자기 동결 AE 는 새 키로 옮겨 가므로 잘못 집을 일이 없다).
+      const existingEff = targetActor.effects.find(e => {
+        if (String(e.getFlag?.('dx3rd-emanim', 'appliedKey') || '').startsWith('toggle:')) return false;
+        const applied = e.getFlag?.('dx3rd-emanim', 'applied');
+        if (applied?.itemId !== item.id) return false;
+        return (applied?.channel === 'self' ? 'self' : 'target') === channel;
+      });
       if (existingEff) {
         appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
       }
@@ -194,6 +222,7 @@
       // 적용된 효과 정보 생성
       const appliedEffect = {
         itemId: item.id,
+        channel,
         name: item.name,
         img: item.img,
         source: actor.name,
@@ -269,7 +298,10 @@
     async applySelfFrozenBuff(actor, item) {
       const attrs = item.system?.attributes;
       if (!attrs || Object.keys(attrs).length === 0) return;
-      await this._applyItemAttributes(actor, item, actor, attrs, { disable: item.system?.active?.disable });
+      await this._applyItemAttributes(actor, item, actor, attrs, {
+        disable: item.system?.active?.disable,
+        channel: 'self'
+      });
     },
 
     /**
@@ -288,13 +320,39 @@
      *       이들을 동결 채널로 보내면 active.state로 "지속 적용 중"을 판단하는 곳
      *       (combo-data getPersistentEffectIds/calculateItemAttackBonus, 시트 활성 표시)이 어긋난다.
      * runTiming/active.state/disable 게이트는 호출부가 미리 판정한다.
+     *
+     * opts.forceToggle: applyMode 와 무관하게 토글 채널을 쓴다. 자기 보정의 액션이 '활성화'인
+     *   아이템(상시 이펙트 등)을 직접 사용해 켜는 경로가 쓴다 — 이런 아이템은 컴펜디움 기본값이
+     *   applyMode='onUse' 라서 그대로 두면 동결 AE만 걸리고 active.state 는 꺼진 채 남는다.
+     *   시트의 「자신 지속 효과」 표시와 콤보의 지속 판정이 active.state 를 읽으므로,
+     *   "활성화" 의미로 발동한 것은 반드시 토글이어야 한다.
      * @param {Actor} actor - 사용 액터(=대상)
      * @param {Item} item
+     * @param {Object} [opts]
+     * @param {boolean} [opts.forceToggle=false]
      * @returns {boolean} active.state를 켰으면 true
      */
-    async applySelfModifiers(actor, item) {
-      const applyMode = item.system?.active?.applyMode || 'onUse';
-      if (applyMode === 'onUse') {
+    async applySelfModifiers(actor, item, { forceToggle = false } = {}) {
+      const active = item.system?.active || {};
+      const applyMode = active.applyMode || 'onUse';
+      // 토글 타입(effect/spell/psionic/combo)의 자기 보정은 actor.js 자체계산에서 빠지고
+      // 토글 AE 로만 합산된다. 그런데 spell/psionic/combo 는 template.json 에 applyMode 필드가
+      // 아예 없어 기본값 'onUse'(동결)로 떨어졌다. 그 상태에서 뒤늦게 active.state 가 켜지면
+      // (spell-handler.ensureActivated — runTiming 게이트도 없다 / 채팅 발동 버튼) 같은 보정이
+      // toggle:<id> AE 로 한 번 더 생겨 그대로 이중 가산된다. 두 AE 는 키가 달라 upsert 로도
+      // 합쳐지지 않는다. → applyMode 를 저작할 수 없는 토글 타입은 토글 채널로 고정한다.
+      // 대가로 이 타입들은 [소비HP] 같은 런타임 입력을 동결하지 못하지만(재평가 시 0),
+      // 그건 원래 afterSuccess/afterDamage 발동점에서도 마찬가지다(applySelfFrozenBuff 주석 (1)).
+      const toggleTypes = window.DX3rdAppliedToggle?.TOGGLE_TYPES || ['effect', 'spell', 'psionic', 'combo'];
+      const toggleChannelOnly = toggleTypes.includes(item.type) && !('applyMode' in active);
+      if (!forceToggle && !toggleChannelOnly && applyMode === 'onUse') {
+        // active.state 는 '활성화' 채널의 상태다. 동결 채널을 타는 아이템이 그걸 켜고 있으면
+        // 잔재다(구버전 장착 훅이 켜 둔 선언형 장비, 시트 체크박스). 그대로 두면 같은 보정이
+        // 두 번 센다 — 장비는 actor.js activeItems 자체계산이, 이펙트류는 toggle:<id> AE 가
+        // 각각 더하는데 여기서 동결 AE 까지 걸리기 때문이다. 켜져 있으면 내리고 건다.
+        if (item.system?.active?.state === true) {
+          await item.update({ 'system.active.state': false });
+        }
         await this.applySelfFrozenBuff(actor, item);
         return false;
       }
@@ -345,18 +403,22 @@
 
       if (source === 'self') {
         await this._applyItemAttributes(actor, item, actor, selfAttributes, {
-          disable: item.system?.active?.disable ?? '-'
+          disable: item.system?.active?.disable ?? '-',
+          channel: 'self'
         });
         return true;
       }
 
-      await this.applyEffectData(actor, {
-        id: item.id,
-        name: item.name,
-        img: item.img,
-        system: {description: item.system?.description ?? ''},
-        effect: {disable: item.system?.effect?.disable || '-', attributes: targetAttributes}
-      });
+      // 아이템을 직렬화해 applyEffectData 로 보내지 않는다. 그 경로는 원본 Item 을 잃어
+      //  (1) 수식을 item=null 로 평가하므로 [level]/[Lv]/[레벨] 이 치환되지 않아 0 으로 떨어지고,
+      //  (2) attack/damage_roll 의 label(fist/melee/ranged)을 key 로 덮어써 한정이 풀리며,
+      //  (3) 권한 분기가 없어 남의 액터(적 등)에는 쓰기가 실패한다.
+      // 사용 파이프라인(applyToTargets)과 같은 단일 경로로 보낸다.
+      for (const target of targets) {
+        const targetActor = target.actor;
+        if (!targetActor) continue;
+        await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
+      }
       return true;
     },
 
@@ -415,9 +477,14 @@
 
       let appliedKey = `applied_${itemData.id || itemData.name}_${Date.now()}`;
 
-      // 기존 AE 확인 (같은 아이템 ID면 키 유지하고 덮어쓰기)
+      // 기존 AE 확인 (같은 아이템 ID면 키 유지하고 덮어쓰기).
+      // _applyItemAttributes 와 같은 이유로 'toggle:' 파생 AE 는 제외한다 —
+      // 그 키는 DX3rdAppliedToggle 소유라, 집어 덮어쓰면 다음 sync 에 되돌려지거나
+      // 걸 보정이 없을 때 아래 분기가 남의 토글 AE 를 지운다.
       const existingEff = itemData.id
-        ? targetActor.effects.find(e => e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === itemData.id)
+        ? targetActor.effects.find(e =>
+          !String(e.getFlag?.('dx3rd-emanim', 'appliedKey') || '').startsWith('toggle:')
+          && e.getFlag?.('dx3rd-emanim', 'applied')?.itemId === itemData.id)
         : null;
       if (existingEff) {
         appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
@@ -445,27 +512,31 @@
       for (const [attrKey, attrData] of Object.entries(targetAttributes)) {
         if (!attrData || !attrData.value) continue;
 
-        // stat_* 류는 표시용 이름으로 label을 사용, 나머지는 key를 사용
-        const needsLabel = ['stat_bonus', 'stat_dice', 'stat_add'].includes(attrData.key);
-        const attributeName = needsLabel ? attrData.label : attrData.key;
-        if (!attributeName || attributeName === '-') continue;
+        // key 는 필수. label 은 원본을 보존한다(_applyItemAttributes 와 같은 규약).
+        // 예전에는 stat_* 이외의 label 을 key 로 덮어썼는데, 그러면 attack/damage_roll 의
+        // 서브버킷(fist/melee/ranged)이 사라져 소비부(actor.js bucket)가 '_'(무한정) 로
+        // 흘려보낸다 → 백병 한정 보정이 사격·맨손까지 올려주는 과적용이 된다.
+        const key = attrData.key;
+        if (!key || key === '-') continue;
+        const rawLabel = (attrData.label && attrData.label !== '-') ? attrData.label : null;
 
         // 채팅 카드 등의 직렬화 경로도 발동형 롤 수식은 숫자로 동결하지 않는다.
         // 키 목록은 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
         const prepared = window.DX3rdFormulaEvaluator?.prepareRollFormula
           ? window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, null, actor)
           : String(attrData.value ?? '0');
-        const evaluated = window.DX3rdFormulaEvaluator?.isRollTimeKey?.(attrData.key)
+        const evaluated = window.DX3rdFormulaEvaluator?.isRollTimeKey?.(key)
           && window.DX3rdFormulaEvaluator?.hasDice?.(prepared)
           ? prepared
           : (window.DX3rdFormulaEvaluator?.evaluate
             ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, null, actor)
             : Number(attrData.value) || 0);
-        
-        const storageKey = needsLabel ? `${attrData.key}:${attributeName}` : attrData.key;
+
+        // 같은 key 의 서로 다른 label 이 덮어쓰지 않도록 저장 키를 key:label 조합으로 쓴다.
+        const storageKey = rawLabel ? `${key}:${rawLabel}` : key;
         appliedEffect.attributes[storageKey] = {
-          key: attrData.key,
-          label: attributeName,
+          key,
+          label: rawLabel,
           value: evaluated
         };
       }
@@ -538,13 +609,16 @@
       const roll = system.roll || compSystem.roll || '-';
       const difficulty = system.difficulty || compSystem.difficulty || '';
       const description = `${system.description || ''} ${compSystem.description || ''}`;
-      const attrs = {
-        ...(compSystem.effect?.attributes || {}),
-        ...(system.effect?.attributes || {}),
+      // 어트리뷰트는 **자기 채널(system.attributes)만** 본다.
+      // system.effect.attributes 는 대상에게 거는 채널이라, 그쪽까지 긁으면
+      // 「상대의 닷지 다이스를 깎는」/「상대의 가드치를 깎는」 공격 이펙트(강마의 번개,
+      // 가드 크래시, 침투 등 40건)가 전부 방어 리액션 후보로 올라온다.
+      // 아군에게 거는 가드 지원 이펙트는 타이밍이 리액션이면 directTiming 으로 잡힌다.
+      const selfAttrs = {
         ...(compSystem.attributes || {}),
         ...(system.attributes || {})
       };
-      const attrText = Object.values(attrs).map(attr => {
+      const attrText = Object.values(selfAttrs).map(attr => {
         if (!attr) return '';
         if (typeof attr === 'string') return attr;
         return `${attr.key || ''} ${attr.label || ''} ${attr.value || ''}`;
@@ -582,6 +656,28 @@
         const bo = order[b.timing] ?? 9;
         return ao === bo ? a.name.localeCompare(b.name) : ao - bo;
       });
+    },
+
+    /**
+     * getDefenseReactionItems 결과를 드롭다운 optgroup 용으로 타입별로 묶는다.
+     * 각 그룹 안의 순서는 원본(타이밍 → 이름)을 그대로 유지한다.
+     * @param {Array} items - getDefenseReactionItems 반환값
+     * @returns {Array<{type: string, label: string, items: Array}>}
+     */
+    groupDefenseReactionItems(items) {
+      const labels = {
+        combo: 'DX3rd.Combo',
+        effect: 'DX3rd.Effect',
+        psionic: 'DX3rd.Psionic'
+      };
+      // 표시 순서: 콤보 → 이펙트 → 사이오닉
+      return ['combo', 'effect', 'psionic']
+        .map(type => ({
+          type,
+          label: game.i18n.localize(labels[type]),
+          items: (items || []).filter(item => item.type === type)
+        }))
+        .filter(group => group.items.length > 0);
     },
 
     _getDefaultDodgeRollData(actor) {

@@ -145,15 +145,44 @@
 
   // 룰북 p.147: 조합하는 모든 이펙트의 타이밍과 기능은 일치해야 한다.
   // '-'는 아직 데이터가 채워지지 않은 상태이므로, 그것만으로는 조합을 막지 않는다.
+  //
+  // 타이밍이 "고정되지 않은" 이펙트는 이 일치 검사에서 빠진다.
+  //   auto(오토 액션): 타이밍 제약 없이 언제든 선언할 수 있으므로 어떤 타이밍의 조합에도 얹힌다.
+  //   always(상시): 발동 타이밍 자체가 없다.
+  // 콤보의 타이밍은 이런 멤버가 아니라 타이밍이 고정된 멤버들이 정한다.
+  const UNBOUND_TIMINGS = new Set(['auto', 'always']);
+  // 복수 타이밍을 겸하는 이펙트가 실제로 어느 타이밍으로 취급될 수 있는지.
+  // 자기 자신을 맨 앞에 둬야, 그 이펙트만 조합됐을 때 표시 타이밍이 원래 값으로 남는다.
+  const TIMING_ALIASES = {
+    'major-reaction': ['major-reaction', 'major', 'reaction']
+  };
+  function timingCandidates(timing) {
+    return TIMING_ALIASES[timing] || [timing];
+  }
+
   function getCombinedEffectTiming(actor, effectIds) {
     const timings = normalizeIdList(effectIds)
       .map(id => actor?.items.get(id)?.system?.timing)
       .filter(timing => !isEmptyComboField(timing));
-    const uniqueTimings = [...new Set(timings)];
+    const bound = timings.filter(timing => !UNBOUND_TIMINGS.has(timing));
+    const unbound = timings.filter(timing => UNBOUND_TIMINGS.has(timing));
+
+    // 겸용 타이밍은 후보 집합의 교집합으로 좁힌다(메이저/리액션 이펙트는 양쪽 조합 모두에 들어간다).
+    let candidates = null;
+    for (const timing of bound) {
+      const allowed = timingCandidates(timing);
+      candidates = candidates === null ? allowed : candidates.filter(t => allowed.includes(t));
+    }
+
+    let value = null;
+    if (candidates?.length) value = candidates[0];
+    else if (candidates === null && unbound.length) value = unbound[0];
+
     return {
-      value: uniqueTimings.length === 1 ? uniqueTimings[0] : null,
-      valid: uniqueTimings.length <= 1,
-      timings: uniqueTimings
+      value,
+      valid: candidates === null || candidates.length > 0,
+      timings: [...new Set(bound)],
+      unbound: [...new Set(unbound)]
     };
   }
 
@@ -161,7 +190,12 @@
     const combined = getCombinedEffectTiming(actor, effectIds);
     if (!combined.valid) return false;
     const comboTiming = comboItem?.system?.timing;
-    return isEmptyComboField(comboTiming) || !combined.value || comboTiming === combined.value;
+    // 콤보 자신의 타이밍이 비었거나 고정되지 않은 값이면 멤버 쪽이 타이밍을 정한다.
+    if (isEmptyComboField(comboTiming) || UNBOUND_TIMINGS.has(comboTiming)) return true;
+    // 멤버가 오토/상시뿐이면(=고정 타이밍 멤버 없음) 콤보 타이밍에 아무 제약도 걸지 않는다.
+    if (!combined.value || UNBOUND_TIMINGS.has(combined.value)) return true;
+    return timingCandidates(comboTiming).includes(combined.value)
+      || timingCandidates(combined.value).includes(comboTiming);
   }
 
   // 판정 "기능"이 아닌 센티넬 skill 값(콤보 판정 기능 소스에서 제외).
@@ -524,7 +558,11 @@
     };
 
     // 모두 같은 타이밍이면 빈 콤보 표시값을 채운다. 불명('-')만 포함된 경우에는 사용자 입력을 기다린다.
-    if (isEmptyComboField(item.system?.timing) && combinedTiming.value) {
+    // 오토/상시 멤버만 있어 표시값이 그쪽으로 잡혀 있던 콤보도, 타이밍이 고정된 이펙트가
+    // 들어오면 그 값으로 넘긴다 — 오토 멤버를 먼저 넣었다는 이유로 콤보 타이밍이 굳으면 안 된다.
+    const storedTiming = item.system?.timing;
+    const timingIsUnbound = isEmptyComboField(storedTiming) || UNBOUND_TIMINGS.has(storedTiming);
+    if (timingIsUnbound && combinedTiming.value && combinedTiming.value !== storedTiming) {
       updates['system.timing'] = combinedTiming.value;
     }
 
@@ -867,9 +905,12 @@
   }
 
   // 액터에서 "이미 prepareData가 지속 적용 중"인 이펙트 id 집합.
-  // 구성 콤보의 상태와 무관하게, 이펙트 자체의 active.state=true 인 경우만 해당한다.
   // 이 이펙트들은 능력치/스킬/굴림 total에 이미 반영되어 있으므로, 콤보/이펙트 굴림·공격
-  // 보너스 계산에서 중복 가산하면 안 된다.
+  // 보너스 계산에서 중복 가산하면 안 된다. 판정 기준은 두 채널 모두다:
+  //   · 활성화 채널 — 이펙트 자신의 active.state=true (구성 콤보의 상태와는 무관)
+  //   · 동결 채널   — applyMode='onUse' 로 사용해 걸린 applied AE (active.state 는 false로 남는다)
+  // active.state 만 보면 동결 채널을 놓쳐, 수명(active.disable)이 남아 있는 자기버프를
+  // 같은 라운드의 콤보 굴림이 한 번 더 더한다.
   function getPersistentEffectIds(actor) {
     const ids = new Set();
     if (!actor) return ids;
@@ -877,6 +918,12 @@
       if (it.type === 'effect' && it.system?.active?.state === true) {
         ids.add(it.id);
       }
+    }
+    for (const eff of (actor.effects || [])) {
+      if (eff.disabled) continue;   // 꺼둔 AE 는 total 에 없다 → 콤보가 더해야 한다
+      const itemId = eff.getFlag?.('dx3rd-emanim', 'applied')?.itemId;
+      if (!itemId) continue;
+      if (actor.items?.get(itemId)?.type === 'effect') ids.add(itemId);
     }
     return ids;
   }

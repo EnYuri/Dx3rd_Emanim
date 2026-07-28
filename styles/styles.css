@@ -94,6 +94,20 @@
     border-radius: 4px;
 }
 
+/* 드롭다운 목록(리액션 선택 등)은 select 배경을 그대로 물려받지 않는 브라우저가 있어
+   option/optgroup 색을 명시한다. */
+.app.window-app.dialog select option,
+.app.window-app.dialog select optgroup,
+.window-app.dx3rd-emanim select option,
+.window-app.dx3rd-emanim select optgroup,
+.application.dialog.dx3rd-emanim select option,
+.application.dialog.dx3rd-emanim select optgroup,
+.dx3rd-emanim.dialog select option,
+.dx3rd-emanim.dialog select optgroup {
+    background-color: #101010;
+    color: #f5f5f5;
+}
+
 .app.window-app.dialog input:focus,
 .app.window-app.dialog select:focus,
 .app.window-app.dialog textarea:focus,
@@ -2961,6 +2975,62 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 }
 .defense-dialog .dx3rd-formula-preview:empty {
     display: none;
+}
+
+/* 선언 가능한 장비 섹션 (판정 / 데미지 산출 / 방어 다이얼로그 공용) */
+.dx3rd-declare-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(128, 128, 128, 0.4);
+}
+.dx3rd-declare-title {
+    font-size: 12px;
+    font-weight: bold;
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+.dx3rd-declare-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+/* 다이얼로그 기본 버튼 스타일(.application.dialog button)이 3클래스라 그것보다 높여야 한다 */
+.application.dialog.dx3rd-emanim .dx3rd-declare-button,
+.dx3rd-emanim .dx3rd-declare-section .dx3rd-declare-button {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 4px 8px;
+    text-align: left;
+    line-height: 1.4;
+    font-size: 12px;
+    cursor: pointer;
+}
+.dx3rd-declare-button .dx3rd-declare-name {
+    font-weight: bold;
+    white-space: nowrap;
+}
+.dx3rd-declare-button .dx3rd-declare-summary {
+    flex: 1;
+    min-width: 0;
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.dx3rd-declare-button .dx3rd-declare-uses {
+    white-space: nowrap;
+    opacity: 0.7;
+    font-size: 11px;
+}
+/* 선언은 되돌릴 수 없다 — 눌린 뒤에는 잠긴 것이 한눈에 보여야 한다 */
+.application.dialog.dx3rd-emanim .dx3rd-declare-button.declared,
+.dx3rd-emanim .dx3rd-declare-section .dx3rd-declare-button.declared {
+    opacity: 0.55;
+    cursor: default;
 }
 
 /* 충동 판정 다이얼로그 / 장면 등장 전용 다이얼로그 스타일 */

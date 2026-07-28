@@ -272,6 +272,15 @@
   // ---------------------------------------------------------------------------
   function isAlwaysOnCandidate(item) {
     if (!item || item.system?.active?.state === true) return false;
+    // 시트 토글 기준은 자동 활성화 기준보다 넓다: 자기 보정을 '활성화'로 저작한 이펙트는
+    // 상시가 아니어도 토글을 그린다(켠 뒤 끌 채널이 필요하므로). 그쪽까지 취득만으로 켜면
+    // 아직 사용한 적 없는 이펙트가 발동해 버린다 → 자동 활성화는 상시에만 건다.
+    // 여기서 빼는 것은 그 케이스뿐이며, 로이스의 상시 버프(타이밍 필드 없음)는 그대로 둔다.
+    const adapter = window.DX3rdItemEffectAdapter;
+    const declaredActivation = adapter
+      ? adapter.declaresActivationSelfModifiers(item)
+      : (item.system?.active?.action === 'activation' || item.system?.active?.applyMode === 'toggle');
+    if (declaredActivation && item.system?.timing !== 'always') return false;
     const predicate = window.DX3rdActorSheetData?.usesSelfEffectActiveToggle;
     if (typeof predicate !== 'function') return false;
     try {

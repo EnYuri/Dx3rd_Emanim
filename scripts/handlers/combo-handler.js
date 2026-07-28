@@ -160,6 +160,18 @@ window.DX3rdComboHandler = {
             // Roll: 롤 다이얼로그 표시 (afterSuccess는 채팅 버튼에서 처리)
             await this.handleComboRoll(actor, item, rollType, getTarget, options);
         }
+
+        // 호출 문맥(방어 다이얼로그 등)이 붙인 사용 직후 콜백. 판정형 콤보는 롤 다이얼로그를
+        // 기다리지 않으므로, 여기서는 이미 반영된 instant 익스텐션·자기효과까지가 대상이다.
+        // 판정 결과 자체는 meta.afterRollCallback 으로 따로 돌아간다.
+        const afterUseCallback = item.meta?.afterUseCallback;
+        if (typeof afterUseCallback === 'function') {
+            try {
+                await afterUseCallback({ actor, item, rolled: rollType !== '-' });
+            } catch (e) {
+                console.warn('DX3rd | ComboHandler - afterUseCallback threw', e);
+            }
+        }
     },
     
     /**
@@ -365,10 +377,24 @@ window.DX3rdComboHandler = {
                 if (this.isToggleBoundMember(effectItem) && !effectItem.system?.active?.state) {
                     toggleBoundMembers.push(effectItem.name);
                 }
-                if (effectItem.system?.active?.runTiming === 'instant' && !effectItem.system?.active?.state) {
+                // 소멸 타이밍 'notCheck' = "자기 보정을 적용하지 않음". 단독 사용(handleItemUse)·
+                // activateItem·ensureActivated 는 전부 이 게이트를 갖고 있는데 콤보 멤버 경로에만
+                // 빠져 있었다. 그대로 두면 동결 AE 의 disable 이 'notCheck' 로 박혀 어떤
+                // disable 훅도 매칭하지 못해(disable-hooks 는 timing 문자열 일치만 본다) 영구 버프가 된다.
+                // 게이트는 단독 사용(handleItemUse)과 같은 어댑터 기준을 쓴다. 여기서 다시 쓰면
+                // 같은 이펙트가 경로에 따라 갈린다(실제로 notCheck 누락이 그렇게 생겼다).
+                const memberActiveDisable = effectItem.system?.active?.disable ?? '-';
+                const memberPending = window.DX3rdItemEffectAdapter
+                    ? window.DX3rdItemEffectAdapter.selfModifiersPending(effectItem)
+                    : (!effectItem.system?.active?.state && memberActiveDisable !== 'notCheck');
+                if (effectItem.system?.active?.runTiming === 'instant' && memberPending) {
                     // applyMode='onUse'인 멤버(노도의 선풍 등)는 동결 채널로 간다. processItemUsageCost가
                     // 콤보 멤버를 스캔해 이미 _dx3rdRuntimeInput을 세팅했으므로 여기서 [소비HP]가 잡힌다.
-                    const toggled = await handler.applySelfModifiers(actor, effectItem);
+                    // 자기 보정이 '활성화' 채널인 멤버는 단독 사용과 같은 기준으로 토글을 켠다.
+                    // 여기만 동결로 두면 같은 이펙트가 경로에 따라 active.state 가 갈려,
+                    // 시트 표시와 combo-data 의 지속 판정이 콤보로 쓸 때만 어긋난다.
+                    const forceToggle = !!window.DX3rdItemEffectAdapter?.useMeansActivation?.(effectItem);
+                    const toggled = await handler.applySelfModifiers(actor, effectItem, { forceToggle });
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Effect self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, effectItem.name);
                 }
                 await handler.executeMacros(effectItem, 'instant', memberAction);
@@ -865,9 +891,10 @@ window.DX3rdComboHandler = {
             return;
         }
         
-        // 북 해독 콤보 등에서 전달된 메타데이터 복원
+        // 북 해독 콤보 / 방어 다이얼로그 임시 콤보 등에서 전달된 메타데이터 복원
         const predefinedDifficulty = item.meta?.predefinedDifficulty || null;
         const originalItem = item.meta?.originalItem || null;
+        const metaAfterRoll = item.meta?.afterRollCallback || null;
         const rollItemForDialog = originalItem || item;
 
         // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용)
@@ -894,10 +921,10 @@ window.DX3rdComboHandler = {
             options.predefinedDifficulty || predefinedDifficulty,
             false,
             false,
-            options.afterRollCallback || null
+            options.afterRollCallback || metaAfterRoll
         );
     },
-    
+
     /**
      * 공격용 무기 선택 다이얼로그 표시
      */
@@ -1026,9 +1053,10 @@ window.DX3rdComboHandler = {
     async handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         
-        // 북 해독 콤보 등에서 전달된 메타데이터 복원
+        // 북 해독 콤보 / 방어 다이얼로그 임시 콤보 등에서 전달된 메타데이터 복원
         const predefinedDifficulty = item.meta?.predefinedDifficulty || null;
         const originalItem = item.meta?.originalItem || null;
+        const metaAfterRoll = item.meta?.afterRollCallback || null;
         const rollItemForDialog = originalItem || item;
 
         // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용 — syndrome/text/cthulhu 분기 포함)
@@ -1054,10 +1082,10 @@ window.DX3rdComboHandler = {
             options.predefinedDifficulty || predefinedDifficulty,
             false,
             false,
-            options.afterRollCallback || null
+            options.afterRollCallback || metaAfterRoll
         );
     },
-    
+
     /**
      * 에너미 명중 달성치에 다이스/수정치 보정 반영 (다이스 1개당 +2, 수정치는 그대로 가산)
      * 전체·메이저·해당 판정 능력치/기능의 다이스·수정치 보정을 합산하여 반영

@@ -76,6 +76,10 @@
   function normalizePayload(payload = {}) {
     return {
       itemId: payload.itemId ?? null,
+      // 어느 보정 버킷에서 왔는가. 'self' = system.attributes(자기 동결 버프, 수명 active.disable),
+      // 그 외/미기재 = system.effect.attributes(대상 보정, 수명 effect.disable).
+      // 화이트리스트라 여기 없으면 flag 에 저장되지 않는다 → 채널 구분이 통째로 사라진다.
+      channel: payload.channel === 'self' ? 'self' : 'target',
       name: payload.name || game.i18n.localize('DX3rd.Applied'),
       img: payload.img || 'icons/svg/aura.svg',
       source: payload.source || '',
@@ -133,6 +137,7 @@
   function getEffectsByItem(actor, itemId) {
     if (!actor || !itemId) return [];
     const onUseKey = `applied_${itemId}`;
+    const selfKey = `applied_self_${itemId}`;
     const toggleKey = `toggle:${itemId}`;
     const originSuffix = `.Item.${itemId}`;
     return actor.effects.filter(effect => {
@@ -142,6 +147,7 @@
       // 활성화 → 비활성화 → 재활성화 중 한 필드가 누락된 구형 AE도 남기지 않는다.
       return sourceItemId === itemId
         || appliedKey === onUseKey
+        || appliedKey === selfKey
         || appliedKey === toggleKey
         || String(effect.origin || '').endsWith(originSuffix);
     });
@@ -275,17 +281,27 @@
   //    system.active.state 다(applied-toggle sync 가 그것에서 AE 를 파생/삭제). 따라서
   //    체크박스/HUD 는 AE.disabled 가 아니라 아이템 토글을 직접 뒤집는다 → 이중 상태 소멸.
   //    끄면 sync 가 AE 를 삭제하므로 목록/HUD 에서 사라진다(toggle 효과의 정상 동작).
-  //  · 원본 아이템이 있는 applied 버프는 모두 그 아이템의 active.state 를 토글한다.
-  //    원본 없는 독립 버프(Panic·매크로 등)만 AE 자체의 disabled 를 토글한다.
+  //  · 원본 아이템이 있어도, 그 아이템의 active.state 가 실제 상태인 것(활성화 채널)만
+  //    아이템을 뒤집는다. 동결 채널(applied_self_<itemId>, applyMode='onUse')은 켜져 있어도
+  //    active.state 가 false 이므로 아이템으로 라우팅하면 상태를 거꾸로 읽는다 →
+  //    toggleActive 가 늘 "켜기"로 판단해 toggle AE 를 하나 더 만들고(같은 보정 2중 가산)
+  //    끄는 것은 영영 불가능해진다. 이쪽은 AE 자체의 disabled 가 단일 소스다.
+  //  · 원본 없는 독립 버프(Panic·매크로 등)도 AE 자체의 disabled 를 토글한다.
   //  · 소스 아이템이 사라진 toggle AE 는 AE.disabled 로 폴백.
   // ---------------------------------------------------------------------------
 
-  /** appliedKey의 원본 아이템을 반환한다. 토글/사용 시 적용 AE를 모두 처리한다. */
+  /**
+   * appliedKey 의 상태를 대표하는 원본 아이템을 반환한다(없으면 null → AE.disabled 가 상태).
+   * 'toggle:' 파생은 정의상 아이템이 상태이고, 그 외 AE 는 자기 보정 채널이 '활성화'인
+   * 아이템에서 온 것만 해당한다(장비는 장착 체크가 원본이므로 제외 — useMeansActivation).
+   */
   function getToggleSourceItem(actor, appliedKey) {
     const key = String(appliedKey || '');
-    let itemId = key.startsWith('toggle:') ? key.slice('toggle:'.length) : null;
-    if (!itemId) itemId = getEffect(actor, key)?.getFlag?.(SCOPE, 'applied')?.itemId;
-    return actor?.items?.get(itemId) || null;
+    if (key.startsWith('toggle:')) return actor?.items?.get(key.slice('toggle:'.length)) || null;
+    const itemId = getEffect(actor, key)?.getFlag?.(SCOPE, 'applied')?.itemId;
+    const item = actor?.items?.get(itemId) || null;
+    if (!item) return null;
+    return window.DX3rdItemEffectAdapter?.useMeansActivation?.(item) ? item : null;
   }
 
   /** applied 효과를 활성/비활성으로 설정(단일 소스 라우팅). */

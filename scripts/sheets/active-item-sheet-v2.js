@@ -172,7 +172,11 @@
         this.element?.querySelector(selector)?.scrollIntoView({behavior: 'smooth', block: 'start'});
         return;
       }
-      this._openItemExtend(event, editor, target.dataset.effectId || null);
+      const effectId = target.dataset.effectId || null;
+      // 자신/대상 보정은 카드가 따로이므로 편집 창도 그 채널을 펴고 열어야 한다.
+      if (effectId === 'modifiers.self') this._modifierConfigScope = 'main';
+      if (effectId === 'modifiers.target') this._modifierConfigScope = 'sub';
+      this._openItemExtend(event, editor, effectId);
     }
 
     static async _onAddEffectCard(event, target) {

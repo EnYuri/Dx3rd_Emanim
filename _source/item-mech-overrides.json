@@ -54,7 +54,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "파일 벙커": {
@@ -68,7 +70,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "기타": {
@@ -115,7 +119,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "수리검": {
@@ -179,7 +185,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "베넘 그레네이드": {
@@ -201,7 +209,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "필중의 활": {
@@ -224,7 +234,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "레이징 아크": {
@@ -238,7 +250,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "폴른 쉴드": {
@@ -252,7 +266,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "FHG-666": {
@@ -289,7 +305,9 @@
       "active": {
         "state": false,
         "disable": "guard",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -335,7 +353,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "드릴": {
@@ -377,7 +397,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -397,7 +419,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -451,7 +475,9 @@
       "active": {
         "state": false,
         "disable": "guard",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -471,7 +497,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "폴른 라이플": {
@@ -507,7 +535,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "AR 샷건": {
@@ -596,7 +626,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -737,7 +769,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "무고의 검": {
@@ -788,7 +822,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -813,7 +849,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "데어 프라이쉬츠": {
@@ -841,7 +879,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "R캐논": {
@@ -855,7 +895,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       },
       "used": {
         "state": 0,
@@ -959,7 +1001,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": "use"
       }
     },
     "히어로 소드": {
@@ -1118,7 +1162,8 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "진화하는 장갑:감각": {
@@ -1132,7 +1177,8 @@
       "active": {
         "state": false,
         "disable": "roll",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -1175,7 +1221,8 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "진화하는 장갑:정신": {
@@ -1189,7 +1236,8 @@
       "active": {
         "state": false,
         "disable": "roll",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -1246,7 +1294,8 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "어보이드 망토": {
@@ -1316,7 +1365,8 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "FH 전투복": {
@@ -1395,7 +1445,8 @@
       "active": {
         "state": false,
         "disable": "roll",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -1457,7 +1508,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "FH 전투 장갑복": {
@@ -1503,7 +1555,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "AI 보조슈트": {
@@ -1517,7 +1570,8 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -1551,7 +1605,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "스테이지 의상": {
@@ -1635,7 +1690,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "파워 어시스트 아머": {
@@ -1663,7 +1719,8 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "트랙 슈트": {
@@ -1714,7 +1771,8 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "진화하는 장갑:육체": {
@@ -1728,7 +1786,8 @@
       "active": {
         "state": false,
         "disable": "roll",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,
@@ -1748,7 +1807,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "어스름의 외투": {
@@ -1762,7 +1822,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "EX 패스파인더": {
@@ -1776,7 +1837,8 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       }
     },
     "미라쥬 코트": {
@@ -1818,7 +1880,8 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse"
       },
       "used": {
         "state": 0,

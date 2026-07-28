@@ -85,8 +85,11 @@
                             shouldRemove = true;
                         }
                         
-                        // 2. 아이템 기반 applied 효과인 경우
-                        const sourceItemId = appliedData.itemId;
+                        // 2. 아이템 기반 applied 효과인 경우 — 단, 자기 보정 채널은 제외한다.
+                        // 자기 동결 버프의 수명은 active.disable 이고 그건 위 1번이 이미 본다.
+                        // 여기서 대상 채널의 effect.disable 까지 적용하면, 두 채널의 소멸
+                        // 타이밍이 다른 아이템에서 자기 버프가 남의 수명으로 먼저 사라진다.
+                        const sourceItemId = appliedData.channel === 'self' ? null : appliedData.itemId;
                         if (sourceItemId && !shouldRemove) {
                             // 원본 아이템 찾기 (같은 액터 또는 다른 액터에서)
                             let sourceItem = actor.items.get(sourceItemId);
