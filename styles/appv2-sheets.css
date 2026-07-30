@@ -1322,9 +1322,29 @@
     color: var(--fe-ac-80, #cccccc) !important;
 }
 
+/* 편집기 높이는 prose-mirror 본체가 갖는다(.dx3rd-emanim .editor 의 min-height:350px).
+   .editor-content(= 활성 시 .ProseMirror 와 같은 요소)에는 절대 min-height 를 주지 말 것 —
+   코어는 이 요소를 `position:absolute; inset:0; overflow:hidden auto` 로 두어 부모를 그대로
+   채우게 한다. 편집을 켜면 그 부모가 `.editor-container`(flex:1, overflow:hidden)로 바뀌어
+   메뉴바 높이만큼 짧아지는데, 여기에 min-height:350px 이 걸리면 컨테이너보다 큰 절대 박스가
+   되어 넘친 만큼이 잘려 나간다. 안쪽 스크롤은 자기 박스(350px) 기준이라 끝까지 내려도
+   그 잘린 부분은 영영 보이지 않는다(해설 편집 시 하단 누락 증상). */
 .application.sheet.dx3rd-emanim prose-mirror .editor-content,
 .application.sheet.dx3rd-emanim prose-mirror .ProseMirror {
-    min-height: 350px;
+    min-height: 0;
+}
+
+/* 편집 토글 버튼(연필 아이콘)의 정렬. 코어의 기본 button 은 flex 정중앙인데,
+   버튼을 노출시키는 규칙(`prose-mirror:hover button.toggle:enabled`)이 display 를 block 으로
+   덮어써 그 정렬이 함께 사라진다 — 아이콘이 인라인 글리프가 되어 좌측 패딩(0.5rem) 뒤,
+   줄 위쪽에 놓이면서 박스 중앙에서 어긋난다. 보이는 상태에서 flex 정렬을 되돌린다.
+   display 를 hover 밖에서 손대면 코어의 노출 규칙을 깨서 버튼이 항상 보이게 되므로,
+   반드시 같은 hover 조건 위에서만 바꾼다. */
+.application.sheet.dx3rd-emanim prose-mirror:hover button.toggle:enabled {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    padding: 0;
 }
 
 /* 워크스/신드롬은 채팅 아이콘이 추가돼 컨트롤이 3~4개가 되는데, 기본 .item-controls 는

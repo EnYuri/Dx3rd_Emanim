@@ -466,6 +466,25 @@ Hooks.once('init', async function() {
             return options.fn(this);
         }
     });
+
+    // ProseMirror 「저장」 버튼의 코어 오류 방어.
+    // toggled 편집기는 destroyOnSave 라 저장이 곧 view.destroy() 인데,
+    // ProseMirrorMenu._onAction 은 커맨드를 실행한 뒤 무조건 this.view.focus() 를 부른다.
+    // 파괴된 view 는 docView 가 null 이라 selectionToDOM 에서 TypeError 가 난다 —
+    // 저장 자체는 이미 끝난 뒤라 동작에 영향은 없지만 콘솔에 매번 오류가 찍힌다.
+    // 파괴된 view 일 때만 삼키고, 살아 있는 편집기의 오류는 그대로 던진다.
+    const ProseMirrorMenu = foundry.prosemirror?.ProseMirrorMenu || globalThis.ProseMirror?.ProseMirrorMenu;
+    if (ProseMirrorMenu?.prototype?._onAction) {
+        const onAction = ProseMirrorMenu.prototype._onAction;
+        ProseMirrorMenu.prototype._onAction = function(event) {
+            try {
+                return onAction.call(this, event);
+            } catch (err) {
+                if (this.view?.docView) throw err;
+                window.DX3rdDebug?.log('DX3rd | ProseMirror menu action on a destroyed view', err);
+            }
+        };
+    }
 });
 
 // Scene Control 버튼 추가

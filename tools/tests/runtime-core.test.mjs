@@ -1497,6 +1497,21 @@ test('the extend dialog pane does not re-offer the card axes', () => {
     '블록 파라미터는 중첩 each 안에서도 그대로 보인다 — ../ 로 짚지 말 것');
 });
 
+test('the extend dialog resolves its item by uuid, in one place', () => {
+  // actorId + itemId 조합은 미연결 토큰에서 끊긴다: 합성 액터의 id 는 원본과 같아
+  // game.actors.get() 이 **원본** 액터를 돌려준다. 토큰에만 있는 아이템은 못 찾고(창이
+  // 통째로 비어 「먹통」), 같은 id 가 원본에도 있으면 더 나쁘다 — 편집이 원본 문서로 샌다.
+  // 컴펜디움 아이템도 game.items.get() 으로는 안 잡힌다.
+  const dialog = source('scripts/dialog/item-extend-dialog.js');
+  assert.match(dialog, /_resolveItem\(\)\s*\{[\s\S]*fromUuidSync/,
+    '_resolveItem 은 uuid 를 먼저 본다');
+  // 조회가 한 곳이어야 폴백이 빠진 경로가 안 남는다.
+  assert.equal((dialog.match(/game\.actors\.get\(this\.actorId\)/g) || []).length, 2,
+    'actorId 직접 조회는 _resolveItem 과 _prepareContext 의 폴백 두 곳뿐이어야 한다');
+  assert.equal(source('scripts/sheets/active-item-sheet-v2.js').includes('itemUuid: this.item.uuid'), true,
+    '시트는 uuid 를 넘겨야 한다');
+});
+
 test('switching a card channel moves that bucket\'s rows, not the whole channel', async () => {
   const { adapter } = equipmentHookContext();
   // 적용 대상은 데이터가 사는 자리 그 자체다 — 카드의 축을 바꾸면 그 카드의 행만 옮겨야

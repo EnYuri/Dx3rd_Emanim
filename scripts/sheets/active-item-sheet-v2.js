@@ -81,6 +81,8 @@
         title: game.i18n.localize('DX3rd.EffectEditor'),
         actorId: this.item.actor?.id || null,
         itemId: this.item.id,
+        // uuid 가 정본이다. 미연결 토큰의 아이템·컴펜디움 아이템은 actorId+itemId 로 못 찾는다.
+        itemUuid: this.item.uuid,
         initialEditor,
         effectId,
         buttons: {close: {icon: '<i class="fas fa-times"></i>', label: game.i18n.localize('DX3rd.Close')}},

@@ -84,6 +84,11 @@
 
             this.actorId = dialogData.actorId;
             this.itemId = dialogData.itemId;
+            // 아이템은 uuid 로 되짚는다. actorId+itemId 조합은 **미연결 토큰**에서 끊긴다 —
+            // 합성 액터의 id 는 원본 액터와 같아서 game.actors.get() 은 원본을 돌려주고,
+            // 토큰에만 있는 아이템은 그 컬렉션에 없다. 그러면 아이템이 null 인 채로 창이
+            // 열려 지속 효과 페인이 통째로 비어 「먹통」이 된다. 컴펜디움 아이템도 같다.
+            this.itemUuid = dialogData.itemUuid || null;
             this.initialEditor = initialEditor;
             this.effectId = dialogData.effectId || null;
             // 시트에서 지속 보정 카드를 눌러 열면 그 카드의 페인을 펴고 시작한다.
@@ -101,18 +106,12 @@
         async _prepareContext(options) {
             const data = await super._prepareContext(options);
 
-            let item = null;
-            let actor = null;
             let skills = {};
-
-            if (this.actorId && this.itemId) {
-                actor = game.actors.get(this.actorId);
-                if (actor) {
-                    item = actor.items.get(this.itemId);
-                    skills = actor.system.attributes.skills || {};
-                }
-            } else if (this.itemId) {
-                item = game.items.get(this.itemId);
+            const item = this._resolveItem();
+            const actor = item?.actor || (this.actorId ? game.actors.get(this.actorId) : null);
+            if (actor) {
+                skills = actor.system?.attributes?.skills || {};
+            } else {
                 skills = {
                     melee: {name: 'DX3rd.melee'},
                     evade: {name: 'DX3rd.evade'},
@@ -165,6 +164,8 @@
                 }
             }
 
+            // 아이템을 못 찾으면 모든 페인이 빈 채로 그려진다 — 조용히 「먹통」인 창을 남기지 말고 알린다.
+            data.itemMissing = !item;
             data.focusedEditor = this.initialEditor;
             const showAll = !this._focusedEditor;
             const editorVisibility = {
@@ -183,6 +184,12 @@
             await super._onRender(context, options);
             const root = this._root;
             if (!root) return;
+            if (context?.itemMissing) {
+                console.warn('DX3rd | Effect editor could not resolve item', this.itemUuid || this.itemId);
+                ui.notifications?.warn(game.i18n.localize('DX3rd.ItemNotFound'));
+                this.close();
+                return;
+            }
             // root(this.element)는 재렌더에도 같은 노드로 유지된다. 이전 렌더에서 붙인 위임
             // 리스너를 끊지 않으면 render(false) 한 번마다 한 벌씩 쌓여, 버튼 한 번 클릭이
             // N번 실행되고 그 안에서 다시 render 가 돌아 기하급수로 늘어난다
@@ -303,7 +310,15 @@
             return super.close(options);
         }
 
+        // 모든 조회는 여기 한 곳을 통과한다. 호출부마다 game.actors.get(...).items.get(...)
+        // 을 다시 쓰면 uuid 폴백이 빠진 경로가 남아 같은 「빈 창」이 되살아난다.
         _resolveItem() {
+            const sync = foundry.utils?.fromUuidSync || globalThis.fromUuidSync;
+            if (this.itemUuid && sync) {
+                // 미로드 컴펜디움이면 문서가 아니라 인덱스 항목이 돌아온다 — 그건 아이템이 아니다.
+                const byUuid = sync(this.itemUuid);
+                if (typeof byUuid?.getFlag === 'function') return byUuid;
+            }
             return this.actorId
                 ? game.actors.get(this.actorId)?.items?.get(this.itemId)
                 : game.items.get(this.itemId);
@@ -550,8 +565,7 @@
 
         setupTimingLockForRestrictedItems(subTab) {
             try {
-                const actor = game.actors.get(this.actorId);
-                const item = actor?.items?.get(this.itemId) || game.items.get(this.itemId);
+                const item = this._resolveItem();
                 if (!item || !['protect', 'once', 'etc'].includes(item.type)) return;
 
                 const section = this._query(`#${subTab}-content`);
@@ -841,9 +855,7 @@
          */
         async _saveCurrentTab() {
             try {
-                const item = this.actorId
-                    ? game.actors.get(this.actorId)?.items?.get(this.itemId)
-                    : game.items.get(this.itemId);
+                const item = this._resolveItem();
                 if (!item) return;
 
                 const sub = this.currentSubTab;
