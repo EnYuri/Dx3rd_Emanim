@@ -658,16 +658,19 @@
          * @param {string} position - 'main' (system.attributes) 또는 'sub' (system.effect.attributes)
          * @returns {Promise} 업데이트 결과
          */
-        async createAttribute(item, position = 'main') {
+        async createAttribute(item, position = 'main', action = '') {
             const attributeKey = foundry.utils.randomID();
-            const updatePath = position === 'main' 
-                ? `system.attributes.${attributeKey}` 
+            const updatePath = position === 'main'
+                ? `system.attributes.${attributeKey}`
                 : `system.effect.attributes.${attributeKey}`;
-            
+
+            // action: '' = 채널 기본 버킷(기본 발현 액션 상속). 값이 있으면 그 발현 액션의
+            // 명시 버킷에 들어간다 — 확장 도구에서 지금 펴 둔 카드가 정한다(item-effect-adapter 참조).
             const newAttribute = {
                 key: '-',
                 label: '-',
-                value: ''
+                value: '',
+                action: window.DX3rdItemEffectAdapter?.ACTIONS?.has(action) ? action : ''
             };
 
             return await item.update({
@@ -926,12 +929,11 @@
          */
         async initializeAttributeLabels(html, item) {
             const dom = window.DX3rdApplicationCompat;
-            // 메인 어트리뷰트 라벨 초기화
-            const mainUpdates = dom.queryAll(html, '.attributes-list[data-pos="main"] .attribute')
+            // 행마다 data-pos 를 들고 있다(한 목록에 자신/대상 버킷의 행이 섞여 있다).
+            const mainUpdates = dom.queryAll(html, '.attribute[data-pos="main"]')
                 .map(element => window.DX3rdAttributeManager.updateAttributeLabel(element, item, 'main'));
 
-            // 서브 어트리뷰트 라벨 초기화
-            const subUpdates = dom.queryAll(html, '.attributes-list[data-pos="sub"] .attribute')
+            const subUpdates = dom.queryAll(html, '.attribute[data-pos="sub"]')
                 .map(element => window.DX3rdAttributeManager.updateAttributeLabel(element, item, 'sub'));
 
             await Promise.all([...mainUpdates, ...subUpdates]);

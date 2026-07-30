@@ -64,15 +64,23 @@
   const attributeEntries = attributes => Object.values(attributes || {})
     .filter(entry => entry?.key && entry.key !== '-');
 
-  /** 아이템 하나가 선언형 장비인가(장착 중 · 동결 채널 · 자기 보정 있음). */
+  /**
+   * 선언(action:'use')으로 걸리는 자기 보정만. 「장비하고 있는 동안 …」(활성화 버킷)은
+   * 장착이 상태의 원본이라 선언이라는 개념이 없으므로 제외된다. 한 장비가 두 버킷을
+   * 동시에 가질 수 있으므로(항목별 발현 액션) 판정·요약 모두 이 목록을 써야 한다.
+   */
+  function declaredAttributes(item) {
+    const adapter = window.DX3rdItemEffectAdapter;
+    if (adapter) return adapter.selfFrozenAttributes(item, 'use');
+    return (item?.system?.active?.applyMode === 'onUse') ? (item?.system?.attributes || {}) : {};
+  }
+
+  /** 아이템 하나가 선언형 장비인가(장착 중 · 선언 버킷에 걸 보정 있음). */
   function isDeclarable(item) {
     if (!item || !EQUIPMENT_TYPES.includes(item.type)) return false;
     if (item.system?.equipment !== true) return false;
     if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
-    if (!attributeEntries(item.system?.attributes).length) return false;
-    // 활성화 채널(「장비하고 있는 동안 …」)은 장착이 상태의 원본이라 선언이라는 개념이 없다.
-    const adapter = window.DX3rdItemEffectAdapter;
-    return adapter ? !adapter.usesActivationSelfChannel(item) : (item.system?.active?.applyMode === 'onUse');
+    return attributeEntries(declaredAttributes(item)).length > 0;
   }
 
   /**
@@ -98,7 +106,7 @@
   }
 
   function summarize(item, keys) {
-    return attributeEntries(item.system.attributes)
+    return attributeEntries(declaredAttributes(item))
       .filter(entry => !keys || keys.has(entry.key))
       .map(entry => {
         const label = KEY_LABELS[entry.key] ? localize(KEY_LABELS[entry.key]) : entry.key;
@@ -122,7 +130,7 @@
     const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
     return (actor.items || [])
       .filter(item => isDeclarable(item)
-        && attributeEntries(item.system.attributes).some(entry => keys.has(entry.key))
+        && attributeEntries(declaredAttributes(item)).some(entry => keys.has(entry.key))
         && !alreadyDeclared(actor, item)
         && (allowExhausted || usesLeft(item).left > 0))
       .map(item => {

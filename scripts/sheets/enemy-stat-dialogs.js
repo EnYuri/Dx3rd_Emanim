@@ -30,7 +30,11 @@
     for (const item of activeItems(actor)) {
       const attributes = item.system?.attributes;
       if (!attributes) continue;
+      const adapter = window.DX3rdItemEffectAdapter;
       for (const attrData of Object.values(attributes)) {
+        // 「사용/공격 시」로 저작된 항목은 상태가 켜져 있는 동안이 아니라 그때그때 동결
+        // AE 로 걸린다 → sumAppliedBonus 쪽에서 세므로 여기서 빼야 이중 가산이 없다.
+        if (adapter && !adapter.appliesWhileActive(item, attrData)) continue;
         if (keys.includes(attrData.key) && attrData.value) {
           sum += window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, actor) * multiplier;
         }

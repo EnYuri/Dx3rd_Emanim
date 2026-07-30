@@ -80,6 +80,11 @@
       // 그 외/미기재 = system.effect.attributes(대상 보정, 수명 effect.disable).
       // 화이트리스트라 여기 없으면 flag 에 저장되지 않는다 → 채널 구분이 통째로 사라진다.
       channel: payload.channel === 'self' ? 'self' : 'target',
+      // 채널 안에서 어느 발현 액션 버킷인가. 채널 기본 버킷은 null(레거시 키 유지)이고,
+      // 그 밖의 버킷은 자기 액션을 들고 별도 키를 쓴다(applied_act_/use_/atk_<id>).
+      // 화이트리스트라 여기 없으면 flag 에 저장되지 않는다 → 서로 다른 버킷이 같은 AE 로
+      // 취급돼 나중 것이 앞의 것을 덮어쓰고, 소멸 훅도 버킷 수명을 못 찾는다.
+      action: ['activation', 'use', 'attack'].includes(payload.action) ? payload.action : null,
       name: payload.name || game.i18n.localize('DX3rd.Applied'),
       img: payload.img || 'icons/svg/aura.svg',
       source: payload.source || '',

@@ -1801,7 +1801,9 @@
       const useMeansActivate = !!adapter?.useMeansActivation?.(item);
       const selfActionMatches = !adapter
         || adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')
-        || useMeansActivate;
+        || useMeansActivate
+        // 항목별 「발현 액션」이 채널 기본과 다르게 저작돼 있으면 채널 게이트만으로는 막힌다.
+        || adapter.hasExplicitBucket(item, 'self', action);
       // 「아직 걸 게 남았는가」는 채널마다 다르다 — 어댑터 selfModifiersPending 단일 기준.
       // (활성화 채널: !active.state / 동결 채널: 사용할 때마다 새로 / notCheck: 적용 안 함)
       const selfPending = adapter ? adapter.selfModifiersPending(item)
@@ -1810,7 +1812,7 @@
         // '활성화' 채널로 저작된 보정은 동결이 아니라 토글로 켠다. 시트 표시·콤보의 지속 판정
         // (combo-data getPersistentEffectIds/calculateItemAttackBonus)이 active.state 를 읽으므로,
         // 여기서 동결 AE만 걸면 "효과는 걸렸는데 여전히 비활성"인 상태가 그대로 남는다.
-        const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate });
+        const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate, action });
         window.DX3rdDebug.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       

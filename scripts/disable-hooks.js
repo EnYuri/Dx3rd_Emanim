@@ -102,9 +102,15 @@
                                 }
                             }
 
-                            // 원본 아이템의 disable 타이밍 확인
+                            // 원본 아이템의 disable 타이밍 확인. 소멸 타이밍은 채널이 아니라
+                            // **그 버킷**의 것이다(appliedData.action = 버킷 판별자, 기본 버킷은 null).
+                            // 채널 필드를 그대로 읽으면 카드마다 수명을 나눠 저작한 아이템에서
+                            // 다른 카드의 수명으로 먼저 사라진다.
                             if (sourceItem) {
-                                const effectDisable = sourceItem.system.effect?.disable;
+                                const adapter = window.DX3rdItemEffectAdapter;
+                                const effectDisable = adapter
+                                    ? adapter.bucketLifecycle(sourceItem, 'target', appliedData.action).disable
+                                    : sourceItem.system.effect?.disable;
                                 if (effectDisable === timing) {
                                     shouldRemove = true;
                                 }

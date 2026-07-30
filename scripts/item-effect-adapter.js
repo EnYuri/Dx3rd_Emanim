@@ -120,9 +120,14 @@
    * 시트의 활성 체크박스, 직접 사용 게이트, 콤보 멤버 처리가 **모두 이 한 함수만** 본다.
    * 규칙을 호출부에서 다시 쓰면 미묘하게 갈라져, 토글도 없고 사용에도 안 걸리는
    * 이펙트가 생긴다(실제로 그 버그가 있었다).
+   *
+   * 채널 기본값이 동결이어도, 보정 항목 하나라도 「활성화」로 **명시 저작**돼 있으면
+   * 그 아이템에는 켜고 끌 상태가 필요하다(항목별 발현 액션 — modifierBuckets 참조).
    */
   function usesActivationSelfChannel(item) {
-    return !!item && inferAction(item, 'selfModifiers', item.system?.active || {}) === 'activation';
+    if (!item) return false;
+    if (inferAction(item, 'selfModifiers', item.system?.active || {}) === 'activation') return true;
+    return hasExplicitBucket(item, 'self', 'activation');
   }
 
   /**
@@ -131,7 +136,7 @@
    * 사용만으로 켜면 미장착 장비의 보정이 살아난다.
    */
   function useMeansActivation(item) {
-    if (!item || ['weapon', 'protect', 'vehicle'].includes(item.type)) return false;
+    if (!item || EQUIPMENT_TYPES.includes(item.type)) return false;
     return usesActivationSelfChannel(item);
   }
 
@@ -147,8 +152,267 @@
   function selfModifiersPending(item) {
     if (!item) return false;
     if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
-    if (usesActivationSelfChannel(item)) return item.system?.active?.state !== true;
+    if (usesActivationSelfChannel(item)) {
+      if (item.system?.active?.state !== true) return true;
+      // 활성화 버킷은 이미 켜져 있어도, 같은 아이템에 「사용/공격 시」로 저작된 동결 버킷이
+      // 있으면 그쪽은 사용할 때마다 새로 걸어야 한다.
+      return hasFrozenSelfBucket(item);
+    }
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 항목별 발현 액션(지속 효과 보정 버킷)
+  //
+  // 자기 보정(system.attributes)·대상 보정(system.effect.attributes)은 각각 채널 하나이고
+  // 발현 액션도 채널당 하나였다. 그래서 「장착하고 있는 동안 +1, 선언하면 추가로 +2」처럼
+  // 한 아이템 안에서 발현 시점이 다른 지속 보정을 나눠 저작할 수 없었다 — 보정을 몇 개
+  // 추가하든 액션은 하나로 묶였다.
+  //
+  // 보정 항목마다 선택적 `action` 필드를 두어 버킷으로 나눈다. 미지정(레거시 데이터 전량)은
+  // 채널 기본값을 그대로 상속하므로 기존 아이템의 동작은 바뀌지 않는다. 게이트를 넓히는 것도
+  // **명시 저작이 있을 때만**이다.
+  // ---------------------------------------------------------------------------
+
+  function attributeEntries(map) {
+    return Object.entries(map || {}).filter(([, entry]) => entry && typeof entry === 'object');
+  }
+
+  function attributeMap(item, channel) {
+    return channel === 'self' ? item?.system?.attributes : item?.system?.effect?.attributes;
+  }
+
+  const EQUIPMENT_TYPES = ['weapon', 'protect', 'vehicle'];
+
+  /** 항목에 **명시 저작된** 발현 액션(없으면 null). */
+  function explicitAction(item, channel, entry) {
+    return normalizeAction(entry?.action);
+  }
+
+  /** 채널 기본 발현 액션 — 항목에 명시가 없을 때 상속되는 값(지금까지의 채널 판정 그대로). */
+  function channelAction(item, channel) {
+    return channel === 'self'
+      ? inferAction(item, 'selfModifiers', item?.system?.active || {})
+      : inferAction(item, 'targetModifiers', item?.system?.effect || {});
+  }
+
+  /** 항목의 실효 발현 액션(표시·버킷 분류용). */
+  function attributeAction(item, channel, entry) {
+    return explicitAction(item, channel, entry) || channelAction(item, channel);
+  }
+
+  /**
+   * 버킷 하나의 발현·소멸 타이밍.
+   *
+   * 발현 액션(활성화/사용/공격)과 발현 타이밍(즉시/성공 후/데미지 후)은 **다른 축**이다.
+   * 액션만 버킷으로 나누고 타이밍을 채널 필드 하나로 두면, 대상 채널의 `runTiming` 이
+   * 발현점을 하나로 못 박기 때문에 사용/공격 버킷 중 한쪽은 어느 발현점에도 걸리지 못하고
+   * 조용히 죽는다(afterDamage 경로는 runTiming==='afterDamage' 를, instant 경로는
+   * runTiming==='instant' 를 요구한다). 그래서 버킷마다 자기 타이밍을 갖는다.
+   *
+   * 기본 버킷(채널 기본 액션)은 채널의 평탄 필드를 그대로 쓰고, 명시 버킷만
+   * `system.<active|effect>.buckets.<action>` 에 자기 값을 둔다(없는 값은 채널에서 상속).
+   * 이 규칙 덕에 기존 데이터는 손댈 것이 없고, template.json 에 없는 키라도
+   * (attributes 맵과 같은 방식으로) 그대로 저장된다.
+   *
+   * 게이트 판정은 **전부 이 함수를 통과해야 한다** — 호출부가 system.effect.runTiming 을
+   * 직접 읽으면 버킷별 타이밍이 무시돼 위의 사문화가 되살아난다.
+   */
+  function bucketLifecycle(item, channel, action = null) {
+    const chan = channel === 'self' ? 'self' : 'target';
+    const root = (chan === 'self' ? item?.system?.active : item?.system?.effect) || {};
+    const fallbackDisable = chan === 'self' ? '-' : 'notCheck';
+    const expected = normalizeAction(action) || channelAction(item, chan);
+    const isDefault = expected === channelAction(item, chan);
+    const override = isDefault ? null : ((root.buckets || {})[expected] || null);
+    const pick = (key, fallback) => {
+      const value = override?.[key];
+      return (value === undefined || value === null || value === '') ? fallback : value;
+    };
+    return {
+      channel: chan, action: expected, isDefault,
+      overridden: !!override,
+      disable: pick('disable', root.disable ?? fallbackDisable),
+      // 활성화 버킷의 발현점은 상태가 켜지는 순간 하나뿐이다 — 판정 타이밍을 갖지 않는다.
+      runTiming: expected === 'activation' ? 'instant' : pick('runTiming', root.runTiming || 'instant'),
+      path: isDefault
+        ? (chan === 'self' ? 'system.active' : 'system.effect')
+        : `${chan === 'self' ? 'system.active' : 'system.effect'}.buckets.${expected}`
+    };
+  }
+
+  /** 그 발현 액션의 대상 보정이 이 타이밍에 걸리는가(버킷 자기 runTiming 기준). */
+  function targetFiresAt(item, action = null, timing = 'instant') {
+    const expected = normalizeAction(action) || eventAction(item, timing);
+    const lifecycle = bucketLifecycle(item, 'target', expected);
+    if (lifecycle.disable === 'notCheck') return false;
+    return lifecycle.runTiming === '-' || lifecycle.runTiming === timing;
+  }
+
+  function hasExplicitBucket(item, channel, action) {
+    const expected = normalizeAction(action);
+    if (!expected) return false;
+    return attributeEntries(attributeMap(item, channel))
+      .some(([, entry]) => explicitAction(item, channel, entry) === expected);
+  }
+
+  /**
+   * 자기 보정 채널이 토글(활성화)인가 — 즉 **미지정** 항목이 활성화 버킷에 속하는가.
+   * applySelfModifiers 의 채널 분기와 반드시 같은 기준이어야 한다. 어긋나면 미지정 항목이
+   * 토글 AE 와 동결 AE 중 어디에도 없거나(보정 소멸) 양쪽에 다 들어간다(이중 가산).
+   */
+  function selfChannelIsToggle(item) {
+    if (!item) return false;
+    if (channelAction(item, 'self') === 'activation') return true;
+    // applyMode 를 저작할 수 없는 토글 타입(spell/psionic/combo)은 토글 채널로 고정된다.
+    const toggleTypes = window.DX3rdAppliedToggle?.TOGGLE_TYPES || ['effect', 'spell', 'psionic', 'combo'];
+    const active = item.system?.active || {};
+    if (toggleTypes.includes(item.type) && !('applyMode' in active)) return true;
+    return (active.applyMode || 'onUse') === 'toggle';
+  }
+
+  /**
+   * active.state 가 켜져 있는 동안 세는 자기 보정 항목인가.
+   * actor.prepareData 의 자체계산(activeItems)과 토글 AE(DX3rdAppliedToggle)의 공통 규칙.
+   */
+  function appliesWhileActive(item, entry) {
+    const explicit = explicitAction(item, 'self', entry);
+    if (explicit) return explicit === 'activation';
+    // 미지정 항목은 지금까지처럼 전부 센다. 채널 기본을 상속시키면 rois/connection 처럼
+    // 채널 액션은 '사용'으로 잡히면서 상태가 곧 적용 상태인 타입의 보정이 통째로 사라진다.
+    // 예외는 동결 채널에 「활성화」 항목이 섞여 있는 경우다 — 그때 미지정 항목은 동결 AE 가
+    // 들고 있으므로 여기서 또 세면 같은 보정이 두 번 붙는다.
+    return selfChannelIsToggle(item) || !hasExplicitBucket(item, 'self', 'activation');
+  }
+
+  /**
+   * 이 발현 액션으로 발동할 때 active.state(토글)를 켜야 하는가.
+   *
+   * 자기 채널의 토글 상태는 아이템당 불리언 **하나**다. 그래서 「공격 시」처럼 동결 버킷만
+   * 있는 액션으로 발동했을 때 그것까지 켜면, 그 아이템의 **활성화 버킷이 공격만으로 함께
+   * 터진다** — 장비라면 장착이 상태의 원본이므로 표시까지 어긋난다(dx3rd-applied-toggle 의
+   * sync 가 되돌린다). 액션 미지정 호출은 지금까지의 의미(채널 판정에 맡김)를 유지한다.
+   */
+  function selfToggleBucketMatches(item, action = null) {
+    const expected = normalizeAction(action);
+    if (!expected) return true;
+    if (expected === 'activation') return true;
+    // 미지정 행이 토글 AE 에 들어가는 채널이면, 그 행들의 소속(채널 기본 버킷)으로 발동할
+    // 때는 토글이 맞다. 예: applyMode='toggle' + 채널 기본이 '사용'.
+    return selfChannelIsToggle(item) && channelAction(item, 'self') === expected;
+  }
+
+  /**
+   * 사용/공격 시 동결로 걸 **실제 값이 있는** 자기 보정이 하나라도 있는가.
+   * 시트가 저장하는 빈 행(key '-' / 값 공백)까지 세면, 걸 것이 없는데도 동결 경로가 돌아
+   * 이미 붙어 있던 자기 AE 를 지운다(_applyItemAttributes 의 "걸 게 없으면 제거" 분기).
+   */
+  function hasFrozenSelfBucket(item, action = null) {
+    return hasUsableEntries(selfFrozenAttributes(item, action));
+  }
+
+  /**
+   * 사용/공격 시 동결 적용할 자기 보정만 골라낸다(applySelfFrozenBuff 전용).
+   * @param {Item} item
+   * @param {string|null} action - 'use' | 'attack' (null 이면 활성화가 아닌 전부)
+   */
+  function selfFrozenAttributes(item, action = null) {
+    const expected = normalizeAction(action);
+    const toggleChannel = selfChannelIsToggle(item);
+    // 미지정 행은 채널 기본 버킷의 것이다. 다만 동결 채널의 기존 데이터는 사용/공격 어느
+    // 액션으로 발동해도 걸려야 한다 — 같은 아이템이 판정 다이얼로그의 선언(use)으로도,
+    // 그 무기로 공격(attack)으로도 들어온다. 그래서 액션을 따지지 않는 것이 기본이고,
+    // **저작자가 이 채널을 실제로 나눈 경우에만** 기본 버킷으로 좁힌다. 좁히지 않으면
+    // 「선언 시 A / 공격 시 B」를 저작한 아이템이 공격 때 A+B 를 함께 걸어 버린다.
+    const split = ['use', 'attack'].some(candidate => hasExplicitBucket(item, 'self', candidate));
+    const fallback = channelAction(item, 'self');
+    const out = {};
+    for (const [key, entry] of attributeEntries(attributeMap(item, 'self'))) {
+      const explicit = explicitAction(item, 'self', entry);
+      if (explicit) {
+        if (explicit === 'activation') continue;
+        if (expected && explicit !== expected) continue;
+      } else if (toggleChannel) {
+        continue;   // 미지정 항목은 토글 AE 가 들고 있다
+      } else if (split && expected && fallback !== expected) {
+        continue;   // 나뉜 채널에서 미지정 항목은 기본 버킷에만 속한다
+      }
+      out[key] = entry;
+    }
+    return out;
+  }
+
+  /** 지금 발현 액션에서 대상에게 걸 보정만 골라낸다(applyToTargets 전용). */
+  function targetBucketAttributes(item, action = null, timing = 'instant') {
+    const expected = normalizeAction(action) || eventAction(item, timing);
+    const channelMatches = channelAction(item, 'target') === expected;
+    const out = {};
+    for (const [key, entry] of attributeEntries(attributeMap(item, 'target'))) {
+      const explicit = explicitAction(item, 'target', entry);
+      if (explicit ? explicit === expected : channelMatches) out[key] = entry;
+    }
+    return out;
+  }
+
+  /**
+   * 시트에 그릴 지속 보정 버킷. 채널(자신/대상) × 실효 발현 액션으로 묶는다.
+   * 기본 버킷(= 미지정 항목이 속하는 채널 기본 액션)만 레거시 카드 id 를 그대로 쓴다 —
+   * 확장 도구의 채널 설정과 액터 시트가 그 id 로 자기/대상 채널을 찾는다.
+   */
+  /** 카드 = 버킷 = 편집 페인. 기본 버킷만 레거시 id 를 유지한다(액터 시트·확장 도구가 참조). */
+  function bucketId(item, channel, action) {
+    const base = channel === 'self' ? 'modifiers.self' : 'modifiers.target';
+    return action === channelAction(item, channel) ? base : `${base}@${action}`;
+  }
+
+  /** 버킷 카드 id 를 (채널, 액션)으로 되돌린다. 'main'/'sub' 는 기본 버킷의 옛 별칭이다. */
+  function parseBucketId(item, id) {
+    const raw = String(id || '');
+    if (raw === 'main' || raw === 'sub') {
+      const channel = raw === 'sub' ? 'target' : 'self';
+      return {channel, action: channelAction(item, channel), isDefault: true};
+    }
+    const [base, suffix] = raw.split('@');
+    const channel = base === 'modifiers.target' || base === 'modifiers.sub' ? 'target' : 'self';
+    const explicit = normalizeAction(suffix);
+    return {
+      channel,
+      action: explicit || channelAction(item, channel),
+      isDefault: !explicit || explicit === channelAction(item, channel)
+    };
+  }
+
+  /** 그 채널에서 아직 버킷이 없는 발현 액션. 카드 추가(=버킷 추가)가 고를 후보다. */
+  function freeBucketActions(item, channel) {
+    const used = new Set(modifierBuckets(item).filter(bucket => bucket.channel === channel)
+      .map(bucket => bucket.action));
+    return ['activation', 'use', 'attack'].filter(action => !used.has(action));
+  }
+
+  function modifierBuckets(item) {
+    const buckets = [];
+    for (const channel of ['self', 'target']) {
+      const entries = attributeEntries(attributeMap(item, channel));
+      if (!entries.length) continue;
+      const fallback = channelAction(item, channel);
+      const groups = new Map();
+      for (const [key, entry] of entries) {
+        const action = attributeAction(item, channel, entry);
+        if (!groups.has(action)) groups.set(action, []);
+        groups.get(action).push(key);
+      }
+      for (const action of ['activation', 'use', 'attack']) {
+        const keys = groups.get(action);
+        if (!keys) continue;
+        buckets.push({
+          channel, action, keys,
+          isDefault: action === fallback,
+          lifecycle: bucketLifecycle(item, channel, action),
+          id: bucketId(item, channel, action)
+        });
+      }
+    }
+    return buckets;
   }
 
   function inferAction(item, kind, data = {}) {
@@ -164,13 +428,18 @@
     // 다시 안 켜진다. 구분 축은 이미 applyMode 에 있으니 그것을 존중한다 —
     // 장비의 template 기본값이 'toggle'(=①)이므로 명시 저작이 없는 기존 데이터의 동작은 그대로다.
     //
-    // 갈래는 이 **둘뿐이고, 「공격 시」는 없다** — 있어서도 안 된다. 그 무기로 공격하는 것만으로
-    // ②까지 함께 터지면, 한 번뿐인 회수를 쓸지 말지 고를 자리가 사라진다(룰이 「명중판정을
-    // 실행하기 직전에 선언할 것」이라 그 선택이 곧 이 계열 장비의 전부다). 사용 여부는 판정
-    // 다이얼로그의 선언 토글이 정하고 그 토글은 action:'use' 로 확정하므로, 명시 저작이
-    // '공격'이어도 '사용'으로 접어 공격과 선언을 분리한다.
-    if (kind === 'selfModifiers' && ['weapon', 'protect', 'vehicle'].includes(item.type)) {
-      if (explicit) return explicit === 'activation' ? 'activation' : 'use';
+    //  ③ 그 무기로 공격할 때만 붙는 보정 — 「공격 시」. ①과 달리 장착만으로는 안 붙고
+    //     (①은 그 무기를 들고 **다른** 무기로 공격해도 붙는다), ②와 달리 선언도 소비도 없다.
+    //
+    // **②가 공격으로 자동 발동하는 일은 ③을 열어도 없다.** 룰이 「명중판정을 실행하기 직전에
+    // 선언할 것」이라, 그 무기로 공격하는 것만으로 ②가 터지면 한 번뿐인 회수를 쓸지 말지 고를
+    // 자리가 사라진다 — 그 선택이 곧 이 계열 장비의 전부다. 불변식을 지키는 것은 두 가지다:
+    // ②는 판정 다이얼로그의 선언 토글이 action:'use' 로 확정할 때만 걸리고(declared-equipment 의
+    // declaredAttributes = selfFrozenAttributes(item,'use')), ③에는 「공격 시」로 **명시 저작한
+    // 행만** 들어간다. 미지정 데이터는 아래 applyMode 폴백이 반드시 ①/② 중 하나로 보내므로
+    // ③으로 흘러들 경로가 없다(컴펜디움 실측: 장비의 명시 저작 22건 전부 'use', 'attack' 0건).
+    if (kind === 'selfModifiers' && EQUIPMENT_TYPES.includes(item.type)) {
+      if (explicit) return explicit;
       const mode = data?.applyMode || item.system?.active?.applyMode || 'toggle';
       return mode === 'onUse' ? 'use' : 'activation';
     }
@@ -364,29 +633,60 @@
     const ext = item.getFlag?.(SCOPE, 'itemExtend') || {};
     const selfData = {...(system.active || {}), timing: system.active?.runTiming || 'instant'};
     const targetData = {...(system.effect || {}), timing: system.effect?.runTiming || 'instant'};
-    const cards = [
-      descriptorBase(item, {
-        id: 'modifiers.self', family: 'persistent', kind: 'selfModifiers', data: selfData,
-        // 「살아 있는가」의 기준은 채널마다 다르다. 활성화 채널은 active.state 가 곧 적용
-        // 상태지만, 동결 채널(applyMode='onUse')의 상태는 AE 가 들고 있고 active.state 는
+    // 보정 카드는 채널 × 실효 발현 액션(버킷)마다 한 장이다. 예전에는 채널당 한 장이라
+    // 「장착 중 상시 +1」과 「선언하면 +2」를 한 아이템에 나눠 저작할 방법이 없었다.
+    // 버킷이 하나도 없는(보정 행이 없는) 채널도 카드 한 장은 남긴다 — hasActionEffects /
+    // requiresTarget 이 카드 목록으로 진입점을 판정하고, 시트는 count 로 걸러 그린다.
+    const buckets = modifierBuckets(item);
+    const bucketsFor = channel => {
+      const own = buckets.filter(bucket => bucket.channel === channel);
+      if (own.length) return own;
+      const action = channelAction(item, channel);
+      return [{channel, action, keys: [], isDefault: true,
+        lifecycle: bucketLifecycle(item, channel, action),
+        id: channel === 'self' ? 'modifiers.self' : 'modifiers.target'}];
+    };
+    const cards = [];
+    const pushBucketCard = (bucket, descriptor) => {
+      cards.push(descriptorBase(item, descriptor));
+      const card = cards[cards.length - 1];
+      card.count = bucket.keys.length;
+      card.isDefaultBucket = bucket.isDefault;
+      // 카드가 곧 버킷이므로 수명 필드도 카드가 들고 있다(시트 배지·확장 도구 페인이 함께 읽는다).
+      card.disable = bucket.lifecycle.disable;
+      card.runTiming = bucket.lifecycle.runTiming;
+      card.bucketOverridden = bucket.lifecycle.overridden;
+      // 기본 버킷은 채널 그 자체라 지울 수 없다(지우면 채널의 미지정 행이 통째로 사라진다).
+      card.deletable = !bucket.isDefault && bucket.keys.length > 0;
+    };
+    for (const bucket of bucketsFor('self')) {
+      pushBucketCard(bucket, {
+        id: bucket.id, family: 'persistent', kind: 'selfModifiers',
+        data: {...selfData, action: bucket.action, timing: bucket.lifecycle.runTiming},
+        // 「살아 있는가」의 기준은 버킷마다 다르다. 활성화 버킷은 active.state 가 곧 적용
+        // 상태지만, 동결 버킷(사용/공격 시)의 상태는 AE 가 들고 있고 active.state 는
         // 쓰지 않는다 — 저작돼 있으면 살아 있는 카드다(대상 보정 카드와 같은 판정).
         // state 로 단정하면 시트에서 늘 회색이고, 그보다 나쁘게는 hasActionEffects 가
         // false 를 반환해 무기 모드 메뉴의 「사용」 진입점이 통째로 닫힌다.
-        active: hasEntries(system.attributes) && (usesActivationSelfChannel(item)
+        active: bucket.keys.length > 0 && (bucket.action === 'activation'
           ? !!system.active?.state
-          : (system.active?.disable ?? '-') !== 'notCheck'),
+          : bucket.lifecycle.disable !== 'notCheck'),
         title: localize('DX3rd.SelfModifiers'),
-        summary: localize('DX3rd.EffectModifierCount').replace('{count}', Object.keys(system.attributes || {}).length),
+        summary: localize('DX3rd.EffectModifierCount').replace('{count}', bucket.keys.length),
         target: 'self', editor: 'selfModifiers'
-      }),
-      descriptorBase(item, {
-        id: 'modifiers.target', family: 'persistent', kind: 'targetModifiers', data: targetData,
-        active: hasEntries(system.effect?.attributes) && system.effect?.disable !== 'notCheck',
+      });
+    }
+    for (const bucket of bucketsFor('target')) {
+      pushBucketCard(bucket, {
+        id: bucket.id, family: 'persistent', kind: 'targetModifiers',
+        data: {...targetData, action: bucket.action, timing: bucket.lifecycle.runTiming},
+        active: bucket.keys.length > 0 && bucket.lifecycle.disable !== 'notCheck',
         title: localize('DX3rd.TargetModifiers'),
-        summary: localize('DX3rd.EffectModifierCount').replace('{count}', Object.keys(system.effect?.attributes || {}).length),
-        target: targetForTargetModifiers(item, targetData.timing), editor: 'targetModifiers'
-      })
-    ];
+        summary: localize('DX3rd.EffectModifierCount').replace('{count}', bucket.keys.length),
+        target: targetForTargetModifiers(item, bucket.lifecycle.runTiming),
+        editor: 'targetModifiers'
+      });
+    }
     extensionEntries(ext).filter(entry => entry.type === 'condition').forEach((entry, index) => {
       const condition = entry.data;
       cards.push(descriptorBase(item, {
@@ -404,76 +704,154 @@
   function prepareSheetContext(item) {
     const immediate = collectImmediate(item);
     const persistent = collectPersistent(item);
-    const selfModifiers = persistent.find(card => card.id === 'modifiers.self');
-    const targetModifiers = persistent.find(card => card.id === 'modifiers.target');
     const selfModifierCount = Object.keys(item.system?.attributes || {}).length;
     const targetModifierCount = Object.keys(item.system?.effect?.attributes || {}).length;
+    const anySelfActive = persistent.some(card => card.kind === 'selfModifiers' && card.active);
     const modifierOverview = {
       id: 'modifiers',
-      active: targetModifierCount > 0 || !!selfModifiers?.active,
-      selfActive: !!selfModifiers?.active,
+      active: targetModifierCount > 0 || anySelfActive,
+      selfActive: anySelfActive,
       toggleable: selfModifierCount > 0,
       selfCount: selfModifierCount,
       targetCount: targetModifierCount,
       totalCount: selfModifierCount + targetModifierCount,
-      selfAction: selfModifiers?.action || 'use',
-      targetAction: targetModifiers?.action || 'use',
-      initialScope: selfModifierCount > 0 ? 'main' : (targetModifierCount > 0 ? 'sub' : 'main'),
+      // 확장 도구의 채널 설정은 "기본 발현 액션"(명시가 없는 행이 상속하는 값)이다.
+      // 기본 버킷 카드가 없을 수도 있으므로(모든 행을 명시 저작한 경우) 채널에서 직접 읽는다.
+      selfAction: channelAction(item, 'self'),
+      targetAction: channelAction(item, 'target'),
+      initialScope: targetModifierCount > 0 && selfModifierCount === 0 ? 'modifiers.target' : 'modifiers.self',
       summary: `${localize('DX3rd.Self')} ${selfModifierCount} / ${localize('DX3rd.Target')} ${targetModifierCount}`
     };
-    // 지속 효과 보정은 시트에서 두 장의 카드로 나눈다. 축이 두 개인데 한 장에 묶여 있었다:
+    // 지속 효과 보정 카드는 축이 두 개다. 한 장에 묶여 있던 시절엔 둘 다 안 보였다:
     //  ① 적용 대상 — 자신(system.attributes) / 대상(system.effect.attributes). 데이터는 원래
     //     분리돼 있는데 카드가 하나라 "자신 N / 대상 M" 요약으로만 보였고, 소멸 타이밍·발현
     //     액션도 채널마다 따로인 것이 드러나지 않았다.
-    //  ② 발동 시점 — 상시(활성화 채널) / 사용·공격 시(동결 채널). 자기 보정 카드의
-    //     「발현 액션」이 정하지만 편집 창 안쪽에만 있어 아무도 저작하지 않았다.
-    const isEquipment = ['weapon', 'protect', 'vehicle'].includes(item.type);
+    //  ② 발현 액션 — 활성화 / 사용 시 / 공격 시. 채널당 하나로 묶여 있어, 보정을 몇 개
+    //     추가하든 한 아이템의 지속 효과는 같은 시점에만 발현할 수 있었다. 이제 항목마다
+    //     액션을 저작할 수 있고(확장 도구의 행별 「발현 액션」), 카드도 버킷마다 한 장이다.
+    const isEquipment = EQUIPMENT_TYPES.includes(item.type);
     const actionOptions = [
       {value: 'activation', label: actionLabel('activation')},
       {value: 'use', label: actionLabel('use')},
       {value: 'attack', label: actionLabel('attack')}
     ];
-    // 장비의 자기 보정에는 「공격」을 내주지 않는다. inferAction 이 그것을 '사용'(선언)으로
-    // 접으므로, 고를 수 있게 두면 시트 표시와 실제 동작이 어긋난 채로 남는다.
-    const selfActionOptions = isEquipment
-      ? actionOptions.filter(option => option.value !== 'attack')
-      : actionOptions;
+    // 장비의 자기 보정도 세 갈래를 다 내준다. 「사용 시」(=선언)와 「공격 시」는 다른 것이고
+    // (inferAction 의 ②/③), 「공격 시」로 옮기지 않는 한 선언형은 선언에서만 걸린다.
+    const selfActionOptions = actionOptions;
     modifierOverview.selfActionOptions = selfActionOptions;
     modifierOverview.targetActionOptions = actionOptions;
-    const modifierCards = [];
-    if (selfModifierCount) {
-      // 켜고 끌 것이 있는 쪽은 활성화 채널뿐이다. 동결 채널(사용 시)의 상태는 AE 에 있고
-      // active.state 는 쓰지 않는데도 체크박스를 내주면, 그걸 켠 아이템은 이중 가산되거나
-      // (장비 자체계산 + 동결 AE) 발동 게이트에 걸려 사용해도 아무 일이 없었다.
-      // 상시로 쓰고 싶으면 「발현 액션」을 '활성화'로 바꾸면 체크박스가 나타난다.
-      const selfIsActivation = usesActivationSelfChannel(item);
-      modifierCards.push({
-        ...selfModifiers,
-        editor: 'modifiers', count: selfModifierCount, toggleable: selfIsActivation,
-        actionOptions: selfActionOptions,
-        // active(카드가 살아 있는가)는 여기서 손보지 않는다 — collectPersistent 가 채널별로
-        // 이미 판정한다. 시트에서만 덧칠했더니 같은 카드가 hasActionEffects 에는 죽은 것으로
-        // 보여, 선언형 무기의 「사용」 진입점이 열리지 않았다.
-        // 장비의 상시 채널은 '활성화 시'가 아니라 장착이 상태의 원본이다.
-        triggerLabel: isEquipment && selfModifiers.action === 'activation'
-          ? localize('DX3rd.EffectTriggerEquipped')
-          : selfModifiers.triggerLabel
+    // 카드의 두 번째 축. 적용 대상(자신/대상)은 데이터 채널 그 자체이므로 카드에서 고른다 —
+    // 편집 페인이나 행에 두면 카드 제목이 말하는 채널과 안쪽 값이 어긋날 수 있다.
+    const channelOptions = [
+      {value: 'self', label: localize('DX3rd.Self')},
+      {value: 'target', label: localize('DX3rd.Target')}
+    ];
+    modifierOverview.channelOptions = channelOptions;
+    // 버킷마다 한 장. 보정 행이 하나도 없는 채널의 자리표시 카드는 그리지 않는다
+    // (collectPersistent 가 진입점 판정을 위해 남겨 둔 count:0 카드).
+    const drawn = persistent
+      .filter(card => ['selfModifiers', 'targetModifiers'].includes(card.kind) && card.count > 0);
+    // 같은 채널의 카드가 두 장 이상이면 제목이 똑같아 구분이 안 된다 — 요약에 발현 액션을 적는다.
+    const multiBucket = kind => drawn.filter(card => card.kind === kind).length > 1;
+    const modifierCards = drawn
+      .map(card => multiBucket(card.kind)
+        ? {...card, summary: `${card.actionLabel} · ${card.summary}`}
+        : card)
+      .map(card => {
+        // 버킷의 수명 필드는 그 버킷이 소유한다 — 기본 버킷은 채널의 평탄 필드,
+        // 명시 버킷은 자기 buckets.<action> 경로. 확장 도구의 페인이 이 name 으로 직접 쓴다.
+        const lifecycle = bucketLifecycle(item, card.kind === 'selfModifiers' ? 'self' : 'target', card.action);
+        const bucketFields = {
+          disableName: `${lifecycle.path}.disable`,
+          runTimingName: `${lifecycle.path}.runTiming`,
+          bucketPath: lifecycle.path,
+          channel: card.kind === 'selfModifiers' ? 'self' : 'target',
+          channelOptions,
+          // 발현 타이밍은 대상 채널의 버킷만 자기 것을 가질 수 있다. 자기 채널의 발현은
+          // active.state 플래그 하나라 버킷마다 다른 시점이 있을 수 없으므로, 명시 버킷
+          // 페인에는 아예 내주지 않는다(읽는 곳이 없는 필드를 고르게 두면 안 걸리는 저작이 된다).
+          showRunTiming: card.kind === 'targetModifiers' || lifecycle.isDefault,
+          bucketLabel: `${localize(card.kind === 'selfModifiers' ? 'DX3rd.Self' : 'DX3rd.Target')} · ${card.actionLabel}`
+        };
+        if (card.kind === 'targetModifiers') {
+          return {...card, ...bucketFields, editor: 'modifiers', toggleable: false, actionOptions};
+        }
+        // 켜고 끌 것이 있는 쪽은 활성화 버킷뿐이다. 동결 버킷(사용/공격 시)의 상태는 AE 에
+        // 있고 active.state 는 쓰지 않는데도 체크박스를 내주면, 그걸 켠 아이템은 이중
+        // 가산되거나(장비 자체계산 + 동결 AE) 발동 게이트에 걸려 사용해도 아무 일이 없었다.
+        // 상시로 쓰고 싶으면 그 카드의 「발현 액션」을 '활성화'로 바꾸면 체크박스가 나타난다.
+        return {
+          ...card, ...bucketFields,
+          editor: 'modifiers', toggleable: card.action === 'activation',
+          actionOptions: selfActionOptions,
+          // active(카드가 살아 있는가)는 여기서 손보지 않는다 — collectPersistent 가 버킷별로
+          // 이미 판정한다. 시트에서만 덧칠했더니 같은 카드가 hasActionEffects 에는 죽은 것으로
+          // 보여, 선언형 무기의 「사용」 진입점이 열리지 않았다.
+          // 장비의 상시 버킷은 '활성화 시'가 아니라 장착이 상태의 원본이다.
+          triggerLabel: isEquipment && card.action === 'activation'
+            ? localize('DX3rd.EffectTriggerEquipped')
+            : card.triggerLabel
+        };
       });
+    // 확장 도구는 카드(=버킷)마다 페인 한 장이다. 행이 없는 채널도 기본 버킷 페인은 남겨
+    // 첫 보정을 넣을 자리를 준다. **행의 소속을 고르는 드롭다운은 없다** — 행은 자기가 추가된
+    // 카드의 것이고, 카드의 두 축(적용 대상 · 발현 액션)은 시트 카드에서 고른다. 페인 안이나
+    // 행마다 같은 축을 또 내주면 한 축을 세 군데서 고르게 되어 어느 값이 실제로 걸리는지
+    // 알 수 없다(그 상태가 실제로 오작동을 냈다).
+    const bucketPaneFor = (channel, action) => {
+      const drawnCard = modifierCards.find(card =>
+        (card.kind === 'selfModifiers' ? 'self' : 'target') === channel && card.action === action);
+      if (drawnCard) return drawnCard;
+      const lifecycle = bucketLifecycle(item, channel, action);
+      return {
+        id: bucketId(item, channel, action), kind: channel === 'self' ? 'selfModifiers' : 'targetModifiers',
+        action, actionLabel: actionLabel(action), count: 0, deletable: false,
+        disable: lifecycle.disable, runTiming: lifecycle.runTiming,
+        disableName: `${lifecycle.path}.disable`, runTimingName: `${lifecycle.path}.runTiming`,
+        bucketPath: lifecycle.path,
+        showRunTiming: channel === 'target' || lifecycle.isDefault,
+        bucketLabel: `${localize(channel === 'self' ? 'DX3rd.Self' : 'DX3rd.Target')} · ${actionLabel(action)}`
+        // actionOptions 는 시트 카드만 쓴다 — 확장 도구 페인은 발현 액션을 고르지 않는다.
+      };
+    };
+    const bucketPanes = [];
+    for (const channel of ['self', 'target']) {
+      const seen = new Set();
+      for (const card of modifierCards.filter(card =>
+        (card.kind === 'selfModifiers' ? 'self' : 'target') === channel)) {
+        seen.add(card.action);
+        bucketPanes.push({...card, isSelf: channel === 'self'});
+      }
+      const fallbackAction = channelAction(item, channel);
+      if (!seen.has(fallbackAction)) {
+        bucketPanes.push({...bucketPaneFor(channel, fallbackAction), isSelf: channel === 'self'});
+      }
     }
-    if (targetModifierCount) {
-      modifierCards.push({
-        ...targetModifiers,
-        editor: 'modifiers', count: targetModifierCount, toggleable: false,
-        actionOptions
-      });
+    // 보정 행 목록. 행마다 소속 버킷을 들려 보낸다(계산·필터용이며, 고르는 UI 는 없다).
+    const allRows = ['self', 'target'].flatMap(channel =>
+      attributeEntries(attributeMap(item, channel)).map(([key, entry]) => ({
+        key, attr: entry,
+        pos: channel === 'self' ? 'main' : 'sub',
+        path: channel === 'self' ? `system.attributes.${key}` : `system.effect.attributes.${key}`,
+        bucket: bucketId(item, channel, attributeAction(item, channel, entry))
+      })));
+    // 그리고 **버킷마다 자기 행만** 들고 있어야 한다. 카드를 발현 액션별로 갈라 놓고 행 목록을
+    // 한 벌 공유하면 「활성화」 카드를 열어도 「사용 시」 카드의 행이 그대로 실려, 카드를 나눈
+    // 의미가 사라진다(어느 카드를 편집하는지도 알 수 없다). 행을 다른 카드로 옮기려면 그
+    // 카드의 축(적용 대상/발현 액션)을 바꾸거나, 옮길 카드에서 다시 추가한다.
+    modifierOverview.buckets = bucketPanes.map(pane =>
+      ({...pane, rows: allRows.filter(row => row.bucket === pane.id)}));
+    modifierOverview.rows = allRows;
+    if (!bucketPanes.some(pane => pane.id === modifierOverview.initialScope)) {
+      modifierOverview.initialScope = bucketPanes[0]?.id || 'modifiers.self';
     }
     const immediateAddOptions = DIRECT_TYPES.map(type => ({value: type, label: directTitle(type)}));
-    // 지속 효과 카드는 종류당 한 장뿐인 것이 있다(지속 효과 보정은 아이템당 한 장이고,
-    // 추가 버튼은 그 카드에 보정 줄을 더할 뿐이다). 이미 만들어진 종류는 선택지를 지우지 않고
-    // "추가됨"으로 비활성화해, 눌러도 새 카드가 안 생기는 혼란을 없앤다.
+    // 지속 효과 보정 카드는 버킷 한 개다 — 추가하면 그 채널에서 아직 안 쓰는 발현 액션으로
+    // 새 카드가 생긴다. 더 만들 발현 액션이 없을 때만 "추가됨"으로 비활성화한다.
     const addedLabel = localize('DX3rd.AlreadyAdded');
+    const bucketSlotsLeft = freeBucketActions(item, 'self').length + freeBucketActions(item, 'target').length;
     const persistentAddOptions = [
-      {value: 'modifiers', label: localize('DX3rd.PersistentModifiers'), disabled: modifierOverview.totalCount > 0},
+      {value: 'modifiers', label: localize('DX3rd.PersistentModifiers'), disabled: bucketSlotsLeft === 0},
       {value: 'condition', label: localize('DX3rd.Condition'), disabled: false}
     ].map(option => option.disabled ? {...option, label: `${option.label} (${addedLabel})`} : option);
     return {
@@ -492,8 +870,15 @@
     return inferAction(item, kind, data) === expected;
   }
 
+  /**
+   * 대상 보정을 지금 발현 액션에서 걸어야 하는가.
+   * 채널 기본이 다르더라도, 항목 하나라도 그 액션으로 **명시 저작**돼 있으면 통과시킨다 —
+   * 그렇지 않으면 항목별 발현 액션을 저작해도 채널 게이트에서 통째로 막힌다.
+   */
   function targetActionMatches(item, action, timing = 'instant') {
-    return extensionActionMatches(item, 'targetModifiers', item.system?.effect || {}, action, timing);
+    if (extensionActionMatches(item, 'targetModifiers', item.system?.effect || {}, action, timing)) return true;
+    const expected = normalizeAction(action) || eventAction(item, timing);
+    return hasExplicitBucket(item, 'target', expected);
   }
 
   function macroActionMatches(item, macro, action, timing = 'instant') {
@@ -502,8 +887,9 @@
 
   function requiresTarget(item, action = invocationAction(item)) {
     const expected = normalizeAction(action) || invocationAction(item);
-    const targetCard = collectPersistent(item).find(card => card.id === 'modifiers.target');
-    if (targetCard?.active && targetCard.action === expected && ['targetToken', 'damagedTargets'].includes(targetCard.target)) return true;
+    const targetCards = collectPersistent(item).filter(card => card.kind === 'targetModifiers');
+    if (targetCards.some(card => card.active && card.action === expected
+      && ['targetToken', 'damagedTargets'].includes(card.target))) return true;
     return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
       card.active && card.action === expected && ['targetToken', 'damagedTargets'].includes(card.target));
   }
@@ -515,29 +901,129 @@
       .some(card => card.active && card.action === expected);
   }
 
-  async function updateAction(item, id, action) {
-    action = normalizeAction(action);
-    if (!item || !action) return false;
-    if (id === 'modifiers.self') {
-      await item.update({
+  /** 채널 자체의 발현 액션을 옮기는 갱신 데이터(기본 버킷을 옮길 때만 쓴다). */
+  function channelActionUpdates(channel, action) {
+    if (channel === 'self') {
+      return {
         'system.active.action': action,
         'system.active.applyMode': action === 'activation' ? 'toggle' : 'onUse',
         ...(action === 'activation' ? {'system.active.runTiming': 'instant'} : {})
-      });
-      if (['weapon', 'protect', 'vehicle'].includes(item.type) && item.system?.equipment) {
-        const shouldBeActive = action === 'activation' && item.system?.active?.disable !== 'notCheck';
-        if (item.system?.active?.state !== shouldBeActive) {
-          await item.update({'system.active.state': shouldBeActive}, {dx3rdActivationFromEquipment: true});
+      };
+    }
+    return {
+      'system.effect.action': action,
+      ...(action === 'activation' ? {'system.effect.runTiming': 'instant'} : {})
+    };
+  }
+
+  /**
+   * 보정 버킷 하나의 발현 액션을 바꾼다.
+   *  · 기본 버킷(id 에 @액션 이 없는 카드) — 채널 자체를 옮긴다(지금까지의 동작). 이 버킷에
+   *    있던 명시 저작은 채널과 같은 값이었으므로 지워, 옮긴 채널을 함께 따라가게 한다.
+   *  · 명시 버킷(id 가 modifiers.self@use 같은 카드) — 그 항목들만 옮긴다. 새 액션이 채널
+   *    기본과 같아지면 명시를 지워 기본 버킷으로 합친다(카드가 두 장으로 갈라지지 않게).
+   */
+  /** 버킷 수명 오버라이드(buckets.<action>) 삭제 갱신. v13/v14 삭제 표기를 함께 지원한다. */
+  function bucketOverrideDeletion(channel, action) {
+    const root = channel === 'self' ? 'system.active' : 'system.effect';
+    const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
+    return ForcedDeletion
+      ? {[`${root}.buckets`]: {[action]: new ForcedDeletion()}}
+      : {[`${root}.buckets.-=${action}`]: null};
+  }
+
+  async function updateModifierBucketAction(item, id, action) {
+    const {channel, isDefault} = parseBucketId(item, id);
+    const [, bucketSuffix] = String(id).split('@');
+    const path = channel === 'self' ? 'system.attributes' : 'system.effect.attributes';
+    const root = channel === 'self' ? 'system.active' : 'system.effect';
+    const explicitBucket = normalizeAction(bucketSuffix);
+    const current = explicitBucket || channelAction(item, channel);
+    if (current === action) return true;
+    // 옮기기 전의 수명(발현·소멸 타이밍)을 새 자리로 들고 간다 — 발현 액션만 바꿨는데
+    // 타이밍이 채널 기본으로 되돌아가면 카드가 조용히 다른 시점에 걸린다.
+    const carried = bucketLifecycle(item, channel, current);
+
+    const updates = {};
+    const map = attributeMap(item, channel);
+    if (explicitBucket && !isDefault) {
+      const merged = channelAction(item, channel) === action;
+      for (const [key, entry] of attributeEntries(map)) {
+        if (explicitAction(item, channel, entry) !== explicitBucket) continue;
+        updates[`${path}.${key}.action`] = merged ? '' : action;
+      }
+      if (!Object.keys(updates).length) return false;
+      // 기본 버킷으로 합쳐지면 그 채널의 평탄 필드가 수명의 주인이 된다(오버라이드는 버린다).
+      if (!merged) {
+        updates[`${root}.buckets.${action}.disable`] = carried.disable;
+        // 발현 타이밍을 버킷이 가질 수 있는 것은 대상 채널뿐이다 — 자기 채널의 발현은
+        // active.state 플래그 하나로 표현되므로 버킷마다 다른 시점을 가질 수가 없다.
+        if (channel === 'target' && action !== 'activation') {
+          updates[`${root}.buckets.${action}.runTiming`] = carried.runTiming;
         }
       }
+      await item.update(updates);
+      if (carried.overridden) await item.update(bucketOverrideDeletion(channel, explicitBucket));
       return true;
     }
-    if (id === 'modifiers.target') {
-      await item.update({
-        'system.effect.action': action,
-        ...(action === 'activation' ? {'system.effect.runTiming': 'instant'} : {})
-      });
-      return true;
+
+    Object.assign(updates, channelActionUpdates(channel, action));
+    for (const [key, entry] of attributeEntries(map)) {
+      if (explicitAction(item, channel, entry) === current) updates[`${path}.${key}.action`] = '';
+    }
+    await item.update(updates);
+    // 옮겨 온 액션에 이미 명시 버킷이 있었다면 그것은 이제 기본 버킷이다 — 채널의 평탄 필드가
+    // 수명의 주인이므로 오버라이드를 지운다(두 버킷이 한 카드로 합쳐진다).
+    if ((item.system?.[channel === 'self' ? 'active' : 'effect']?.buckets || {})[action]) {
+      await item.update(bucketOverrideDeletion(channel, action));
+    }
+    if (channel === 'self' && EQUIPMENT_TYPES.includes(item.type) && item.system?.equipment) {
+      const shouldBeActive = usesActivationSelfChannel(item) && item.system?.active?.disable !== 'notCheck';
+      if (item.system?.active?.state !== shouldBeActive) {
+        await item.update({'system.active.state': shouldBeActive}, {dx3rdActivationFromEquipment: true});
+      }
+    }
+    return true;
+  }
+
+  /**
+   * 보정 카드의 적용 대상(채널)을 바꾼다 — 그 카드의 행 전부를 같은 발현 액션을 가진
+   * 반대 채널의 버킷으로 옮긴다. 카드 = 버킷이므로 축을 바꾸면 카드 id 도 바뀐다
+   * (호출부가 새 id 를 기억해야 펴 둔 페인이 유지된다).
+   *
+   * 수명은 들고 가지 않는다. 자기 보정(system.active.*)과 대상 보정(system.effect.*)은 수명
+   * 필드가 애초에 다른 축이고, 목적지에서는 그 채널의 규칙(기본 버킷 = 평탄 필드, 명시 버킷 =
+   * 채널 상속)이 주인이어야 한다 — 옮겨 온 값을 덮어쓰면 그 채널에 원래 있던 행의 수명까지
+   * 같이 바뀐다.
+   *
+   * 목적지에 같은 발현 액션의 카드가 이미 있으면 두 카드는 **합쳐진다** — 같은 채널 × 같은
+   * 액션은 정의상 한 버킷이다. 카드가 사라진 것처럼 보이므로 합쳐졌다는 사실을 반환값으로
+   * 알려 호출부가 알릴 수 있게 한다.
+   */
+  async function updateModifierChannel(item, id, channel) {
+    if (!item) return null;
+    const to = channel === 'target' ? 'target' : 'self';
+    const from = parseBucketId(item, id);
+    if (!from || from.channel === to) return null;
+    const action = from.action;
+    const keys = attributeEntries(attributeMap(item, from.channel))
+      .filter(([, entry]) => attributeAction(item, from.channel, entry) === action)
+      .map(([key]) => key);
+    if (!keys.length) return null;
+    const toId = bucketId(item, to, action);
+    const merged = attributeEntries(attributeMap(item, to))
+      .some(([, entry]) => attributeAction(item, to, entry) === action);
+    for (const key of keys) await moveModifierToBucket(item, key, id, toId);
+    // 명시 버킷을 통째로 비웠으면 그 수명 오버라이드는 주인 없는 값이다.
+    if (!from.isDefault) await item.update(bucketOverrideDeletion(from.channel, action));
+    return {id: bucketId(item, to, action), merged};
+  }
+
+  async function updateAction(item, id, action) {
+    action = normalizeAction(action);
+    if (!item || !action) return false;
+    if (String(id).startsWith('modifiers.self') || String(id).startsWith('modifiers.target')) {
+      return updateModifierBucketAction(item, id, action);
     }
     if (id.startsWith('macro.')) {
       const index = Number(id.split('.')[1]);
@@ -581,8 +1067,8 @@
   async function toggleEffect(item, id, active) {
     if (!item) return false;
     // 'modifiers' 는 자신/대상이 한 장이던 시절의 카드 id 다. 분리 후에도 남겨 둔다 —
-    // 켜고 끄는 대상은 어느 쪽이든 자기 보정(system.active.state) 하나뿐이다.
-    if (id === 'modifiers' || id === 'modifiers.self') {
+    // 켜고 끄는 대상은 어느 버킷이든 자기 보정의 상태(system.active.state) 하나뿐이다.
+    if (id === 'modifiers' || String(id).startsWith('modifiers.self')) {
       const selfCount = Object.keys(item.system?.attributes || {}).length;
       if (!selfCount) return false;
       await item.update({'system.active.state': !!active});
@@ -651,6 +1137,9 @@
       await item.setFlag(SCOPE, 'itemExtend', ext);
       return `card.${id}`;
     }
+    if (family === 'persistent' && kind === 'modifiers') {
+      return addModifierBucket(item);
+    }
     if (family === 'persistent' && kind === 'condition') {
       const id = foundry.utils.randomID();
       const cards = Array.isArray(ext.cards) ? ext.cards : [];
@@ -671,8 +1160,62 @@
     return null;
   }
 
+  /**
+   * 지속 보정 버킷(=카드)을 새로 만든다. 채널에서 아직 안 쓰는 발현 액션 하나를 잡아 빈 보정
+   * 한 줄을 그 액션으로 저작하고, 수명 필드를 채널 값에서 복사해 자기 것으로 갖게 한다.
+   * 채널 기본 버킷이 아직 비어 있으면 새 버킷을 만들지 않고 그 자리에 줄을 넣는다 —
+   * 첫 보정을 추가하는 흐름(지금까지의 동작)이 그대로 유지된다.
+   */
+  async function addModifierBucket(item, channel = null, action = null) {
+    if (!item) return null;
+    const channels = channel ? [channel] : ['self', 'target'];
+    for (const chan of channels) {
+      const path = chan === 'self' ? 'system.attributes' : 'system.effect.attributes';
+      const existing = modifierBuckets(item).filter(bucket => bucket.channel === chan);
+      const fallbackAction = channelAction(item, chan);
+      const key = foundry.utils.randomID();
+      // 기본 버킷이 비어 있으면 거기에 넣는다(action 미지정 = 채널 상속).
+      if (!existing.some(bucket => bucket.action === fallbackAction)) {
+        await item.update({[`${path}.${key}`]: {key: '-', label: '-', value: '', action: ''}});
+        return bucketId(item, chan, fallbackAction);
+      }
+      const free = normalizeAction(action) ? [normalizeAction(action)] : freeBucketActions(item, chan);
+      if (!free.length) continue;
+      const next = free[0];
+      const carried = bucketLifecycle(item, chan, fallbackAction);
+      const root = chan === 'self' ? 'system.active' : 'system.effect';
+      const updates = {[`${path}.${key}`]: {key: '-', label: '-', value: '', action: next}};
+      updates[`${root}.buckets.${next}.disable`] = carried.disable;
+      if (chan === 'target' && next !== 'activation') {
+        updates[`${root}.buckets.${next}.runTiming`] = carried.runTiming;
+      }
+      await item.update(updates);
+      return `${chan === 'self' ? 'modifiers.self' : 'modifiers.target'}@${next}`;
+    }
+    return null;
+  }
+
+  /** 명시 버킷 하나를 지운다(그 버킷의 보정 행 + 수명 오버라이드). 기본 버킷은 지울 수 없다. */
+  async function deleteModifierBucket(item, id) {
+    const {channel, isDefault, action} = parseBucketId(item, id);
+    if (isDefault) return false;
+    const path = channel === 'self' ? 'system.attributes' : 'system.effect.attributes';
+    const keys = attributeEntries(attributeMap(item, channel))
+      .filter(([, entry]) => explicitAction(item, channel, entry) === action)
+      .map(([key]) => key);
+    if (!keys.length) return false;
+    const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
+    const updates = ForcedDeletion
+      ? {[path]: Object.fromEntries(keys.map(key => [key, new ForcedDeletion()]))}
+      : Object.fromEntries(keys.map(key => [`${path}.-=${key}`, null]));
+    await item.update(updates);
+    await item.update(bucketOverrideDeletion(channel, action));
+    return true;
+  }
+
   async function deleteEffect(item, id) {
     if (!item || !id) return false;
+    if (String(id).startsWith('modifiers.')) return deleteModifierBucket(item, id);
     if (id.startsWith('card.')) {
       const cardId = id.slice('card.'.length);
       const ext = foundry.utils.deepClone(item.getFlag(SCOPE, 'itemExtend') || {});
@@ -709,7 +1252,12 @@
     return false;
   }
 
-  async function moveModifier(item, attributeKey, source, target) {
+  /**
+   * 보정 행을 자신↔대상 채널로 옮긴다.
+   * @param {string} [action] 옮긴 자리에서 찍을 발현 액션('' = 채널 기본 상속).
+   * @returns {Promise<string|false>} 옮긴 자리의 키(채널 안에서 키가 겹치면 새로 발급된다).
+   */
+  async function moveModifier(item, attributeKey, source, target, action = undefined) {
     if (!item || !attributeKey || source === target) return false;
     if (!['main', 'sub'].includes(source) || !['main', 'sub'].includes(target)) return false;
     const sourceMap = source === 'main' ? item.system?.attributes : item.system?.effect?.attributes;
@@ -721,7 +1269,9 @@
     if (targetMap?.[destinationKey]) destinationKey = foundry.utils.randomID();
     const sourceParent = source === 'main' ? 'system.attributes' : 'system.effect.attributes';
     const targetParent = target === 'main' ? 'system.attributes' : 'system.effect.attributes';
-    const updates = {[`${targetParent}.${destinationKey}`]: foundry.utils.deepClone(attribute)};
+    const moved = foundry.utils.deepClone(attribute);
+    if (action !== undefined) moved.action = normalizeAction(action) || '';
+    const updates = {[`${targetParent}.${destinationKey}`]: moved};
     const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
     if (ForcedDeletion) updates[sourceParent] = {[attributeKey]: new ForcedDeletion()};
     else updates[`${sourceParent}.-=${attributeKey}`] = null;
@@ -733,6 +1283,27 @@
       if (!item.system?.scene) updates['system.getTarget'] = true;
     }
     await item.update(updates);
+    return destinationKey;
+  }
+
+  /**
+   * 보정 행의 소속 버킷을 바꾼다(채널 이동 + 발현 액션 태깅을 한 번에).
+   * 확장 도구의 행별 선택이 이것 하나만 부른다 — 자신/대상 드롭다운과 발현 액션 드롭다운을
+   * 따로 두면 같은 행에 두 번 손대야 하고, 그 사이 상태가 어긋난 버킷이 생긴다.
+   */
+  async function moveModifierToBucket(item, attributeKey, fromId, toId) {
+    if (!item || !attributeKey || String(fromId) === String(toId)) return false;
+    const from = parseBucketId(item, fromId);
+    const to = parseBucketId(item, toId);
+    const tag = to.isDefault ? '' : to.action;
+    if (from.channel !== to.channel) {
+      return !!(await moveModifier(item, attributeKey,
+        from.channel === 'self' ? 'main' : 'sub',
+        to.channel === 'self' ? 'main' : 'sub', tag));
+    }
+    const path = to.channel === 'self' ? 'system.attributes' : 'system.effect.attributes';
+    if (!attributeMap(item, to.channel)?.[attributeKey]) return false;
+    await item.update({[`${path}.${attributeKey}.action`]: tag});
     return true;
   }
 
@@ -773,7 +1344,7 @@
     // 장비 보너스(system.attributes)는 actor.prepareData가 active.state를 기준으로 소비한다.
     // 활성화 액션으로 묶인 장비의 장착 상태를 이 원본 상태와 동기화하고, true 갱신에서
     // 다시 들어온 훅 한 번만 나머지 활성화 효과를 실행한다.
-    const isEquipment = ['weapon', 'protect', 'vehicle'].includes(item.type);
+    const isEquipment = EQUIPMENT_TYPES.includes(item.type);
     // 장착 해제는 채널과 무관하게 끈다. actor.prepareData 의 activeItems 는 active.state 만
     // 보고 system.equipment 를 보지 않으므로, 선언(사용)으로 켜 둔 장비 보정이 벗은 뒤에도
     // 남으면 그대로 새어 나간다.
@@ -783,8 +1354,10 @@
     }
     // 장착으로 켜는 것은 상시 채널(applyMode 'toggle')뿐이다 — 선언형(onUse)은
     // 사용 시점에 handleItemUse 가 켠다(inferAction 의 장비 분기 주석 참조).
+    // 항목 하나만 「활성화」로 저작한 선언형 장비도 그 버킷을 위해 상태를 켜야 한다
+    // (usesActivationSelfChannel 이 명시 버킷까지 본다).
     const equipmentSelfActivation = isEquipment
-      && extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'activation', 'instant')
+      && usesActivationSelfChannel(item)
       && item.system?.active?.disable !== 'notCheck';
     if (equippedOn && equipmentSelfActivation && item.system?.active?.state !== true) {
       await item.update({'system.active.state': true}, {dx3rdActivationFromEquipment: true});
@@ -811,6 +1384,12 @@
     collectImmediate, collectPersistent, prepareSheetContext, conditionEntries,
     extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, extensionEntries,
     hasActionEffects, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,
-    directTitle, isConfiguredCondition
+    directTitle, isConfiguredCondition,
+    // 지속 효과 버킷(카드 = 채널 × 발현 액션, 카드마다 자기 발현·소멸 타이밍)
+    channelAction, attributeAction, selfChannelIsToggle, appliesWhileActive, hasExplicitBucket,
+    selfToggleBucketMatches,
+    selfFrozenAttributes, hasFrozenSelfBucket, targetBucketAttributes, modifierBuckets, actionLabel,
+    bucketLifecycle, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
+    addModifierBucket, deleteModifierBucket, moveModifierToBucket, updateModifierChannel
   };
 })();

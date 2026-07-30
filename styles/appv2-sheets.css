@@ -701,6 +701,8 @@
 
 .application.sheet.dx3rd-emanim.item .dx3rd-effect-card-meta {
     border-top: 1px solid #2e2e2e;
+    /* 보정 카드에는 축이 둘(적용 대상 · 발현 액션) 실리므로 배지까지 한 줄에 안 들어간다. */
+    flex-wrap: wrap;
     margin-top: 6px;
     padding-top: 6px;
 }
@@ -709,6 +711,10 @@
     flex: 1 1 84px;
     height: 22px;
     min-width: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-effect-card-meta select.effect-channel-binding {
+    flex: 0 1 66px;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-effect-badge {
@@ -830,20 +836,17 @@
     padding-bottom: 5px;
 }
 
-.application.sheet.dx3rd-emanim.item .dx3rd-modifier-config-header label {
-    align-items: center;
-    display: flex;
+/* 지금 편집 중인 버킷 이름표(「자신 · 사용 시」). 고르는 컨트롤이 아니라 표시 전용이다 —
+   버킷 선택은 시트 카드에서만 한다. */
+/* 편집 중인 버킷의 유일한 표시다(페인에 축 드롭다운을 두지 않으므로) — 이름표로 읽히게 한다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-modifier-config-title {
+    background: #12222e;
+    border: 1px solid #2f4d63;
+    border-radius: 3px;
+    color: #9fc8e8;
     font-size: 10px;
-    gap: 5px;
-}
-
-.application.sheet.dx3rd-emanim.item .dx3rd-modifier-config-header select {
-    height: 24px;
-    min-width: 90px;
-}
-
-.application.sheet.dx3rd-emanim.item .dx3rd-modifier-config-pane[hidden] {
-    display: none;
+    font-weight: 400;
+    padding: 1px 6px;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-modifier-channel-controls {
@@ -867,9 +870,16 @@
     min-width: 0;
 }
 
-.application.sheet.dx3rd-emanim.item .dx3rd-unified-modifiers .modifier-scope {
-    flex: 0 0 82px;
-    min-width: 0;
+/* 보정 행 목록은 페인(=카드) 안에 있다 — 그 버킷의 행만 실린다. 채널 컨트롤과 붙지 않게 띄운다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-modifier-config-pane .dx3rd-unified-modifiers {
+    margin-top: 7px;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-unified-modifiers .attributes-list .dx3rd-effect-empty {
+    color: #7a7a7a;
+    font-size: 10px;
+    list-style: none;
+    padding: 4px 2px;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-unified-modifiers .attributes-list + .attributes-list {

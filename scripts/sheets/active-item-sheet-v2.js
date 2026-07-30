@@ -53,7 +53,9 @@
         this._effectAddKinds.immediate, context.effectView.immediateAddOptions);
       context.effectView.persistentAddKind = DX3rdActiveItemSheetV2._addKind(
         this._effectAddKinds.persistent, context.effectView.persistentAddOptions);
-      if (['main', 'sub'].includes(this._modifierConfigScope)) {
+      // 확장 도구를 열 때 펴 둘 페인은 버킷 id 다(카드 = 버킷 = 페인).
+      if ((context.effectView.modifierOverview.buckets || [])
+        .some(bucket => bucket.id === this._modifierConfigScope)) {
         context.effectView.modifierOverview.initialScope = this._modifierConfigScope;
       }
       return context;
@@ -101,6 +103,7 @@
       listen('change', '.macro-kind', event => this._updateMacro(event, 'kind'));
       listen('change', '.macro-name', event => this._updateMacro(event, 'macroName'));
       listen('change', '.effect-action-binding', event => this._updateEffectAction(event));
+      listen('change', '.effect-channel-binding', event => this._updateEffectChannel(event));
       listen('change', '.effect-enabled-toggle', event => this._toggleEffectDefinition(event));
       listen('change', '.effect-kind-select', event => {
         const family = event.target.dataset.family;
@@ -112,11 +115,33 @@
       this._refreshFormulaValidation();
     }
 
+    /**
+     * 보정 카드의 적용 대상(자신/대상)을 바꾼다. 채널은 데이터가 사는 자리 그 자체이므로
+     * 카드의 행 전부가 반대 채널로 옮겨 간다 — 카드 id 도 바뀌니 새 id 를 기억해 둔다.
+     * 옮긴 자리에 같은 발현 액션의 카드가 이미 있으면 한 장으로 합쳐진다(같은 채널 × 같은
+     * 액션 = 한 버킷). 카드가 사라진 것으로 보이므로 그때는 알린다.
+     */
+    async _updateEffectChannel(event) {
+      const id = event.target.dataset.effectId;
+      if (!id?.startsWith('modifiers.')) return;
+      const moved = await effectAdapter.updateModifierChannel(this.item, id, event.target.value);
+      if (moved) {
+        this._modifierConfigScope = moved.id;
+        if (moved.merged) {
+          ui.notifications.info(game.i18n.localize('DX3rd.ModifierBucketMerged'));
+        }
+      }
+      this.render(false);
+    }
+
     async _updateEffectAction(event) {
       const id = event.target.dataset.effectId;
       if (!id) return;
-      if (id === 'modifiers.self') this._modifierConfigScope = 'main';
-      if (id === 'modifiers.target') this._modifierConfigScope = 'sub';
+      // 보정 카드 id 는 곧 버킷 id 다. 액션을 바꾸면 id 도 바뀌므로 새 id 를 기억한다.
+      if (id.startsWith('modifiers.')) {
+        const before = effectAdapter.parseBucketId(this.item, id);
+        this._modifierConfigScope = effectAdapter.bucketId(this.item, before.channel, event.target.value);
+      }
       await effectAdapter.updateAction(this.item, id, event.target.value);
       this.render(false);
     }
@@ -173,9 +198,8 @@
         return;
       }
       const effectId = target.dataset.effectId || null;
-      // 자신/대상 보정은 카드가 따로이므로 편집 창도 그 채널을 펴고 열어야 한다.
-      if (effectId === 'modifiers.self') this._modifierConfigScope = 'main';
-      if (effectId === 'modifiers.target') this._modifierConfigScope = 'sub';
+      // 카드마다 편집 페인이 따로이므로 그 버킷을 펴고 열어야 한다.
+      if (effectId?.startsWith('modifiers.')) this._modifierConfigScope = effectId;
       this._openItemExtend(event, editor, effectId);
     }
 
@@ -188,15 +212,17 @@
       if (!kind || select?.selectedOptions?.[0]?.disabled) return;
       this._effectAddKinds ??= {};
       this._effectAddKinds[family] = kind;
+      // 지속 효과 보정은 카드 하나가 버킷 하나다 — 추가하면 아직 안 쓰는 발현 액션으로
+      // 새 카드가 생기고, 그 카드의 편집 페인을 펴고 열어 준다.
+      const id = await effectAdapter.addEffect(this.item, family, kind);
       if (family === 'persistent' && kind === 'modifiers') {
-        await manager.createAttribute(this.item, 'main');
+        this._modifierConfigScope = id || this._modifierConfigScope;
         this.render(false);
-        this._openItemExtend(event, 'modifiers', 'modifiers');
-      } else {
-        const id = await effectAdapter.addEffect(this.item, family, kind);
-        this.render(false);
-        if (id) this._openItemExtend(event, kind, id);
+        this._openItemExtend(event, 'modifiers', id || 'modifiers.self');
+        return;
       }
+      this.render(false);
+      if (id) this._openItemExtend(event, kind, id);
     }
 
     static async _onDeleteEffectCard(event, target) {

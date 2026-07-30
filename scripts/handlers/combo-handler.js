@@ -394,7 +394,7 @@ window.DX3rdComboHandler = {
                     // 여기만 동결로 두면 같은 이펙트가 경로에 따라 active.state 가 갈려,
                     // 시트 표시와 combo-data 의 지속 판정이 콤보로 쓸 때만 어긋난다.
                     const forceToggle = !!window.DX3rdItemEffectAdapter?.useMeansActivation?.(effectItem);
-                    const toggled = await handler.applySelfModifiers(actor, effectItem, { forceToggle });
+                    const toggled = await handler.applySelfModifiers(actor, effectItem, { forceToggle, action: memberAction });
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Effect self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, effectItem.name);
                 }
                 await handler.executeMacros(effectItem, 'instant', memberAction);

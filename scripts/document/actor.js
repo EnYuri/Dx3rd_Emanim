@@ -1287,11 +1287,16 @@
             //   기존엔 리더 호출(sum/byLabel/… 수십 회)마다 전체 activeItems×attrs 를 재스캔했다.
             //   값(a.value)의 수식 평가는 여전히 소비 시점에 지연 수행 → 타이밍/결과 불변(diff=0).
             const activeByKey = {};
+            const effectAdapter = window.DX3rdItemEffectAdapter;
             for (const item of activeItems) {
                 const map = item.system?.attributes;
                 if (!map) continue;
                 for (const a of Object.values(map)) {
                     if (!a || a.key == null) continue; // key 없는 어트리뷰트는 어떤 리더 키에도 매칭 안 됨(기존 동작)
+                    // 항목별 「발현 액션」이 「사용/공격 시」로 저작된 보정은 상태가 켜져 있는
+                    // 동안 붙는 것이 아니라 그때그때 동결 AE 로 걸린다(appliedByKey 쪽에서 온다).
+                    // 여기서 또 세면 같은 보정이 두 번 붙는다.
+                    if (effectAdapter && !effectAdapter.appliesWhileActive(item, a)) continue;
                     (activeByKey[a.key] = activeByKey[a.key] || []).push({ a, item });
                 }
             }

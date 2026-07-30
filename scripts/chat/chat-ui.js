@@ -823,7 +823,10 @@ window.DX3rdChatToggleManager = {
                 // 성공 시(afterSuccess) 활성화 및 대상 적용 (횟수 체크)
                 const activeDisable = item.system?.active?.disable ?? '-';
                 const shouldActivate = item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck';
-                const shouldApplyToTargets = item.system.effect?.runTiming === 'afterSuccess';
+                // 판정 성공 후에 걸 대상 보정이 있는가. 버킷 자기 타이밍을 본다(카드마다 다르다).
+                const shouldApplyToTargets = window.DX3rdItemEffectAdapter
+                    ? window.DX3rdItemEffectAdapter.targetFiresAt(item, null, 'afterSuccess')
+                    : item.system.effect?.runTiming === 'afterSuccess';
             
                 if (shouldActivate || shouldApplyToTargets) {
                     const usedDisable = item.system?.used?.disable || 'notCheck';

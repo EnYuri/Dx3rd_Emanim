@@ -954,6 +954,8 @@
   "DX3rd.EffectActionActivation": "활성화",
   "DX3rd.EffectActionUse": "사용",
   "DX3rd.EffectActionAttack": "공격",
+  "DX3rd.EffectChannel": "적용 대상",
+  "DX3rd.ModifierBucketMerged": "같은 발현 액션의 카드가 이미 있어 한 장으로 합쳐졌습니다.",
   "DX3rd.EffectTriggerActivate": "활성화 시",
   "DX3rd.EffectTriggerEquipped": "장착 중 상시",
   "DX3rd.EffectTriggerUse": "사용 시",

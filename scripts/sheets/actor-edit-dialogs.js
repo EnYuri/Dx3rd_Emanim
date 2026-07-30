@@ -103,9 +103,12 @@
       item.system?.active?.state === true &&
       ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once'].includes(item.type)
     );
+    const effectAdapter = window.DX3rdItemEffectAdapter;
     for (const item of activeItems) {
       if (item.system?.attributes) {
         for (const attrData of Object.values(item.system.attributes)) {
+          // 「사용/공격 시」로 저작된 항목은 동결 AE 쪽(appliedEffects)에서 센다.
+          if (effectAdapter && !effectAdapter.appliesWhileActive(item, attrData)) continue;
           if (attrData.key === 'stat_bonus' && attrData.label === ability && attrData.value) {
             itemBonus += window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, actor);
           }

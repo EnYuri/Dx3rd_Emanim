@@ -56,8 +56,12 @@
     const map = item.system?.attributes;
     if (!map) return out;
     const EV = window.DX3rdFormulaEvaluator;
+    const adapter = window.DX3rdItemEffectAdapter;
     for (const [storeK, a] of Object.entries(map)) {
       if (!a || a.key === undefined || a.key === null || a.key === '-') continue;
+      // 항목별 「발현 액션」이 「사용/공격 시」로 저작된 보정은 상태가 켜져 있는 동안이 아니라
+      // 그때그때 동결 AE 로 걸린다 → 토글 AE 에서 빼야 이중 가산이 없다.
+      if (adapter && !adapter.appliesWhileActive(item, a)) continue;
       // 시트는 사용자가 추가한 빈 행(값 공백)을 그대로 저장한다. 값이 비어 있으면 걸 보정이 없다 —
       // 통과시키면 evaluate가 0으로 떨어져 "보정 0짜리" 항목만 남는다(universal-apply의
       // hasUsableAttribute와 같은 기준). 존재 플래그형(boolean)은 값 자체가 의미이므로 예외.

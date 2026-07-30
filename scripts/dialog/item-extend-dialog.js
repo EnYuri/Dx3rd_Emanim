@@ -86,9 +86,9 @@
             this.itemId = dialogData.itemId;
             this.initialEditor = initialEditor;
             this.effectId = dialogData.effectId || null;
-            // 시트에서 자신/대상 보정 카드를 눌러 열면 그 채널의 설정 패널을 펴고 시작한다.
-            if (this.effectId === 'modifiers.self') this._modifierConfigScope = 'main';
-            else if (this.effectId === 'modifiers.target') this._modifierConfigScope = 'sub';
+            // 시트에서 지속 보정 카드를 눌러 열면 그 카드의 페인을 펴고 시작한다.
+            // 카드 id 가 곧 버킷 id 이므로(modifiers.self / modifiers.target@attack) 그대로 쓴다.
+            if (this.effectId?.startsWith('modifiers.')) this._modifierConfigScope = this.effectId;
             this.currentTopTab = null;
             this.currentSubTab = null;
             this.tempFormData = {};
@@ -148,8 +148,20 @@
                 if (!this._focusedEditor || this.initialEditor === 'modifiers') {
                     data.effectView = effectAdapter?.prepareSheetContext?.(item);
                 }
-                if (data.effectView && ['main', 'sub'].includes(this._modifierConfigScope)) {
+                // 펴 둘 페인은 버킷 id 다. 버킷이 합쳐졌거나 지워졌으면 되살리지 않는다 —
+                // 없는 id 를 넣으면 모든 페인이 hidden 인 채로 그려진다.
+                if (data.effectView && (data.effectView.modifierOverview.buckets || [])
+                    .some(bucket => bucket.id === this._modifierConfigScope)) {
                     data.effectView.modifierOverview.initialScope = this._modifierConfigScope;
+                } else if (data.effectView) {
+                    this._modifierConfigScope = data.effectView.modifierOverview.initialScope;
+                }
+                // 페인은 이 한 장만 그린다. 스위처가 없으므로 지금 편집 중인 버킷이
+                // 무엇인지는 헤더의 이름표가 알려 준다(「자신 · 사용 시」).
+                if (data.effectView) {
+                    const overview = data.effectView.modifierOverview;
+                    overview.currentLabel = (overview.buckets || [])
+                        .find(bucket => bucket.id === overview.initialScope)?.bucketLabel || '';
                 }
             }
 
@@ -229,7 +241,14 @@
                 event.preventDefault();
                 const item = this._resolveItem();
                 if (!item) return;
-                await attributeManager?.createAttribute?.(item, target.dataset.pos || 'main');
+                // 새 행은 **그 버킷**에 들어간다. 채널만 보고 넣으면 명시 버킷을 편집하다 추가한
+                // 행이 기본 버킷으로 떨어져, 방금 만든 카드가 아니라 옆 카드가 늘어난다.
+                // 버튼은 페인마다 하나이므로 자기 버킷을 직접 들고 있다 — 펴 둔 페인 상태보다
+                // 이것이 앞선다(둘이 어긋나면 눌린 카드가 진실이다).
+                const scope = target.dataset.bucket || this._modifierConfigScope || target.dataset.pos || 'main';
+                const bucket = effectAdapter?.parseBucketId?.(item, scope);
+                const pos = bucket ? (bucket.channel === 'self' ? 'main' : 'sub') : (target.dataset.pos || 'main');
+                await attributeManager?.createAttribute?.(item, pos, bucket?.isDefault ? '' : bucket?.action);
                 this.render(false);
             });
             this._on(root, '[data-action="deleteModifierAttribute"]', 'click', async (event, target) => {
@@ -240,31 +259,10 @@
                 await attributeManager?.deleteAttribute?.(item, row.dataset.attribute, row.dataset.pos || 'main');
                 this.render(false);
             });
-            this._on(root, '.modifier-scope-select', 'change', async (event, target) => {
-                const row = target.closest('.attribute');
-                const item = this._resolveItem();
-                if (!item || !row?.dataset.attribute || row.dataset.pos === target.value) return;
-                this._modifierConfigScope = target.value;
-                await effectAdapter?.moveModifier?.(item, row.dataset.attribute, row.dataset.pos, target.value);
-                this.render(false);
-            });
-            this._on(root, '.modifier-config-scope', 'change', (event, target) => {
-                this._modifierConfigScope = target.value;
-                this._queryAll('.dx3rd-modifier-config-pane').forEach(pane => { pane.hidden = pane.dataset.scope !== target.value; });
-            });
-            this._on(root, '.modifier-action-binding', 'change', async (event, target) => {
-                const item = this._resolveItem();
-                if (!item) return;
-                await effectAdapter?.updateAction?.(item, target.dataset.effectId, target.value);
-                const timingName = target.dataset.effectId === 'modifiers.self'
-                    ? 'system.active.runTiming'
-                    : 'system.effect.runTiming';
-                const timingSelect = this._query(`select[name="${timingName}"]`);
-                if (timingSelect) {
-                    if (target.value === 'activation') timingSelect.value = 'instant';
-                    this._setDisabled(timingSelect, target.value === 'activation');
-                }
-            });
+            // 버킷의 두 축(적용 대상 · 발현 액션)을 고르는 UI 는 이 창에 없다 — 행의 소속
+            // 드롭다운도, 버킷 스위처도, 페인의 「발현 액션」도. 카드가 이미 그 두 축이고 이 창은
+            // 그 카드 한 장을 편집한다. 여기 한 벌 더 두었을 때 카드는 「사용 시」인데 페인은
+            // 「활성화」로 보이는 불일치가 실제로 났다(같은 축을 두 군데서 그리면 필연이다).
 
             this.initializeTabs();
             if (!this._focusedEditor || this.currentSubTab === 'weapon') this.setupWeaponFistToggle();
@@ -315,15 +313,16 @@
             const item = this._resolveItem();
             if (!item || !input?.name) return;
             let value = input.type === 'checkbox' ? input.checked : input.value;
-            const selfActivation = effectAdapter?.inferAction?.(item, 'selfModifiers', item.system?.active || {}) === 'activation';
-            const targetActivation = effectAdapter?.inferAction?.(item, 'targetModifiers', item.system?.effect || {}) === 'activation';
-            if (input.name === 'system.active.runTiming' && selfActivation) {
-                value = 'instant';
-                input.value = value;
-            }
-            if (input.name === 'system.effect.runTiming' && targetActivation) {
-                value = 'instant';
-                input.value = value;
+            // 활성화 버킷은 발현 타이밍을 갖지 않는다(상태가 켜지는 순간이 유일한 발현점).
+            // 필드 경로가 채널(system.active.runTiming)일 수도 버킷(…buckets.use.runTiming)일 수도
+            // 있으므로 이름이 아니라 그 필드가 속한 버킷의 액션으로 판정한다.
+            if (input.name.endsWith('.runTiming')) {
+                const bucket = effectAdapter?.parseBucketId?.(item,
+                    input.dataset?.bucket || (input.name.startsWith('system.active') ? 'modifiers.self' : 'modifiers.target'));
+                if (bucket?.action === 'activation') {
+                    value = 'instant';
+                    input.value = value;
+                }
             }
             if (input.name === 'system.active.state' && item.type === 'effect' && item.actor
                 && window.DX3rdActorSheetData?.updateOwnedItemActiveState) {

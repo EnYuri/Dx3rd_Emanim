@@ -1399,8 +1399,11 @@ Hooks.once('ready', async function() {
                 for (const targetId of damagedTargets) {
                     const targetActor = game.actors.get(targetId);
                     if (targetActor) {
-                        const targetAttributes = item.system.effect?.attributes || {};
-                        
+                        // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+                        const targetAttributes = window.DX3rdItemEffectAdapter
+                            ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+                            : (item.system.effect?.attributes || {});
+
                         if (game.user.isGM && !socketRouter.isResponsibleGM()) return;
                         if (game.user.isGM) {
                             // GM이면 직접 적용

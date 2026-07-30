@@ -64,9 +64,16 @@ function Test-Dx3rdPackDirectory {
 
 if ($UpdatePacks) {
     # Replacing a package's LevelDB directories while Foundry has them open can
-    # leave the running world with stale handles. -UpdatePacks is run manually
-    # before committing (the pre-commit hook does not invoke this script), so
-    # fail early rather than writing corrupt packs into a commit.
+    # leave the running world with stale handles, so fail early rather than
+    # writing corrupt packs into a commit.
+    #
+    # Two callers reach here, and both need this guard:
+    #   - tools/git-hooks/pre-commit, which runs -UpdatePacks on every
+    #     version-changing commit. That is why committing requires Foundry closed.
+    #   - a manual run, which is the only path when the installed
+    #     .git/hooks/pre-commit predates that step. Check with
+    #     `grep -c 'release.ps1' .git/hooks/pre-commit` -- 0 means the hook will
+    #     not rebuild packs and this script must be run by hand.
     $FoundryProcesses = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "foundry" })
     if ($FoundryProcesses.Count -gt 0) {
         $Names = ($FoundryProcesses | ForEach-Object { "$($_.ProcessName) ($($_.Id))" }) -join ", "

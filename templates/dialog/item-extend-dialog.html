@@ -528,41 +528,46 @@
     {{#if showModifiers}}
     <section class="content-section dx3rd-modifier-editor" id="modifiers-content">
         <article class="dx3rd-modifier-config">
+            {{!-- 카드 = 버킷 = 이 페인. 이 창은 시트에서 누른 그 카드 한 장만 편집한다 —
+                  버킷을 갈아타는 드롭다운을 여기 두면 편집 중인 카드와 어긋나고, 카드가 이미
+                  가진 축(적용 대상 · 발현 액션)을 한 번 더 고르게 되어 오작동을 낸다. --}}
             <header class="dx3rd-modifier-config-header">
                 <span><i class="fas fa-sliders"></i> {{localize "DX3rd.ModifierSettings"}}</span>
-                <label>{{localize "DX3rd.ModifierScope"}}
-                    <select class="modifier-config-scope">
-                        <option value="main" {{#if (eq effectView.modifierOverview.initialScope "main")}}selected{{/if}}>{{localize "DX3rd.Self"}}</option>
-                        <option value="sub" {{#if (eq effectView.modifierOverview.initialScope "sub")}}selected{{/if}}>{{localize "DX3rd.Target"}}</option>
-                    </select>
-                </label>
+                <span class="dx3rd-modifier-config-title">{{effectView.modifierOverview.currentLabel}}</span>
             </header>
-            <div class="dx3rd-modifier-config-pane" data-scope="main" {{#unless (eq effectView.modifierOverview.initialScope "main")}}hidden{{/unless}}>
+            {{#each effectView.modifierOverview.buckets as |bucket|}}
+            {{#if (eq bucket.id ../effectView.modifierOverview.initialScope)}}
+            <div class="dx3rd-modifier-config-pane" data-scope="{{bucket.id}}">
                 <div class="dx3rd-modifier-channel-controls">
-                    <label>{{localize "DX3rd.EffectAction"}} <select class="modifier-action-binding" data-effect-id="modifiers.self">{{#each effectView.modifierOverview.selfActionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.modifierOverview.selfAction)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select></label>
-                    <label>{{localize "DX3rd.RunTiming"}} <select name="system.active.runTiming" {{#if (eq effectView.modifierOverview.selfAction "activation")}}disabled{{/if}}>{{#select item.system.active.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
-                    <label>{{localize "DX3rd.DisableTiming"}} <select name="system.active.disable">{{#select item.system.active.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+                    {{#unless bucket.isSelf}}
+                    <label>{{localize "DX3rd.Target"}} <input type="checkbox" name="system.getTarget" {{checked ../item.system.getTarget}}></label>
+                    <label>{{localize "DX3rd.Scene"}} <input type="checkbox" name="system.scene" {{checked ../item.system.scene}}></label>
+                    {{/unless}}
+                    {{!-- 발현 액션은 **여기 두지 않는다**. 그 축은 시트 카드의 드롭다운이 주인이고,
+                          이 창은 그 카드 한 장을 편집한다 — 같은 축을 두 군데 두었을 때 실제로
+                          카드는 「사용 시」인데 이 안쪽은 「활성화」로 보이는 불일치가 났다.
+                          지금 편집 중인 버킷은 헤더의 이름표(「자신 · 사용 시」)가 알린다. --}}
+                    {{!-- 발현 타이밍·소멸 타이밍은 이 버킷의 것이다(기본 버킷은 채널 필드, 명시 버킷은 buckets.<액션>).
+                          발현 타이밍은 대상 채널의 버킷만 자기 것을 가질 수 있다 — 자기 보정의 발현은
+                          active.state 플래그 하나라, 버킷마다 다른 시점이 있을 수 없다. --}}
+                    {{#if bucket.showRunTiming}}
+                    <label>{{localize "DX3rd.RunTiming"}} <select name="{{bucket.runTimingName}}" data-bucket="{{bucket.id}}" {{#if (eq bucket.action "activation")}}disabled{{/if}}>{{#select bucket.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
+                    {{/if}}
+                    <label>{{localize "DX3rd.DisableTiming"}} <select name="{{bucket.disableName}}" data-bucket="{{bucket.id}}">{{#select bucket.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+                </div>
+                {{!-- 보정 행은 **이 버킷의 것만** 싣는다. 행에 소속 드롭다운은 없다 — 행은 자기가
+                      추가된 카드의 것이고, 옮기려면 카드의 축을 바꾸거나 옮길 카드에서 다시 추가한다. --}}
+                <div class="attributes dx3rd-unified-modifiers">
+                    <header class="attributes-header flexrow"><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><button type="button" data-action="createModifierAttribute" data-bucket="{{bucket.id}}"><i class="fas fa-plus"></i></button></header>
+                    <ol class="attributes-list">
+                        {{#each bucket.rows as |row|}}<li class="attribute flexrow" data-attribute="{{row.key}}" data-pos="{{row.pos}}" data-bucket="{{row.bucket}}"><select class="attribute-key" name="{{row.path}}.key">{{{attributeOptions row.attr.key}}}</select><input class="attribute-label" name="{{row.path}}.label" value="{{row.attr.label}}" disabled><input class="attribute-value" name="{{row.path}}.value" value="{{row.attr.value}}"><button type="button" data-action="deleteModifierAttribute"><i class="fas fa-trash"></i></button></li>{{/each}}
+                        {{#unless bucket.rows}}<li class="dx3rd-effect-empty">{{localize "DX3rd.NoPersistentEffects"}}</li>{{/unless}}
+                    </ol>
                 </div>
             </div>
-            <div class="dx3rd-modifier-config-pane" data-scope="sub" {{#unless (eq effectView.modifierOverview.initialScope "sub")}}hidden{{/unless}}>
-                <div class="dx3rd-modifier-channel-controls">
-                    <label>{{localize "DX3rd.Target"}} <input type="checkbox" name="system.getTarget" {{checked item.system.getTarget}}></label>
-                    <label>{{localize "DX3rd.Scene"}} <input type="checkbox" name="system.scene" {{checked item.system.scene}}></label>
-                    <label>{{localize "DX3rd.EffectAction"}} <select class="modifier-action-binding" data-effect-id="modifiers.target">{{#each effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value ../effectView.modifierOverview.targetAction)}}selected{{/if}}>{{option.label}}</option>{{/each}}</select></label>
-                    <label>{{localize "DX3rd.RunTiming"}} <select name="system.effect.runTiming" {{#if (eq effectView.modifierOverview.targetAction "activation")}}disabled{{/if}}>{{#select item.system.effect.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
-                    <label>{{localize "DX3rd.DisableTiming"}} <select name="system.effect.disable">{{#select item.system.effect.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
-                </div>
-            </div>
+            {{/if}}
+            {{/each}}
         </article>
-        <div class="attributes dx3rd-unified-modifiers">
-            <header class="attributes-header flexrow"><span class="modifier-scope">{{localize "DX3rd.ModifierScope"}}</span><span class="attribute-key">{{localize "DX3rd.Name"}}</span><span class="attribute-label">{{localize "DX3rd.Stat"}}/{{localize "DX3rd.Skill"}}</span><span class="attribute-value">{{localize "DX3rd.Value"}}</span><button type="button" data-action="createModifierAttribute" data-pos="main"><i class="fas fa-plus"></i></button></header>
-            <ol class="attributes-list" data-pos="main">
-                {{#each item.system.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}" data-pos="main"><select class="modifier-scope modifier-scope-select"><option value="main" selected>{{localize "DX3rd.Self"}}</option><option value="sub">{{localize "DX3rd.Target"}}</option></select><select class="attribute-key" name="system.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled><input class="attribute-value" name="system.attributes.{{key}}.value" value="{{attr.value}}"><button type="button" data-action="deleteModifierAttribute"><i class="fas fa-trash"></i></button></li>{{/each}}
-            </ol>
-            <ol class="attributes-list" data-pos="sub">
-                {{#each item.system.effect.attributes as |attr key|}}<li class="attribute flexrow" data-attribute="{{key}}" data-pos="sub"><select class="modifier-scope modifier-scope-select"><option value="main">{{localize "DX3rd.Self"}}</option><option value="sub" selected>{{localize "DX3rd.Target"}}</option></select><select class="attribute-key" name="system.effect.attributes.{{key}}.key">{{{attributeOptions attr.key}}}</select><input class="attribute-label" name="system.effect.attributes.{{key}}.label" value="{{attr.label}}" disabled><input class="attribute-value" name="system.effect.attributes.{{key}}.value" value="{{attr.value}}"><button type="button" data-action="deleteModifierAttribute"><i class="fas fa-trash"></i></button></li>{{/each}}
-            </ol>
-        </div>
     </section>
     {{/if}}
 

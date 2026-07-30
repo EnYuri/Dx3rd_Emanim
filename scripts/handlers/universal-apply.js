@@ -36,33 +36,42 @@
      */
     async applyToTargets(actor, item, timing = 'instant', forcedTargets = null, action = null) {
       try {
-        if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.targetActionMatches(item, action, timing)) return;
-        
+        const adapter = window.DX3rdItemEffectAdapter;
+        if (adapter && !adapter.targetActionMatches(item, action, timing)) return;
+        // 지금 발현 액션에서 걸 버킷의 액션. 항목별 「발현 액션」이 채널 기본과 다르게
+        // 저작돼 있으면, 여기서 고른 액션의 항목만 대상에게 간다.
+        const bucketAction = adapter
+          ? (adapter.ACTIONS.has(action) ? action : adapter.eventAction(item, timing))
+          : action;
+
         // getTarget 또는 scene 중 하나라도 체크되어 있는지 확인
         const getTarget = item.system?.getTarget || false;
         const scene = item.system?.scene || false;
         if (!getTarget && !scene) return;
 
-        // effect.runTiming 확인 (기본값은 '-')
-        const effectRunTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'targetModifiers', item.system?.effect || {}) === 'activation'
-          ? 'instant'
-          : (item.system?.effect?.runTiming ?? '-');
-        
+        // 발현·소멸 타이밍은 **그 버킷의 것**을 본다. 채널 필드(system.effect.runTiming) 하나로
+        // 게이트를 걸면, 사용 버킷과 공격 버킷이 한 채널에 있을 때 한쪽은 어느 발현점에도
+        // 걸리지 못하고 조용히 죽는다(bucketLifecycle 주석 참조).
+        const lifecycle = adapter
+          ? adapter.bucketLifecycle(item, 'target', bucketAction)
+          : {runTiming: item.system?.effect?.runTiming ?? '-', disable: item.system?.effect?.disable || '-'};
+
         // runTiming이 '-'가 아닌 경우, 타이밍이 일치하는지 확인
-        if (effectRunTiming !== '-' && effectRunTiming !== timing) {
+        if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== timing) {
           return;
         }
 
-        // effect.disable이 notCheck인 경우 applied 되지 않아야 함
-        const effectDisable = item.system?.effect?.disable || '-';
-        if (effectDisable === 'notCheck') {
+        // 소멸 타이밍이 notCheck인 경우 applied 되지 않아야 함
+        if (lifecycle.disable === 'notCheck') {
           return;
         }
 
-        // 대상 탭의 어트리뷰트. 걸 값이 하나도 없으면 여기서 끝낸다 —
-        // 자기 버프만 있는 이펙트(대상 탭 비어 있음)를 콤보로 대상에게 사용해도
+        // 대상 탭의 어트리뷰트 중 이 발현 액션의 버킷만. 걸 값이 하나도 없으면 여기서
+        // 끝낸다 — 자기 버프만 있는 이펙트(대상 탭 비어 있음)를 콤보로 대상에게 사용해도
         // 빈 AE가 대상에게 붙지 않도록 한다.
-        const targetAttributes = item.system.effect?.attributes || {};
+        const targetAttributes = adapter
+          ? adapter.targetBucketAttributes(item, bucketAction, timing)
+          : (item.system.effect?.attributes || {});
         if (!this.hasUsableAttribute(targetAttributes)) {
           window.DX3rdDebug.log('DX3rd | applyToTargets skipped (no usable target attribute):', item.name);
           return;
@@ -195,7 +204,24 @@
       // handleItemUse 는 자기 보정(2단계) → 대상 보정(3단계) 순이므로 자기 버프가 조용히
       // 사라지고 대상 쪽 수명만 남았다. 채널마다 키를 나누고 조회도 채널로 좁힌다.
       const channel = opts.channel === 'self' ? 'self' : 'target';
-      let appliedKey = channel === 'self' ? `applied_self_${item.id}` : `applied_${item.id}`;
+      // 같은 채널 안에서도 발현 액션이 다른 버킷은 서로 다른 AE 로 남아야 한다 — 키 하나를
+      // 공유하면 나중에 걸린 쪽이 앞의 것을 덮어써 지운다. 실제로 그런 아이템이 있다:
+      // 무기는 판정 다이얼로그의 선언(action:'use')과 그 무기로 공격(action:'attack')이 둘 다
+      // 발현점이므로, 「선언하면 +1 / 공격 시 +2」를 나눠 저작하면 공격이 선언분을 지웠다.
+      // 버킷은 넘어온 항목의 실효 발현 액션으로 판별한다(항목의 action 필드가 소켓 페이로드에도
+      // 그대로 실려 오므로 별도 인자를 배선할 필요가 없다). 채널 기본 버킷은 지금까지의 키를
+      // 그대로 쓴다 — 레거시 AE 와 키가 어긋나면 소멸 훅이 옛것을 못 찾는다.
+      const adapter = window.DX3rdItemEffectAdapter;
+      const entries = Object.values(targetAttributes || {});
+      const effective = new Set(entries.map(attr =>
+        adapter ? adapter.attributeAction(item, channel, attr) : null));
+      const channelDefault = adapter ? adapter.channelAction(item, channel) : null;
+      const single = effective.size === 1 ? [...effective][0] : null;
+      const bucketAction = single && single !== channelDefault ? single : null;
+      const bucketSuffix = {activation: 'act_', use: 'use_', attack: 'atk_'}[bucketAction] || '';
+      let appliedKey = channel === 'self'
+        ? `applied_self_${bucketSuffix}${item.id}`
+        : `applied_${bucketSuffix}${item.id}`;
 
       // 기존 AE 확인 (같은 아이템·같은 채널이면 키 유지하고 내용만 교체).
       // 단 'toggle:' 파생 AE 는 DX3rdAppliedToggle 이 소유한다 — 같은 아이템에서 왔다는 이유로
@@ -207,7 +233,9 @@
         if (String(e.getFlag?.('dx3rd-emanim', 'appliedKey') || '').startsWith('toggle:')) return false;
         const applied = e.getFlag?.('dx3rd-emanim', 'applied');
         if (applied?.itemId !== item.id) return false;
-        return (applied?.channel === 'self' ? 'self' : 'target') === channel;
+        if ((applied?.channel === 'self' ? 'self' : 'target') !== channel) return false;
+        // 버킷까지 같아야 같은 AE 다(활성화 버킷과 기본 버킷은 공존한다).
+        return (applied?.action || null) === bucketAction;
       });
       if (existingEff) {
         appliedKey = existingEff.getFlag('dx3rd-emanim', 'appliedKey') || appliedKey;
@@ -223,11 +251,18 @@
       const appliedEffect = {
         itemId: item.id,
         channel,
+        action: bucketAction,
         name: item.name,
         img: item.img,
         source: actor.name,
         timestamp: Date.now(),
-        disable: opts.disable ?? item.system.effect?.disable ?? '-',
+        // 수명도 버킷의 것이다. 카드마다 소멸 타이밍을 나눠 저작할 수 있으므로 채널 필드를
+        // 직접 읽으면 다른 카드의 수명으로 사라진다(disable-hooks 는 이 값을 1순위로 본다).
+        disable: opts.disable ?? (adapter
+          ? adapter.bucketLifecycle(item, channel, bucketAction || channelDefault).disable
+          : (channel === 'self'
+            ? (item.system?.active?.disable ?? '-')
+            : (item.system.effect?.disable ?? '-'))),
         description: itemDescription,
         attributes: {}
       };
@@ -295,13 +330,18 @@
      * @param {Actor} actor - 사용 액터(=대상)
      * @param {Item} item - 사용 아이템
      */
-    async applySelfFrozenBuff(actor, item) {
-      const attrs = item.system?.attributes;
+    async applySelfFrozenBuff(actor, item, action = null) {
+      // 항목별 「발현 액션」으로 갈라진 버킷 중, 지금 액션에서 동결할 것만 고른다.
+      // 「활성화」로 저작된 항목은 토글 AE(DX3rdAppliedToggle)가 들고 있으므로 제외된다 —
+      // 여기서 함께 걸면 같은 보정이 두 번 붙는다.
+      const adapter = window.DX3rdItemEffectAdapter;
+      const attrs = adapter
+        ? adapter.selfFrozenAttributes(item, action)
+        : item.system?.attributes;
       if (!attrs || Object.keys(attrs).length === 0) return;
-      await this._applyItemAttributes(actor, item, actor, attrs, {
-        disable: item.system?.active?.disable,
-        channel: 'self'
-      });
+      // 수명(active.disable 또는 그 버킷의 오버라이드)은 _applyItemAttributes 가 버킷에서
+      // 직접 해석한다 — 여기서 채널 값을 못 박으면 버킷별 소멸 타이밍이 무시된다.
+      await this._applyItemAttributes(actor, item, actor, attrs, {channel: 'self'});
     },
 
     /**
@@ -326,13 +366,16 @@
      *   applyMode='onUse' 라서 그대로 두면 동결 AE만 걸리고 active.state 는 꺼진 채 남는다.
      *   시트의 「자신 지속 효과」 표시와 콤보의 지속 판정이 active.state 를 읽으므로,
      *   "활성화" 의미로 발동한 것은 반드시 토글이어야 한다.
+     * opts.action: 지금 발현 액션('use' | 'attack'). 항목별 「발현 액션」으로 갈라진 동결
+     *   버킷 중 어느 것을 걸지 정한다. 넘기지 않으면 활성화가 아닌 항목 전부를 건다(레거시).
      * @param {Actor} actor - 사용 액터(=대상)
      * @param {Item} item
      * @param {Object} [opts]
      * @param {boolean} [opts.forceToggle=false]
+     * @param {string|null} [opts.action=null]
      * @returns {boolean} active.state를 켰으면 true
      */
-    async applySelfModifiers(actor, item, { forceToggle = false } = {}) {
+    async applySelfModifiers(actor, item, { forceToggle = false, action = null } = {}) {
       const active = item.system?.active || {};
       const applyMode = active.applyMode || 'onUse';
       // 토글 타입(effect/spell/psionic/combo)의 자기 보정은 actor.js 자체계산에서 빠지고
@@ -345,18 +388,40 @@
       // 그건 원래 afterSuccess/afterDamage 발동점에서도 마찬가지다(applySelfFrozenBuff 주석 (1)).
       const toggleTypes = window.DX3rdAppliedToggle?.TOGGLE_TYPES || ['effect', 'spell', 'psionic', 'combo'];
       const toggleChannelOnly = toggleTypes.includes(item.type) && !('applyMode' in active);
+      const adapter = window.DX3rdItemEffectAdapter;
+      // 항목별 「발현 액션」 때문에 한 아이템이 활성화 버킷과 동결 버킷을 동시에 가질 수 있다.
+      // 두 버킷은 서로 다른 AE(toggle:<id> / applied_self_<id>)에 저장되고 항목이 겹치지
+      // 않으므로(selfFrozenAttributes / appliesWhileActive) 이중 가산 없이 함께 걸린다.
+      const hasActivationBucket = adapter ? adapter.hasExplicitBucket(item, 'self', 'activation') : false;
       if (!forceToggle && !toggleChannelOnly && applyMode === 'onUse') {
         // active.state 는 '활성화' 채널의 상태다. 동결 채널을 타는 아이템이 그걸 켜고 있으면
         // 잔재다(구버전 장착 훅이 켜 둔 선언형 장비, 시트 체크박스). 그대로 두면 같은 보정이
         // 두 번 센다 — 장비는 actor.js activeItems 자체계산이, 이펙트류는 toggle:<id> AE 가
         // 각각 더하는데 여기서 동결 AE 까지 걸리기 때문이다. 켜져 있으면 내리고 건다.
-        if (item.system?.active?.state === true) {
+        // 단 「활성화」로 저작된 항목이 섞여 있으면 그 버킷의 상태가 곧 active.state 다 —
+        // 내리면 그쪽이 죽는다.
+        if (item.system?.active?.state === true && !hasActivationBucket) {
           await item.update({ 'system.active.state': false });
         }
-        await this.applySelfFrozenBuff(actor, item);
+        await this.applySelfFrozenBuff(actor, item, action);
+        return false;
+      }
+      // 토글 채널이라도 **이 액션에 토글 버킷이 없으면** 상태를 건드리지 않는다. 예: 상시
+      // 무기(applyMode='toggle')에 「공격 시」 보정을 저작한 경우 — 여기서 state 를 켜면
+      // 장착 중 상시 버킷이 공격만으로 함께 터지고, 장비는 장착이 상태의 원본이라 표시도
+      // 어긋난다. 걸 것은 그 액션의 동결 버킷뿐이다.
+      // forceToggle 은 호출부가 "이 발동은 활성화를 포함한다"고 이미 판정한 것이므로 예외다
+      // (useMeansActivation — 상시 이펙트를 직접 사용해 켜는 경로).
+      if (!forceToggle && !(adapter?.selfToggleBucketMatches?.(item, action) ?? true)) {
+        await this.applySelfFrozenBuff(actor, item, action);
         return false;
       }
       await item.update({ 'system.active.state': true });
+      // 토글 채널이어도 「사용/공격 시」로 저작된 항목은 토글 AE 에 들어가지 않으므로
+      // 여기서 동결로 걸어 준다(명시 저작 항목만 → 미지정 항목과 겹치지 않는다).
+      if (adapter?.hasFrozenSelfBucket?.(item, action)) {
+        await this.applySelfFrozenBuff(actor, item, action);
+      }
       return true;
     },
 

@@ -785,10 +785,34 @@
     return window.DX3rdFormulaEvaluator?.evaluate(value, sourceItem, actor) || fallback;
   }
 
-  function forEachMainAttribute(attributes, callback) {
+  /**
+   * 항목별 「발현 액션」이 이 아이템의 발동 액션에서 걸리는가(미리보기 합산용).
+   * 콤보로 쓰면 구성 이펙트의 활성화 버킷도 그 자리에서 켜지므로 함께 세지만, 「사용 시」로만
+   * 저작된 버킷을 공격 콤보의 미리보기에까지 더하면 실제 적용값보다 높게 보인다.
+   */
+  function bucketFilter(sourceItem, channel) {
+    const adapter = window.DX3rdItemEffectAdapter;
+    if (!adapter || !sourceItem) return () => true;
+    const action = adapter.invocationAction(sourceItem);
+    const fallback = adapter.channelAction(sourceItem, channel);
+    const split = ['use', 'attack'].some(candidate => adapter.hasExplicitBucket(sourceItem, channel, candidate));
+    return entry => {
+      const explicit = entry?.action;
+      if (!explicit || !adapter.ACTIONS.has(explicit)) {
+        // 미지정 = 채널 기본 버킷. 채널을 나눈 아이템에서는 그 기본 버킷의 발현 액션에서만
+        // 센다(selfFrozenAttributes 의 같은 규칙). 안 맞추면 미리보기가 실제 적용값보다 높다.
+        return !split || fallback === action || fallback === 'activation';
+      }
+      return explicit === 'activation' || explicit === action;
+    };
+  }
+
+  function forEachMainAttribute(attributes, callback, sourceItem = null) {
     if (!attributes) return;
+    const includes = bucketFilter(sourceItem, 'self');
     for (const attrData of Object.values(attributes)) {
       if (!attrData || !attrData.key || !attrData.value) continue;
+      if (!includes(attrData)) continue;
       callback({
         key: attrData.key,
         label: attrData.label,
@@ -797,9 +821,11 @@
     }
   }
 
-  function forEachEffectAttribute(attributes, callback) {
+  function forEachEffectAttribute(attributes, callback, sourceItem = null) {
     if (!attributes) return;
+    const includes = bucketFilter(sourceItem, 'target');
     for (const [attrName, attrValue] of Object.entries(attributes)) {
+      if (attrValue && typeof attrValue === 'object' && !includes(attrValue)) continue;
       const key = (typeof attrValue === 'object' && attrValue.key) ? attrValue.key : attrName;
       const label = (typeof attrValue === 'object' && attrValue.label) ? attrValue.label :
         (typeof attrName === 'string' && attrName.includes(':')) ? attrName.split(':')[1] : '';
@@ -864,7 +890,7 @@
         actor,
         ...rollContext
       });
-    });
+    }, sourceItem);
   }
 
   function addEffectAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext) {
@@ -877,7 +903,7 @@
         actor,
         ...rollContext
       });
-    });
+    }, sourceItem);
   }
 
   function createRollBonus(criticalMin) {
@@ -1052,7 +1078,7 @@
 
       const bonusValue = window.DX3rdFormulaEvaluator?.evaluate(value, item, actor) || 0;
       attackBonus += Number(bonusValue) || 0;
-    });
+    }, item);
 
     return attackBonus;
   }
@@ -1065,7 +1091,7 @@
       if (!matchesAttackLabel(label, attackRoll, true)) return;
 
       attackBonus += Number(evaluateAttributeValue(value, item, actor, 0)) || 0;
-    });
+    }, item);
 
     return attackBonus;
   }

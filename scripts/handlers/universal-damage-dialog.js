@@ -563,7 +563,11 @@
         const activeActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterDamage');
         const targetActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterDamage');
         const shouldActivate = !isCombo && activeActionMatches && (item.system.active?.runTiming === 'afterDamage' && !item.system.active?.state && activeDisable !== 'notCheck');
-        const shouldApplyToTargets = !isCombo && targetActionMatches && (item.system.effect?.runTiming === 'afterDamage');
+        // 데미지 적용 후에 걸 대상 보정이 있는가. 채널 필드(effect.runTiming)가 아니라
+        // 「공격 시」 버킷 자기 타이밍을 본다 — 카드마다 발현 타이밍을 나눠 저작할 수 있다.
+        const shouldApplyToTargets = !isCombo && targetActionMatches && (window.DX3rdItemEffectAdapter
+          ? window.DX3rdItemEffectAdapter.targetFiresAt(item, 'attack', 'afterDamage')
+          : item.system.effect?.runTiming === 'afterDamage');
         const hasAfterDamageEmbeddedMacro = (item.system?.macros || []).some(macro =>
           !macro.disabled && macro.timing === 'afterDamage' &&
           (!window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.macroActionMatches(item, macro, 'attack', 'afterDamage'))
@@ -1793,7 +1797,10 @@
           for (const targetId of damagedTargets) {
             const targetActor = game.actors.get(targetId);
             if (targetActor) {
-              const targetAttributes = item.system.effect?.attributes || {};
+              // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+              const targetAttributes = window.DX3rdItemEffectAdapter
+                ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+                : (item.system.effect?.attributes || {});
               
               if (game.user.isGM) {
                 // GM이면 직접 적용
@@ -1915,7 +1922,10 @@
         for (const targetId of damagedTargets) {
           const targetActor = game.actors.get(targetId);
           if (targetActor) {
-            const targetAttributes = item.system.effect?.attributes || {};
+            // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+            const targetAttributes = window.DX3rdItemEffectAdapter
+              ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+              : (item.system.effect?.attributes || {});
             
             if (game.user.isGM) {
               // GM이면 직접 적용

@@ -1181,7 +1181,8 @@ function equipmentHookContext() {
     foundry: {
       utils: {
         deepClone: value => structuredClone(value),
-        getProperty: (object, path) => path.split('.').reduce((node, key) => node?.[key], object)
+        getProperty: (object, path) => path.split('.').reduce((node, key) => node?.[key], object),
+        randomID: (() => { let seq = 0; return () => `k${++seq}`; })()
       }
     }
   });
@@ -1386,6 +1387,406 @@ test('the applied payload keeps its channel through the flag whitelist', () => {
 
   const target = context.DX3rdAppliedEffects.buildAEData({ id: 'a1' }, 'applied_i1', { itemId: 'i1' });
   assert.equal(target.flags['dx3rd-emanim'].applied.channel, 'target', '미기재는 대상 채널로 본다');
+
+  // 버킷(발현 액션)도 화이트리스트를 통과해야 한다 — 빠지면 활성화 버킷과 기본 버킷이
+  // 같은 AE 로 취급돼 나중에 걸린 쪽이 앞의 것을 지운다.
+  const activation = context.DX3rdAppliedEffects.buildAEData({ id: 'a1' }, 'applied_act_i1', {
+    itemId: 'i1', action: 'activation'
+  });
+  assert.equal(activation.flags['dx3rd-emanim'].applied.action, 'activation');
+  assert.equal(target.flags['dx3rd-emanim'].applied.action, null, '미기재는 기본 버킷이다');
+});
+
+// --- 항목별 발현 액션(지속 효과 보정 버킷) ---
+
+/** 자기/대상 보정 행에 action 을 저작한 이펙트 하나. */
+function bucketItem(overrides = {}) {
+  const item = {
+    id: 'i1', name: '이펙트', img: 'x.png', type: 'effect',
+    getFlag: () => ({}),
+    system: {
+      timing: 'major', getTarget: true,
+      attributes: {},
+      effect: { disable: 'scene', runTiming: 'instant', attributes: {} },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' },
+      ...overrides
+    },
+    // 카드의 축을 바꾸는 어댑터 함수는 실제로 문서를 갱신한다. Foundry 의 평탄 경로 갱신 중
+    // 이 코드가 쓰는 두 형태(경로 설정 / `-=키` 삭제)만 흉내낸다.
+    async update(changes) {
+      for (const [path, value] of Object.entries(changes || {})) {
+        const keys = path.split('.');
+        const last = keys.pop();
+        let node = item;
+        for (const key of keys) {
+          node[key] ??= {};
+          node = node[key];
+        }
+        if (last.startsWith('-=')) delete node[last.slice(2)];
+        else node[last] = value;
+      }
+      return item;
+    }
+  };
+  return item;
+}
+
+test('one channel can hold several apply-action buckets, one card each', () => {
+  const { adapter } = equipmentHookContext();
+  const item = bucketItem({
+    attributes: {
+      a0: { key: 'add', value: '2' },                          // 미지정 → 채널 기본(사용)
+      a1: { key: 'dice', value: '1', action: 'activation' },   // 활성화 버킷
+      a2: { key: 'attack', value: '3', action: 'attack' }      // 공격 버킷
+    }
+  });
+  const cards = adapter.prepareSheetContext(item).modifierCards;
+  // 표시 순서는 활성화 → 사용 → 공격. 기본 버킷만 레거시 id 를 유지한다.
+  assert.deepEqual(plain(cards.map(card => card.id)),
+    ['modifiers.self@activation', 'modifiers.self', 'modifiers.self@attack']);
+  assert.deepEqual(plain(cards.map(card => card.action)), ['activation', 'use', 'attack']);
+  assert.deepEqual(plain(cards.map(card => card.count)), [1, 1, 1]);
+  // 켜고 끌 토글은 활성화 버킷에만 있다.
+  assert.deepEqual(plain(cards.map(card => card.toggleable)), [true, false, false]);
+  // 활성화 버킷을 저작하면 그 아이템에는 켜고 끌 상태가 필요하다(채널 기본이 동결이어도).
+  assert.equal(adapter.usesActivationSelfChannel(item), true);
+});
+
+test('each bucket pane carries only its own rows', () => {
+  const { adapter } = equipmentHookContext();
+  // 카드를 발현 액션별로 갈라 놓고 행 목록을 한 벌 공유하면, 「활성화」 카드를 열어도
+  // 「사용 시」 카드의 행이 그대로 실려 카드를 나눈 의미가 사라진다.
+  const item = bucketItem({
+    attributes: {
+      a0: { key: 'add', value: '2' },                          // 사용(채널 기본)
+      a1: { key: 'dice', value: '1', action: 'activation' }     // 활성화
+    },
+    effect: { disable: 'scene', runTiming: 'afterSuccess', attributes: { b0: { key: 'add', value: '1' } } }
+  });
+  const panes = adapter.prepareSheetContext(item).modifierOverview.buckets;
+  const rowsOf = id => (panes.find(pane => pane.id === id)?.rows || []).map(row => row.key);
+  assert.deepEqual(plain(rowsOf('modifiers.self@activation')), ['a1']);
+  assert.deepEqual(plain(rowsOf('modifiers.self')), ['a0']);
+  assert.deepEqual(plain(rowsOf('modifiers.target')), ['b0']);
+  // 행에는 소속을 고르는 드롭다운이 없다 — 축(적용 대상 · 발현 액션)은 카드가 정한다.
+  const activationRow = panes.find(pane => pane.id === 'modifiers.self@activation').rows[0];
+  assert.equal(activationRow.bucketOptions, undefined);
+  // 그 두 축은 카드가 둘 다 들고 있어야 한다(시트 카드의 드롭다운 두 개).
+  const cards = adapter.prepareSheetContext(item).modifierCards;
+  const activationCard = cards.find(card => card.id === 'modifiers.self@activation');
+  assert.equal(activationCard.channel, 'self');
+  assert.equal(plain(activationCard.channelOptions.map(option => option.value)).join(','), 'self,target');
+  assert.equal(plain(activationCard.actionOptions.map(option => option.value)).join(','),
+    'activation,use,attack');
+});
+
+test('the extend dialog pane does not re-offer the card axes', () => {
+  // 카드는 「사용 시」인데 페인 안쪽은 「활성화」로 보이는 불일치가 실제로 났다: 같은 축을 두
+  // 군데서 그리면 한쪽이 틀려도 알 수 없고(여기서는 블록 파라미터를 ../bucket.action 으로 잘못
+  // 짚어 어느 항목도 selected 가 아니었다 → 브라우저가 첫 항목을 보여 준다), 고쳐 놓아도
+  // 축을 두 번 고르게 하는 구조는 그대로다. 페인에는 그 축의 UI 를 아예 두지 않는다.
+  const template = source('templates/dialog/item-extend-dialog.html');
+  assert.equal(template.includes('modifier-action-binding'), false,
+    '확장 도구 페인에 발현 액션 드롭다운을 되살리지 말 것 — 시트 카드가 그 축의 주인이다');
+  assert.equal(template.includes('modifier-bucket-select'), false,
+    '버킷 스위처를 되살리지 말 것');
+  // 편집 중인 버킷을 알리는 이름표는 그래서 필수다(축 UI 가 없으므로 유일한 표시).
+  assert.match(template, /dx3rd-modifier-config-title/);
+  // 블록 파라미터를 부모 컨텍스트로 짚는 실수는 조용히 틀린 값을 그린다 — 템플릿 전체에서 금지.
+  assert.equal(/\.\.\/(bucket|card|row)\./.test(template), false,
+    '블록 파라미터는 중첩 each 안에서도 그대로 보인다 — ../ 로 짚지 말 것');
+});
+
+test('switching a card channel moves that bucket\'s rows, not the whole channel', async () => {
+  const { adapter } = equipmentHookContext();
+  // 적용 대상은 데이터가 사는 자리 그 자체다 — 카드의 축을 바꾸면 그 카드의 행만 옮겨야
+  // 하고, 같은 채널의 다른 버킷(여기서는 기본 버킷 a0)은 제자리에 남아야 한다.
+  const item = bucketItem({
+    attributes: {
+      a0: { key: 'add', value: '2' },                          // 자신 · 사용(채널 기본)
+      a1: { key: 'dice', value: '1', action: 'activation' }     // 자신 · 활성화
+    },
+    effect: { disable: 'scene', runTiming: 'afterSuccess', attributes: {} }
+  });
+  const moved = await adapter.updateModifierChannel(item, 'modifiers.self@activation', 'target');
+  assert.equal(moved.merged, false);
+  assert.equal(Object.keys(item.system.attributes).join(','), 'a0');
+  const targetRows = Object.values(item.system.effect.attributes);
+  assert.equal(targetRows.length, 1);
+  assert.equal(targetRows[0].key, 'dice');
+  // 대상 채널의 기본 액션이 아니면 명시 태그로 남아야 그 버킷이 유지된다.
+  const targetAction = adapter.channelAction(item, 'target');
+  assert.equal(targetRows[0].action, targetAction === 'activation' ? '' : 'activation');
+  // 비운 명시 버킷의 수명 오버라이드는 주인이 없다 — 남겨 두면 다시 그 액션을 쓸 때 되살아난다.
+  assert.equal(item.system.active?.buckets?.activation, undefined);
+});
+
+test('a modifier row without an authored action keeps following its channel', () => {
+  const { adapter } = equipmentHookContext();
+  const legacy = bucketItem({ attributes: { a0: { key: 'add', value: '2' } } });
+  // 레거시 데이터(action 필드 없음)는 지금까지처럼 채널 하나 = 카드 하나다.
+  assert.deepEqual(plain(adapter.prepareSheetContext(legacy).modifierCards.map(card => card.id)),
+    ['modifiers.self']);
+  assert.equal(adapter.usesActivationSelfChannel(legacy), false);
+  // 동결 채널이므로 사용/공격 어느 쪽으로 발동해도 걸린다(무기 모드 메뉴의 「사용」 등).
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(legacy, 'use')), ['a0']);
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(legacy, 'attack')), ['a0']);
+  // 상태가 켜져 있는 동안 세는 규칙도 그대로다(rois/connection 의 자체계산 보존).
+  assert.equal(adapter.appliesWhileActive(legacy, legacy.system.attributes.a0), true);
+});
+
+test('activation and frozen buckets partition the rows, never share one', () => {
+  const { adapter } = equipmentHookContext();
+  // 채널 기본이 '활성화'(상시 이펙트)인데 한 행만 「사용 시」로 저작한 경우.
+  const mixed = bucketItem({
+    timing: 'always',
+    attributes: {
+      a0: { key: 'add', value: '2' },                     // 미지정 → 활성화(토글 AE)
+      a1: { key: 'dice', value: '1', action: 'use' }       // 사용 시(동결 AE)
+    },
+    effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }
+  });
+  assert.equal(adapter.selfChannelIsToggle(mixed), true);
+  // 동결 버킷에는 명시 저작 행만 들어간다 — 미지정 행이 함께 들어가면 토글 AE 와
+  // 이중 가산된다.
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(mixed, 'use')), ['a1']);
+  // 토글/자체계산 쪽은 그 반대다.
+  assert.equal(adapter.appliesWhileActive(mixed, mixed.system.attributes.a0), true);
+  assert.equal(adapter.appliesWhileActive(mixed, mixed.system.attributes.a1), false);
+
+  // 반대 방향: 채널 기본이 동결인데 한 행만 「활성화」로 저작한 경우.
+  const declared = bucketItem({
+    attributes: {
+      a0: { key: 'add', value: '2' },                            // 미지정 → 동결
+      a1: { key: 'dice', value: '1', action: 'activation' }       // 활성화(토글 AE)
+    }
+  });
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(declared, 'use')), ['a0']);
+  assert.equal(adapter.appliesWhileActive(declared, declared.system.attributes.a0), false,
+    '동결 AE 가 들고 있는 행을 자체계산에서 또 세면 이중 가산이다');
+  assert.equal(adapter.appliesWhileActive(declared, declared.system.attributes.a1), true);
+});
+
+test('an authored bucket action passes the channel gate it does not match', () => {
+  const { adapter } = equipmentHookContext();
+  // 대상 보정 채널의 기본은 '사용'(비공격 이펙트)인데 한 행을 「활성화」로 저작했다.
+  const item = bucketItem({
+    effect: {
+      disable: 'scene', runTiming: 'instant',
+      attributes: {
+        b0: { key: 'add', value: '1' },                           // 사용 시
+        b1: { key: 'dice', value: '2', action: 'activation' }      // 활성화 시
+      }
+    }
+  });
+  assert.equal(adapter.targetActionMatches(item, 'use'), true);
+  assert.equal(adapter.targetActionMatches(item, 'activation'), true,
+    '명시 저작한 버킷이 채널 게이트에서 막히면 저작이 아무 일도 못 한다');
+  assert.deepEqual(Object.keys(adapter.targetBucketAttributes(item, 'use')), ['b0']);
+  assert.deepEqual(Object.keys(adapter.targetBucketAttributes(item, 'activation')), ['b1']);
+
+  // 저작이 전혀 없는 아이템은 지금까지처럼 채널 게이트만 본다.
+  const legacy = bucketItem({
+    effect: { disable: 'scene', runTiming: 'instant', attributes: { b0: { key: 'add', value: '1' } } }
+  });
+  assert.equal(adapter.targetActionMatches(legacy, 'activation'), false);
+});
+
+test('an item with both buckets toggles and freezes in one use, without double counting', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  // 어댑터를 같은 컨텍스트에 실어, 실제 런타임처럼 apply 경로가 버킷 판정을 위임하게 한다.
+  context.Hooks = { once: () => {}, on: () => {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+  const adapter = context.DX3rdItemEffectAdapter;
+
+  const updates = [];
+  const actor = { id: 'a1', name: '시전자', isOwner: true, effects: [] };
+  const item = {
+    id: 'i1', name: '이펙트', img: 'x.png', type: 'effect', actor,
+    getFlag: () => ({}),
+    system: {
+      timing: 'always',
+      attributes: {
+        a0: { key: 'add', value: '2' },                        // 미지정 → 활성화(토글 AE)
+        a1: { key: 'attack', value: '3', action: 'use' }        // 사용 시(동결 AE)
+      },
+      effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' }
+    },
+    update: data => { updates.push(data); Object.assign(item.system.active, data['system.active.state'] !== undefined ? { state: data['system.active.state'] } : {}); return true; }
+  };
+
+  const toggled = await handler.applySelfModifiers(actor, item, { forceToggle: true, action: 'use' });
+  assert.equal(toggled, true, '활성화 버킷이 있으면 토글이어야 한다');
+  assert.deepEqual(plain(updates), [{ 'system.active.state': true }]);
+  // 동결 AE 에는 「사용 시」로 저작한 행만 들어간다. 미지정 행은 토글 AE 쪽이다 —
+  // 둘 다 걸리면 같은 보정이 두 번 센다.
+  assert.equal(writes.length, 1, '동결 버킷도 함께 걸려야 한다');
+  // 채널 기본이 아닌 버킷은 키에 자기 액션을 달고 나온다 — 한 채널에 동결 버킷이 둘
+  // (선언 시/공격 시) 있을 수 있고, 키를 공유하면 나중 것이 앞의 것을 지운다.
+  assert.equal(writes[0].key, 'applied_self_use_i1');
+  assert.deepEqual(Object.keys(plain(writes[0].payload.attributes)), ['attack'],
+    '사용 버킷의 보정만 동결된다');
+  assert.equal(adapter.appliesWhileActive(item, item.system.attributes.a1), false);
+});
+
+test('an attack bucket on an always-on weapon does not switch the equipped bucket on', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  context.Hooks = { once: () => {}, on: () => {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+
+  const updates = [];
+  const actor = { id: 'a1', name: '시전자', isOwner: true, effects: [] };
+  // 상시 무기(장착이 상태의 원본)에 「공격 시」 보정을 저작한 경우.
+  const item = {
+    id: 'w1', name: '무기', img: 'x.png', type: 'weapon', actor,
+    getFlag: () => ({}),
+    system: {
+      equipment: true,
+      attributes: {
+        a0: { key: 'add', value: '1' },                            // 미지정 → 장착 중 상시(토글)
+        a1: { key: 'attack', value: '2', action: 'attack' }          // 그 무기로 공격할 때
+      },
+      effect: { attributes: {} },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'toggle' }
+    },
+    update: data => { updates.push(data); return true; }
+  };
+
+  const toggled = await handler.applySelfModifiers(actor, item, { action: 'attack' });
+  assert.equal(toggled, false, '공격 버킷은 토글이 아니라 동결이다');
+  assert.deepEqual(plain(updates), [],
+    '공격으로 state 를 켜면 장착 중 상시 버킷이 함께 터지고 장착 표시와도 어긋난다');
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].key, 'applied_self_atk_w1');
+  assert.deepEqual(Object.keys(plain(writes[0].payload.attributes)), ['attack'],
+    '공격 버킷의 보정만 걸린다 — 미지정 행은 토글 AE 쪽이다');
+});
+
+test('moving a bucket action retags only that bucket, and merges when it meets the default', async () => {
+  const { adapter } = equipmentHookContext();
+  const updates = [];
+  const item = bucketItem({
+    attributes: {
+      a0: { key: 'add', value: '2' },
+      a1: { key: 'dice', value: '1', action: 'attack' }
+    }
+  });
+  item.update = data => { updates.push(data); return true; };
+
+  // 명시 버킷을 옮기면 그 행만 바뀐다(채널은 건드리지 않는다). 그 버킷이 들고 있던
+  // 수명(발현·소멸 타이밍)은 새 자리로 따라간다 — 액션만 바꿨는데 타이밍이 채널 기본으로
+  // 되돌아가면 카드가 조용히 다른 시점에 걸린다.
+  await adapter.updateAction(item, 'modifiers.self@attack', 'activation');
+  assert.deepEqual(plain(Object.assign({}, ...updates.splice(0))), {
+    'system.attributes.a1.action': 'activation',
+    'system.active.buckets.activation.disable': 'major'
+  });
+
+  // 새 액션이 채널 기본과 같아지면 명시를 지워 기본 버킷으로 합친다
+  // (같은 액션의 카드가 두 장으로 갈라지지 않게). 합쳐진 뒤의 수명 주인은 채널 필드다.
+  item.system.attributes.a1.action = 'attack';
+  await adapter.updateAction(item, 'modifiers.self@attack', 'use');
+  assert.deepEqual(plain(Object.assign({}, ...updates.splice(0))), { 'system.attributes.a1.action': '' });
+
+  // 기본 버킷을 옮기면 채널 자체가 옮겨진다(지금까지의 동작).
+  await adapter.updateAction(item, 'modifiers.self', 'activation');
+  const channelMove = plain(updates.pop());
+  assert.equal(channelMove['system.active.action'], 'activation');
+  assert.equal(channelMove['system.active.applyMode'], 'toggle');
+});
+
+test('each bucket owns its apply timing, so neither of them is dead on arrival', () => {
+  const { adapter } = equipmentHookContext();
+  // 대상 채널의 기본 버킷은 즉시(사용 시), 공격 버킷은 데미지 적용 후로 저작했다.
+  const item = bucketItem({
+    effect: {
+      disable: 'scene', runTiming: 'instant',
+      buckets: { attack: { runTiming: 'afterDamage', disable: 'round' } },
+      attributes: {
+        b0: { key: 'add', value: '1' },
+        b1: { key: 'dice', value: '2', action: 'attack' }
+      }
+    }
+  });
+  // 발현 타이밍은 버킷마다 다르다. 채널 필드 하나로 게이트를 걸면 둘 중 하나는 어느
+  // 발현점에도 걸리지 못하고 조용히 죽는다.
+  assert.equal(adapter.bucketLifecycle(item, 'target', 'use').runTiming, 'instant');
+  assert.equal(adapter.bucketLifecycle(item, 'target', 'attack').runTiming, 'afterDamage');
+  assert.equal(adapter.targetFiresAt(item, 'use', 'instant'), true);
+  assert.equal(adapter.targetFiresAt(item, 'attack', 'afterDamage'), true);
+  assert.equal(adapter.targetFiresAt(item, 'attack', 'instant'), false);
+  // 소멸 타이밍도 버킷의 것이다(기본 버킷은 채널 필드를 그대로 상속).
+  assert.equal(adapter.bucketLifecycle(item, 'target', 'use').disable, 'scene');
+  assert.equal(adapter.bucketLifecycle(item, 'target', 'attack').disable, 'round');
+  // 카드는 자기 수명 필드 경로를 들고 있다 — 기본 버킷은 채널, 명시 버킷은 buckets.<액션>.
+  const cards = adapter.prepareSheetContext(item).modifierCards;
+  assert.deepEqual(plain(cards.map(card => card.disableName)),
+    ['system.effect.disable', 'system.effect.buckets.attack.disable']);
+  // 발현 타이밍이 다르면 대상도 달라진다(데미지 적용 후 = 데미지 받은 대상).
+  assert.deepEqual(plain(cards.map(card => card.target)), ['targetToken', 'damagedTargets']);
+  // 명시 버킷 카드만 지울 수 있다(기본 버킷을 지우면 미지정 행이 통째로 사라진다).
+  assert.deepEqual(plain(cards.map(card => card.deletable)), [false, true]);
+});
+
+test('a use bucket and an attack bucket never share one applied effect', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  context.Hooks = { once: () => {}, on: () => {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+
+  // 무기는 판정 다이얼로그의 선언(action:'use')과 그 무기로 공격(action:'attack')이 둘 다
+  // 발현점이다. 키를 공유하면 공격 적용이 선언 적용을 덮어써 지운다.
+  const actor = { id: 'a1', name: '시전자', isOwner: true, effects: [] };
+  const item = {
+    id: 'i1', name: '이펙트', img: 'x.png', type: 'effect', actor, getFlag: () => ({}),
+    system: {
+      timing: 'major',
+      attributes: {
+        a0: { key: 'guard', value: '5' },                       // 미지정 → 채널 기본(사용)
+        a1: { key: 'attack', value: '3', action: 'attack' }      // 공격 시
+      },
+      effect: { disable: 'notCheck', attributes: {} },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' }
+    }
+  };
+
+  await handler.applySelfFrozenBuff(actor, item, 'use');
+  const declared = writes[0];
+  actor.effects.push({ getFlag: (_s, field) => (field === 'appliedKey' ? declared.key : declared.payload) });
+  await handler.applySelfFrozenBuff(actor, item, 'attack');
+
+  assert.equal(declared.key, 'applied_self_i1', '채널 기본 버킷은 레거시 키를 유지한다');
+  assert.equal(writes[1].key, 'applied_self_atk_i1');
+  assert.deepEqual(Object.keys(plain(declared.payload.attributes)), ['guard']);
+  assert.deepEqual(Object.keys(plain(writes[1].payload.attributes)), ['attack']);
+  assert.equal(writes[1].payload.action, 'attack', '버킷 판별자가 페이로드에 실려야 소멸 훅이 찾는다');
+});
+
+test('adding a persistent modifier card claims the next free bucket', async () => {
+  const { adapter } = equipmentHookContext();
+  const updates = [];
+  const item = bucketItem({ attributes: {} });
+  item.update = data => {
+    updates.push(data);
+    for (const [path, value] of Object.entries(data)) {
+      if (path.startsWith('system.attributes.')) item.system.attributes[path.split('.')[2]] = value;
+    }
+    return true;
+  };
+
+  // 첫 장은 비어 있는 채널 기본 버킷에 들어간다(지금까지의 "보정 한 줄 추가" 흐름).
+  assert.equal(await adapter.addModifierBucket(item, 'self'), 'modifiers.self');
+  assert.equal(Object.values(item.system.attributes)[0].action, '');
+
+  // 두 번째부터는 아직 안 쓰는 발현 액션으로 새 카드가 생기고, 수명을 채널에서 물려받는다.
+  const second = await adapter.addModifierBucket(item, 'self');
+  assert.equal(second, 'modifiers.self@activation');
+  const seeded = updates.pop();
+  assert.equal(seeded['system.active.buckets.activation.disable'], 'major');
+  assert.equal(Object.values(item.system.attributes).filter(attr => attr.action === 'activation').length, 1);
 });
 
 // --- 선언형 장비(사용 시 발동) 저작 지원 ---
@@ -1430,13 +1831,30 @@ test('an authored on-use weapon fires on its declaration, not on every attack', 
   assert.equal(adapter.hasActionEffects(makeItem(inferred, { key: 'attack', value: '+10' }), 'attack'), false,
     '공격만으로 선언형 보정이 붙으면 쓸지 말지 고를 자리가 없다');
 
-  // 「공격」으로 저작해 두었어도 선언으로 접는다 — 장비의 자기 보정에 그 갈래는 없다.
-  const authoredAttack = { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: 'attack' };
-  assert.equal(build(authoredAttack).modifierCards[0].action, 'use');
-  // 그러니 시트에서도 고를 수 없어야 한다. 남겨 두면 표시와 동작이 어긋난 채로 남는다.
+  // 「공격 시」는 선언과 다른 갈래다(그 무기로 공격할 때 자동). 명시 저작은 존중한다.
   // (vm 렐름 배열이라 deepEqual 은 구조가 같아도 실패한다 — 문자열로 본다.)
+  const authoredAttack = { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: 'attack' };
+  assert.equal(build(authoredAttack).modifierCards[0].action, 'attack');
   assert.equal(build(authoredAttack).modifierCards[0].actionOptions.map(o => o.value).join(','),
-    'activation,use');
+    'activation,use,attack');
+  // 하지만 그건 저작을 옮겼기 때문이다. 선언형(②)은 「공격 시」 버킷이 같은 아이템에 생겨도
+  // 공격으로 자동 발동하지 않는다 — 그 선택이 이 계열 장비의 전부다.
+  const split = {
+    type: 'weapon',
+    system: {
+      attributes: {
+        a0: { key: 'add', value: '+5' },                          // 미지정 → 선언(채널 기본 'use')
+        a1: { key: 'attack', value: '+2', action: 'attack' }        // 그 무기로 공격할 때 자동
+      },
+      effect: { attributes: {} },
+      active: { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse' }
+    },
+    getFlag: () => ({})
+  };
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(split, 'attack')), ['a1'],
+    '공격만으로 선언형 보정까지 걸리면 회수를 쓸지 고를 자리가 없다');
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(split, 'use')), ['a0'],
+    '선언은 선언 버킷만 건다');
 
   // 저작이 없는 기존 장비는 그대로 상시(장착이 상태의 원본)여야 한다.
   const legacy = build({ state: false, disable: 'scene', runTiming: 'instant' }).modifierCards[0];
