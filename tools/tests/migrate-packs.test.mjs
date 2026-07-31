@@ -123,6 +123,120 @@ test("migrate-packs", { skip: hasReader ? false : "ClassicLevel 없음(FOUNDRY_A
     assert.equal(after.size, 4);
   });
 
+  await t.test("ctx.delete 는 지정 문서만 백업 가능한 삭제로 제거한다", async () => {
+    const { root, packDir } = await makeFixture();
+    const script = writeMigration(root, "delete-duplicate.mjs", `
+export const description = "확인된 중복 문서 제거";
+export const packs = ["weapons"];
+export function migrate(doc, ctx) {
+  if (doc._id === "bbbbbbbbbbbbbbbb") ctx.delete();
+}
+`);
+
+    const dry = run(root, ["--script", script]);
+    assert.equal(dry.code, 0, dry.stderr);
+    assert.match(dry.stdout, /테스트 총: \$document/);
+    assert.ok((await readPack(packDir)).has("!items!bbbbbbbbbbbbbbbb"), "dry-run 은 삭제하지 않는다");
+
+    const done = run(root, ["--script", script, "--apply", "--confirm-live-pack"]);
+    assert.equal(done.code, 0, done.stderr);
+    const after = await readPack(packDir);
+    assert.ok(!after.has("!items!bbbbbbbbbbbbbbbb"));
+    assert.ok(after.has("!items!aaaaaaaaaaaaaaaa"));
+    assert.ok(after.has("!items!cccccccccccccccc"));
+    assert.equal(after.size, 3);
+    assert.match(done.stdout, /1건 기록/);
+  });
+
+  await t.test("create(ctx)는 신규 아이템을 dry-run·백업·멱등성 경로로 생성한다", async () => {
+    const { root, packDir } = await makeFixture();
+    const script = writeMigration(root, "create.mjs", `
+export const description = "신규 아이템 생성";
+export const packs = ["weapons"];
+export function create(ctx) {
+  ctx.item({
+    _id: "eeeeeeeeeeeeeeee",
+    name: "신규 무기",
+    type: "weapon",
+    system: { attack: 9 }
+  });
+}
+`);
+
+    const dry = run(root, ["--script", script]);
+    assert.equal(dry.code, 0, dry.stderr);
+    assert.match(dry.stdout, /weapons: 3건 검사 \/ 1건 변경/);
+    assert.match(dry.stdout, /신규 무기: \$document/);
+    assert.ok(!(await readPack(packDir)).has("!items!eeeeeeeeeeeeeeee"));
+
+    const done = run(root, ["--script", script, "--apply", "--confirm-live-pack"]);
+    assert.equal(done.code, 0, done.stderr);
+    assert.equal((await readPack(packDir)).get("!items!eeeeeeeeeeeeeeee").system.attack, 9);
+
+    const again = run(root, ["--script", script]);
+    assert.equal(again.code, 0, again.stderr);
+    assert.match(again.stdout, /0건 변경/);
+  });
+
+  await t.test("create(ctx)는 16자리 ID와 완전한 아이템 문서를 요구한다", async () => {
+    const { root, packDir } = await makeFixture();
+    const script = writeMigration(root, "invalid-create.mjs", `
+export const description = "잘못된 신규 아이템";
+export const packs = ["weapons"];
+export function create(ctx) {
+  ctx.item({ _id: "short", name: "불완전", type: "weapon" });
+}
+`);
+    const r = run(root, ["--script", script, "--apply", "--confirm-live-pack"]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /_id 는 16자리 영숫자/);
+    assert.equal((await readPack(packDir)).size, 4);
+    assert.ok(!fs.existsSync(path.join(root, "dist", "pack-backups")));
+  });
+
+  await t.test("create(ctx)는 기존 키의 다른 문서를 쓰기 전에 거부한다", async () => {
+    const { root, packDir } = await makeFixture();
+    const script = writeMigration(root, "colliding-create.mjs", `
+export const description = "충돌하는 신규 아이템";
+export const packs = ["weapons"];
+export function create(ctx) {
+  ctx.item({
+    _id: "aaaaaaaaaaaaaaaa",
+    name: "기존 ID를 가로채는 무기",
+    type: "weapon",
+    system: { attack: 999 }
+  });
+}
+`);
+    const r = run(root, ["--script", script, "--apply", "--confirm-live-pack"]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /이미 다른 문서에 쓰이고 있다/);
+    assert.equal((await readPack(packDir)).get("!items!aaaaaaaaaaaaaaaa").name, "테스트 검");
+    assert.ok(!fs.existsSync(path.join(root, "dist", "pack-backups")));
+  });
+
+  await t.test("기록할 때마다 다른 문서를 만드는 create(ctx)를 멱등성 검증이 잡는다", async () => {
+    const { root } = await makeFixture();
+    const script = writeMigration(root, "unstable-create.mjs", `
+export const description = "호출마다 다른 신규 아이템";
+export const packs = ["weapons"];
+let call = 0;
+export function create(ctx) {
+  call++;
+  ctx.item({
+    _id: call === 1 ? "eeeeeeeeeeeeeeee" : "ffffffffffffffff",
+    name: "불안정 생성",
+    type: "weapon",
+    system: { attack: 1 }
+  });
+}
+`);
+    const r = run(root, ["--script", script, "--apply", "--confirm-live-pack"]);
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /멱등성 검증 실패/);
+    assert.match(r.stderr, /--restore dist\/pack-backups\//);
+  });
+
   await t.test("백업이 남고 --restore 가 그것을 되돌린다", async () => {
     const { root, packDir } = await makeFixture();
     const script = writeMigration(root, "range.mjs", RANGE_TO_NUMBER);

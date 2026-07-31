@@ -22,7 +22,11 @@
 //   export const packs = ["weapons", "items"];         // 선택. 기본값 = system.json 선언 전체
 //   export const includeFolders = false;               // 선택. 기본값 = 폴더 문서는 건너뜀
 //   export const idempotent = true;                    // 선택. 기록 후 재실행해 0건인지 검증
-//   export function migrate(doc, ctx) { … }            // 필수
+//   export function migrate(doc, ctx) { … }            // migrate/create 중 하나 이상 필수
+//   export function create(ctx) {                      // 선택. 팩마다 한 번 호출
+//     ctx.item({ _id: "16자리FoundryID", name: "…", type: "etc", system: { … } });
+//     ctx.folder({ _id: "16자리FoundryID", name: "…", type: "Item", … });
+//   }
 //
 // `migrate` 는 **복제본**을 받는다. 그 자리에서 고치거나 새 문서를 return 하면 된다.
 // 변경 여부는 하네스가 원본과 JSON 비교해 스스로 판정하므로 「무엇을 바꿨는지」를 보고할
@@ -147,7 +151,9 @@ if (restoreArg) {
 const scriptPath = path.resolve(ROOT, scriptArg);
 if (!fs.existsSync(scriptPath)) fatal(`마이그레이션 모듈이 없다: ${scriptPath}`, 2);
 const mod = await import(pathToFileURL(scriptPath).href);
-if (typeof mod.migrate !== "function") fatal(`${scriptArg} 에 migrate(doc, ctx) 가 없다.`, 2);
+if (typeof mod.migrate !== "function" && typeof mod.create !== "function") {
+  fatal(`${scriptArg} 에 migrate(doc, ctx) 또는 create(ctx) 가 없다.`, 2);
+}
 if (!mod.description) fatal(`${scriptArg} 에 description 이 없다 — 리포트에 무엇을 왜 했는지 남아야 한다.`, 2);
 
 const includeFolders = mod.includeFolders === true;
@@ -209,6 +215,103 @@ function diffPaths(before, after, prefix = "", out = []) {
   return out;
 }
 
+// ── 신규 문서 사전 점검 ─────────────────────────────────────────────────────────
+// 생성 요청은 기존 문서를 훑는 migrate() 안이 아니라 팩마다 딱 한 번 받는다. 그래야 빈 팩에도
+// 문서를 만들 수 있고, 기존 문서 수에 따라 같은 요청이 N번 쌓이지 않는다. 모든 대상 팩의
+// 충돌을 쓰기 **전에** 검사하므로 네 팩 중 셋만 기록된 반쪽짜리 import도 남기지 않는다.
+const requestedCreates = new Map();
+const failures = [];
+
+function creationKey(kind, doc) {
+  return `${kind === "folder" ? "!folders!" : "!items!"}${doc._id}`;
+}
+
+function validateCreation(kind, doc, pack) {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    return `${pack}: ctx.${kind}() 인자는 문서 객체여야 한다.`;
+  }
+  if (!/^[A-Za-z0-9]{16}$/.test(doc._id ?? "")) {
+    return `${pack}/${doc.name ?? "(이름 없음)"}: _id 는 16자리 영숫자여야 한다(${JSON.stringify(doc._id)}).`;
+  }
+  if (typeof doc.name !== "string" || !doc.name.trim()) {
+    return `${pack}/${doc._id}: name 이 없는 신규 문서다.`;
+  }
+  if (kind === "item" && (typeof doc.type !== "string" || !doc.type || !doc.system || typeof doc.system !== "object")) {
+    return `${pack}/${doc.name}: 아이템 생성에는 type 과 system 객체가 필요하다.`;
+  }
+  if (kind === "folder" && doc.type !== "Item") {
+    return `${pack}/${doc.name}: 아이템 팩 폴더의 type 은 "Item" 이어야 한다.`;
+  }
+  return null;
+}
+
+function collectCreationRequests(name, problemSink) {
+  const creates = new Map();
+  if (typeof mod.create === "function") {
+    const add = (kind, value) => {
+      const doc = structuredClone(value);
+      const problem = validateCreation(kind, doc, name);
+      if (problem) {
+        problemSink.push(problem);
+        return;
+      }
+      const key = creationKey(kind, doc);
+      const previous = creates.get(key);
+      if (previous && JSON.stringify(previous.value) !== JSON.stringify(doc)) {
+        problemSink.push(`${name}/${doc.name}: 같은 키 ${key} 로 서로 다른 신규 문서를 요청했다.`);
+        return;
+      }
+      creates.set(key, { key, kind, value: doc });
+    };
+    mod.create({
+      pack: name,
+      item: (doc) => add("item", doc),
+      folder: (doc) => add("folder", doc),
+      fail: (m) => problemSink.push(`${name}: ${m}`),
+    });
+  }
+  return creates;
+}
+
+for (const name of targets) {
+  const creates = collectCreationRequests(name, failures);
+  requestedCreates.set(name, creates);
+}
+
+for (const name of targets) {
+  const dir = path.join(ROOT, "packs", name);
+  if (!fs.existsSync(dir)) continue;
+  const db = await openPack(dir);
+  try {
+    for (const request of requestedCreates.get(name).values()) {
+      let existing;
+      try {
+        existing = await db.get(request.key);
+      } catch (err) {
+        if (err?.code === "LEVEL_NOT_FOUND") continue;
+        throw err;
+      }
+      // classic-level 버전에 따라 없는 키를 예외 대신 undefined 로 돌려주기도 한다.
+      if (existing === undefined) continue;
+      if (JSON.stringify(existing) !== JSON.stringify(request.value)) {
+        failures.push(
+          `${name}/${request.value.name}: 신규 키 ${request.key} 가 이미 다른 문서에 쓰이고 있다`
+        );
+      } else {
+        request.alreadyPresent = true;
+      }
+    }
+  } finally {
+    await db.close();
+  }
+}
+
+if (failures.length) {
+  console.error("DX3rd | 신규 문서 사전 점검 실패 — 팩을 수정하지 않았다:");
+  for (const f of failures.slice(0, 20)) console.error(`  ${f}`);
+  process.exit(1);
+}
+
 // ── 실행 ────────────────────────────────────────────────────────────────────────
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const backupRoot = path.join(ROOT, "dist", "pack-backups", stamp);
@@ -221,7 +324,6 @@ const report = {
   packs: {},
 };
 let total = 0;
-const failures = [];
 
 for (const name of targets) {
   const dir = path.join(ROOT, "packs", name);
@@ -240,6 +342,7 @@ for (const name of targets) {
       scanned++;
       const original = structuredClone(doc);
       const draft = structuredClone(doc);
+      let deleteRequested = false;
       const ctx = {
         pack: name,
         key,
@@ -247,8 +350,21 @@ for (const name of targets) {
         isFolder,
         log: (m) => console.log(`DX3rd |   ${name}/${doc.name ?? doc._id}: ${m}`),
         fail: (m) => failures.push(`${name}/${doc.name ?? doc._id}: ${m}`),
+        delete: () => {
+          deleteRequested = true;
+        },
       };
-      const returned = mod.migrate(draft, ctx);
+      const returned = typeof mod.migrate === "function" ? mod.migrate(draft, ctx) : undefined;
+      if (deleteRequested) {
+        changes.push({
+          key,
+          id: original._id,
+          name: original.name,
+          fields: [{ path: "$document", before: original, after: undefined }],
+          deleted: true,
+        });
+        continue;
+      }
       const next = returned === undefined || returned === null ? draft : returned;
       // _id 가 바뀌면 월드의 기존 링크가 끊긴다. 키와 문서의 _id 가 어긋나는 것도 마찬가지로
       // 팩을 조용히 망가뜨리므로 여기서 멈춘다.
@@ -259,6 +375,18 @@ for (const name of targets) {
       if (!fields.length) continue;
       changes.push({ key, id: original._id, name: original.name, fields, value: next });
     }
+    for (const request of requestedCreates.get(name).values()) {
+      if (request.alreadyPresent) continue;
+      const doc = request.value;
+      changes.push({
+        key: request.key,
+        id: doc._id,
+        name: doc.name,
+        fields: [{ path: "$document", before: undefined, after: doc }],
+        created: true,
+        value: doc,
+      });
+    }
   } finally {
     await db.close();
   }
@@ -267,6 +395,8 @@ for (const name of targets) {
   report.packs[name] = {
     scanned,
     changed: changes.length,
+    created: changes.filter((c) => c.created).length,
+    deleted: changes.filter((c) => c.deleted).length,
     documents: changes.map(({ value: _v, ...rest }) => rest),
   };
   console.log(`DX3rd | ${name}: ${scanned}건 검사 / ${changes.length}건 변경`);
@@ -293,7 +423,11 @@ for (const name of targets) {
 
     const writeDb = await openPack(dir);
     try {
-      await writeDb.batch(changes.map((c) => ({ type: "put", key: c.key, value: c.value })));
+      await writeDb.batch(changes.map((c) => (
+        c.deleted
+          ? { type: "del", key: c.key }
+          : { type: "put", key: c.key, value: c.value }
+      )));
     } finally {
       await writeDb.close();
     }
@@ -310,9 +444,38 @@ for (const name of targets) {
           if (key.startsWith("!folders!") && !includeFolders) continue;
           const original = structuredClone(doc);
           const draft = structuredClone(doc);
-          const returned = mod.migrate(draft, { pack: name, key, original, isFolder: key.startsWith("!folders!"), log: () => {}, fail: () => {} });
+          let deleteRequested = false;
+          const returned = typeof mod.migrate === "function" ? mod.migrate(draft, {
+            pack: name,
+            key,
+            original,
+            isFolder: key.startsWith("!folders!"),
+            log: () => {},
+            fail: () => {},
+            delete: () => {
+              deleteRequested = true;
+            },
+          }) : undefined;
+          if (deleteRequested) {
+            residue++;
+            continue;
+          }
           const next = returned === undefined || returned === null ? draft : returned;
           if (diffPaths(original, next).length) residue++;
+        }
+        const verifyProblems = [];
+        const verifyCreates = collectCreationRequests(name, verifyProblems);
+        residue += verifyProblems.length;
+        for (const request of verifyCreates.values()) {
+          let existing;
+          try {
+            existing = await verifyDb.get(request.key);
+          } catch (err) {
+            if (err?.code !== "LEVEL_NOT_FOUND") throw err;
+          }
+          if (existing === undefined || JSON.stringify(existing) !== JSON.stringify(request.value)) {
+            residue++;
+          }
         }
       } finally {
         await verifyDb.close();

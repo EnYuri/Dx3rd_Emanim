@@ -35,6 +35,65 @@ function walkJs(directory) {
   });
 }
 
+test('basic encroachment sums the shared encroach.init field on every non-record item', () => {
+  class ActorMock {
+    prepareData() {}
+    async _preUpdate() {}
+    importFromJSON() {}
+  }
+  const context = baseContext({
+    foundry: {
+      documents: { Actor: ActorMock },
+      utils: {}
+    },
+    Actor: ActorMock,
+    CONFIG: { Actor: {} },
+    game: { settings: { get: () => '-' } }
+  });
+  load(context, 'scripts/document/actor.js');
+  const result = vm.runInContext(`DX3rdItemEncroachInit.sum([
+    {type:'effect', system:{encroach:{init:2}}},
+    {type:'etc', system:{encroach:{init:'5'}}},
+    {type:'protect', system:{encroach:{init:-1}}},
+    {type:'record', system:{encroach:{init:99}, encroachment:3}},
+    {type:'etc', system:{encroach:{value:'4'}}}
+  ])`, context);
+  assert.equal(result, 6);
+});
+
+test('effect level includes active effect_level bonuses and ignores disabled effects', () => {
+  const context = baseContext();
+  context.DX3rdAppliedEffects = {
+    collect: () => ({
+      active: {
+        attributes: {
+          a: { key: 'effect_level', label: 'effect_level', value: '+2' },
+          b: { key: 'dice', label: 'dice', value: '+99' }
+        }
+      },
+      disabled: {
+        _disabled: true,
+        attributes: {
+          a: { key: 'effect_level', label: 'effect_level', value: '+5' }
+        }
+      }
+    })
+  };
+  load(context, 'scripts/effect-level.js');
+  const result = JSON.parse(vm.runInContext(`JSON.stringify({
+    normal: DX3rdEffectLevel.value(
+      {type:'effect', system:{level:{init:3, upgrade:false}}},
+      {system:{attributes:{encroachment:{level:1}}}}
+    ),
+    upgraded: DX3rdEffectLevel.value(
+      {type:'effect', system:{level:{init:3, upgrade:true}}},
+      {system:{attributes:{encroachment:{level:1}}}, _dx3rdUsageEncLevel:2}
+    ),
+    bonus: DX3rdEffectLevel.bonus({system:{attributes:{}}})
+  })`, context));
+  assert.deepEqual(result, { normal: 5, upgraded: 7, bonus: 2 });
+});
+
 function socketContext() {
   let ready;
   let listener;

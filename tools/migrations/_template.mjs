@@ -34,10 +34,29 @@ export const includeFolders = false;
 export const idempotent = true;
 
 /**
+ * 선택. 신규 문서를 넣을 때 팩마다 한 번 호출된다. 이름 중복은 허용되므로 결정적 `_id`에
+ * 출전·종별을 포함하고, 같은 모듈을 재실행하면 정확히 같은 문서를 요청해야 한다.
+ *
+ * @param {{pack: string, item: (doc: object) => void, folder: (doc: object) => void,
+ *          fail: (m: string) => void}} ctx
+ */
+// export function create(ctx) {
+//   if (ctx.pack !== "items") return;
+//   ctx.item({
+//     _id: "aaaaaaaaaaaaaaaa",
+//     name: "신규 아이템",
+//     type: "etc",
+//     system: {},
+//   });
+// }
+
+/**
  * @param {object} doc  저장 문서의 **복제본**. 그 자리에서 고치거나 새 문서를 return.
  * @param {{pack: string, key: string, original: object, isFolder: boolean,
- *          log: (m: string) => void, fail: (m: string) => void}} ctx
+ *          log: (m: string) => void, fail: (m: string) => void,
+ *          delete: () => void}} ctx
  *   ctx.fail 은 「고칠 수 없는 상태를 발견했다」는 보고다 — 그 건은 기록하되 종료 코드가 1이 된다.
+ *   ctx.delete 는 현재 문서를 팩에서 제거한다. 하네스의 팩 백업·리포트·멱등성 검증을 그대로 거친다.
  */
 export function migrate(doc, ctx) {
   // 예) 무기의 사거리 표기를 문자에서 숫자로.
@@ -55,6 +74,10 @@ export function migrate(doc, ctx) {
   // 예) 손댈 수 없는 이상 상태를 보고만 하기.
   //
   //   if (doc.system?.attack === undefined) ctx.fail("attack 필드가 없다");
+  //
+  // 예) 명시적으로 확인한 중복 문서를 제거하기.
+  //
+  //   if (doc._id === "aaaaaaaaaaaaaaaa") ctx.delete();
 
   void doc;
   void ctx;
