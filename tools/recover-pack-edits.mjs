@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // Foundry 안에서 팩을 손으로 고친 내용을 `_source/*-mech-overrides.json` 으로 회수한다.
 //
-// 왜 필요한가: `packs/` 는 빌드 산출물이다. `tools/release.ps1 -UpdatePacks` 가 선언된 팩
-// 디렉터리를 재빌드 결과로 **통째로 교체**하고, `core.hooksPath = tools/git-hooks` 의
-// pre-commit 훅이 **커밋마다** 그것을 호출한다. 그래서 회수되지 않은 손튜닝은 커밋 한 번에
-// 커밋에 담기지도 못한 채 사라진다(2026-07-31 실제 사고: 아이콘 38건 + 기계화 1건).
-// 그 훅이 재빌드 **전에** 이 스크립트를 부르므로, 평소에는 직접 실행할 일이 없다.
+// 왜 필요한가: `tools/release.ps1 -UpdatePacks` 는 선언된 팩 디렉터리를 CSV 파이프라인의
+// 재빌드 결과로 **통째로 교체**한다. 회수되지 않은 손튜닝은 그 순간 사라진다
+// (2026-07-31 실제 사고: 아이콘 38건 + 기계화 1건).
+//
+// **커밋은 더 이상 재빌드하지 않는다** — `packs/` 가 컴펜디움 내용의 원본이고, Foundry 에서
+// 고친 것은 그대로 커밋된다. 그래서 이 스크립트는 커밋 훅이 아니라 `release.ps1` 이
+// 생성기보다 먼저 부른다. 즉 평소에는 돌 일이 없고, 대량 재구성을 할 때만 관여한다.
+// 손으로 확인하고 싶을 때만 아래처럼 직접 실행한다.
 //
 // 사용:
 //   node tools/recover-pack-edits.mjs --all [--write]
 //   node tools/recover-pack-edits.mjs --name weapons [--pack <LevelDB 경로>] [--write]
 //   node tools/recover-pack-edits.mjs --audit    # 빌드에 반영되지 않는 오버라이드 점검
 //   node tools/recover-pack-edits.mjs --stamp    # 기준선 스탬프 기록(release.ps1 이 부른다)
+//   node tools/recover-pack-edits.mjs --all --write   # release.ps1 이 재빌드 직전에 부른다
 //
 // --write 없이는 무엇이 회수될지만 출력한다(dry-run).
 //
