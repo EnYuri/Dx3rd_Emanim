@@ -4,13 +4,15 @@
       "encroach": {
         "init": 0,
         "value": "3"
-      }
+      },
+      "img": "icons/weapons/swords/greatsword-flamberge.webp"
     },
     "추한 어순": {
       "encroach": {
         "init": 0,
         "value": "3d10"
-      }
+      },
+      "img": "icons/weapons/fist/fist-katar-triple-silver.webp"
     },
     "시저 리퍼": {
       "attributes": [
@@ -39,7 +41,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-energy-purple.webp"
     },
     "혼돈의 창": {
       "attributes": [
@@ -202,7 +205,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/daggers/dagger-straight-green.webp"
     },
     "볼트액션 라이플": {
       "attributes": [
@@ -261,7 +265,8 @@
           "label": "ranged",
           "value": "+10"
         }
-      ]
+      ],
+      "img": "icons/weapons/bows/bow-ornamental-gold-blue.webp"
     },
     "바이브로 윕": {
       "attributes": [
@@ -298,7 +303,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/swords/greatsword-crossguard-engraved-green.webp"
     },
     "폴른 쉴드": {
       "encroach": {
@@ -318,7 +324,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/equipment/shield/kite-steel-boss-gold.webp"
     },
     "FHG-666": {
       "attributes": [
@@ -342,7 +349,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-projectile-automatic.webp"
     },
     "개리슨즈 실드": {
       "attributes": [
@@ -374,7 +382,8 @@
           "label": "armor",
           "value": "+10"
         }
-      ]
+      ],
+      "img": "icons/weapons/axes/axe-broad-jagged.webp"
     },
     "라이트 머신 건": {
       "itemExtend": {
@@ -399,7 +408,8 @@
           "label": "attack",
           "value": "min([negotiation],10)"
         }
-      ]
+      ],
+      "img": "icons/weapons/swords/sword-guard-purple.webp"
     },
     "스트라이크 칩": {
       "attributes": [
@@ -472,7 +482,8 @@
         "max": 5,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-smoking-orange.webp"
     },
     "압축가스 나이프": {
       "attributes": [
@@ -513,7 +524,8 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/daggers/dagger-notched-blackened.webp"
     },
     "폴른 피스톨": {
       "effect": {
@@ -533,7 +545,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-tech-auto-snub-steel.webp"
     },
     "가드 실드": {
       "attributes": [
@@ -572,7 +585,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-sniper-heavy-long.webp"
     },
     "폴른 라이플": {
       "effect": {
@@ -586,7 +600,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/guns/rifle-tech-green.webp"
     },
     "사출식 스턴 건": {
       "itemExtend": {
@@ -633,7 +648,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/guns/shotgun-short-steel.webp"
     },
     "킨 나이프 츠바이": {
       "effect": {
@@ -647,7 +663,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/daggers/dagger-jeweled-purple.webp"
     },
     "레이저 라이플": {
       "attributes": [
@@ -696,7 +713,8 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/sword-guard.webp"
     },
     "폴른 랜스": {
       "attributes": [
@@ -718,7 +736,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/weapons/polearms/trident-jeweled-purple.webp"
     },
     "암 블레이드": {
       "effect": {
@@ -846,7 +865,7 @@
         ]
       },
       "getTarget": true,
-      "img": "icons/weapons/thrown/dagger-ringed-guard.webp"
+      "img": "icons/weapons/daggers/dagger-jeweled-purple.webp"
     },
     "개시어스 블레이드": {
       "attributes": [
@@ -863,7 +882,7 @@
         "applyMode": "onUse",
         "action": "use"
       },
-      "img": "icons/weapons/swords/greatsword-crossguard-engraved-green.webp"
+      "img": "icons/weapons/swords/greatsword-guard-gem-blue.webp"
     },
     "무고의 검": {
       "attributes": [
@@ -903,7 +922,7 @@
         "disable": "scene",
         "runTiming": "instant"
       },
-      "img": "icons/weapons/swords/sword-guard-worn.webp"
+      "img": "icons/weapons/swords/scimitar-blue.webp"
     },
     "그래비티 앱소버": {
       "attributes": [
@@ -925,7 +944,8 @@
         "max": 1,
         "level": false,
         "disable": "round"
-      }
+      },
+      "img": "icons/weapons/thrown/dagger-ringed-guard.webp"
     },
     "성검의 왕자": {
       "attributes": [
@@ -946,7 +966,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/swords/sword-guard-worn.webp"
     },
     "데어 프라이쉬츠": {
       "effect": {
@@ -1062,7 +1083,7 @@
         ]
       },
       "getTarget": true,
-      "img": "icons/weapons/guns/pistol-projectile-automatic.webp"
+      "img": "icons/weapons/guns/gun-worn-steel.webp"
     },
     "히어로 슈터": {
       "encroach": {
@@ -1203,7 +1224,8 @@
             }
           ]
         }
-      }
+      },
+      "img": "icons/weapons/guns/rifle-bayonet.webp"
     },
     "스턴 건": {
       "itemExtend": {
@@ -1283,7 +1305,7 @@
       "img": "icons/weapons/artillery/mount-weapon-launcher-steel.webp"
     },
     "데빌 건": {
-      "img": "icons/weapons/guns/pistol-smoking-orange.webp"
+      "img": "icons/weapons/guns/pistol-large-steel.webp"
     },
     "도끼": {
       "img": "icons/weapons/axes/shortaxe-engraved-green.webp"
@@ -1457,6 +1479,55 @@
     },
     "화염방사기": {
       "img": "icons/weapons/guns/flamethrower-spray-fire-orange.webp"
+    },
+    "강화의체": {
+      "img": "icons/equipment/hand/gloves-blue-thin.webp"
+    },
+    "귀신을 베는 옛 태도": {
+      "img": "icons/weapons/swords/sword-guard-gold-red.webp"
+    },
+    "디바우러": {
+      "img": "icons/weapons/swords/greatsword-evil-green.webp"
+    },
+    "레이징 슈터": {
+      "img": "icons/weapons/guns/rifle-sniper-energy-heavy.webp",
+      "description": "<p>마이너 액션을 사용하는 것으로, 공격력, 사정거리가 / 오른편의 데이터가 된다. 그러나, 한 번 사용하거나 씬이 종료될 때 원래대로 돌아온다.<br>이 무기를 장비하고 있는 동안 다른 무기를 장비할 수 없고, 같은 인게이지에 있는 캐릭터를 공격대상으로 할 수 없다.</p>",
+      "attack": "10",
+      "active": {
+        "state": false,
+        "disable": "roll",
+        "runTiming": "instant",
+        "action": "use",
+        "applyMode": "onUse"
+      },
+      "attributes": [
+        {
+          "key": "attack",
+          "label": "ranged",
+          "value": "5"
+        }
+      ]
+    },
+    "레일 건": {
+      "img": "icons/weapons/guns/rifle-sniper-energy-gauss.webp"
+    },
+    "밀리온베인": {
+      "img": "icons/weapons/swords/greatsword-flamberge.webp"
+    },
+    "영광과 승리의 창": {
+      "img": "icons/weapons/polearms/spear-flared-gold.webp"
+    },
+    "전설의 하얀 칼집": {
+      "img": "icons/weapons/swords/sword-hilt-steel-green.webp"
+    },
+    "폭주검": {
+      "img": "icons/weapons/swords/shortsword-broad-engraved.webp"
+    },
+    "폴른 블레이드": {
+      "img": "icons/weapons/swords/sword-guard-bronze.webp"
+    },
+    "폴른 액스": {
+      "img": "icons/weapons/axes/axe-battle-worn-eye.webp"
     }
   },
   "armors": {
@@ -1475,7 +1546,8 @@
           ],
           "activate": true
         }
-      }
+      },
+      "img": "icons/equipment/waist/sash-cloth-red.webp"
     },
     "개념외장": {
       "used": {
@@ -1494,7 +1566,8 @@
           "rivival": false,
           "activate": true
         }
-      }
+      },
+      "img": "icons/magic/defensive/armor-green-hex.webp"
     },
     "전개장갑복": {
       "attributes": [
@@ -1509,7 +1582,8 @@
         "disable": "scene",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/chest/tech-blue.webp"
     },
     "진화하는 장갑:감각": {
       "attributes": [
@@ -1530,7 +1604,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-red.webp"
     },
     "스트레인저스 특수전투복": {
       "attributes": [
@@ -1539,7 +1614,8 @@
           "label": "reduce",
           "value": "5"
         }
-      ]
+      ],
+      "img": "icons/equipment/chest/vest-plated-red.webp"
     },
     "암드 슈트": {
       "attributes": [
@@ -1553,7 +1629,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-heavy-teal.webp"
     },
     "롤러부츠": {
       "attributes": [
@@ -1568,7 +1645,8 @@
         "disable": "scene",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/feet/tech-boot.webp"
     },
     "진화하는 장갑:정신": {
       "attributes": [
@@ -1589,7 +1667,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-red.webp"
     },
     "히어로 망토": {
       "attributes": [
@@ -1598,7 +1677,8 @@
           "label": "battleMove",
           "value": "+10"
         }
-      ]
+      ],
+      "img": "icons/equipment/back/cloak-layered-white.webp"
     },
     "세계제복": {
       "attributes": [
@@ -1612,7 +1692,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/suit-armored-chest-plated.webp"
     },
     "레니게이드 서포터": {
       "attributes": [
@@ -1626,7 +1707,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/vest-powered-tactical.webp"
     },
     "마제스티 코트": {
       "effect": {
@@ -1646,7 +1728,8 @@
         "disable": "round",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/chest/vest-improvised-plated-heavy.webp"
     },
     "어보이드 망토": {
       "attributes": [
@@ -1660,7 +1743,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/back/cloak-plain-blue.webp"
     },
     "UGN 전투복": {
       "attributes": [
@@ -1674,7 +1758,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-orange.webp"
     },
     "UGN 전투복 Ⅱ": {
       "attributes": [
@@ -1688,7 +1773,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-green.webp"
     },
     "강화 비즈니스 슈트": {
       "attributes": [
@@ -1702,7 +1788,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/coat-trench-brown.webp"
     },
     "에이전트 슈트": {
       "attributes": [
@@ -1717,7 +1804,8 @@
         "disable": "major",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/body/suit-military-flight.webp"
     },
     "FH 전투복": {
       "attributes": [
@@ -1726,7 +1814,8 @@
           "label": "dice",
           "value": "+1"
         }
-      ]
+      ],
+      "img": "icons/equipment/chest/riot-black.webp"
     },
     "FH 인터셉터": {
       "attributes": [
@@ -1740,7 +1829,8 @@
           "label": "init",
           "value": "min([count:정신강화수술],3)"
         }
-      ]
+      ],
+      "img": "icons/equipment/head/tech-steel-helm-heavy.webp"
     },
     "사운드 아머": {
       "attributes": [
@@ -1754,7 +1844,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/feet/tech-green-boot.webp"
     },
     "라이더 슈트": {
       "attributes": [
@@ -1768,7 +1859,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/helmet-motorcycle.webp"
     },
     "슈터즈 재킷": {
       "attributes": [
@@ -1782,7 +1874,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/jacket-suit-leather.webp"
     },
     "진화하는 장갑:사회": {
       "attributes": [
@@ -1803,7 +1896,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-red.webp"
     },
     "암드 스카프": {
       "attributes": [
@@ -1817,7 +1911,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/waist/sash-cloth-purple.webp"
     },
     "얼티메이트복": {
       "attributes": [
@@ -1831,7 +1926,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-silver.webp"
     },
     "스니킹 슈트": {
       "attributes": [
@@ -1845,7 +1941,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/hand/glove-simple-cloth-white.webp"
     },
     "리빙코트": {
       "attributes": [
@@ -1860,7 +1957,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/hand/glove-simple-leather-purple.webp"
     },
     "FH 전투 장갑복": {
       "attributes": [
@@ -1869,7 +1967,8 @@
           "label": "reduce",
           "value": "5"
         }
-      ]
+      ],
+      "img": "icons/equipment/head/tech-heavy-pink.webp"
     },
     "아머드 슈트": {
       "attributes": [
@@ -1878,7 +1977,8 @@
           "label": "reduce",
           "value": "3"
         }
-      ]
+      ],
+      "img": "icons/equipment/chest/vest-improvised-plated-medium.webp"
     },
     "어뎁트 아머": {
       "attributes": [
@@ -1892,7 +1992,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/feet/tech-blue-boot.webp"
     },
     "아머 스킨": {
       "attributes": [
@@ -1907,7 +2008,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-gold.webp"
     },
     "AI 보조슈트": {
       "attributes": [
@@ -1928,7 +2030,8 @@
         "max": 1,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/equipment/head/tech-heavy-steel.webp"
     },
     "완전열광학미채복": {
       "attributes": [
@@ -1942,7 +2045,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/hand/gloves-blue-thin.webp"
     },
     "리액티브 아머": {
       "attributes": [
@@ -1957,7 +2061,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/chest/vest-bulletproof-improvised-steel.webp"
     },
     "스테이지 의상": {
       "attributes": [
@@ -1971,7 +2076,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/vest-leather-brown-gold.webp"
     },
     "연구복": {
       "attributes": [
@@ -1985,7 +2091,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/glasses-sun-aviator.webp"
     },
     "안티 레니게이드 슈트": {
       "attributes": [
@@ -1999,7 +2106,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/riot-blue.webp"
     },
     "UGN 전투복 2": {
       "attributes": [
@@ -2013,7 +2121,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-green.webp"
     },
     "미스리더": {
       "effect": {
@@ -2027,7 +2136,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/equipment/head/tech-steel-helm.webp"
     },
     "리액티브 코트": {
       "attributes": [
@@ -2042,7 +2152,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/body/armor-coveralls.webp"
     },
     "파워 어시스트 아머": {
       "attributes": [
@@ -2056,7 +2167,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-pink.webp"
     },
     "귀인의 예장": {
       "hp": {
@@ -2074,7 +2186,8 @@
         "disable": "major",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/hand/gloves-red-thin.webp"
     },
     "트랙 슈트": {
       "attributes": [
@@ -2088,7 +2201,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/hand/gloves-white-heavy.webp"
     },
     "부스트 아머": {
       "attributes": [
@@ -2102,7 +2216,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/tech-blue.webp"
     },
     "히어로 코스튬": {
       "attributes": [
@@ -2111,7 +2226,8 @@
           "label": "social",
           "value": "1"
         }
-      ]
+      ],
+      "img": "icons/equipment/back/cloak-hooded-red.webp"
     },
     "죄인의 속박": {
       "attributes": [
@@ -2126,7 +2242,8 @@
         "disable": "major",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/waist/belt-utility-steel.webp"
     },
     "진화하는 장갑:육체": {
       "attributes": [
@@ -2147,7 +2264,8 @@
         "max": 3,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-red.webp"
     },
     "프로텍트 아머": {
       "attributes": [
@@ -2162,7 +2280,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/chest/tech-steel.webp"
     },
     "어스름의 외투": {
       "encroach": {
@@ -2181,7 +2300,8 @@
         "disable": "reaction",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/back/cloak-layered-grey-white.webp"
     },
     "EX 패스파인더": {
       "encroach": {
@@ -2200,7 +2320,8 @@
         "disable": "scene",
         "runTiming": "instant",
         "applyMode": "onUse"
-      }
+      },
+      "img": "icons/equipment/head/tech-heavy-green.webp"
     },
     "미라쥬 코트": {
       "attributes": [
@@ -2214,7 +2335,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/hand/glove-tooled-leather-red.webp"
     },
     "승부복": {
       "attributes": [
@@ -2228,7 +2350,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/chest/collar-steel.webp"
     },
     "FH 전투 코트": {
       "attributes": [
@@ -2249,7 +2372,8 @@
         "max": 1,
         "level": false,
         "disable": "scene"
-      }
+      },
+      "img": "icons/equipment/chest/vest-bulletproof-body-armor.webp"
     },
     "다기능 헬멧": {
       "attributes": [
@@ -2263,7 +2387,96 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/equipment/head/helmet-tech-tactical.webp"
+    },
+    "FH 강화 조끼": {
+      "img": "icons/equipment/chest/vest-tactical-reinforced.webp"
+    },
+    "UGN 바디 아머": {
+      "img": "icons/equipment/chest/shirt-tactical-heavy.webp"
+    },
+    "갑주": {
+      "img": "icons/equipment/chest/riot.webp"
+    },
+    "강화 프로텍터": {
+      "img": "icons/equipment/chest/vest-bulletproof-body-camo.webp"
+    },
+    "강화복": {
+      "img": "icons/equipment/chest/jacket-modern-green.webp"
+    },
+    "기도의 조화": {
+      "img": "icons/consumables/plants/flax-leaves-spiked-bundle-orange.webp"
+    },
+    "길드 코트": {
+      "img": "icons/equipment/feet/boots-leather-black.webp"
+    },
+    "나노메디컬 슈트": {
+      "img": "icons/equipment/chest/vest-tactical-medical.webp"
+    },
+    "대 BC 슈트": {
+      "img": "icons/equipment/head/tech-heavy-silver.webp"
+    },
+    "대저환경 슈트": {
+      "img": "icons/equipment/head/tech-helm-white.webp"
+    },
+    "래더 재킷": {
+      "img": "icons/equipment/chest/jacket-motorcycle-leather-brown.webp"
+    },
+    "레벨3 바디 아머": {
+      "img": "icons/equipment/chest/vest-bulletproof-body-green.webp"
+    },
+    "레벨III 바디 아머": {
+      "img": "icons/equipment/chest/vest-bulletproof-body-green.webp"
+    },
+    "멀티 서포트 슈츠": {
+      "img": "icons/equipment/chest/vest-reinforced-leather.webp"
+    },
+    "메이지 자켓": {
+      "img": "icons/equipment/chest/vest-tactical-camo.webp"
+    },
+    "방탄 재킷": {
+      "img": "icons/equipment/chest/jacket-motorcycle-leather-black.webp"
+    },
+    "백원의 서클렛": {
+      "img": "icons/equipment/neck/necklace-hook-brown.webp"
+    },
+    "봄 슈트": {
+      "img": "icons/equipment/head/powered-plated-medium.webp"
+    },
+    "사슬갑옷": {
+      "img": "icons/equipment/chest/breastplate-scale-grey.webp"
+    },
+    "사왕의 외투": {
+      "img": "icons/equipment/shoulder/shoulderpad-steel-blue.webp"
+    },
+    "스콜라 웨어": {
+      "img": "icons/equipment/chest/vest-bulletproof-improvised-plated.webp"
+    },
+    "엄청난 옷": {
+      "img": "icons/equipment/neck/choker-chain-thin-gold.webp",
+      "description": "<p>누구나 「엄청나다」고 말하게 되는 희한한 의상. 이 옷을 입고 있으면, 주위의 시선을 한 몸에 받게 된다.</p>"
+    },
+    "인터셉트 아머": {
+      "img": "icons/equipment/chest/harness-tactical-heavy.webp"
+    },
+    "전투용 인형옷": {
+      "img": "icons/equipment/head/mask-plague-grey.webp"
+    },
+    "제트 슈트": {
+      "img": "icons/equipment/feet/tech-red-boot.webp"
+    },
+    "종자의 갑주": {
+      "img": "icons/equipment/hand/tech-gauntlet-red.webp"
+    },
+    "타르타로스": {
+      "img": "icons/equipment/hand/tech-gauntlet-blue.webp"
+    },
+    "파워드 슈트": {
+      "img": "icons/equipment/hand/tech-gauntlet-white-heavy.webp"
+    },
+    "하드 코트": {
+      "img": "icons/equipment/head/tech-light.webp"
     }
   },
   "vehicles": {
@@ -2378,24 +2591,52 @@
       "encroach": {
         "init": 0,
         "value": "2"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "S랭크:서포터": {
       "encroach": {
         "init": 0,
         "value": "3"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "SS랭크": {
       "encroach": {
         "init": 0,
         "value": "10"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "A랭크:서포터": {
       "encroach": {
         "init": 0,
         "value": "2"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "자동 복원 기구": {
@@ -2415,6 +2656,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "고성능치료 팩": {
@@ -2428,6 +2676,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "의료 트렁크": {
@@ -2447,6 +2702,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "악식의 기호품": {
@@ -2466,6 +2728,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "심해도시의 꿈": {
@@ -2494,6 +2763,13 @@
           "exclude": [],
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "강철의 의지": {
@@ -2517,6 +2793,13 @@
           ],
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "피지컬 블러드": {
@@ -2530,7 +2813,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2555,7 +2840,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "RC 부스터": {
@@ -2569,7 +2856,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "지원요청 : 곡사포": {
@@ -2583,7 +2872,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2603,7 +2894,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2618,6 +2911,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "지원요청 : 항모기동부대": {
@@ -2626,6 +2926,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "할로우 포인트탄": {
@@ -2639,7 +2946,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2674,7 +2983,14 @@
           "label": "procure",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "피스 렐릭": {
       "attributes": [
@@ -2687,7 +3003,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "원더 퍼퓸": {
@@ -2701,7 +3019,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2735,7 +3055,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "세계의 알": {
@@ -2744,6 +3066,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "무지갯빛 모래": {
@@ -2752,6 +3081,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "에시젠 결정": {
@@ -2765,7 +3101,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2784,6 +3122,13 @@
       "encroach": {
         "init": 0,
         "value": "2d10"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스마일리의 대여금고": {
@@ -2797,7 +3142,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "음파 모니터": {
@@ -2811,7 +3158,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "실버 햄머": {
@@ -2825,7 +3174,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -2851,6 +3202,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "R 컨트롤러": {
@@ -2864,7 +3222,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스페셜 에이전트": {
@@ -2878,7 +3238,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "심벌라이즈 카드": {
@@ -2892,7 +3254,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스펠북": {
@@ -2906,7 +3270,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "서약의 눈동자": {
@@ -2916,7 +3282,14 @@
           "label": "rc",
           "value": "2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "이레귤러 조커": {
       "attributes": [
@@ -2929,7 +3302,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "영광의 팔찌": {
@@ -2943,7 +3318,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "종자의 회로": {
@@ -2957,7 +3334,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "유니버셜 팬": {
@@ -2971,7 +3350,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스팅어": {
@@ -2985,7 +3366,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "올 카인즈": {
@@ -2999,7 +3382,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션: V넷의 그림자": {
@@ -3027,7 +3412,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -3047,7 +3434,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "블루 게일": {
@@ -3061,7 +3450,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3081,7 +3472,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -3105,6 +3498,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "종자의 옷": {
@@ -3118,7 +3518,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "종자의 발굽": {
@@ -3132,7 +3534,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "해독제": {
@@ -3150,6 +3554,13 @@
           ],
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "R 감시 팀": {
@@ -3163,7 +3574,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "수호자의 장갑": {
@@ -3177,7 +3590,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "조혈제": {
@@ -3186,6 +3601,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "전투적성체": {
@@ -3199,7 +3621,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "네비게이션 시스템": {
@@ -3209,7 +3633,14 @@
           "label": "drive",
           "value": "1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "배틀 매뉴버": {
       "attributes": [
@@ -3222,7 +3653,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "틴달로스 스트랩": {
@@ -3236,7 +3669,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "B랭크:디펜더": {
@@ -3251,7 +3686,14 @@
           "label": "init",
           "value": "-1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "화이트 페노미나": {
       "encroach": {
@@ -3272,6 +3714,13 @@
           ],
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "키리타니 커넥션": {
@@ -3285,7 +3734,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "길드 카드": {
@@ -3295,7 +3746,14 @@
           "label": "negotiation",
           "value": "1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "Mailcia": {
       "attributes": [
@@ -3308,7 +3766,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "세이프 하우스": {
@@ -3322,7 +3782,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3342,7 +3804,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "황금의 야수": {
@@ -3351,6 +3815,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "근력 증가": {
@@ -3369,7 +3840,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:해커": {
@@ -3420,7 +3893,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스틸 마인드": {
@@ -3430,7 +3905,14 @@
           "label": "will",
           "value": "2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "시냅스 부스터": {
       "hp": {
@@ -3446,7 +3928,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "지원요청 : DIA": {
@@ -3460,7 +3944,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3480,7 +3966,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "어리광쟁이": {
@@ -3494,7 +3982,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "문 도그": {
@@ -3508,7 +3998,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "우주우애협회 바펜": {
@@ -3522,7 +4014,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "론 오버드": {
@@ -3536,7 +4030,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "세컨드 하트": {
@@ -3550,7 +4046,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -3570,7 +4068,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "금속골격": {
@@ -3584,7 +4084,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "틴달로스 소년대": {
@@ -3598,7 +4100,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "레전드 웨폰": {
@@ -3612,7 +4116,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "가디언즈 사인": {
@@ -3621,6 +4127,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "회사편찬과": {
@@ -3630,7 +4143,14 @@
           "label": "info",
           "value": "1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "크리스탈 경비 보장": {
       "attributes": [
@@ -3643,7 +4163,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -3663,7 +4185,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "비콘": {
@@ -3677,7 +4201,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "에피션트 워크": {
@@ -3691,7 +4217,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "뇌충": {
@@ -3700,6 +4228,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "과학 수사 연구소": {
@@ -3722,7 +4257,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3742,7 +4279,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3768,6 +4307,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "맨 이터": {
@@ -3781,7 +4327,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "레니게이드 체커": {
@@ -3790,6 +4338,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스켑터": {
@@ -3803,7 +4358,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스타리 프레셔스": {
@@ -3813,7 +4370,14 @@
           "label": "social",
           "value": "3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "차일드 플레이어": {
       "attributes": [
@@ -3826,7 +4390,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "레전드 비클": {
@@ -3841,7 +4407,14 @@
           "label": "battleMove",
           "value": "+25"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "잉크 리본": {
       "used": {
@@ -3849,6 +4422,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "오버 마인드": {
@@ -3867,7 +4447,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "A랭크:디펜더": {
@@ -3881,7 +4463,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "실드 블러드": {
@@ -3895,7 +4479,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -3916,7 +4502,14 @@
           "label": "init",
           "value": "-3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "레니게이드 트레이닝": {
       "attributes": [
@@ -3929,7 +4522,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "하드 바디": {
@@ -3943,7 +4538,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "레전드 아머": {
@@ -3958,7 +4555,14 @@
           "label": "init",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "비틀린 왕국": {
       "attributes": [
@@ -3971,7 +4575,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "민치 야키소바 빵": {
@@ -3990,6 +4596,13 @@
           ],
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "피클 웨더": {
@@ -4003,7 +4616,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "무 민족 반": {
@@ -4026,6 +4641,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "트루스 사이트": {
@@ -4039,7 +4661,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "오버카운터": {
@@ -4053,7 +4677,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션: 히어로 매니아": {
@@ -4081,7 +4707,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "지원요청 : UAV": {
@@ -4095,7 +4723,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4115,7 +4745,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "트래퍼": {
@@ -4129,7 +4761,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "미스틱 아이": {
@@ -4146,7 +4780,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "자색 힘": {
@@ -4159,6 +4795,13 @@
       "encroach": {
         "init": 0,
         "value": "3"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "조커": {
@@ -4172,7 +4815,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "간이수술키트": {
@@ -4192,6 +4837,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "메디컬 어시스턴트": {
@@ -4206,6 +4858,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "레드 나이트 메어": {
@@ -4224,7 +4883,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4244,7 +4905,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "킨 슬레이어": {
@@ -4258,7 +4921,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "사이드 릴": {
@@ -4272,7 +4937,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "데이터 브레인": {
@@ -4286,7 +4953,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "라스트런": {
@@ -4300,7 +4969,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "다채색 재능:감각": {
@@ -4314,7 +4985,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4329,6 +5002,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "라이트 서버": {
@@ -4342,7 +5022,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4358,7 +5040,14 @@
           "label": "hp",
           "value": "+5"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "회색 희생": {
       "used": {
@@ -4366,6 +5055,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "RC 스캐너": {
@@ -4379,7 +5075,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "화이트 허브": {
@@ -4400,6 +5098,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "워몽거": {
@@ -4409,7 +5114,14 @@
           "label": "damage_roll",
           "value": "+1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "조준기": {
       "attributes": [
@@ -4422,7 +5134,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "오퍼레이션 X": {
@@ -4436,7 +5150,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "소중한 일품": {
@@ -4445,6 +5161,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "안티 레니게이드 탄": {
@@ -4459,7 +5182,14 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "서치 레이더": {
       "attributes": [
@@ -4472,7 +5202,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "컴뱃 포커스": {
@@ -4486,7 +5218,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "락 온 사이트": {
@@ -4500,7 +5234,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "성자의 유골": {
@@ -4514,7 +5250,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "강화의체": {
@@ -4528,7 +5266,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "슈페리올 믹스": {
@@ -4537,6 +5277,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "동료": {
@@ -4546,7 +5293,14 @@
           "label": "info",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "웨폰 커스터마이즈": {
       "attributes": [
@@ -4559,7 +5313,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "서바이버": {
@@ -4573,7 +5329,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -4593,7 +5351,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4611,6 +5371,13 @@
         "max": 3,
         "level": false,
         "disable": "session"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "다이몬 뱃지": {
@@ -4624,7 +5391,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "라스트 블러드": {
@@ -4638,7 +5407,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4658,7 +5429,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "B랭크:어택커": {
@@ -4673,7 +5446,14 @@
           "label": "guard",
           "value": "-1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "S랭크:디펜더": {
       "attributes": [
@@ -4686,7 +5466,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -4706,7 +5488,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -4733,6 +5517,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:경찰관": {
@@ -4760,7 +5551,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "FH 메신저": {
@@ -4774,7 +5567,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "찰나의 부적": {
@@ -4788,7 +5583,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4808,7 +5605,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "파워 부스터": {
@@ -4822,7 +5621,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -4842,7 +5643,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:매스미디어": {
@@ -4870,7 +5673,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4890,7 +5695,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -4910,7 +5717,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -4930,7 +5739,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "R오버드라이브": {
@@ -4944,7 +5755,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "파나케이아의 열매": {
@@ -4964,6 +5777,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "기브&테이크": {
@@ -4977,7 +5797,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "스타베트로D": {
@@ -4986,6 +5808,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "마스터 킬러": {
@@ -4999,7 +5828,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "지원요청 : 수송": {
@@ -5008,6 +5839,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "썬더 스톰": {
@@ -5017,7 +5855,14 @@
           "label": "reduce",
           "value": "5"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "비컨": {
       "attributes": [
@@ -5030,7 +5875,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "슈피리얼 네트워크": {
@@ -5044,7 +5891,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "카스가 일족": {
@@ -5058,7 +5907,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "업그레이드": {
@@ -5072,7 +5923,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "에나베트로D": {
@@ -5081,6 +5934,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "양산품": {
@@ -5094,7 +5954,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": 0,
@@ -5110,7 +5972,14 @@
           "label": "hp",
           "value": "+20"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "브라스 기아스": {
       "attributes": [
@@ -5123,7 +5992,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5150,6 +6021,13 @@
           "rivival": true,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "이스케이프": {
@@ -5163,7 +6041,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "몽환의 심장": {
@@ -5172,6 +6052,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "블랙 스피어": {
@@ -5185,7 +6072,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "히페리온": {
@@ -5199,7 +6088,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "종자의 체구": {
@@ -5209,7 +6100,14 @@
           "label": "hp",
           "value": "+5"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "철갑탄": {
       "effect": {
@@ -5229,6 +6127,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "인피니티 노바": {
@@ -5247,7 +6152,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:UGN 간부": {
@@ -5275,7 +6182,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "출력강화장치": {
@@ -5292,7 +6201,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "브레이크 불릿": {
@@ -5306,7 +6217,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5327,7 +6240,14 @@
           "label": "info",
           "value": "1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "리마인드 소울": {
       "attributes": [
@@ -5340,7 +6260,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "케이지 블러드": {
@@ -5354,7 +6276,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5374,7 +6298,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "심원한 지식": {
@@ -5383,6 +6309,13 @@
         "max": 3,
         "level": false,
         "disable": "session"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "귀인예찬": {
@@ -5396,7 +6329,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "친구": {
@@ -5406,7 +6341,14 @@
           "label": "info",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "헬즈 월": {
       "attributes": [
@@ -5419,7 +6361,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "강화소재": {
@@ -5433,7 +6377,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "어드밴스드 고글": {
@@ -5447,7 +6393,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:소식통 친구": {
@@ -5475,7 +6423,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "비클 스파이크": {
@@ -5490,7 +6440,14 @@
           "label": "init",
           "value": "-3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "콤비네이터": {
       "attributes": [
@@ -5503,7 +6460,9 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "다채색 재능:정신": {
@@ -5517,7 +6476,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5561,7 +6522,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "하이 디자인": {
@@ -5576,7 +6539,14 @@
           "label": "init",
           "value": "+3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "커넥션:용병": {
       "attributes": [
@@ -5608,7 +6578,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "CR 탄환": {
@@ -5622,7 +6594,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5642,7 +6616,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "자기장 생성기": {
@@ -5656,7 +6632,9 @@
       "active": {
         "state": false,
         "disable": "reaction",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5683,6 +6661,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "니벨룽의 반지": {
@@ -5697,7 +6682,14 @@
           "label": "dice",
           "value": "-(1)"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "모노리스 반": {
       "attributes": [
@@ -5715,7 +6707,14 @@
           "label": "mind",
           "value": "1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
     },
     "퍼플 템터": {
       "used": {
@@ -5734,6 +6733,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "미제리코드": {
@@ -5747,7 +6753,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "서포트 프로그램": {
@@ -5761,7 +6769,9 @@
       "active": {
         "state": false,
         "disable": "major",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       },
       "used": {
         "state": false,
@@ -5781,7 +6791,9 @@
       "active": {
         "state": false,
         "disable": "scene",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "커넥션:코퍼레이트": {
@@ -5804,6 +6816,13 @@
         "max": 1,
         "level": false,
         "disable": "notCheck"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "리틀 그레이 탐정사무소": {
@@ -5822,13 +6841,22 @@
       "active": {
         "state": false,
         "disable": "round",
-        "runTiming": "instant"
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "심플 기믹": {
       "encroach": {
         "init": 0,
         "value": "3"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "길티": {
@@ -5843,6 +6871,13 @@
           "rivival": true,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "암의사": {
@@ -5857,6 +6892,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "어닐딩 윌": {
@@ -5871,6 +6913,13 @@
           "rivival": true,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "장미의 관": {
@@ -5885,6 +6934,13 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     },
     "히로익 스톤": {
@@ -5898,6 +6954,1543 @@
           "rivival": false,
           "activate": true
         }
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "AIDA": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "ARPA의 서": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "A랭크:스페셜리스트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "A랭크:어택커": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "B랭크:서포터": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "B랭크:스페셜리스트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "C랭크1": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "C랭크2": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "EX 랭크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "EX랭크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "FH 이슈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "K 자금": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "MASK-ED": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "MM - 77 바이러스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "PWE": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "R 구치소": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "R 밸런서": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "SS 랭크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "TSB": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "UGN 듀티": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "가시관": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "각명": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "개런티 플러스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "고향의 거리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "구조변질약": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "귀인의 키스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "그레이박스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "그리디": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "네버 다이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "농축체": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "능력 훈련": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "대 워딩 마스크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "데몬즈 시드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "데미지 글러브": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "독벌레 항아리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "드롭아웃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "디바우러": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "디시플린즈 액트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "랫 핑크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "러그맨": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "럭키 메달 : 골드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "럭키 메달 : 브론즈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "럭키 메달 : 실버": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "럭키 메달 : 화이트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "레니게이드 스카우터": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "레스트 타임": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "레어 스피시즈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "레지네이트 스킨": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "레플리카 코스튬": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "루저": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리더즈 마크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리버스 가디언": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리설 샤인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리스크 정키": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리에존 크레스토": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "리에종 크레스트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "마왕의 석판": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "망령의 어인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "맥스웰 프로그램": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "머니 파워": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "메디컬 서포트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "미미르의 각서": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "밀리온베인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "밤의 작은 새": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "배드 프렌드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "백캐스터": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "버디 무브": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "번 아웃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "봉쇄망": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "불같은 프라이드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "불굴의 의지": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "브레이커": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "블랙 ID 카드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "블랙 다이아몬드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "블랙 로렐라이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "빅 네임": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "빌드 스파인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "사냥개의 전지": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "사신의 서": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "사용인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "서라운드 레포트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "서치 아이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "세뇌장치": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "세컨드 딜": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "셀 스태프 : 가드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "셀 스태프 : 어썰트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "셀 스텝 : 가드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "셀 스텝 : 아사르트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "소돔 ICBM": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "소행성의 역학": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "수호의 방패": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "술잔의 맹세": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "스네어": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "스텔스 필드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "스트레인지 페이즈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "스파르타쿠스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "시체청소부": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "시커": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "신의 사생아": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "심판의 눈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "싸이코 부스트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "안티 빌런 그물": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "알렉산드리아": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "암거래": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "암시 고글": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "애프터 라이프": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "액세서리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "에브리씽 레디": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "에이션트 키퍼": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엑시즈 오더": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: FH 공통": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: FH 에이전트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: UGN 공통": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: UGN 본부 에이전트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: UGN 이레귤러": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: UGN 지부장": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "엠블럼 데이터: UGN 칠드런": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "연금비본": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "욕망의 아가씨": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "원념의 주석": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "원초의 혼돈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "웨폰 케이스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "유니크 코트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "유니폼드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "이지스 링": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "이프리트의 팔": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "인의의 뜻": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "인피니티 코로나": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "인피티니 이클립스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "잃어버린 노랫소리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "자이언트 킬": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "점쟁이 할머니": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "정신강화수술": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "제복": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "종자의 기량": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "종자의 선별": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "종자의 안식": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "지배자의 왕홀": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "진실의 꽃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "초기형 오버드 재머": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "침식하는 악의": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "캐주얼": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "콜 시스템": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "크레디트 카드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "킬링 하우스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "타임 워커": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "특수급습부대": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "특수재난특별조치법": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "페르소나 샵": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "페이탈 포인트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "포멀": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "포어시 사이트": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "폴른 샐러맨더": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "폴른 스트라이프": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "프로즌 릴리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "플래너의 예언": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "플러스 랭크": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "하멜른의 피리": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "하우스 오브 데몬즈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "하이드 아웃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "하트 베어러": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "학원 졸업생": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "학원의 완장": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "해명의 석판": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "허밋 셉터": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "헌팅 아이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "호외신문": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "홍보기획 7과": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "환등현": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
+      }
+    },
+    "휴대전화": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "onUse",
+        "action": ""
       }
     }
   },
@@ -5906,24 +8499,44 @@
       "encroach": {
         "init": 0,
         "value": "3"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
       }
     },
     "No.63 조화자": {
       "encroach": {
         "init": 0,
         "value": "1d10"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
       }
     },
     "No.51 기억 탐색자": {
       "encroach": {
         "init": 0,
         "value": "1d10"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
       }
     },
     "No.32 크로노 트리거": {
       "encroach": {
         "init": 0,
         "value": "1d10"
+      },
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
       }
     },
     "No.38 나찰": {
@@ -5947,7 +8560,12 @@
           "label": "dice",
           "value": "+3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.60 시인": {
       "attributes": [
@@ -5970,7 +8588,12 @@
           "label": "dice",
           "value": "+4"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.95 가면": {
       "attributes": [
@@ -5999,7 +8622,12 @@
           "label": "dice",
           "value": "+1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.G01 선별자": {
       "attributes": [
@@ -6027,7 +8655,12 @@
           "timing": "instant",
           "command": "await window.DX3rdUniversalHandler?.roisActivate(actor, { encroach: '1d10', applied: { key: item.id, name: item.name, disable: 'roll', attributes: { critical: '-2' } } });"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.34 기계화병": {
       "attributes": [
@@ -6123,7 +8756,12 @@
           "label": "dice",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.53 강화병": {
       "attributes": [
@@ -6151,7 +8789,12 @@
           "label": "dice",
           "value": "+2"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.73 초대받지 않은 손님": {
       "attributes": [
@@ -6160,7 +8803,12 @@
           "label": "dice",
           "value": "+1"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.84 악마의 오른팔": {
       "attributes": [
@@ -6169,7 +8817,12 @@
           "label": "dice",
           "value": "+3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.50 절대영도": {
       "attributes": [
@@ -6192,7 +8845,12 @@
           "label": "dice",
           "value": "+5"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "No.04 대항종": {
       "attributes": [
@@ -6342,7 +9000,12 @@
           "label": "guard",
           "value": "+5"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     },
     "피의 권속": {
       "attributes": [
@@ -6351,7 +9014,558 @@
           "label": "dice",
           "value": "+3"
         }
-      ]
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.01b 현자의 돌:흑색": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.02 기원종": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.03 변이종": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.05 실험체": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.07 특권계급": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.08 생환자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.09a 복제체-올 브리드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.09 복제체": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.11 비밀병기": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.12 고대종": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.13 복수자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.14 안정체": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.15 촉매": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.17 기묘한 이웃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.18 조직의 조력": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.19 지도자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.20 정예": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.21 신격": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.22 전생자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.23 선택받은 자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.24 초혈통": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.26 아순혈": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.27 기적의 피": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.28 전문가": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.29 광술사": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.30 암제": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.31 사안": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.33 뇌제": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.35 흡혈귀": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.36 황혼의 지배자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.37 야수본능": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.39 이형": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.41 스피드 스타": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.42 음술사": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.43 연금술사": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.44 샌드맨": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.45 천재": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.47 이상향": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.48 동물술사": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.49 영원한 불꽃": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.52 마음의 기적": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.54 옷에 입혀진 자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.55 불사자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.56 파괴의 아이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.57 스파이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.58 어리석은 자의 황금": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.61 살아있는 전설": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.62 수호자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.64 곁에 서는 그림자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.65 윤회의 짐승": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.66 정점의 증거": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.67 측정불능": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.68 재정자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.69 학생왕자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.70 학원천사": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.71 숙명의 아이": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.72 번장": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.77 마성": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.78 유일한 생존자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.79 사령관": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.80 전쟁영웅": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.81 ACE": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.82 잠입공작원": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.85 만들어진 악": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.86 첩보원": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.88 오파츠": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.92 오버 테크놀러지": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.96 괴인": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.97 선행종": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.98 유산상속자": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.G02 정의의 사도": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.H01 추억의 돌": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "No.H02a 아카릭 레코드": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "상실감": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "진조": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "추가 D로이스:나도 모름": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "커스텀 D로이스": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
+    },
+    "혐오감": {
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant"
+      }
     }
   }
 }

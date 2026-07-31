@@ -70,10 +70,14 @@ if ($UpdatePacks) {
     # Two callers reach here, and both need this guard:
     #   - tools/git-hooks/pre-commit, which runs -UpdatePacks on every
     #     version-changing commit. That is why committing requires Foundry closed.
-    #   - a manual run, which is the only path when the installed
-    #     .git/hooks/pre-commit predates that step. Check with
-    #     `grep -c 'release.ps1' .git/hooks/pre-commit` -- 0 means the hook will
-    #     not rebuild packs and this script must be run by hand.
+    #     `core.hooksPath` points at tools/git-hooks, so .git/hooks/ is never
+    #     executed -- do not inspect that directory to decide what a commit does.
+    #   - a manual run, to push _source changes into packs/ without committing.
+    #
+    # Either way this rebuild REPLACES the pack directories wholesale, so any
+    # hand-tuning done inside Foundry must first be recovered into _source
+    # (tools/recover-pack-edits.mjs). The pre-commit hook does that automatically;
+    # a manual run does not. See CLAUDE.md, "컴펜디움 릴리즈".
     $FoundryProcesses = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match "foundry" })
     if ($FoundryProcesses.Count -gt 0) {
         $Names = ($FoundryProcesses | ForEach-Object { "$($_.ProcessName) ($($_.Id))" }) -join ", "
@@ -179,6 +183,12 @@ if ($UpdatePacks) {
         }
     }
     Write-Host "DX3rd | updated committed pack output safely: $LivePacks"
+
+    # packs/ 와 _source 의 빌드 산출 JSON 이 방금 일치했다. 그 사실을 해시로 남겨 두면
+    # 나중에 누가 생성기만 따로 돌렸는지 알 수 있고, recover-pack-edits 가 낡은 기준선으로
+    # 손튜닝을 오판하는 것을 막는다. 실패해도 릴리즈 자체를 깨뜨릴 이유는 없다.
+    & node (Join-Path $PSScriptRoot "recover-pack-edits.mjs") --stamp
+    if ($LASTEXITCODE -ne 0) { Write-Warning "DX3rd | baseline stamp failed; recover-pack-edits will warn until the next successful build." }
 }
 
 Remove-Item -LiteralPath $Stage -Recurse -Force

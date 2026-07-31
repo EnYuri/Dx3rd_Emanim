@@ -27,6 +27,40 @@ if [ -z "$STAGED_VERSION" ] || [ "$STAGED_VERSION" = "$BASE_VERSION" ]; then
   STAGED_VERSION="$(git show :system.json | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))')"
 fi
 
+# Recover Foundry-side hand-tuning BEFORE the rebuild below replaces packs/.
+#
+# The rebuild is wholesale (release.ps1 moves each declared pack directory away and
+# puts the freshly built one in its place), so anything edited inside Foundry and not
+# yet represented in _source is destroyed by this very commit -- it never even reaches
+# the commit. That happened for real on 2026-07-31 (38 icons plus one item's
+# mechanization). Recovering first turns the rebuild into a no-op for those edits.
+#
+# Order matters twice over: this must run before release.ps1 because the recovery's
+# baseline IS the previous build output still sitting in _source/. Regenerating first
+# would destroy the baseline and make legitimate _source edits look like pack
+# hand-tuning, pinning the old values as overrides forever.
+echo "DX3rd | recovering Foundry-side pack edits into _source before rebuild"
+set +e
+node tools/recover-pack-edits.mjs --all --write
+RECOVER_STATUS=$?
+set -e
+if [ "$RECOVER_STATUS" -eq 3 ]; then
+  echo "DX3rd | pack recovery skipped: no LevelDB reader available (set FOUNDRY_APP_PATH to enable)" >&2
+elif [ "$RECOVER_STATUS" -eq 4 ]; then
+  echo "DX3rd | the recovery baseline no longer matches packs/ (a _source generator ran on its own)." >&2
+  echo "DX3rd | Hand-tuning and _source edits are indistinguishable in that state, so this commit stops here." >&2
+  exit 4
+elif [ "$RECOVER_STATUS" -ne 0 ]; then
+  echo "DX3rd | pack recovery failed -- aborting commit rather than rebuilding over unsaved edits." >&2
+  exit "$RECOVER_STATUS"
+fi
+# Only these two files are tracked inside the otherwise-private _source tree.
+# Use an if-block, not `[ -f x ] && git add x`: under `set -e` a false test is the
+# list's exit status and would abort the commit with no message at all.
+for f in _source/item-mech-overrides.json _source/effect-mech-overrides.json; do
+  if [ -f "$f" ]; then git add -- "$f"; fi
+done
+
 echo "DX3rd | version $BASE_VERSION -> $STAGED_VERSION: building private compendia before commit"
 
 if command -v powershell.exe >/dev/null 2>&1; then
