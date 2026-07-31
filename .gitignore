@@ -29,3 +29,24 @@ CLAUDE.md
 tmp/
 dist/
 rule-vs-code-audit.md
+
+# 일회성 컴펜디움 조사·마이그레이션 작업물 (배포·공용 도구 아님)
+tools/audit-bad-city-effects.mjs
+tools/audit-bad-city-import.mjs
+tools/build-flavor-proposal.mjs
+tools/extract-item-data.py
+tools/item-name-aliases.json
+tools/match-item-data.mjs
+tools/prepare-bad-city-import.mjs
+tools/migrations/2026-07-31-bad-city-items.mjs
+tools/migrations/2026-07-31-emblem-unique-exp.mjs
+tools/migrations/2026-07-31-flavor-leak-fix.mjs
+tools/migrations/2026-07-31-item-flavor-information-loss.mjs
+tools/migrations/2026-07-31-item-flavor-once-etc.mjs
+tools/migrations/2026-07-31-item-flavor-review-once-etc.mjs
+tools/migrations/2026-07-31-item-flavor-review.mjs
+tools/migrations/2026-07-31-item-flavor-text.mjs
+tools/migrations/2026-07-31-item-name-typos.mjs
+tools/migrations/2026-07-31-weapon-armor-pdf-flavor-and-dedup.mjs
+tools/migrations/2026-08-01-bad-city-effects.mjs
+tools/tests/bad-city-effects.test.mjs

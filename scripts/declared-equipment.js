@@ -27,7 +27,7 @@
   // 보정 키 → 표시 라벨. 여기 없는 키는 원문 그대로 보여준다(저작 오류를 숨기지 않기 위해).
   const KEY_LABELS = {
     dice: 'DX3rd.Dice', add: 'DX3rd.Add', critical: 'DX3rd.Critical', critical_min: 'DX3rd.CriticalMin',
-    stat_dice: 'DX3rd.StatDice', stat_add: 'DX3rd.StatAdd',
+    stat_dice: 'DX3rd.StatDice', stat_add: 'DX3rd.StatAdd', effect_level: 'DX3rd.EffectLevelBonus',
     major_dice: 'DX3rd.MajorDice', major_add: 'DX3rd.MajorAdd', major_critical: 'DX3rd.Critical',
     reaction_dice: 'DX3rd.ReactionDice', reaction_add: 'DX3rd.ReactionAdd',
     dodge_dice: 'DX3rd.DodgeDice', dodge_add: 'DX3rd.DodgeAdd',

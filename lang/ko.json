@@ -303,6 +303,7 @@
   "DX3rd.StatBonus": "능력/기능 보정치",
   "DX3rd.StatAdd": "능력/기능 달성치",
   "DX3rd.StatDice": "능력/기능 다이스",
+  "DX3rd.EffectLevelBonus": "이펙트 레벨",
   
   "DX3rd.SkillBonus": "기능 보정치",
   "DX3rd.SkillAdd": "기능 달성치",

@@ -73,14 +73,9 @@
                 switch (currentItem.type) {
                     case 'effect':
                         // 침식률에 따른 레벨 계산
-                        const baseLevel = Number(currentItem.system.level?.init || 0);
-                        const upgrade = currentItem.system.level?.upgrade || false;
-                        let calculatedLevel = baseLevel;
-
-                        if (upgrade && this.actor.system?.attributes?.encroachment?.level) {
-                            const encLevel = Number(this.actor.system.attributes.encroachment.level) || 0;
-                            calculatedLevel += encLevel;
-                        }
+                        const calculatedLevel = window.DX3rdEffectLevel
+                            ? window.DX3rdEffectLevel.value(currentItem, this.actor)
+                            : Number(currentItem.system.level?.init || 0);
 
                         itemData.level = calculatedLevel;
                         itemData.maxLevel = Number(currentItem.system.level?.max) || itemData.level || 0;
@@ -761,17 +756,10 @@
                     let displayMax = Number(usedMax) || 0;
                     if (usedLevel && itemData.type === 'effect') {
                         // 이펙트 아이템의 경우 침식률에 따른 레벨 수정이 적용된 수치 사용
-                        const baseLevel = Number(itemData.level) || 0;
-                        // upgrade 여부는 itemData에서 직접 가져올 수 없으므로 currentItem에서 확인
                         const currentItem = this.actor.items.get(itemData.id);
-                        const upgrade = currentItem?.system?.level?.upgrade || false;
-                        let finalLevel = baseLevel;
-                        
-                        if (upgrade && this.actor.system?.attributes?.encroachment?.level) {
-                            const encLevel = Number(this.actor.system.attributes.encroachment.level) || 0;
-                            finalLevel += encLevel;
-                        }
-                        
+                        const finalLevel = window.DX3rdEffectLevel && currentItem
+                            ? window.DX3rdEffectLevel.value(currentItem, this.actor)
+                            : Number(itemData.level) || 0;
                         displayMax += finalLevel;
                     } else if (usedLevel && itemData.type === 'psionic') {
                         // 사이오닉은 침식률 보정 없이 init만 더함

@@ -4,6 +4,14 @@
 (function() {
     // v13/v14 호환: Actor 글로벌이 없을 경우 폴백
     const _ActorBase = foundry.documents?.Actor ?? globalThis.Actor;
+    const sumItemEncroachInit = items => {
+        let total = 0;
+        for (const item of Array.from(items || [])) {
+            if (item?.type === 'record') continue;
+            total += Number(item?.system?.encroach?.init) || 0;
+        }
+        return total;
+    };
 
     class DX3rdActor extends _ActorBase {
         prepareData() {
@@ -770,12 +778,11 @@
             attrs.encroachment.min = attrs.encroachment.min ?? 0;
             if (attrs.encroachment.value < attrs.encroachment.min) attrs.encroachment.value = attrs.encroachment.min;
             
-            // 침식률 초기값 계산 (input + 이펙트 아이템들의 encroach.init 합산 + 레코드 아이템들의 encroachment 합산)
-            let encroachInitSum = 0;
-            for (const effect of effectItems) {
-                const encroachInit = Number(effect.system?.encroach?.init) || 0;
-                encroachInitSum += encroachInit;
-            }
+            // 침식률 초기값 계산
+            // system.encroach.init 은 이펙트 전용 슬롯이 아니다. 엠블럼·유니크 등
+            // 일반 아이템에도 같은 필드를 사용하며, 타입과 무관하게 모두 합산한다.
+            // record 는 별도의 system.encroachment 통로로 더하므로 여기서는 제외한다.
+            let encroachInitSum = sumItemEncroachInit(items);
             
             // 레코드 아이템의 encroachment 합산
             for (const record of recordItems) {
@@ -1775,4 +1782,5 @@
         character: "DX3rd.Character",
         enemy: "DX3rd.Enemy"
     };
+    window.DX3rdItemEncroachInit = { sum: sumItemEncroachInit };
 })();

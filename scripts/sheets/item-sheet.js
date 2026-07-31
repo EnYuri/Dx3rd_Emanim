@@ -215,13 +215,14 @@
         const max = Number.isFinite(rawMax) ? rawMax : 1;
         const upgrade = Boolean(sourceLevel.upgrade);
         const encroachmentLevel = upgrade ? Number(actor?.system?.attributes?.encroachment?.level) || 0 : 0;
+        const appliedLevelBonus = window.DX3rdEffectLevel?.bonus(actor) || 0;
 
         return {
             ...sourceLevel,
             init,
             max,
             upgrade,
-            value: init + encroachmentLevel
+            value: init + encroachmentLevel + appliedLevelBonus
         };
     }
 

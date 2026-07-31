@@ -30,6 +30,9 @@
       system.saving ??= {value: 0, difficulty: ''};
       system.saving.value ??= 0;
       system.saving.difficulty ??= '';
+      system.encroach ??= {init: 0, value: ''};
+      system.encroach.init ??= 0;
+      system.encroach.value ??= '';
       system.active ??= {state: false, disable: '-', runTiming: 'instant'};
       system.active.state ??= false;
       system.active.disable ??= '-';

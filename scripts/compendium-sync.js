@@ -102,7 +102,10 @@
                 const encroachmentLevel = upgrade
                     ? Number(item.actor?.system?.attributes?.encroachment?.level) || 0
                     : 0;
-                setPath(data, 'system.level.value', init + encroachmentLevel);
+                const effectLevelBonus = item.type === 'effect'
+                    ? window.DX3rdEffectLevel?.bonus(item.actor) || 0
+                    : 0;
+                setPath(data, 'system.level.value', init + encroachmentLevel + effectLevelBonus);
             }
         }
         return data;

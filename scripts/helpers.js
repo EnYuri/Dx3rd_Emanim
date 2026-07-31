@@ -390,6 +390,9 @@
             if (!item) return 0;
             // Effect/Psionic 아이템만 레벨 있음
             if (item.type === 'effect' || item.type === 'psionic') {
+                if (item.type === 'effect' && window.DX3rdEffectLevel) {
+                    return window.DX3rdEffectLevel.value(item, item.actor);
+                }
                 const lvl = item.system?.level || {};
                 // 실제 소유 아이템(액터 보유)인 이펙트는 침식률 레벨을 동적으로 계산한다.
                 // level.value는 이펙트 시트의 레벨 필드를 편집할 때(_onLevelChange)만 저장되므로
@@ -1498,15 +1501,9 @@
                                 // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
                                 let displayMax = Number(usedMax) || 0;
                                 if (usedLevel) {
-                                    const baseLevel = Number(effect.system?.level?.init) || 0;
-                                    const upgrade = effect.system?.level?.upgrade || false;
-                                    let finalLevel = baseLevel;
-                                    
-                                    if (upgrade && actor?.system?.attributes?.encroachment?.level) {
-                                        const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-                                        finalLevel += encLevel;
-                                    }
-                                    
+                                    const finalLevel = window.DX3rdEffectLevel
+                                        ? window.DX3rdEffectLevel.value(effect, actor)
+                                        : Number(effect.system?.level?.init) || 0;
                                     displayMax += finalLevel;
                                 }
                                 
@@ -1550,15 +1547,9 @@
             // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
             let displayMax = Number(usedMax) || 0;
             if (usedLevel && item.type === 'effect') {
-                const baseLevel = Number(item.system?.level?.init) || 0;
-                const upgrade = item.system?.level?.upgrade || false;
-                let finalLevel = baseLevel;
-                
-                if (upgrade && actor?.system?.attributes?.encroachment?.level) {
-                    const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-                    finalLevel += encLevel;
-                }
-                
+                const finalLevel = window.DX3rdEffectLevel
+                    ? window.DX3rdEffectLevel.value(item, actor)
+                    : Number(item.system?.level?.init) || 0;
                 displayMax += finalLevel;
             } else if (usedLevel && item.type === 'psionic') {
                 const baseLevel = Number(item.system?.level?.init) || 0;

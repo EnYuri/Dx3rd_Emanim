@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "2.2.0",
+  "version": "2.2.1",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/application-compat.js",
@@ -25,6 +25,7 @@
     "scripts/declared-equipment.js",
     "scripts/condtions.js",
     "scripts/dx3rd-applied-effects.js",
+    "scripts/effect-level.js",
     "scripts/socket-router.js",
     "scripts/socket-contracts.js",
     "scripts/combat/combat.js",

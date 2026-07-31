@@ -156,6 +156,7 @@ Hooks.once('init', async function() {
             { value: "stat_bonus", label: "DX3rd.StatBonus" },
             { value: "stat_add", label: "DX3rd.StatAdd" },
             { value: "stat_dice", label: "DX3rd.StatDice" },
+            { value: "effect_level", label: "DX3rd.EffectLevelBonus" },
             { value: "cast_dice", label: "DX3rd.CastingDice" },
             { value: "cast_add", label: "DX3rd.CastingAdd" }
         ];

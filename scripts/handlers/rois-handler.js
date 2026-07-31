@@ -350,15 +350,9 @@ window.DX3rdRoisHandler = {
                         // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
                         let displayMax = Number(max) || 0;
                         if (level && effect.type === 'effect') {
-                            const baseLevel = Number(effect.system?.level?.init) || 0;
-                            const upgrade = effect.system?.level?.upgrade || false;
-                            let finalLevel = baseLevel;
-                            
-                            if (upgrade && actor.system?.attributes?.encroachment?.level) {
-                                const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-                                finalLevel += encLevel;
-                            }
-                            
+                            const finalLevel = window.DX3rdEffectLevel
+                                ? window.DX3rdEffectLevel.value(effect, actor)
+                                : Number(effect.system?.level?.init) || 0;
                             displayMax += finalLevel;
                         } else if (level && effect.type === 'psionic') {
                             const baseLevel = Number(effect.system?.level?.init) || 0;
@@ -386,15 +380,9 @@ window.DX3rdRoisHandler = {
                         // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
                         let displayMax = Number(max) || 0;
                         if (level && effect.type === 'effect') {
-                            const baseLevel = Number(effect.system?.level?.init) || 0;
-                            const upgrade = effect.system?.level?.upgrade || false;
-                            let finalLevel = baseLevel;
-                            
-                            if (upgrade && actor.system?.attributes?.encroachment?.level) {
-                                const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-                                finalLevel += encLevel;
-                            }
-                            
+                            const finalLevel = window.DX3rdEffectLevel
+                                ? window.DX3rdEffectLevel.value(effect, actor)
+                                : Number(effect.system?.level?.init) || 0;
                             displayMax += finalLevel;
                         } else if (level && effect.type === 'psionic') {
                             const baseLevel = Number(effect.system?.level?.init) || 0;

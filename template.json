@@ -155,7 +155,11 @@
           "value": 0,
           "difficulty": "0"
         },
-        "exp": 0
+        "exp": 0,
+        "encroach": {
+          "init": 0,
+          "value": ""
+        }
       }
     },
     "effect": {

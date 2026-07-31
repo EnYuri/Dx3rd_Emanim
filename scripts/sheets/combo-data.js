@@ -28,6 +28,7 @@
   }
 
   function getEffectDisplayLevel(effect, actor) {
+    if (window.DX3rdEffectLevel) return window.DX3rdEffectLevel.value(effect, actor);
     const level = effect?.system?.level || {};
     const baseLevel = Number(level.init ?? level.value ?? 0) || 0;
     const encroachmentLevel = level.upgrade

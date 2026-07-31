@@ -547,12 +547,9 @@
         if (item.type === "once") maxValue = item.system.quantity || 1;
 
         if (item.system.used.level === true && item.type === "effect") {
-            const baseLevel = item.system.level?.init || 0;
-            const upgrade = item.system.level?.upgrade || false;
-            let finalLevel = baseLevel;
-            if (upgrade && actor.system?.attributes?.encroachment?.level) {
-                finalLevel += Number(actor.system.attributes.encroachment.level) || 0;
-            }
+            const finalLevel = window.DX3rdEffectLevel
+                ? window.DX3rdEffectLevel.value(item, actor)
+                : Number(item.system.level?.init) || 0;
             maxValue += finalLevel;
         } else if (item.system.used.level === true && item.type === "psionic") {
             maxValue += item.system.level?.init || 0;
@@ -640,7 +637,9 @@
         if (itemData.type === "effect") {
             const upgrade = itemData.system.level.upgrade ?? false;
             const encLevel = upgrade ? Number(actor.system?.attributes?.encroachment?.level) || 0 : 0;
-            itemData.system.level.value = Number(itemData.system.level.init || 0) + encLevel;
+            itemData.system.level.value = Number(itemData.system.level.init || 0)
+                + encLevel
+                + (window.DX3rdEffectLevel?.bonus(actor) || 0);
         } else {
             itemData.system.level.value = Number(itemData.system.level.init || 0);
         }

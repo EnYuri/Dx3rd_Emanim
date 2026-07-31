@@ -42,7 +42,8 @@
     saving_max: 'system.attributes.saving.max',
     stock_point: 'system.attributes.stock.value',
     attack: 'system.attributes.attack.value',
-    damage_roll: 'system.attributes.damage_roll.value'
+    damage_roll: 'system.attributes.damage_roll.value',
+    effect_level: `flags.${SCOPE}.effectLevelBonus`
   };
 
   const ACTIVE_EFFECT_CLS = () =>

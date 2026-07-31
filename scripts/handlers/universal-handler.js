@@ -281,16 +281,9 @@
                     // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
                     let effectDisplayMax = Number(effectUsedMax) || 0;
                     if (effectUsedLevel && effect.type === 'effect') {
-                      // 이펙트 아이템의 경우 침식률에 따른 레벨 수정이 적용된 수치 사용
-                      const baseLevel = Number(effect.system?.level?.init) || 0;
-                      const upgrade = effect.system?.level?.upgrade || false;
-                      let finalLevel = baseLevel;
-                      
-                      if (upgrade && actor.system?.attributes?.encroachment?.level) {
-                        const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-                        finalLevel += encLevel;
-                      }
-                      
+                      const finalLevel = window.DX3rdEffectLevel
+                        ? window.DX3rdEffectLevel.value(effect, actor)
+                        : Number(effect.system?.level?.init) || 0;
                       effectDisplayMax += finalLevel;
                     }
                     
@@ -319,16 +312,9 @@
           if (item.type === 'once') {
             displayMax = Number(item.system?.quantity) || 1;
           } else if (usedLevel && item.type === 'effect') {
-            // 이펙트 아이템의 경우 침식률에 따른 레벨 수정이 적용된 수치 사용
-            const baseLevel = Number(item.system?.level?.init) || 0;
-            const upgrade = item.system?.level?.upgrade || false;
-            let finalLevel = baseLevel;
-            
-            if (upgrade && actor.system?.attributes?.encroachment?.level) {
-              const encLevel = Number(actor.system.attributes.encroachment.level) || 0;
-              finalLevel += encLevel;
-            }
-            
+            const finalLevel = window.DX3rdEffectLevel
+              ? window.DX3rdEffectLevel.value(item, actor)
+              : Number(item.system?.level?.init) || 0;
             displayMax += finalLevel;
           } else if (usedLevel && item.type === 'psionic') {
             // 사이오닉은 침식률 보정 없이 init만 더함
