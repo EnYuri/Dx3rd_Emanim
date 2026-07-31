@@ -12,6 +12,7 @@
 
 (function() {
     const SCOPE = 'dx3rd-emanim';
+    const EXCLUSION_SETTING = 'compendiumSyncExclusions';
     // Item 타입 컴펜디움 팩(system.json packs 순서와 동일)
     const PACKS = ['effects', 'weapons', 'armors', 'vehicles', 'items', 'dlois', 'works', 'syndromes'];
 
@@ -45,7 +46,9 @@
 
     // D/E 로이스는 공식 데이터 갱신 대상이지만, 일반 로이스는 플레이어 관계
     // 데이터이므로 이름이 우연히 컴펜디움 항목과 같아도 덮어쓰지 않는다.
+    // 맨손은 액터별 커스터마이즈가 잦은 기본 무기이므로 컴펜디움 원본으로 되돌리지 않는다.
     function isSyncEligible(item) {
+        if (item.type === 'weapon' && item.name === '맨손') return false;
         if (item.type !== 'rois') return true;
         return ['D', 'E'].includes(item.system?.type);
     }
@@ -81,6 +84,12 @@
         // toObject() 구현체가 반환한 객체를 절대 직접 수정하지 않는다. 검사에서는
         // 같은 원본을 여러 번 비교하므로 특히 중요하다.
         const data = cloneData(src.toObject());
+        // preCreateItem은 일반 가방 아이콘으로 저장된 once를 액터에 생성할 때 알약
+        // 아이콘으로 정규화한다. 비교 쪽이 컴펜디움의 가방 아이콘을 그대로 기대하면
+        // 성공적으로 갱신한 직후에도 이미지 차이로 영원히 다시 잡힌다.
+        if (data.type === 'once' && (!data.img || data.img === 'icons/svg/item-bag.svg')) {
+            data.img = 'icons/svg/pill.svg';
+        }
         data._id = item.id;              // 임베디드 id 보존(콤보/신드롬 참조 유지)
         data.sort = item.sort;           // 시트 정렬 위치 보존
         delete data.ownership;           // 임베디드는 액터 소유권을 따르므로 컴펜디움 소유권 제거
@@ -220,6 +229,90 @@
             if (matches.length) plan.push({ actor, matches });
         }
         return plan;
+    }
+
+    // 데이터 갱신에서 제외할 액터 임베디드 아이템은 월드 설정에 보관한다.
+    // 아이템 자체에 플래그를 쓰면 그 플래그 변경이 확인창 이후의 지문 검사를 깨뜨리고,
+    // 컴펜디움 교체 시 플래그 보존이라는 별도 예외도 생기므로 외부 설정이 더 안전하다.
+    const exclusionKey = (actorId, itemId) => `${actorId}:${itemId}`;
+
+    function getExclusions() {
+        const value = game.settings.get(SCOPE, EXCLUSION_SETTING);
+        return value && typeof value === 'object' && !Array.isArray(value) ? cloneData(value) : {};
+    }
+
+    function filterPlan(plan, exclusions = {}) {
+        return plan.map(({ actor, matches }) => ({
+            actor,
+            matches: matches.filter(({ item }) => !exclusions[exclusionKey(actor.id, item.id)])
+        })).filter(({ matches }) => matches.length);
+    }
+
+    function renderSelectablePlan(plan, exclusions) {
+        return plan.map(({ actor, matches }) => {
+            const items = matches.map(({ item }) => {
+                const key = exclusionKey(actor.id, item.id);
+                const checked = exclusions[key] ? ' checked' : '';
+                return `<li style="display:flex;gap:.75em;align-items:center">` +
+                    `<span style="flex:1">${esc(item.name)}</span>` +
+                    `<label style="white-space:nowrap"><input type="checkbox" ` +
+                    `data-compendium-sync-exclusion value="${esc(key)}"${checked}> ` +
+                    `${localize('DX3rd.CompendiumSyncExcludeLabel')}</label></li>`;
+            }).join('');
+            return `<li><b>${esc(actor.name)}</b><ul style="margin:.25em 0 .6em">${items}</ul></li>`;
+        }).join('');
+    }
+
+    async function saveExclusionSelection(plan, root) {
+        const selected = new Set(Array.from(
+            root.querySelectorAll('input[data-compendium-sync-exclusion]:checked'),
+            input => input.value
+        ));
+        const exclusions = getExclusions();
+        for (const { actor, matches } of plan) {
+            for (const { item } of matches) {
+                const key = exclusionKey(actor.id, item.id);
+                if (selected.has(key)) exclusions[key] = true;
+                else delete exclusions[key];
+            }
+        }
+        await game.settings.set(SCOPE, EXCLUSION_SETTING, exclusions);
+        return filterPlan(plan, exclusions);
+    }
+
+    async function confirmSyncSelection({ title, plan, contentBefore = '', contentAfter = '' }) {
+        const exclusions = getExclusions();
+        const rows = renderSelectablePlan(plan, exclusions);
+        return foundry.applications.api.DialogV2.wait({
+            window: { title },
+            position: { width: 700, height: 'auto' },
+            classes: ['dx3rd-emanim', 'dialog', 'compendium-sync-dialog'],
+            content:
+                contentBefore +
+                (rows
+                    ? `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.CompendiumSyncExcludeHint')}</p>` +
+                      `<ul style="max-height:300px;overflow:auto;margin:.5em 0">${rows}</ul>`
+                    : '') +
+                contentAfter,
+            modal: true,
+            rejectClose: false,
+            buttons: [
+                {
+                    action: 'confirm',
+                    icon: 'fas fa-cloud-download-alt',
+                    label: localize('DX3rd.CompendiumSyncRun'),
+                    default: true,
+                    callback: async (event, button, dialog) =>
+                        saveExclusionSelection(plan, dialog.element)
+                },
+                {
+                    action: 'cancel',
+                    icon: 'fas fa-times',
+                    label: localize('DX3rd.Cancel'),
+                    callback: () => null
+                }
+            ]
+        });
     }
 
     // 읽기 전용 감사. 실제 동기화에 쓰일 최종 데이터와 현재 아이템을 비교한다.
@@ -422,23 +515,23 @@
             return;
         }
 
-        const rows = plan.map(p =>
-            `<li><b>${esc(p.actor.name)}</b> — ${p.matches.length}개: ${p.matches.map(({ item }) => esc(item.name)).join(', ')}</li>`
-        ).join('');
-        const content =
+        const contentBefore =
             `<p>${plan.length}개 액터의 <b>${totalItems}</b>개 아이템을 컴펜디움 데이터로 덮어씁니다.</p>` +
             `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.CompendiumSyncPreserveHint')}</p>` +
-            (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '') +
-            `<ul style="max-height:240px;overflow:auto;margin:.5em 0">${rows}</ul>`;
-
-        const confirmed = await foundry.applications.api.DialogV2.confirm({
-            window: { title: game.i18n.localize('DX3rd.CompendiumSyncTitle') },
-            content,
-            modal: true
+            (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '');
+        const selectedPlan = await confirmSyncSelection({
+            title: game.i18n.localize('DX3rd.CompendiumSyncTitle'),
+            plan,
+            contentBefore
         });
-        if (!confirmed) return;
+        if (!selectedPlan) return;
+        const selectedItems = selectedPlan.reduce((n, p) => n + p.matches.length, 0);
+        if (!selectedItems) {
+            ui.notifications.info(localize('DX3rd.CompendiumSyncExcludedAll'));
+            return;
+        }
 
-        const res = await apply(index, nameTypes, plan);
+        const res = await apply(index, nameTypes, selectedPlan);
         const msg = format('DX3rd.CompendiumSyncComplete', res);
         if (res.failed || res.stale) {
             const notices = [];
@@ -465,19 +558,23 @@
             ui.notifications.info(localize('DX3rd.FullSyncNone'));
             return;
         }
-        const itemRows = plan.map(p =>
-            `<li><b>${esc(p.actor.name)}</b> — ${p.matches.length}개: ${p.matches.map(({ item }) => esc(item.name)).join(', ')}</li>`).join('');
-        const content =
+        const contentBefore =
             `<p>${format('DX3rd.FullSyncSummary', { actors: plan.length, items: totalItems })}</p>` +
             `<p style="opacity:.75;font-size:.9em">${localize('DX3rd.FullSyncHint')}</p>` +
-            (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '') +
-            (itemRows ? `<details open><summary>${localize('DX3rd.CompendiumSyncLabel')}</summary><ul style="max-height:200px;overflow:auto;margin:.5em 0">${itemRows}</ul></details>` : '') +
-            runtimeAuditContent(runtime);
-        const confirmed = await foundry.applications.api.DialogV2.confirm({
-            window: { title: localize('DX3rd.CompendiumSyncHubTitle') }, content, modal: true
+            (dupes ? `<p style="color:orange">⚠ 컴펜디움에 동일 (타입|이름) 중복 ${dupes}건 — 마지막 항목 기준으로 적용됩니다.</p>` : '');
+        const selectedPlan = await confirmSyncSelection({
+            title: localize('DX3rd.CompendiumSyncHubTitle'),
+            plan,
+            contentBefore,
+            contentAfter: runtimeAuditContent(runtime)
         });
-        if (!confirmed) return;
-        const compendium = totalItems ? await apply(index, nameTypes, plan) : { actorsChanged: 0, itemsChanged: 0, failed: 0 };
+        if (!selectedPlan) return;
+        const selectedItems = selectedPlan.reduce((n, p) => n + p.matches.length, 0);
+        if (!selectedItems && !runtimeHasWork(runtime)) {
+            ui.notifications.info(localize('DX3rd.CompendiumSyncExcludedAll'));
+            return;
+        }
+        const compendium = selectedItems ? await apply(index, nameTypes, selectedPlan) : { actorsChanged: 0, itemsChanged: 0, failed: 0 };
         const repaired = await repairRuntime();
         ui.notifications.info(format('DX3rd.FullSyncComplete', {
             actors: compendium.actorsChanged,
@@ -545,6 +642,12 @@
 
     // 설정 메뉴 버튼 등록. type 클래스는 render 시 확인 플로우만 띄우고 창은 열지 않는다.
     Hooks.once('init', function() {
+        game.settings.register(SCOPE, EXCLUSION_SETTING, {
+            scope: 'world',
+            config: false,
+            type: Object,
+            default: {}
+        });
         class CompendiumSyncMenu extends foundry.applications.api.ApplicationV2 {
             static DEFAULT_OPTIONS = { id: 'dx3rd-compendium-sync-menu' };
             async render() {
@@ -577,5 +680,9 @@
         });
     });
 
-    window.DX3rdCompendiumSync = { open, openItemSync, openAudit, openHub, openAppliedToggleRepair, buildIndex, resolveSource, scan, audit, apply, runtimeAudit };
+    window.DX3rdCompendiumSync = {
+        open, openItemSync, openAudit, openHub, openAppliedToggleRepair,
+        buildIndex, resolveSource, scan, audit, apply, runtimeAudit,
+        isSyncEligible, prepareReplacement, needsReplacement, exclusionKey, filterPlan
+    };
 })();

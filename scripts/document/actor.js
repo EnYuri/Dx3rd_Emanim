@@ -782,7 +782,7 @@
             // system.encroach.init 은 이펙트 전용 슬롯이 아니다. 엠블럼·유니크 등
             // 일반 아이템에도 같은 필드를 사용하며, 타입과 무관하게 모두 합산한다.
             // record 는 별도의 system.encroachment 통로로 더하므로 여기서는 제외한다.
-            let encroachInitSum = sumItemEncroachInit(items);
+            let encroachInitSum = sumItemEncroachInit(actorItems);
             
             // 레코드 아이템의 encroachment 합산
             for (const record of recordItems) {

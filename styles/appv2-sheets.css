@@ -192,6 +192,18 @@
     margin-bottom: 0;
 }
 
+/* 방어구 해설은 정확히 여섯 필드이므로 3열 × 2행으로 고정한다.
+   공용 16열 그리드에서는 세 칸을 같은 폭으로 나눌 수 없어(5/5/6 또는 8/4/4)
+   매입/상비화·경험점·침식치의 시각적 비중이 달라진다. 방어구에만 3등분 그리드를
+   적용해 두 행 모두 같은 열 경계를 공유하게 한다. */
+.application.sheet.dx3rd-emanim.item.protect-sheet-v2 .sheet-attributes.protect-attributes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.application.sheet.dx3rd-emanim.item.protect-sheet-v2 .sheet-attributes.protect-attributes > .cell {
+    grid-column: span 1;
+}
+
 /* 로이스: 긍정/부정/타이터스/승화 라벨은 기본 .cell--title(justify-content:center)로
    가운데 정렬한다. 체크박스(.checkbox-addon, absolute right:0)는 라벨을 기준점으로 삼아야
    타이터스+승화처럼 라벨 두 개가 한 셀에 들어가는 경우 각 체크박스가 자기 라벨 우측에
@@ -1145,7 +1157,7 @@
 
 /* #2 입력 박스 공백/폭: 이전 시트 flex 모델을 그대로 재현한다.
    이전 시트 은 .stat 을 flex:1 1 0% + flex-wrap:wrap 으로 두어, 각 칸(155~162px 셀) 안에서
-   가변 분배한다 → 행동치(단일 입력)=60px, 이동/상비점=41px, 경험점=36px 처럼 칸마다 다르다.
+   가변 분배한다 → 행동치/가드치(단일 입력)=60px, 이동=41px, 경험점=36px 처럼 칸마다 다르다.
    이전에 이를 일괄 flex:0 0 36px 로 고정했더니 행동치가 60→36 으로 과도하게 줄고 다른 칸도
    어긋났다(실측 확인). 폭/높이는 styles.css(.sheet-stat .stat width:60px 등)에 맡기고
    여기선 flex 분배와 shrink 만 이전 시트 과 동일하게 보정한다. */
@@ -1157,6 +1169,37 @@
     flex: 1 1 0%;
     min-width: 0;
     padding: 1px 3px;
+}
+
+/* stat-list 는 absolute 이면서 기본 width/right 가 없어 내용의 고유 폭으로 줄어든다.
+   교체 전 상비점/재산점은 두 입력+구분자의 합계가 우연히 남는 영역을 채웠지만,
+   단일 값인 장갑치·가드치는 짧아진다. 오른쪽 경계를 박아 교체 전 필드 영역 전체를
+   유지하고 값 입력이 그 폭을 채우게 한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .stat-box.defense-readout .stat-list {
+    right: 0;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .stat-box.defense-readout .stat-list .stat {
+    flex: 1 1 0%;
+    width: auto;
+}
+
+/* 장비 탭의 상비점·재산점은 레코드 탭의 라벨/입력 그리드와 같은 틀을 쓰되,
+   두 값과 구분자는 한 줄 안에서 균등하게 배치한다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .tab[data-tab="equipment"] .equipment-point-fields {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .tab[data-tab="equipment"] .equipment-point-fields > input {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+}
+
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .tab[data-tab="equipment"] .equipment-point-fields > .divider {
+    flex: 0 0 auto;
 }
 
 /* 다이스 라벨 옆 임계치 표시(addon-critical-min)·이펙트 사용횟수(used-input) 등 작은 고정폭

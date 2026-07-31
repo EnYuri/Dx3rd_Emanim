@@ -59,6 +59,11 @@ test('basic encroachment sums the shared encroach.init field on every non-record
     {type:'etc', system:{encroach:{value:'4'}}}
   ])`, context);
   assert.equal(result, 6);
+  assert.match(
+    source('scripts/document/actor.js'),
+    /sumItemEncroachInit\(actorItems\)/,
+    'prepareData must reuse the in-scope normalized actor item list'
+  );
 });
 
 test('effect level includes active effect_level bonuses and ignores disabled effects', () => {
@@ -443,10 +448,14 @@ test('chat message flags take precedence and legacy messages are classified', ()
 test('compendium sync follows once/etc reclassification without touching same-name decoys', () => {
   const context = baseContext({
     Hooks: { once: () => {} },
+    foundry: { utils: {} },
     game: { i18n: { localize: key => key } }
   });
   load(context, 'scripts/compendium-sync.js');
-  const { resolveSource } = context.window.DX3rdCompendiumSync;
+  const {
+    resolveSource, isSyncEligible, prepareReplacement, needsReplacement,
+    exclusionKey, filterPlan
+  } = context.window.DX3rdCompendiumSync;
 
   // 컴펜디움: 응급치료 키트는 etc → once로 재분류됐고, 돌팔매는 이펙트로만 존재한다.
   const pack = [
@@ -487,6 +496,55 @@ test('compendium sync follows once/etc reclassification without touching same-na
   const newKit = item('i6', '응급치료 키트', 'once');
   assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), oldKit), null);
   assert.equal(resolveSource(index, nameTypes, actorOf(oldKit, newKit), newKit).type, 'once');
+
+  // 맨손은 액터마다 커스터마이즈되므로 컴펜디움 데이터로 되돌리지 않는다.
+  assert.equal(isSyncEligible({ type: 'weapon', name: '맨손' }), false);
+  assert.equal(isSyncEligible({ type: 'weapon', name: '나이프' }), true);
+
+  // once 원본의 일반 가방 아이콘은 preCreateItem에서 알약 아이콘으로 바뀐다.
+  // 비교도 같은 결과를 기대해야 한 번 갱신한 아이템이 영원히 다시 잡히지 않는다.
+  const currentOnce = {
+    id: 'i7',
+    sort: 0,
+    type: 'once',
+    actor: null,
+    toObject: () => ({
+      _id: 'i7',
+      name: '응급치료 키트',
+      type: 'once',
+      img: 'icons/svg/pill.svg',
+      system: { quantity: 2 },
+      effects: [],
+      flags: {}
+    })
+  };
+  const sourceOnce = {
+    toObject: () => ({
+      _id: 'source',
+      name: '응급치료 키트',
+      type: 'once',
+      img: 'icons/svg/item-bag.svg',
+      system: { quantity: 1 },
+      effects: [],
+      flags: {}
+    })
+  };
+  assert.equal(prepareReplacement(currentOnce, sourceOnce).img, 'icons/svg/pill.svg');
+  assert.equal(needsReplacement(currentOnce, sourceOnce), false);
+
+  // 월드에 저장한 제외 선택은 해당 액터의 해당 아이템만 빼고, 빈 액터 행도 제거한다.
+  const actorA = { id: 'a1', items: [trunk, kit] };
+  const actorB = { id: 'a2', items: [sling] };
+  const filtered = filterPlan([
+    { actor: actorA, matches: [{ item: trunk }, { item: kit }] },
+    { actor: actorB, matches: [{ item: sling }] }
+  ], {
+    [exclusionKey(actorA.id, kit.id)]: true,
+    [exclusionKey(actorB.id, sling.id)]: true
+  });
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].actor.id, 'a1');
+  assert.deepEqual(Array.from(filtered[0].matches, match => match.item.id), ['i1']);
 });
 
 // applied-toggle 하네스: 토글 AE 동기화의 경합/배치/상시 자동활성을 실물 모듈로 검증한다.

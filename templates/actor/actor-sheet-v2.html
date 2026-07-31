@@ -197,12 +197,10 @@
           <input class="stat" type="text" name="system.attributes.exp.now" value="{{system.attributes.exp.now}}" data-dtype="Number" disabled/>
         </div>
       </div>
-      <div class="stat-box">
-        <label class="title">{{localize "DX3rd.Saving"}}</label>
+      <div class="stat-box defense-readout">
+        <label class="title">{{localize "DX3rd.ResourceCostAttr.armor"}}</label>
         <div class="stat-list flexrow">
-          <input class="stat" type="text" name="system.attributes.saving.max" value="{{system.attributes.saving.max}}" data-dtype="Number" disabled/>
-          <span class="divider"><i class="fas fa-arrow-right"></i></span>
-          <input class="stat" type="text" name="system.attributes.saving.remain" value="{{system.attributes.saving.remain}}" data-dtype="Number" disabled/>
+          <input class="stat" type="text" value="{{system.attributes.armor.value}}" disabled/>
         </div>
       </div>
     </div>
@@ -234,12 +232,10 @@
           <input class="stat" type="text" name="system.attributes.move.full" value="{{system.attributes.move.full}}" disabled>
         </div>
       </div>
-      <div class="stat-box">
-        <label class="title stock-title" style="cursor: pointer;" data-action="useStock">{{localize "DX3rd.Stock"}}</label>
+      <div class="stat-box defense-readout">
+        <label class="title">{{localize "DX3rd.ResourceCostAttr.guard"}}</label>
         <div class="stat-list flexrow">
-          <input class="stat" type="text" name="system.attributes.stock.value" value="{{system.attributes.stock.value}}" data-dtype="Number"/>
-          <span class="divider">/</span>
-          <input class="stat" type="text" value="{{system.attributes.stock.max}}" data-dtype="Number" disabled/>
+          <input class="stat" type="text" value="{{system.attributes.guard.value}}" disabled/>
         </div>
       </div>
     </div>
@@ -668,6 +664,25 @@
       {{!-- Equipment Tab --}}
       <div class="tab {{tabs.equipment.cssClass}}" data-group="primary" data-tab="equipment">
         <section class="sheet-attributes">
+          <div class="cell grid-3">
+            <div class="cell--title"><label>{{localize "DX3rd.Saving"}}</label></div>
+          </div>
+          <div class="cell grid-5 equipment-point-fields">
+            <input class="horizon-input" type="text" name="system.attributes.saving.max" value="{{system.attributes.saving.max}}" data-dtype="Number" disabled/>
+            <span class="divider"><i class="fas fa-arrow-right"></i></span>
+            <input class="horizon-input" type="text" name="system.attributes.saving.remain" value="{{system.attributes.saving.remain}}" data-dtype="Number" disabled/>
+          </div>
+          <div class="cell grid-3">
+            <div class="cell--title stock-title" style="cursor: pointer;" data-action="useStock">
+              <label>{{localize "DX3rd.Stock"}}</label>
+            </div>
+          </div>
+          <div class="cell grid-5 equipment-point-fields">
+            <input class="horizon-input" type="text" name="system.attributes.stock.value" value="{{system.attributes.stock.value}}" data-dtype="Number"/>
+            <span class="divider">/</span>
+            <input class="horizon-input" type="text" value="{{system.attributes.stock.max}}" data-dtype="Number" disabled/>
+          </div>
+
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Weapon"}}</label>
