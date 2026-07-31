@@ -1,7 +1,10 @@
 {
   "weapons": {
     "밀리오베인": {
-      "encroach": { "init": 0, "value": "3" }
+      "encroach": {
+        "init": 0,
+        "value": "3"
+      }
     },
     "추한 어순": {
       "encroach": {
@@ -21,7 +24,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/swords-sharp-worn.webp"
     },
     "디스트로이어": {
       "attributes": [
@@ -44,7 +48,8 @@
           "label": "major_dice",
           "value": "+3"
         }
-      ]
+      ],
+      "img": "icons/weapons/polearms/trident-curved-steel.webp"
     },
     "로켓 런처": {
       "attributes": [
@@ -60,7 +65,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/artillery/missile-rocket-launch-orange.webp"
     },
     "파일 벙커": {
       "attributes": [
@@ -76,7 +82,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/tools/hand/drill-steel-brown-grey.webp"
     },
     "기타": {
       "attributes": [
@@ -90,7 +97,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/tools/instruments/lute-gold-brown.webp"
     },
     "배틀 가디언": {
       "attributes": [
@@ -109,7 +117,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/greatsword-sheathed.webp"
     },
     "하이매뉴버 미사일": {
       "attributes": [
@@ -125,7 +134,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/ammunition/explosive-rocket-orange.webp"
     },
     "수리검": {
       "attributes": [
@@ -139,7 +149,8 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/thrown/shuriken-double-red.webp"
     },
     "라이트닝 카운트": {
       "attributes": [
@@ -153,15 +164,31 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-sci-fi.webp"
     },
     "스턴 그레네이드": {
-      "used": {
-        "state": 0,
-        "max": 1,
-        "level": false,
-        "disable": "session"
-      }
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            {
+              "timing": "afterSuccess",
+              "target": "targetToken",
+              "type": "rigor",
+              "poisonedRank": null,
+              "activate": true
+            },
+            {
+              "timing": "afterSuccess",
+              "target": "targetToken",
+              "type": "dazed",
+              "poisonedRank": null,
+              "activate": true
+            }
+          ]
+        }
+      },
+      "img": "icons/weapons/thrown/grenade-chemical.webp"
     },
     "카운실러스 엣지": {
       "effect": {
@@ -191,15 +218,24 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-bolt-action.webp"
     },
     "베넘 그레네이드": {
-      "used": {
-        "state": 0,
-        "max": 1,
-        "level": false,
-        "disable": "session"
-      }
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            {
+              "timing": "afterSuccess",
+              "target": "targetToken",
+              "type": "poisoned",
+              "poisonedRank": "3",
+              "activate": true
+            }
+          ]
+        }
+      },
+      "img": "icons/weapons/thrown/grenade-gas.webp"
     },
     "히트 윕": {
       "attributes": [
@@ -215,7 +251,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/misc/whip-red-yellow.webp"
     },
     "필중의 활": {
       "attributes": [
@@ -240,10 +277,14 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/misc/whip-red-yellow.webp"
     },
     "레이징 아크": {
-      "encroach": { "init": 0, "value": "2" },
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      },
       "attributes": [
         {
           "key": "attack",
@@ -260,7 +301,10 @@
       }
     },
     "폴른 쉴드": {
-      "encroach": { "init": 0, "value": "2" },
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      },
       "attributes": [
         {
           "key": "guard",
@@ -283,7 +327,8 @@
           "label": "ranged",
           "value": "1"
         }
-      ]
+      ],
+      "img": "icons/weapons/guns/pistol-stun-energy-red.webp"
     },
     "폴른 개틀링": {
       "attributes": [
@@ -319,7 +364,8 @@
         "max": 1,
         "level": false,
         "disable": "round"
-      }
+      },
+      "img": "icons/equipment/shield/heater-steel-boss-red.webp"
     },
     "쥬라기 레코드": {
       "attributes": [
@@ -331,12 +377,20 @@
       ]
     },
     "라이트 머신 건": {
-      "used": {
-        "state": 0,
-        "max": 1,
-        "level": false,
-        "disable": "scene"
-      }
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            {
+              "timing": "afterSuccess",
+              "target": "targetToken",
+              "type": "dazed",
+              "poisonedRank": null,
+              "activate": true
+            }
+          ]
+        }
+      },
+      "img": "icons/weapons/guns/gun-chain-gatling-belt.webp"
     },
     "칼리굴라": {
       "attributes": [
@@ -361,7 +415,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/thrown/dagger-ringed-steel.webp"
     },
     "드릴": {
       "effect": {
@@ -375,10 +430,14 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/skills/melee/drill-heavy-earth.webp"
     },
     "토츠카 검": {
-      "encroach": { "init": 0, "value": "2" },
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      },
       "attributes": [
         {
           "key": "init",
@@ -390,7 +449,8 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/sword-guard-flanged.webp"
     },
     "황금총": {
       "attributes": [
@@ -434,10 +494,14 @@
         "max": 1,
         "level": false,
         "disable": "session"
-      }
+      },
+      "img": "icons/tools/hand/wrench-steel-grey.webp"
     },
     "조디악 웨폰": {
-      "encroach": { "init": 0, "value": "2" },
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      },
       "attributes": [
         {
           "key": "damage_roll",
@@ -491,7 +555,8 @@
         "max": 1,
         "level": false,
         "disable": "round"
-      }
+      },
+      "img": "icons/equipment/shield/heater-steel-grey.webp"
     },
     "헬 스나이퍼": {
       "attributes": [
@@ -524,12 +589,20 @@
       "getTarget": true
     },
     "사출식 스턴 건": {
-      "used": {
-        "state": 0,
-        "max": 1,
-        "level": false,
-        "disable": "scene"
-      }
+      "itemExtend": {
+        "condition": {
+          "conditions": [
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "rigor",
+              "poisonedRank": null,
+              "activate": true
+            }
+          ]
+        }
+      },
+      "img": "icons/weapons/guns/pistol-auto-gold-black.webp"
     },
     "대공 미사일": {
       "attributes": [
@@ -545,7 +618,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/ammunition/explosive-rocket-silver.webp"
     },
     "AR 샷건": {
       "effect": {
@@ -587,7 +661,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-energy-steel-red.webp"
     },
     "풀 오토 샷 건": {
       "attributes": [
@@ -601,7 +676,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/shotgun-pump.webp"
     },
     "레이징 블레이드": {
       "attributes": [
@@ -656,7 +732,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/fist/claw-tech-spike-red.webp"
     },
     "스피어 스틱": {
       "effect": {
@@ -670,7 +747,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/polearms/spear-ornate-gold.webp"
     },
     "불가시의 칼날": {
       "effect": {
@@ -712,7 +790,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/swords/sword-ringed-engraved.webp"
     },
     "STALKER": {
       "attributes": [
@@ -721,7 +800,8 @@
           "label": "attack",
           "value": "min([count:정신강화수술]*2,6)"
         }
-      ]
+      ],
+      "img": "icons/weapons/guns/pistol-auto-grunge-steel.webp"
     },
     "스네이크 블레이드": {
       "attributes": [
@@ -735,7 +815,8 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/sword-jeweled-red.webp"
     },
     "센서 실드": {
       "attributes": [
@@ -749,7 +830,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/magic/defensive/shield-hex-red.webp"
     },
     "킨 나이프 쯔바이": {
       "effect": {
@@ -763,7 +845,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/thrown/dagger-ringed-guard.webp"
     },
     "개시어스 블레이드": {
       "attributes": [
@@ -779,7 +862,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/swords/greatsword-crossguard-engraved-green.webp"
     },
     "무고의 검": {
       "attributes": [
@@ -788,7 +872,8 @@
           "label": "major_dice",
           "value": "+2"
         }
-      ]
+      ],
+      "img": "icons/weapons/swords/greatsword-crossguard-embossed-gold.webp"
     },
     "전차포": {
       "attributes": [
@@ -802,7 +887,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/artillery/cannon-tech-white.webp"
     },
     "결투자의 검": {
       "attributes": [
@@ -816,7 +902,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/swords/sword-guard-worn.webp"
     },
     "그래비티 앱소버": {
       "attributes": [
@@ -873,7 +960,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/guns/gun-topbarrel.webp"
     },
     "리액티브 실드": {
       "attributes": [
@@ -889,7 +977,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/magic/defensive/barrier-shield-dome-blue-purple.webp"
     },
     "R캐논": {
       "attributes": [
@@ -911,7 +1000,8 @@
         "max": 1,
         "level": false,
         "disable": "scene"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-energy-brass.webp"
     },
     "수어사이드 삐에로": {
       "attributes": [
@@ -925,7 +1015,9 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/thrown/grenade-tech-energy.webp",
+      "description": "<p>이 무기를 사용한 사격 공격은 공격 대상의 장갑치를 무시한 채로 데미지를 계산한다. 이 무기는 한 시나리오에 3번 사용 가능하다.</p><p><em>모르페우스의 EX레네게이드에 감염된 드론형 폭탄. 공격의 표적을 자동적으로 추격하여, 접촉하면 큰 폭팔을 일으킨다. 폭발 후에는 자동적으로 재구축 되어 돌아온다.</em></p>"
     },
     "발리스틱 나이프": {
       "effect": {
@@ -939,7 +1031,8 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/daggers/dagger-black.webp"
     },
     "샷건": {
       "attributes": [
@@ -953,7 +1046,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-repeater.webp"
     },
     "리니어 캐논": {
       "effect": {
@@ -967,10 +1061,14 @@
           }
         ]
       },
-      "getTarget": true
+      "getTarget": true,
+      "img": "icons/weapons/guns/pistol-projectile-automatic.webp"
     },
     "히어로 슈터": {
-      "encroach": { "init": 0, "value": "1" },
+      "encroach": {
+        "init": 0,
+        "value": "1"
+      },
       "attributes": [
         {
           "key": "attack",
@@ -982,7 +1080,11 @@
         "state": false,
         "disable": "major",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-auto-tech-purple.webp",
+      "folder": [
+        "사격"
+      ]
     },
     "소형부유포": {
       "attributes": [
@@ -996,7 +1098,8 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/weapons/guns/rifle-white.webp"
     },
     "어쌔시네이터": {
       "attributes": [
@@ -1012,7 +1115,8 @@
         "runTiming": "instant",
         "applyMode": "onUse",
         "action": "use"
-      }
+      },
+      "img": "icons/weapons/guns/pistol-tech-short-double.webp"
     },
     "히어로 소드": {
       "attributes": [
@@ -1021,7 +1125,8 @@
           "label": "major_dice",
           "value": "+1"
         }
-      ]
+      ],
+      "img": "icons/weapons/swords/sword-guard-engraved.webp"
     },
     "패리 실드": {
       "attributes": [
@@ -1035,40 +1140,36 @@
         "state": false,
         "disable": "scene",
         "runTiming": "instant"
-      }
+      },
+      "img": "icons/skills/melee/shield-block-gray-yellow.webp"
     },
     "굶주린 칼날": {
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "poisoned", "poisonedRank": "3", "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "poisoned",
+              "poisonedRank": "3",
+              "activate": true
+            }
           ]
         }
-      }
-    },
-    "라이트 머신 건": {
-      "itemExtend": {
-        "condition": {
-          "conditions": [
-            { "timing": "afterSuccess", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
-          ]
-        }
-      }
+      },
+      "img": "icons/weapons/swords/shortsword-winged.webp"
     },
     "마안창": {
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
-          ]
-        }
-      }
-    },
-    "베넘 그레네이드": {
-      "itemExtend": {
-        "condition": {
-          "conditions": [
-            { "timing": "afterSuccess", "target": "targetToken", "type": "poisoned", "poisonedRank": "3", "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "rigor",
+              "poisonedRank": null,
+              "activate": true
+            }
           ]
         }
       }
@@ -1077,25 +1178,29 @@
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "poisoned", "poisonedRank": "2", "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "poisoned",
+              "poisonedRank": "2",
+              "activate": true
+            }
           ]
         }
-      }
+      },
+      "img": "icons/weapons/thrown/daggers-kunai-purple.webp"
     },
     "블레이드 불릿": {
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
-          ]
-        }
-      }
-    },
-    "사출식 스턴 건": {
-      "itemExtend": {
-        "condition": {
-          "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "dazed",
+              "poisonedRank": null,
+              "activate": true
+            }
           ]
         }
       }
@@ -1104,29 +1209,254 @@
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "rigor",
+              "poisonedRank": null,
+              "activate": true
+            }
           ]
         }
-      }
-    },
-    "스턴 그레네이드": {
-      "itemExtend": {
-        "condition": {
-          "conditions": [
-            { "timing": "afterSuccess", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true },
-            { "timing": "afterSuccess", "target": "targetToken", "type": "dazed", "poisonedRank": null, "activate": true }
-          ]
-        }
-      }
+      },
+      "img": "icons/weapons/guns/pistol-auto-gold-black.webp"
     },
     "암 벙커": {
       "itemExtend": {
         "condition": {
           "conditions": [
-            { "timing": "afterDamage", "target": "targetToken", "type": "rigor", "poisonedRank": null, "activate": true }
+            {
+              "timing": "afterDamage",
+              "target": "targetToken",
+              "type": "rigor",
+              "poisonedRank": null,
+              "activate": true
+            }
           ]
         }
-      }
+      },
+      "img": "icons/magic/defensive/barrier-shield-dome-deflect-blue.webp"
+    },
+    "PDW": {
+      "img": "icons/weapons/guns/submachine-gun-scope.webp"
+    },
+    "강화 라이플": {
+      "img": "icons/weapons/guns/machine-pistol-silver-orange.webp"
+    },
+    "강화 블레이드": {
+      "img": "icons/weapons/swords/greatsword-crossguard-flanged-red.webp"
+    },
+    "고속진동 블레이드": {
+      "img": "icons/weapons/fist/claw-tech-spike-red.webp"
+    },
+    "고정식 레일건": {
+      "img": "icons/weapons/artillery/cannon-energy-sonic.webp"
+    },
+    "권총": {
+      "img": "icons/weapons/guns/pistol-handgun-medium.webp"
+    },
+    "그레네이드 런처": {
+      "img": "icons/weapons/guns/launcher-rocket-bazooka.webp"
+    },
+    "기간트 햄머": {
+      "img": "icons/weapons/hammers/hammer-double-studded.webp"
+    },
+    "나이프": {
+      "img": "icons/weapons/daggers/knife-green.webp"
+    },
+    "너클 더스터": {
+      "img": "icons/weapons/fist/fist-knuckles-spiked-blue.webp"
+    },
+    "대구경기관포": {
+      "img": "icons/weapons/artillery/mount-weapon-auto-steel.webp"
+    },
+    "대전차 미사일": {
+      "img": "icons/weapons/ammunition/explosive-missile.webp"
+    },
+    "대형 해머": {
+      "img": "icons/weapons/hammers/hammer-double-steel-embossed.webp"
+    },
+    "대형권총": {
+      "img": "icons/weapons/guns/pistol-silenced-heavy.webp"
+    },
+    "대형척탄포": {
+      "img": "icons/weapons/artillery/mount-weapon-launcher-steel.webp"
+    },
+    "데빌 건": {
+      "img": "icons/weapons/guns/pistol-smoking-orange.webp"
+    },
+    "도끼": {
+      "img": "icons/weapons/axes/shortaxe-engraved-green.webp"
+    },
+    "듀랄루민 실드": {
+      "img": "icons/equipment/shield/Scutum-steel-worn.webp"
+    },
+    "래피드 파이어": {
+      "img": "icons/weapons/guns/pistol-fire-orange.webp"
+    },
+    "레드 템페스트": {
+      "img": "icons/weapons/guns/gun-barrel.webp"
+    },
+    "리퀴드 블레이드": {
+      "img": "icons/weapons/swords/sword-flanged-lightning.webp"
+    },
+    "매스 이펙트": {
+      "img": "icons/weapons/fist/glove-spiked.webp"
+    },
+    "맨손": {
+      "img": "icons/skills/melee/unarmed-punch-fist-yellow-red.webp"
+    },
+    "메카니컬 피스트": {
+      "img": "icons/equipment/hand/tech-gauntlet-steel.webp"
+    },
+    "목도": {
+      "img": "icons/weapons/swords/shortsword-sheathed-brown.webp"
+    },
+    "바라키엘": {
+      "img": "icons/weapons/swords/greatsword-guard-split-eyes.webp"
+    },
+    "버클러": {
+      "img": "icons/equipment/shield/targe-wooden-boss-steel.webp"
+    },
+    "베이퍼 월": {
+      "img": "icons/magic/defensive/barrier-shield-dome-pink.webp"
+    },
+    "비애의 쐐기": {
+      "img": "icons/weapons/swords/sword-guard-brass-worn.webp"
+    },
+    "비클용 레일캐논": {
+      "img": "icons/weapons/artillery/cannon-energy-sonic.webp"
+    },
+    "사일런트 시커": {
+      "img": "icons/weapons/guns/shotgun-short-tan.webp"
+    },
+    "샷 건(슬러그)": {
+      "img": "icons/weapons/guns/shotgun-short-steel.webp"
+    },
+    "서브머신 건": {
+      "img": "icons/weapons/guns/machine-gun-sub-large.webp"
+    },
+    "서양검": {
+      "img": "icons/weapons/swords/greatsword-crossguard-steel.webp"
+    },
+    "섬광의 칼": {
+      "img": "icons/weapons/swords/sword-guard-serrated.webp"
+    },
+    "수류탄": {
+      "img": "icons/weapons/thrown/grenade-stick-handle.webp"
+    },
+    "스나이퍼 라이플": {
+      "img": "icons/weapons/guns/rifle-sniper-long.webp"
+    },
+    "스턴 바톤": {
+      "img": "icons/weapons/clubs/baton-energy-stun-silver-yellow.webp"
+    },
+    "스톰 와인더": {
+      "img": "icons/weapons/crossbows/crossbow-golden-bolt.webp"
+    },
+    "신축성 경봉": {
+      "img": "icons/weapons/clubs/baseball-bat-metal.webp"
+    },
+    "안티 마테리얼 라이플": {
+      "img": "icons/weapons/guns/rifle-sniper-tripod.webp"
+    },
+    "앤서러": {
+      "img": "icons/weapons/swords/sword-guard-red.webp"
+    },
+    "어설트 라이플": {
+      "img": "icons/weapons/guns/rifle-assault-heavy.webp"
+    },
+    "와이어 윕": {
+      "img": "icons/weapons/misc/whip-leather.webp"
+    },
+    "요도": {
+      "img": "icons/weapons/swords/sword-runed-glowing.webp"
+    },
+    "일본도": {
+      "img": "icons/weapons/swords/sword-katana.webp"
+    },
+    "임플랜트 미사일": {
+      "img": "icons/weapons/ammunition/ammo-round-energy-cartridge.webp"
+    },
+    "저주받은 자의 총": {
+      "img": "icons/weapons/guns/pistol-tech-energy-red-brass.webp"
+    },
+    "전자 실드": {
+      "img": "icons/magic/defensive/shield-hex-gold.webp"
+    },
+    "제노사이드 이글": {
+      "img": "icons/weapons/thrown/daggers-guard-green.webp"
+    },
+    "중박격포": {
+      "img": "icons/weapons/artillery/mount-weapon-cannon-steel.webp"
+    },
+    "차재기총": {
+      "img": "icons/weapons/artillery/mount-weapon-sprayer-chem-green-purple.webp",
+      "name": "비클 기총"
+    },
+    "창": {
+      "img": "icons/weapons/polearms/pike-flared-red.webp"
+    },
+    "천벌'": {
+      "img": "icons/weapons/guns/rifle-energy-blaster.webp",
+      "name": "'천벌'"
+    },
+    "체인 건": {
+      "img": "icons/weapons/artillery/mount-weapon-auto-steel.webp"
+    },
+    "체인 소우": {
+      "img": "icons/tools/hand/chainsaw-steel-purple.webp"
+    },
+    "카지노 딜러": {
+      "img": "icons/weapons/guns/pistol-machine-orange-black.webp"
+    },
+    "컴포짓 보우": {
+      "img": "icons/weapons/bows/bow-recurve-black.webp"
+    },
+    "크로스보우": {
+      "img": "icons/weapons/crossbows/crossbow-ornamental-black.webp"
+    },
+    "크리스탈 실드": {
+      "img": "icons/magic/defensive/shield-hex-purple.webp"
+    },
+    "톤파": {
+      "img": "icons/weapons/clubs/baton-night-stick-truncheon.webp"
+    },
+    "통나무/바위": {
+      "img": "icons/commodities/wood/log-cut-ash-brown.webp"
+    },
+    "투 핸드 소드": {
+      "img": "icons/weapons/swords/greatsword-crossguard-barbed.webp"
+    },
+    "특수 플라스틱 실드": {
+      "img": "icons/magic/defensive/shield-hex-blue.webp"
+    },
+    "파괴의 검": {
+      "img": "icons/weapons/swords/sword-guard-flanged-purple.webp"
+    },
+    "파워 런쳐": {
+      "img": "icons/weapons/ammunition/ammunition-rocket.webp"
+    },
+    "파워 피스톨": {
+      "img": "icons/weapons/guns/pistol-silenced-scope.webp",
+      "folder": [
+        "사격"
+      ]
+    },
+    "퍼스널 디펜스 웨폰": {
+      "img": "icons/weapons/guns/submachine-gun-scope.webp"
+    },
+    "풍참사": {
+      "img": "icons/weapons/swords/sword-katana-purple.webp"
+    },
+    "플래그 그레네이드": {
+      "img": "icons/weapons/thrown/grenade-frag-green.webp"
+    },
+    "헤비 머신 건": {
+      "img": "icons/weapons/guns/gun-chain-gatling-heavy.webp"
+    },
+    "화염방사기": {
+      "img": "icons/weapons/guns/flamethrower-spray-fire-orange.webp"
     }
   },
   "armors": {
@@ -1135,7 +1465,14 @@
         "statusClear": {
           "timing": "instant",
           "target": "self",
-          "exclude": ["berserk", "hatred", "fear", "poisoned", "rigor", "dazed"],
+          "exclude": [
+            "berserk",
+            "hatred",
+            "fear",
+            "poisoned",
+            "rigor",
+            "dazed"
+          ],
           "activate": true
         }
       }
@@ -1722,7 +2059,9 @@
       }
     },
     "귀인의 예장": {
-      "hp": { "value": "5" },
+      "hp": {
+        "value": "5"
+      },
       "attributes": [
         {
           "key": "add",
@@ -1826,7 +2165,10 @@
       }
     },
     "어스름의 외투": {
-      "encroach": { "init": 0, "value": "2" },
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      },
       "attributes": [
         {
           "key": "guard",
@@ -1842,7 +2184,10 @@
       }
     },
     "EX 패스파인더": {
-      "encroach": { "init": 0, "value": "3" },
+      "encroach": {
+        "init": 0,
+        "value": "3"
+      },
       "attributes": [
         {
           "key": "init",
@@ -2030,16 +2375,28 @@
   },
   "items": {
     "S랭크:스페셜리스트": {
-      "encroach": { "init": 0, "value": "2" }
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      }
     },
     "S랭크:서포터": {
-      "encroach": { "init": 0, "value": "3" }
+      "encroach": {
+        "init": 0,
+        "value": "3"
+      }
     },
     "SS랭크": {
-      "encroach": { "init": 0, "value": "10" }
+      "encroach": {
+        "init": 0,
+        "value": "10"
+      }
     },
     "A랭크:서포터": {
-      "encroach": { "init": 0, "value": "2" }
+      "encroach": {
+        "init": 0,
+        "value": "2"
+      }
     },
     "자동 복원 기구": {
       "used": {
@@ -2779,11 +3136,20 @@
       }
     },
     "해독제": {
-      "used": {
-        "state": false,
-        "max": 1,
-        "level": false,
-        "disable": "notCheck"
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": [
+            "berserk",
+            "hatred",
+            "fear",
+            "rigor",
+            "pressure",
+            "dazed"
+          ],
+          "activate": true
+        }
       }
     },
     "R 감시 팀": {
@@ -2888,11 +3254,24 @@
       ]
     },
     "화이트 페노미나": {
-      "used": {
-        "state": false,
-        "max": 1,
-        "level": false,
-        "disable": "notCheck"
+      "encroach": {
+        "init": 0,
+        "value": "5"
+      },
+      "itemExtend": {
+        "statusClear": {
+          "timing": "instant",
+          "target": "self",
+          "exclude": [
+            "berserk",
+            "fear",
+            "poisoned",
+            "rigor",
+            "pressure",
+            "dazed"
+          ],
+          "activate": true
+        }
       }
     },
     "키리타니 커넥션": {
@@ -3054,7 +3433,9 @@
       ]
     },
     "시냅스 부스터": {
-      "hp": { "value": "3" },
+      "hp": {
+        "value": "3"
+      },
       "attributes": [
         {
           "key": "stat_dice",
@@ -3635,11 +4016,16 @@
       ]
     },
     "보건실이용 허가증": {
-      "used": {
-        "state": false,
-        "max": 1,
-        "level": false,
-        "disable": "notCheck"
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "30",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
       }
     },
     "트루스 사이트": {
@@ -3747,7 +4133,9 @@
       }
     },
     "미스틱 아이": {
-      "hp": { "value": "3" },
+      "hp": {
+        "value": "3"
+      },
       "attributes": [
         {
           "key": "stat_dice",
@@ -3807,11 +4195,17 @@
       }
     },
     "메디컬 어시스턴트": {
-      "used": {
-        "state": false,
-        "max": 1,
-        "level": false,
-        "disable": "notCheck"
+      "itemExtend": {
+        "heal": {
+          "formulaAdd": "0",
+          "healTo": "max",
+          "timing": "instant",
+          "target": "self",
+          "encroachFixed": "",
+          "resurrect": false,
+          "rivival": false,
+          "activate": true
+        }
       }
     },
     "레드 나이트 메어": {
@@ -4209,7 +4603,9 @@
       }
     },
     "무색의 마경": {
-      "hp": { "value": "4" },
+      "hp": {
+        "value": "4"
+      },
       "used": {
         "state": 0,
         "max": 3,
@@ -4883,7 +5279,9 @@
       }
     },
     "출력강화장치": {
-      "hp": { "value": "5" },
+      "hp": {
+        "value": "5"
+      },
       "attributes": [
         {
           "key": "add",
@@ -5447,33 +5845,6 @@
         }
       }
     },
-    "메디컬 어시스턴트": {
-      "itemExtend": {
-        "heal": {
-          "formulaAdd": "0",
-          "healTo": "max",
-          "timing": "instant",
-          "target": "self",
-          "encroachFixed": "",
-          "resurrect": false,
-          "rivival": false,
-          "activate": true
-        }
-      }
-    },
-    "보건실이용 허가증": {
-      "itemExtend": {
-        "heal": {
-          "formulaAdd": "30",
-          "timing": "instant",
-          "target": "self",
-          "encroachFixed": "",
-          "resurrect": false,
-          "rivival": false,
-          "activate": true
-        }
-      }
-    },
     "암의사": {
       "itemExtend": {
         "heal": {
@@ -5516,30 +5887,6 @@
         }
       }
     },
-    "해독제": {
-      "itemExtend": {
-        "statusClear": {
-          "timing": "instant",
-          "target": "self",
-          "exclude": ["berserk", "hatred", "fear", "rigor", "pressure", "dazed"],
-          "activate": true
-        }
-      }
-    },
-    "화이트 페노미나": {
-      "encroach": {
-        "init": 0,
-        "value": "5"
-      },
-      "itemExtend": {
-        "statusClear": {
-          "timing": "instant",
-          "target": "self",
-          "exclude": ["berserk", "fear", "poisoned", "rigor", "pressure", "dazed"],
-          "activate": true
-        }
-      }
-    },
     "히로익 스톤": {
       "itemExtend": {
         "heal": {
@@ -5556,16 +5903,28 @@
   },
   "dlois": {
     "No.83 한 줄기 희망": {
-      "encroach": { "init": 0, "value": "3" }
+      "encroach": {
+        "init": 0,
+        "value": "3"
+      }
     },
     "No.63 조화자": {
-      "encroach": { "init": 0, "value": "1d10" }
+      "encroach": {
+        "init": 0,
+        "value": "1d10"
+      }
     },
     "No.51 기억 탐색자": {
-      "encroach": { "init": 0, "value": "1d10" }
+      "encroach": {
+        "init": 0,
+        "value": "1d10"
+      }
     },
     "No.32 크로노 트리거": {
-      "encroach": { "init": 0, "value": "1d10" }
+      "encroach": {
+        "init": 0,
+        "value": "1d10"
+      }
     },
     "No.38 나찰": {
       "attributes": [
