@@ -248,11 +248,33 @@
         if (item.type === "vehicle" && equipped) {
             const updates = actor.items
                 .filter(other => other.type === "vehicle" && other.id !== itemId && other.system?.equipment === true)
-                .map(other => ({ _id: other.id, "system.equipment": false }));
+                .map(other => ({
+                    _id: other.id,
+                    "system.equipment": false,
+                    ...(other.system?.active?.state === true ? {"system.active.state": false} : {})
+                }));
             if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
         }
 
-        await item.update({ "system.equipment": equipped });
+        // 장착과 자기 보정 활성 상태를 한 문서 업데이트로 확정한다. updateItem 훅에만
+        // 맡기면 훅의 비동기 2차 update보다 액터 시트 렌더가 먼저 일어나 가드치 등
+        // 파생 수치가 이전 상태로 보일 수 있다. 훅은 이미 목표 상태인 것을 확인하고
+        // 매크로/대상 효과 등 나머지 activation 처리만 이어간다.
+        const update = { "system.equipment": equipped };
+        if (!equipped && item.system?.active?.state === true) {
+            update["system.active.state"] = false;
+        } else if (
+            equipped
+            && window.DX3rdItemEffectAdapter?.usesActivationSelfChannel?.(item)
+            && item.system?.active?.disable !== "notCheck"
+            && item.system?.active?.state !== true
+        ) {
+            update["system.active.state"] = true;
+        }
+        await item.update(update);
+        // 임베디드 Item 갱신 직후 AppV2가 부모 Actor의 이전 prepared system을 읽는
+        // Foundry 버전이 있다. 저장 원본에서 즉시 다시 준비해 장갑/가드 표시를 확정한다.
+        actor.reset?.();
         return item;
     }
 

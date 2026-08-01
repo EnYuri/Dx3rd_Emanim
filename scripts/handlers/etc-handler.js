@@ -5,18 +5,19 @@ window.DX3rdEtcHandler = {
         const actor = game.actors.get(actorId);
         if (!actor) { 
             ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound'));
-            return; 
+            return false;
         }
         
         // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
         const item = actor.items.get(itemId) || game.items.get(itemId);
         if (!item) { 
             ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
-            return; 
+            return false;
         }
 
         // Etc 아이템은 항상 즉시 처리 (runTiming 고정)
         await this.handleInstantEtc(actor, item);
+        return true;
     },
     
     /**

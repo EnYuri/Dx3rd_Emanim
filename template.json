@@ -153,7 +153,8 @@
       "item": {
         "saving": {
           "value": 0,
-          "difficulty": "0"
+          "difficulty": "0",
+          "acquisition": "permanent"
         },
         "exp": 0,
         "encroach": {

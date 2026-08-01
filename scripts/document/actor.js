@@ -12,6 +12,33 @@
         }
         return total;
     };
+    const SAVING_ITEM_TYPES = new Set(['weapon', 'protect', 'vehicle', 'book', 'connection', 'etc', 'once']);
+    const sumItemSavingCost = items => {
+        let total = 0;
+        for (const item of Array.from(items || [])) {
+            if (!SAVING_ITEM_TYPES.has(item?.type)) continue;
+            // 기존 문서에는 acquisition 필드가 없다. 데이터 이행 없이도 과거 계산을
+            // 보존하도록 누락값은 상비(permanent), purchase만 비차감으로 취급한다.
+            if (item?.system?.saving?.acquisition === 'purchase') continue;
+            total += Number(item?.system?.saving?.value) || 0;
+        }
+        return total;
+    };
+    const calculateSavingRemain = (maximum, items) =>
+        Math.max((Number(maximum) || 0) - sumItemSavingCost(items), 0);
+    const deriveStock = (baseValue, modifierValue = 0, minimumValue = 0) => {
+        const base = Math.max(Number(baseValue) || 0, 0);
+        const modifier = Number(modifierValue) || 0;
+        const min = Number(minimumValue) || 0;
+        return {
+            base,
+            modifier,
+            value: Math.max(min, base + modifier),
+            // max는 구 매크로/모듈 호환용 별칭이다. 새 UI와 계산의 정본은 base다.
+            max: base,
+            min
+        };
+    };
 
     class DX3rdActor extends _ActorBase {
         prepareData() {
@@ -47,7 +74,7 @@
             // character 타입 전용 속성 추가
             if (!isEnemy) {
                 defaultAttributes.encroachment = { value: 0, max: 100, min: 0, type: game.settings.get('dx3rd-emanim', 'defaultEncroachmentType') || '-', dice: 0, level: 0, init: { input: 0, value: 0 } };
-                defaultAttributes.stock = { value: 0, min: 0, max: 0 };
+                defaultAttributes.stock = { value: 0, base: 0, modifier: 0, min: 0, max: 0 };
                 defaultAttributes.exp = { init: 0, append: 0, total: 0, now: 0, discount: 0 };
                 defaultAttributes.saving = { value: 0, max: 0, min: 0};
                 defaultAttributes.cast = { dice: 0, add: 0, eibon: 0 };
@@ -320,6 +347,7 @@
             const roisItems = itemsOfType('rois');
             const spellItems = itemsOfType('spell');
             const onceItems = itemsOfType('once');
+            const equippedWeapons = itemsOfType('weapon').filter(i => i.system?.equipment === true);
             const equippedProtects = itemsOfType('protect').filter(i => i.system?.equipment === true);
             const equippedVehicles = itemsOfType('vehicle').filter(i => i.system?.equipment === true);
 
@@ -455,15 +483,28 @@
             // === Guard 계산 ===
             let guardBonus = 0;
             let guardRoll = 0;   // 가드 시 굴리는 D10 개수(가드치에 +[N]D10 — 방어 다이얼로그에서 굴려 가산)
+            let equipmentGuardBonus = 0;
+            const equipmentGuardFormulas = [];
+
+            // 액터 시트의 표시값에는 장착 무기의 고유 가드치를 포함한다. 방어 다이얼로그는
+            // 아래 base 값에서 출발해 실제 선택한 무기만 다시 더하므로 이중 적용하지 않는다.
+            for (const weapon of equippedWeapons) {
+                const raw = weapon.system?.guard;
+                if (!raw) continue;
+                const F = window.DX3rdFormulaEvaluator;
+                const prepared = F.prepareRollFormula(raw, weapon, this);
+                if (F.hasDice(prepared)) equipmentGuardFormulas.push(`(${prepared})`);
+                else equipmentGuardBonus += Number(F.evaluate(raw, weapon, this)) || 0;
+            }
 
             // 활성 아이템 + applied 의 guard / guard_roll 보너스
             guardBonus += R.sum('guard');
             guardRoll += R.sum('guard_roll');
 
-            attrs.guard.value = guardBonus;
-            // 최소값 보정: guard는 최소 0
-            if (attrs.guard.value < 0) attrs.guard.value = 0;
-            if (attrs.guard.value < attrs.guard.min) attrs.guard.value = attrs.guard.min;
+            attrs.guard.base = Math.max(guardBonus, attrs.guard.min || 0, 0);
+            attrs.guard.equipment = equipmentGuardBonus;
+            attrs.guard.equipmentFormula = equipmentGuardFormulas.join(' + ');
+            attrs.guard.value = Math.max(attrs.guard.base + equipmentGuardBonus, attrs.guard.min || 0, 0);
             attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
             attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             attrs.guard.valueFormula = R.actionDiceFormula('guard')._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
@@ -737,26 +778,10 @@
             // 이론상 상비점 최대치 (아이템 상비화 비용 차감 전)
             attrs.saving.max = socialTotal * 2 + procureTotal * 2 + savingBonus;
             
-            // 아이템의 saving.value 합계 (상비화 비용)
-            let savingItemCost = 0;
-            const savingItems = actorItems.filter(item =>
-                ['weapon', 'protect', 'vehicle', 'book', 'connection', 'etc', 'once'].includes(item.type)
-            );
-            
-            for (const item of savingItems) {
-                if (item.system?.saving?.value) {
-                    savingItemCost += Number(item.system.saving.value) || 0;
-                }
-            }
-            
-            // remain 기준으로 상비화 비용 차감
-            const savingRemainBase = Math.max(attrs.saving.max - savingItemCost, 0);
-            // 아직 값이 없으면 그대로 세팅, 이미 값이 있으면 새 기준보다 크지 않게만 보정
-            if (attrs.saving.remain == null) {
-                attrs.saving.remain = savingRemainBase;
-            } else {
-                attrs.saving.remain = Math.min(attrs.saving.remain, savingRemainBase);
-            }
+            // 잔여 상비점은 저장값이 아니라 현재 최대치와 보유 아이템 비용에서 매번 파생한다.
+            // 기본 구조의 0을 과거 값으로 취급해 Math.min 하면 한 번 0인 액터가 영구히
+            // 회복되지 않으므로, 아이템 추가·삭제와 능력치 변경 모두 현재 데이터로 재계산한다.
+            attrs.saving.remain = calculateSavingRemain(attrs.saving.max, actorItems);
 
             // 스톡 계산 (saving.remain + 아이템/적용 효과 보너스)
             let stockBonus = 0;
@@ -764,14 +789,15 @@
             // 활성 아이템 + applied 의 stock_point 보너스
             stockBonus += R.sum('stock_point');
             
-            attrs.stock.max = attrs.saving.remain + stockBonus;
-            // 최소값 보정: stock.max는 최소 0
-            if (attrs.stock.max < 0) attrs.stock.max = 0;
-            
-            attrs.stock.value = attrs.stock.value ?? 0;
-            attrs.stock.min = attrs.stock.min ?? 0;
-            if (attrs.stock.value < attrs.stock.min) attrs.stock.value = attrs.stock.min;
-            // value는 max를 초과할 수 있음 (일시적 초과 허용)
+            // 기본 재산점 = 상비화 후 남은 상비점 + 효과 보너스.
+            // 현재 재산점 = 기본 + 사용자가 사유와 함께 기록한 누적 수정치.
+            // 구 데이터의 value=0은 초기값과 실제 0을 구분할 수 없고 기존 버그로 대부분
+            // 0에 고정돼 있었으므로, modifier가 없는 문서는 수정 없음(0)으로 이행한다.
+            Object.assign(attrs.stock, deriveStock(
+                attrs.saving.remain + stockBonus,
+                attrs.stock.modifier,
+                attrs.stock.min
+            ));
 
             // 침식도/경험치 기본값 보정
             attrs.encroachment.max = 100;
@@ -1783,4 +1809,6 @@
         enemy: "DX3rd.Enemy"
     };
     window.DX3rdItemEncroachInit = { sum: sumItemEncroachInit };
+    window.DX3rdSaving = { itemCost: sumItemSavingCost, remain: calculateSavingRemain };
+    window.DX3rdStock = { derive: deriveStock };
 })();

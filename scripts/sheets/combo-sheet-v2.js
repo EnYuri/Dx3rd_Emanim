@@ -68,16 +68,18 @@
         ui.notifications.error(game.i18n.localize('DX3rd.HandlerNotFound'));
         return;
       }
-      await handler.handleItemUse(actor.id, this.item.id, 'combo', null, undefined);
-      await this.close();
+      const used = await handler.handleItemUse(actor.id, this.item.id, 'combo', null, undefined);
+      // 대상 미선택·비용 게이트·판정 설정 오류라면 사용은 시작되지 않았다.
+      // 시트를 닫으면 instantCombo 문서가 삭제되므로, 실패 시에는 작성 내용을 그대로 둔다.
+      if (used === true) await this.close();
     }
 
     async _saveInstantCombo(event) {
       event.preventDefault();
       await this._submitPendingChanges();
-      const temporaryLabel = game.i18n.localize('DX3rd.TemporaryItem');
       const defaultName = game.i18n.localize('DX3rd.Combo');
-      const name = this.item.name.replace(temporaryLabel, '').trim() || defaultName;
+      const instantLabel = `[${defaultName}]`;
+      const name = this.item.name.replace(instantLabel, '').trim() || defaultName;
       await this.item.update({name});
       await this.item.unsetFlag('dx3rd-emanim', 'instantCombo');
       ui.notifications.info(game.i18n.format('DX3rd.ComboSaved', {name}));

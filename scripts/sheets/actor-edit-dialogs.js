@@ -200,33 +200,68 @@
     return dlg;
   }
 
-  // ── 재산점(Stock) 사용 ────────────────────────────────────────────────
+  // ── 재산점(Stock) 수정 및 기록 ────────────────────────────────────────
 
   async function openStock(actor) {
+    if (!hasPermission(actor)) return;
     const DialogV2 = getDialogV2();
     if (!DialogV2) {
       ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return;
     }
 
-    const currentStock = actor.system.attributes.stock.value || 0;
-    if (currentStock <= 0) {
-      ui.notifications.warn("There are no stock point left to use.");
-      return;
-    }
+    const stock = actor.system.attributes.stock || {};
+    const baseStock = Number(stock.base ?? stock.max) || 0;
+    const currentStock = Number(stock.value) || 0;
+    const currentModifier = Number(stock.modifier) || 0;
+    const history = Array.isArray(actor.getFlag('dx3rd-emanim', 'stockHistory'))
+      ? actor.getFlag('dx3rd-emanim', 'stockHistory')
+      : [];
+    const escapeHTML = value => window.DX3rdRuntimeUtils?.escapeHTML?.(String(value ?? ''))
+      ?? foundry.utils.escapeHTML(String(value ?? ''));
+    const historyRows = history.slice(-8).reverse().map(entry => {
+      const date = entry.createdAt ? new Date(entry.createdAt).toLocaleString('ko-KR') : '-';
+      const delta = signedString(Number(entry.delta) || 0);
+      return `
+        <li>
+          <span class="stock-history-main"><strong>${escapeHTML(delta)}</strong> ${escapeHTML(entry.reason || '-')}</span>
+          <small>${escapeHTML(date)} · ${escapeHTML(entry.userName || '')} · ${escapeHTML(entry.before)} → ${escapeHTML(entry.after)}</small>
+        </li>`;
+    }).join('');
 
     const content = `
       <div class="stock-dialog">
+        <div class="stock-summary">
+          <span>${game.i18n.localize("DX3rd.BaseStock")} <strong>${baseStock}</strong></span>
+          <span>${game.i18n.localize("DX3rd.CurrentStock")} <strong>${currentStock}</strong></span>
+          <span>${game.i18n.localize("DX3rd.StockModifier")} <strong>${signedString(currentModifier)}</strong></span>
+        </div>
         <div class="form-group">
-          <label>${game.i18n.localize("DX3rd.StockUseText")} (${game.i18n.localize("DX3rd.Current")} ${game.i18n.localize("DX3rd.Stock")}: ${currentStock})</label>
-          <input type="number" id="stock-use-amount" min="1" max="${currentStock}" value="" placeholder="" style="width: 100%; text-align: center;">
+          <label for="stock-adjustment">${game.i18n.localize("DX3rd.StockAdjustment")}</label>
+          <input type="text" id="stock-adjustment" inputmode="numeric" value="0" placeholder="+1 / -1">
+          <small>${game.i18n.localize("DX3rd.StockAdjustmentHint")}</small>
+        </div>
+        <div class="form-group">
+          <label for="stock-reason">${game.i18n.localize("DX3rd.StockReason")}</label>
+          <input type="text" id="stock-reason" maxlength="120">
+        </div>
+        <div class="stock-history">
+          <h4>${game.i18n.localize("DX3rd.StockHistory")}</h4>
+          ${historyRows ? `<ol>${historyRows}</ol>` : `<p>${game.i18n.localize("DX3rd.StockHistoryEmpty")}</p>`}
         </div>
       </div>
       <style>
-      .stock-dialog { padding: 5px; }
-      .stock-dialog .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 0px; margin-bottom: 5px; }
+      .stock-dialog { padding: 5px; display:flex; flex-direction:column; gap:10px; }
+      .stock-dialog .stock-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; text-align:center; }
+      .stock-dialog .stock-summary span { border:1px solid var(--color-border-light-2); padding:5px; }
+      .stock-dialog .form-group { display: flex; flex-direction: column; gap: 5px; margin: 0; }
       .stock-dialog label { font-weight: bold; font-size: 14px; }
       .stock-dialog input { padding: 4px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+      .stock-dialog .stock-history h4 { margin:0 0 4px; }
+      .stock-dialog .stock-history ol { margin:0; padding-left:22px; max-height:150px; overflow:auto; }
+      .stock-dialog .stock-history li { margin-bottom:5px; }
+      .stock-dialog .stock-history-main { display:block; }
+      .stock-dialog .stock-history small { opacity:.72; }
       </style>
     `;
 
@@ -240,23 +275,52 @@
           label: game.i18n.localize("DX3rd.Confirm"),
           default: true,
           callback: async (event, button, dialog) => {
-            const field = dialog.element.querySelector("#stock-use-amount");
-            const useAmount = parseInt(field?.value);
-            if (isNaN(useAmount) || useAmount < 1) {
-              ui.notifications.warn("Please enter the amount of stock points to use.");
-              return;
+            const adjustmentField = dialog.element.querySelector("#stock-adjustment");
+            const reasonField = dialog.element.querySelector("#stock-reason");
+            const delta = Number(String(adjustmentField?.value || '').trim());
+            const reason = String(reasonField?.value || '').trim();
+            if (!Number.isFinite(delta) || !Number.isInteger(delta) || delta === 0) {
+              ui.notifications.warn(game.i18n.localize("DX3rd.StockAdjustmentInvalid"));
+              return false;
             }
-            if (useAmount > currentStock) {
-              ui.notifications.warn(`Stockpoints can only be used up to ${currentStock} points.`);
-              return;
+            if (!reason) {
+              ui.notifications.warn(game.i18n.localize("DX3rd.StockReasonRequired"));
+              return false;
             }
-            const newStock = Math.max(0, currentStock - useAmount);
-            await actor.update({ "system.attributes.stock.value": newStock });
-            const messageContent = `<div class="dx3rd-item-chat"><p>${game.i18n.localize("DX3rd.Stock")} ${useAmount}${game.i18n.localize("DX3rd.PointUsed")}</p></div>`;
-            ChatMessage.create({
+            const nextStock = currentStock + delta;
+            if (nextStock < (Number(stock.min) || 0)) {
+              ui.notifications.warn(game.i18n.localize("DX3rd.StockBelowMinimum"));
+              return false;
+            }
+
+            const entry = {
+              id: foundry.utils.randomID(),
+              createdAt: Date.now(),
+              userId: game.user.id,
+              userName: game.user.name,
+              reason,
+              delta,
+              before: currentStock,
+              after: nextStock
+            };
+            await actor.update({
+              // 표시 중인 current는 최소값 클램프를 거친 값일 수 있다. 기존 modifier에
+              // 단순 가산하면 숨은 음수 잔액 때문에 +1을 입력해도 화면이 0에 머문다.
+              // 사용자가 확인한 nextStock을 정본으로 삼아 base와의 차이를 다시 저장한다.
+              "system.attributes.stock.modifier": nextStock - baseStock,
+              "flags.dx3rd-emanim.stockHistory": [...history, entry].slice(-100)
+            });
+            const messageContent = `<div class="dx3rd-item-chat"><p>${escapeHTML(game.i18n.format("DX3rd.StockAdjusted", {
+              reason,
+              delta: signedString(delta),
+              before: currentStock,
+              after: nextStock
+            }))}</p></div>`;
+            await ChatMessage.create({
               content: messageContent,
               speaker: ChatMessage.getSpeaker({ actor })
             });
+            return true;
           }
         },
         {
@@ -268,15 +332,9 @@
     });
     await dlg.render(true);
 
-    // 실시간 입력 검증(최댓값 초과 시 초기화)
-    const input = dlg.element.querySelector("#stock-use-amount");
-    input?.addEventListener('input', function () {
-      const value = parseInt(this.value);
-      if (value > currentStock) {
-        ui.notifications.warn(`재산점은 최대 ${currentStock}점까지만 사용할 수 있습니다.`);
-        this.value = '';
-      }
-    });
+    const adjustmentInput = dlg.element.querySelector("#stock-adjustment");
+    adjustmentInput?.addEventListener('input', () => applyAutoSign(adjustmentInput));
+    adjustmentInput?.select();
 
     return dlg;
   }

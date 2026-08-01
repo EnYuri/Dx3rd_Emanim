@@ -33,6 +33,9 @@ rule-vs-code-audit.md
 # 일회성 컴펜디움 조사·마이그레이션 작업물 (배포·공용 도구 아님)
 tools/audit-bad-city-effects.mjs
 tools/audit-bad-city-import.mjs
+tools/audit-effect-flavor.py
+tools/audit-supplement-effect-flavor.py
+tools/audit-item-flavor-quality.mjs
 tools/build-flavor-proposal.mjs
 tools/extract-item-data.py
 tools/item-name-aliases.json
@@ -49,4 +52,13 @@ tools/migrations/2026-07-31-item-flavor-text.mjs
 tools/migrations/2026-07-31-item-name-typos.mjs
 tools/migrations/2026-07-31-weapon-armor-pdf-flavor-and-dedup.mjs
 tools/migrations/2026-08-01-bad-city-effects.mjs
+tools/migrations/2026-08-01-item-flavor-quality.mjs
+tools/migrations/2026-08-01-item-flavor-unmatched.mjs
+tools/migrations/2026-08-01-item-flavor-final-once-etc.mjs
+tools/migrations/2026-08-01-item-flavor-classifier-recovery.mjs
+tools/migrations/2026-08-01-effect-archive-flavor.mjs
+tools/migrations/2026-08-01-supplement-effect-flavor.mjs
+tools/migrations/2026-08-01-supplement-effect-flavor-corrections.mjs
+tools/migrations/2026-08-01-effect-flavor-manual-classification.mjs
+tools/migrations/2026-08-02-seed-effect-manual-targets.mjs
 tools/tests/bad-city-effects.test.mjs

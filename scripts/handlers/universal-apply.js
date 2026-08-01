@@ -671,9 +671,6 @@
       const system = item.system || {};
       const compSystem = compendiumItem?.system || {};
       const timing = system.timing || compSystem.timing || '-';
-      const roll = system.roll || compSystem.roll || '-';
-      const difficulty = system.difficulty || compSystem.difficulty || '';
-      const description = `${system.description || ''} ${compSystem.description || ''}`;
       // 어트리뷰트는 **자기 채널(system.attributes)만** 본다.
       // system.effect.attributes 는 대상에게 거는 채널이라, 그쪽까지 긁으면
       // 「상대의 닷지 다이스를 깎는」/「상대의 가드치를 깎는」 공격 이펙트(강마의 번개,
@@ -688,13 +685,12 @@
         if (typeof attr === 'string') return attr;
         return `${attr.key || ''} ${attr.label || ''} ${attr.value || ''}`;
       }).join(' ');
-      const haystack = `${timing} ${roll} ${difficulty} ${description} ${attrText}`.toLowerCase();
 
-      const directTiming = ['reaction', 'dodge', 'major-reaction'].includes(timing);
-      const autoDefense = timing === 'auto' && /(닷지|회피|리액션|가드|방어|피해|데미지|dodge|reaction|guard|armor|reduce)/i.test(haystack);
+      // 방어 중 자유롭게 선언할 수 있도록 오토 액션은 설명의 방어 키워드 유무와 관계없이 표시한다.
+      const directTiming = ['reaction', 'dodge', 'major-reaction', 'auto'].includes(timing);
       const defensiveAttr = /(dodge|reaction|guard|armor|reduce)/i.test(attrText);
 
-      return directTiming || autoDefense || defensiveAttr;
+      return directTiming || defensiveAttr;
     },
 
     async getDefenseReactionItems(actor) {

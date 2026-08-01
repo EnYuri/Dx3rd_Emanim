@@ -405,8 +405,8 @@
       }
 
       const updates = {};
-      if (actor.system?.attributes?.stock?.max !== undefined) {
-        updates['system.attributes.stock.value'] = actor.system.attributes.stock.max;
+      if (actor.system?.attributes?.stock?.base !== undefined || actor.system?.attributes?.stock?.max !== undefined) {
+        updates['system.attributes.stock.modifier'] = 0;
       }
       if (actor.system?.attributes?.hp?.max !== undefined) {
         updates['system.attributes.hp.value'] = actor.system.attributes.hp.max;

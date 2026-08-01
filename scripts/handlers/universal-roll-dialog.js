@@ -10,6 +10,57 @@
 
   Object.assign(window.DX3rdUniversalHandler, {
     /**
+     * Midi-QOL 병합 카드처럼 아이콘/요약 헤더 아래에 판정 결과를 누적하고,
+     * 실행 버튼은 결과와 분리된 좁은 액션 행에 두는 DX3rd 공격 카드.
+     */
+    renderAttackChatCard({actor, item, flavorText = '', rollHtml = '', actionContent = ''}) {
+      const escapeHTML = value => window.DX3rdRuntimeUtils?.escapeHTML?.(String(value ?? ''))
+        ?? foundry.utils.escapeHTML(String(value ?? ''));
+      const itemName = String(item?.name || game.i18n.localize('DX3rd.AttackRoll')).split('||')[0].trim();
+      const image = item?.img || actor?.img || 'icons/svg/sword.svg';
+      return `
+        <article class="dx3rd-item-chat dx3rd-attack-card">
+          <header class="dx3rd-attack-card__header">
+            <img src="${escapeHTML(image)}" alt="${escapeHTML(itemName)}">
+            <div class="dx3rd-attack-card__heading">
+              <h3>${escapeHTML(itemName)}</h3>
+              <span>${game.i18n.localize('DX3rd.AttackRoll')}</span>
+            </div>
+          </header>
+          <section class="dx3rd-attack-card__body">
+            ${flavorText ? `<div class="dx3rd-attack-card__summary">${flavorText}</div>` : ''}
+            ${rollHtml ? `<div class="dx3rd-roll-label">${game.i18n.localize('DX3rd.AttackRoll')}</div><div class="dx3rd-attack-card__roll">${rollHtml}</div>` : ''}
+          </section>
+          <footer class="damage-roll-message dx3rd-attack-card__actions">
+            <div class="dx3rd-card-buttons">${actionContent}</div>
+          </footer>
+        </article>`;
+    },
+
+    renderAttackRollButton(actor, item, {repeatable = false} = {}) {
+      return `<button class="attack-roll-btn"
+                      data-item-id="${item?.id || ''}"
+                      data-repeatable="${repeatable ? 'true' : 'false'}">
+                ${game.i18n.localize('DX3rd.HitRoll')}
+              </button>`;
+    },
+
+    async createPendingAttackCard(actor, item) {
+      const cleanItemName = String(item?.name || '').split('||')[0].trim();
+      const content = this.renderAttackChatCard({
+        actor,
+        item,
+        flavorText: `<p>${cleanItemName}</p>`,
+        actionContent: this.renderAttackRollButton(actor, item)
+      });
+      return ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({actor}),
+        content,
+        flags: {'dx3rd-emanim': {pendingAttackRoll: true}}
+      });
+    },
+
+    /**
      * 판정 롤에 항으로 실을 다이스식을 검증한다.
      * 굴리지 않고 문자열째 넘기므로, 잘못된 수식은 판정 롤 전체를 깨뜨린다.
      * 굴려서 숫자로 접던 시절엔 try/catch 가 흡수하던 자리라 검증을 여기로 옮겼다.
@@ -36,15 +87,15 @@
      * @param {number} add - 가산치
      * @param {string} rollType - 'major' | 'reaction' | 'dodge' (판정 타입별 행동 수식 선택용)
      */
-    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null, rollType = 'major') {
+    async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null, rollType = 'major', sourceMessage = null) {
       try {
         // 대상 확인 (다시 가져오기)
         const targets = Array.from(game.user.targets);
-        
+
         // 참조값은 명중 판정 시점으로 고정하되, 다이스식은 데미지 굴림 확정까지 보류한다.
         // 이렇게 하면 공격 카드가 아직 공개하지 않은 데미지 결과를 품지 않는다.
         const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
-        
+
         // 공격 타입/액터 보너스 산출 (데미지 굴림 시점과 동일 경로)
         // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다(방어 창은 그 숫자만 받는다).
         const bonuses = await this.resolveAttackBonusesRolled(actor, item);
@@ -181,24 +232,31 @@
             </button>`;
         
         // 공격 메시지, 대상 정보, 롤 결과, 데미지 롤 버튼을 하나의 메시지로 묶기 (콤보와 동일하게 rollHtml 명시 포함)
-        const attackMessageContent = `
-          <div class="dx3rd-item-chat">
-            <div>
-              <p>${flavorText.replace(/\n/g, '<br>')}</p>
-            </div>
-            <div class="dice-roll">${rollHtml}</div>
-            <div class="damage-roll-message">
-              ${damageRollButtonContent}
-            </div>
-          </div>
-        `;
-        
-        await ChatMessage.create({
-          speaker: ChatMessage.getSpeaker({ actor: actor }),
-          content: attackMessageContent,
-          rolls: [roll]
+        const attackMessageContent = this.renderAttackChatCard({
+          actor,
+          item,
+          flavorText: `<p>${flavorText.replace(/\n/g, '<br>')}</p>`,
+          rollHtml,
+          actionContent: `${this.renderAttackRollButton(actor, item, {repeatable: true})}${damageRollButtonContent}`
         });
         
+        let attackMessage;
+        if (sourceMessage) {
+          await sourceMessage.update({
+            content: attackMessageContent,
+            rolls: [roll.toJSON()],
+            'flags.dx3rd-emanim.pendingAttackRoll': false,
+            'flags.dx3rd-emanim.attackRollCompleted': false
+          });
+          attackMessage = sourceMessage;
+        } else {
+          attackMessage = await ChatMessage.create({
+            speaker: ChatMessage.getSpeaker({ actor: actor }),
+            content: attackMessageContent,
+            rolls: [roll]
+          });
+        }
+
         // 메이저 롤 후 비활성화 훅 실행 (자기 자신에게만)
         if (window.DX3rdDisableHooks) {
           await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
@@ -207,6 +265,8 @@
 
         // 명중판정 완료 공통 후처리 (증오 자동 회복 + 확장 훅)
         await this.onAttackRollComplete(actor, item, targets, rollResult, isFumble);
+
+        await this.maybeAutoRollDamage?.(attackMessage);
 
         // 이전 토큰 복원
         if (previousToken && canvas.tokens) {
@@ -393,7 +453,7 @@
         : 0;
 
       const comboItemData = {
-        name: `${game.i18n.localize('DX3rd.TemporaryItem')} ${game.i18n.localize('DX3rd.Combo')}`,
+        name: `[${game.i18n.localize('DX3rd.Combo')}]`,
         type: 'combo',
         flags: {'dx3rd-emanim': {instantCombo: true}},
         system: {
@@ -497,7 +557,7 @@
      * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택사항)
      * @param {Object} predefinedDifficulty - 미리 정의된 난이도 (선택사항, Book 등에서 사용)
      */
-    async showStatRollDialog(actor, stat, label, specificRollType = null, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, predefinedDifficulty = null, requireDifficulty = false, isUrgeTest = false, afterRollCallback = null, isPanicTest = false) {
+    async showStatRollDialog(actor, stat, label, specificRollType = null, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, predefinedDifficulty = null, requireDifficulty = false, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, sourceMessage = null) {
       const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
       
       // stat은 얕은 복사 시 major/reaction/dodge가 원본과 공유되어 패널티 누적 발생 → deepClone 사용
@@ -1201,7 +1261,7 @@
             
             // 무기/비클 공격인 경우 별도 처리 (난이도 없음)
             if (item && (item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null) {
-              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t);
+              await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t, sourceMessage);
             } else if (isAttackRoll) {
               // attackRoll이 melee/ranged인 경우 공격 판정으로 처리 (난이도 없음)
               // 무기 아이템에서 시작한 임시 콤보인지 확인
@@ -1213,7 +1273,7 @@
                 if (weaponToken) {
                   weaponToken.control({ releaseOthers: true });
                   dlg.close();
-                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t);
+                  await this.executeAttackRoll(actor, originalWeaponItem, label, weaponToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t, sourceMessage);
                   return;
                 }
               }
@@ -1221,7 +1281,7 @@
               // 공격 판정이지만 executeAttackRoll로 가지 않는 경우 (콤보/이펙트 등)
               // 난이도 없이 executeStatRoll 호출
               const difficultyData = { type: 'none', value: 0 };
-              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, false, null, false, effectiveStat.rollFormula);
+              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, false, null, false, effectiveStat.rollFormula, sourceMessage);
             } else {
               // 일반 판정: 난이도 처리
               const difficultyInput = root.querySelector('.dx-difficulty')?.value.trim() || '';
@@ -1252,7 +1312,7 @@
                 return;
               }
               
-              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, isUrgeTest, afterRollCallback, isPanicTest, effectiveStat.rollFormula);
+              await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, isUrgeTest, afterRollCallback, isPanicTest, effectiveStat.rollFormula, sourceMessage);
             }
             dlg.close();
         });
@@ -1272,7 +1332,7 @@
      * @param {Token} previousToken - 이전에 선택된 토큰 (선택사항)
      * @param {Object} comboAfterSuccessData - 콤보의 afterSuccess 데이터 (선택사항)
      */
-    async executeStatRoll(actor, dice, critical, add, label, rollType, difficultyData = { type: 'none', value: 0 }, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, statRollFormula = null) {
+    async executeStatRoll(actor, dice, critical, add, label, rollType, difficultyData = { type: 'none', value: 0 }, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, statRollFormula = null, sourceMessage = null) {
       const typeLabelMap = {
         major: game.i18n.localize('DX3rd.Major'),
         reaction: game.i18n.localize('DX3rd.Reaction'),
@@ -1280,6 +1340,7 @@
       };
       const typeText = typeLabelMap[rollType] || '';
       let flavorText = '';
+      const isEquipmentAttack = !!item && ['weapon', 'vehicle'].includes(item.type);
       
       // 충동 판정인 경우
       if (isUrgeTest) {
@@ -1290,7 +1351,7 @@
       } else if (item) {
         // 아이템이 있는 경우: 기능(타이밍) 표시 (아이템 사용 메시지는 이미 출력됨).
         // 공격 이펙트(attackRoll 설정)는 어떤 이펙트로 공격했는지 이름도 함께 표시한다.
-        const isAtkRoll = item.system?.attackRoll && item.system.attackRoll !== '-';
+        const isAtkRoll = isEquipmentAttack || (item.system?.attackRoll && item.system.attackRoll !== '-');
         const namePrefix = isAtkRoll && item.name ? `${item.name} — ` : '';
         flavorText = `${namePrefix}${label}${typeText ? `(${typeText})` : ''}`;
       } else {
@@ -1316,15 +1377,22 @@
         
         // 공격 판정인 경우 현재 시점의 값들 보존
         let preservedValues = null;
-        const isAttackRoll = item && item.system?.attackRoll && 
-                             item.system.attackRoll !== '-' && 
-                             (item.system.attackRoll === 'melee' || item.system.attackRoll === 'ranged');
+        // 무기/비클의 직접 공격은 system.attackRoll 필드를 쓰지 않고 system.skill로
+        // showStatRollDialog에 들어온다. attackRoll만 검사하면 실제 장비 공격이 일반
+        // 메이저 판정 카드로 빠지고 데미지 버튼도 사라진다.
+        const authoredAttackRoll = item?.system?.attackRoll;
+        const isAttackRoll = !!item && (
+          isEquipmentAttack
+          || (authoredAttackRoll !== '-' && (authoredAttackRoll === 'melee' || authoredAttackRoll === 'ranged'))
+        );
         
         if (isAttackRoll) {
           // 맨손 보너스는 weapon-for-attack으로 고른 무기 이름 기준으로 판정한다.
           // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다.
           const bonuses = await this.resolveAttackBonusesRolled(actor, item, {
-            attackType: item.system.attackRoll,
+            attackType: isEquipmentAttack
+              ? (item.type === 'weapon' ? item.system?.type : 'vehicle')
+              : authoredAttackRoll,
             fistWeaponName: weaponBonus?.weaponName || ''
           });
 
@@ -1439,24 +1507,23 @@
         let resultContent = '';
         
         if (isAttackRoll) {
-          // 공격 판정: 항상 데미지 롤 버튼 표시
+          // 공격 판정: 명중과 데미지 버튼을 함께 유지해 어느 단계에서도 재굴림할 수 있게 한다.
           const weaponIdsStr = weaponBonus?.weaponIds ? weaponBonus.weaponIds.join(',') : '';
           resultContent = `
-            <div class="item-actions" style="margin-top: 8px;">
-              <button class="damage-roll-btn"
-                      data-actor-id="${actor.id}"
-                      data-item-id="${item ? item.id : ''}"
-                      data-roll-result="${rollResult}"
-                      data-preserved-actor-attack="${preservedValues.actorAttack}"
-                      data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
-                      data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
-                      data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
-                      data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
-                      data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"
-                      data-weapon-ids="${weaponIdsStr}">
-                ${game.i18n.localize('DX3rd.DamageRoll')}
-              </button>
-            </div>
+            ${this.renderAttackRollButton(actor, item, {repeatable: true})}
+            <button class="damage-roll-btn"
+                    data-actor-id="${actor.id}"
+                    data-item-id="${item ? item.id : ''}"
+                    data-roll-result="${rollResult}"
+                    data-preserved-actor-attack="${preservedValues.actorAttack}"
+                    data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
+                    data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
+                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
+                    data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
+                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"
+                    data-weapon-ids="${weaponIdsStr}">
+              ${game.i18n.localize('DX3rd.DamageRoll')}
+            </button>
           `;
         } else if (difficultyData.type === 'number') {
           // 숫자 난이도: 성공/실패 판정 + 버튼 (펌블이면 rollResult=0이라 자동 실패)
@@ -1523,13 +1590,21 @@
         }
         
         // flavor를 content에 직접 포함
-        const content = `
-          <div class="dx3rd-item-chat">
-            <div class="flavor-text">${flavorText}</div>
-            ${rollHtml}
-            ${resultContent}
-          </div>
-        `;
+        const content = isAttackRoll
+          ? this.renderAttackChatCard({
+              actor,
+              item,
+              flavorText: `<div class="flavor-text">${flavorText}</div>`,
+              rollHtml,
+              actionContent: resultContent
+            })
+          : `
+            <div class="dx3rd-item-chat">
+              <div class="flavor-text">${flavorText}</div>
+              ${rollHtml}
+              ${resultContent}
+            </div>
+          `;
         
         // 채팅 메시지 생성 (콤보 afterSuccess 데이터 플래그에 저장)
         const messageData = {
@@ -1569,7 +1644,25 @@
           }
         }
         
-        await ChatMessage.create(messageData);
+        let attackMessage;
+        if (sourceMessage && isAttackRoll) {
+          const flagUpdates = {};
+          const systemFlags = messageData.flags?.['dx3rd-emanim'] || {};
+          for (const [key, value] of Object.entries(systemFlags)) {
+            flagUpdates[`flags.dx3rd-emanim.${key}`] = value;
+          }
+          await sourceMessage.update({
+            content,
+            rolls: [roll.toJSON()],
+            'flags.dx3rd-emanim.pendingAttackRoll': false,
+            'flags.dx3rd-emanim.attackRollCompleted': false,
+            ...flagUpdates
+          });
+          attackMessage = sourceMessage;
+        } else {
+          attackMessage = await ChatMessage.create(messageData);
+        }
+        if (isAttackRoll) await this.maybeAutoRollDamage?.(attackMessage);
         
         // 충동 판정 실패 시 폭주 상태이상 적용 (메시지 출력 후)
         if (isUrgeTest && difficultyData.type === 'number') {

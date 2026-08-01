@@ -677,10 +677,10 @@
               <label>{{localize "DX3rd.Stock"}}</label>
             </div>
           </div>
-          <div class="cell grid-5 equipment-point-fields">
-            <input class="horizon-input" type="text" name="system.attributes.stock.value" value="{{system.attributes.stock.value}}" data-dtype="Number"/>
+          <div class="cell grid-5 equipment-point-fields stock-point-fields" data-action="useStock" title="{{localize "DX3rd.StockEditHint"}}">
+            <input class="horizon-input" type="text" value="{{system.attributes.stock.base}}" aria-label="{{localize "DX3rd.BaseStock"}}" readonly/>
             <span class="divider">/</span>
-            <input class="horizon-input" type="text" value="{{system.attributes.stock.max}}" data-dtype="Number" disabled/>
+            <input class="horizon-input" type="text" value="{{system.attributes.stock.value}}" aria-label="{{localize "DX3rd.CurrentStock"}}" readonly/>
           </div>
 
           <div class="cell grid-full">

@@ -25,8 +25,12 @@
         };
         prepared.saving ??= {
             value: 0,
-            difficulty: '0'
+            difficulty: '0',
+            acquisition: 'permanent'
         };
+        prepared.saving.acquisition = prepared.saving.acquisition === 'purchase'
+            ? 'purchase'
+            : 'permanent';
         prepared.equipment ??= true;
 
         if (item?.type === 'effect') {

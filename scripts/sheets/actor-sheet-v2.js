@@ -757,10 +757,25 @@
     }
 
     async _onEquipmentChange(event) {
+      // submitOnChange의 폼 저장과 장비 전용 업데이트가 경합하지 않게 이 입력은 단독 처리한다.
+      event.stopImmediatePropagation();
+      event.stopPropagation();
       if (!this._canEdit()) return;
-      const item = this._getItemFromTarget(event.currentTarget);
+      const input = event.currentTarget;
+      const item = this._getItemFromTarget(input);
       if (!item) return;
-      await window.DX3rdActorSheetData.updateOwnedItemEquipmentState(this.document, item.id, event.currentTarget.checked);
+      if (this._equipmentTogglePending?.has(item.id)) return;
+
+      input.disabled = true;
+      this._equipmentTogglePending ??= new Set();
+      this._equipmentTogglePending.add(item.id);
+      try {
+        await window.DX3rdActorSheetData.updateOwnedItemEquipmentState(this.document, item.id, input.checked);
+        await compat.requestRender(this);
+      } finally {
+        this._equipmentTogglePending.delete(item.id);
+        if (input.isConnected) input.disabled = false;
+      }
     }
 
     async _onSyndromeChange(event) {

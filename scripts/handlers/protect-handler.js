@@ -7,7 +7,7 @@ window.DX3rdProtectHandler = {
 
         if (!actor || !item) {
             console.error("DX3rd | ProtectHandler - Actor or Item not found", { actorId, itemId });
-            return;
+            return false;
         }
 
         // 장비 장착 — actor.js prepareData가 equipment === true인 protect의
@@ -62,6 +62,7 @@ window.DX3rdProtectHandler = {
                 `</div>`,
             speaker: { actor: actor.id, alias: actor.name }
         });
+        return true;
     },
 
     /**

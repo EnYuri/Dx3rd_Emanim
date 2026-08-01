@@ -53,6 +53,28 @@ Hooks.once('init', async function() {
                 });
         }
     });
+
+    // 공격 자동화는 사용자별 플레이 감각에 가까우므로 클라이언트 설정으로 둔다.
+    // 명중 자동 굴림을 끄면 장비 공격 시 먼저 카드만 만들고, 카드의 명중 굴림 버튼으로 진행한다.
+    game.settings.register('dx3rd-emanim', 'autoAttackRoll', {
+        name: 'DX3rd.AutoAttackRoll',
+        hint: 'DX3rd.AutoAttackRollHint',
+        scope: 'client',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
+    // 켜면 명중 결과 카드가 만들어진 직후 데미지 산출 창을 연다.
+    // 산출 확정 뒤의 실제 적용은 수동 데미지 버튼과 같은 공용 경로를 사용한다.
+    game.settings.register('dx3rd-emanim', 'autoDamageRoll', {
+        name: 'DX3rd.AutoDamageRoll',
+        hint: 'DX3rd.AutoDamageRollHint',
+        scope: 'client',
+        config: true,
+        type: Boolean,
+        default: false
+    });
     
     // 사용 횟수를 다 쓴 아이템·이펙트를 막을 것인가.
     // 기본은 **막지 않는다** — 자동화가 아직 다듬어지는 중이라, 컴펜디움의 횟수 하나가
@@ -1714,6 +1736,23 @@ Hooks.on('updateActor', (actor, changed, options, userId) => {
         if (!['combo', 'effect', 'psionic'].includes(item.type)) continue;
         _dx3rdRerenderSheet(item._sheet);      // 아직 열린 적 없으면 생성하지 않는다
     }
+});
+
+// 액터 소유 아이템의 상비화 비용·획득 방식과 장착/활성 상태는 액터 파생값을 바꾼다.
+// 아이템 시트에서 편집하면 Foundry가 그 아이템 시트만 다시 그릴 수 있으므로, 열려 있는
+// 액터 시트도 갱신한다. 액터 시트의 장비 체크는 자체 핸들러가 즉시 렌더하고 이 훅은 병합된다.
+Hooks.on('updateItem', (item, changed, options, userId) => {
+    const actor = item.actor;
+    if (!actor) return;
+    const changedKeys = Object.keys(changed || {});
+    const changesSaving = foundry.utils.hasProperty(changed, 'system.saving')
+        || changedKeys.some(key => key.startsWith('system.saving.'));
+    const changesEquipment = foundry.utils.hasProperty(changed, 'system.equipment')
+        || foundry.utils.hasProperty(changed, 'system.active.state')
+        || changedKeys.some(key => key === 'system.equipment' || key === 'system.active.state');
+    if (!changesSaving && !changesEquipment) return;
+    if (changesEquipment) actor.reset?.();
+    _dx3rdRerenderSheet(actor.sheet);
 });
 
 // 즉석 콤보는 저장 버튼을 누르기 전까지 월드 데이터가 아니다.

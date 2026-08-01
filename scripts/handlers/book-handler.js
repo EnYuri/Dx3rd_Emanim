@@ -146,20 +146,20 @@ window.DX3rdBookHandler = {
         const actor = game.actors.get(actorId);
         if (!actor) {
             ui.notifications.warn("Actor not found");
-            return;
+            return false;
         }
         
         const item = actor.items.get(itemId);
         if (!item) {
             ui.notifications.warn("Item not found");
-            return;
+            return false;
         }
         
         // 북 아이템은 항상 cthulhu 스킬 체크
         const cthulhuSkill = actor.system?.attributes?.skills?.cthulhu;
         if (!cthulhuSkill) {
             ui.notifications.warn("Cthulhu 스킬을 찾을 수 없습니다.");
-            return;
+            return false;
         }
         
         // 토큰 자동 선택
@@ -174,15 +174,16 @@ window.DX3rdBookHandler = {
         if (options.comboMode !== 'normal') {
             if (typeof window.DX3rdChooseRollMode !== 'function') {
                 ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-                return;
+                return false;
             }
             useCombo = await window.DX3rdChooseRollMode();
         }
 
-        if (useCombo === null) return;
+        if (useCombo === null) return false;
 
         if (useCombo) {
             // 콤보 빌더 열기 (cthulhu 스킬, book 아이템 전달)
+            let created = null;
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.openComboBuilder) {
                 // 난이도 데이터 생성 (book의 decipher 값 사용)
                 const difficultyValue = item.system?.decipher || 0;
@@ -190,7 +191,7 @@ window.DX3rdBookHandler = {
                     ? { type: 'number', value: difficultyValue }
                     : null;
 
-                await window.DX3rdUniversalHandler.openComboBuilder(
+                created = await window.DX3rdUniversalHandler.openComboBuilder(
                     actor,
                     'skill',
                     'cthulhu',
@@ -207,6 +208,7 @@ window.DX3rdBookHandler = {
             if (previousToken && canvas.tokens) {
                 previousToken.control({ releaseOthers: true });
             }
+            return !!created;
         } else {
             // 바로 cthulhu 스킬 체크 (난이도는 book의 system.decipher)
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showStatRollDialog) {
@@ -234,6 +236,7 @@ window.DX3rdBookHandler = {
                 );
             }
         }
+        return true;
     }
 };
 })();

@@ -885,6 +885,12 @@
     return extensionActionMatches(item, 'macro', macro || {}, action, timing);
   }
 
+  /** 액션과 무관하게 선택 대상이 필요한 활성 효과가 하나라도 있는가(콤보 멤버 사전 검사용). */
+  function requiresAnyTarget(item) {
+    return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
+      card.active && ['targetToken', 'damagedTargets'].includes(card.target));
+  }
+
   function requiresTarget(item, action = invocationAction(item)) {
     const expected = normalizeAction(action) || invocationAction(item);
     const targetCards = collectPersistent(item).filter(card => card.kind === 'targetModifiers');
@@ -1382,7 +1388,7 @@
     isAttackItem, effectAttackBonus, mergeAttackBonuses, invocationAction, eventAction, inferAction, triggerFor,
     declaresActivationSelfModifiers, usesActivationSelfChannel, useMeansActivation, selfModifiersPending,
     collectImmediate, collectPersistent, prepareSheetContext, conditionEntries,
-    extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, extensionEntries,
+    extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, requiresAnyTarget, extensionEntries,
     hasActionEffects, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,
     directTitle, isConfiguredCondition,
     // 지속 효과 버킷(카드 = 채널 × 발현 액션, 카드마다 자기 발현·소멸 타이밍)

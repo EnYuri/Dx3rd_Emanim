@@ -148,6 +148,8 @@ Hooks.on('updateChatMessage', (message, changes, options, userId) => {
             if (flagChanges[flag] === undefined) continue;
             const isCompleted = message.flags?.['dx3rd-emanim']?.[flag] === true;
             for (const button of findButtons(sel)) {
+                if (flag === 'attackRollCompleted' && button.closest('.dx3rd-attack-card')) continue;
+                if (flag === 'damageRollCompleted' && button.closest('.dx3rd-attack-card')) continue;
                 dx3rdApplyCompleteText(button, isCompleted, completeText);
             }
         }
@@ -232,7 +234,7 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
     const damageRollCompleted = message.getFlag('dx3rd-emanim', 'damageRollCompleted');
     if (damageRollCompleted === true) {
         const button = html.querySelector('.damage-roll-btn');
-        if (button) {
+        if (button && !button.closest('.dx3rd-attack-card')) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
                 // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 로컬라이즈 키에서 가져오기
@@ -260,7 +262,7 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
     const attackRollCompleted = message.getFlag('dx3rd-emanim', 'attackRollCompleted');
     if (attackRollCompleted === true) {
         const button = html.querySelector('.attack-roll-btn');
-        if (button) {
+        if (button && !button.closest('.dx3rd-attack-card')) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
                 // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 로컬라이즈 키에서 가져오기
@@ -710,6 +712,7 @@ window.DX3rdChatToggleManager = {
             }
 
             const isCompleted = message.getFlag('dx3rd-emanim', 'damageRollCompleted') === true;
+            const isAttackCardButton = !!button.closest('.dx3rd-attack-card');
 
             // 원본 텍스트 저장 (처음 한 번만)
             if (!button.dataset.originalText) {
@@ -717,7 +720,7 @@ window.DX3rdChatToggleManager = {
             }
 
             // 이미 완료된 버튼을 클릭한 경우 롤백
-            if (isCompleted) {
+            if (isCompleted && !isAttackCardButton) {
                 await message.unsetFlag('dx3rd-emanim', 'damageRollCompleted');
                 return;
             }
@@ -868,7 +871,9 @@ window.DX3rdChatToggleManager = {
             
             // UniversalHandler의 데미지 롤 함수 호출 (롤 결과와 보존된 값들 포함)
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageRoll) {
-                await window.DX3rdUniversalHandler.handleDamageRoll(actor, item, rollResult, preservedValues, comboAfterDamageData);
+                await window.DX3rdUniversalHandler.handleDamageRoll(
+                    actor, item, rollResult, preservedValues, comboAfterDamageData, message
+                );
             }
             
             // afterSuccess 타이밍 heal/damage/condition 익스텐션을 GM을 통해 처리
@@ -959,7 +964,9 @@ window.DX3rdChatToggleManager = {
             }
             
             // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
-            await message.setFlag('dx3rd-emanim', 'damageRollCompleted', true);
+            if (!isAttackCardButton) {
+                await message.setFlag('dx3rd-emanim', 'damageRollCompleted', true);
+            }
             
             // 이전 토큰 복원
             if (previousToken && canvas.tokens) {
@@ -1000,11 +1007,18 @@ window.DX3rdChatToggleManager = {
             const itemId = button.dataset.itemId;
             const previousTokenId = button.dataset.previousTokenId;
             const weaponAttack = parseInt(button.dataset.weaponAttack) || 0;
+            const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
 
-            // UniversalHandler로 처리 (무기 공격력 전달)
+            // 숫자 난이도 성공도 대결 승리/공격 데미지 버튼과 같은 콤보 스냅샷 경로를 탄다.
+            // 임시 콤보 문서는 판정창을 연 뒤 삭제되므로 itemId 재조회만 하면 멤버의
+            // afterSuccess 효과가 전부 사라진다.
             try {
                 if (window.DX3rdUniversalHandler) {
-                    await window.DX3rdUniversalHandler.handleSuccessButton(actorId, itemId, previousTokenId, weaponAttack);
+                    if (comboAfterSuccess) {
+                        await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
+                    } else {
+                        await window.DX3rdUniversalHandler.handleSuccessButton(actorId, itemId, previousTokenId, weaponAttack);
+                    }
                 }
             } catch (e) {
                 console.error('DX3rd | handleSuccessButton error:', e);
@@ -1170,7 +1184,10 @@ window.DX3rdChatToggleManager = {
                 return;
             }
 
-            const isCompleted = message.getFlag('dx3rd-emanim', 'attackRollCompleted') === true;
+            const repeatable = button.dataset.repeatable === 'true';
+            const isAttackCardButton = !!button.closest('.dx3rd-attack-card');
+            const isCompleted = !isAttackCardButton && !repeatable
+                && message.getFlag('dx3rd-emanim', 'attackRollCompleted') === true;
 
             // 원본 텍스트 저장 (처음 한 번만)
             if (!button.dataset.originalText) {
@@ -1198,14 +1215,23 @@ window.DX3rdChatToggleManager = {
             const item = actor.items.get(itemId);
             if (!item) return;
             
-            // 공격 버튼: UniversalHandler로 통합 처리
+            // 장비는 명중 워크플로를, 그 밖의 공격 아이템은 해당 아이템의 사용 워크플로를 다시 연다.
             let attackRollSuccess = false;
             if (window.DX3rdUniversalHandler) {
-                attackRollSuccess = await window.DX3rdUniversalHandler.handleAttackRoll(actor, item);
+                if (item.type === 'weapon' || item.type === 'vehicle') {
+                    attackRollSuccess = await window.DX3rdUniversalHandler.handleAttackRoll(actor, item, {
+                        forceRoll: true,
+                        sourceMessage: message
+                    });
+                } else {
+                    attackRollSuccess = await window.DX3rdUniversalHandler.handleItemUse(
+                        actor.id, item.id, item.type
+                    );
+                }
             }
             
             // 성공한 경우에만 플래그 설정
-            if (attackRollSuccess) {
+            if (attackRollSuccess && !isAttackCardButton && !repeatable) {
                 await message.setFlag('dx3rd-emanim', 'attackRollCompleted', true);
             }
         });

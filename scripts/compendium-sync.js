@@ -21,7 +21,8 @@
         'system.active.state',        // 토글 버프 on/off
         'system.used.state',          // 사용 횟수 소진 카운트
         'system.attack-used.state',   // 무기 공격 횟수 소진 카운트(무기 외 타입엔 없어 자동 무시)
-        'system.equipment'            // 장착 여부(무기/방어구/비클)
+        'system.equipment',           // 장착 여부(무기/방어구/비클)
+        'system.saving.acquisition'   // 액터 소유본의 획득 방식(상비/구매)
     ];
 
     // 이펙트/사이오닉의 습득 레벨은 플레이어가 성장시킨 인스턴스 데이터다.

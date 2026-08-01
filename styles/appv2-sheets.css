@@ -204,6 +204,87 @@
     grid-column: span 1;
 }
 
+/* 비이펙트 아이템 획득 방식. 해설 제목은 가운데에 두고 상비/구매(및 장착)는 우측에서
+   한 줄로 선택한다. 라디오를 써 두 방식이 동시에 켜지는 잘못된 상태를 막는다. */
+.application.sheet.dx3rd-emanim.item .cell--bio > .bio-title-v2 {
+    justify-content: center;
+    position: relative;
+    text-align: center;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon label {
+    align-items: center;
+    display: inline-flex;
+    gap: 2px;
+    margin: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon .dx3rd-check-option {
+    cursor: pointer;
+    position: relative;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon .dx3rd-check-option > input {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon .dx3rd-check-visual {
+    align-items: center;
+    background: rgba(0, 0, 0, 0.12);
+    border: 1px solid currentColor;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    display: inline-flex;
+    height: 15px;
+    justify-content: center;
+    width: 15px;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon .dx3rd-check-visual i {
+    font-size: 10px;
+    opacity: 0;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon input:checked + .dx3rd-check-visual {
+    background: rgba(20, 20, 20, 0.88);
+    color: #f2f2f2;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon input:checked + .dx3rd-check-visual i {
+    opacity: 1;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-addon input:focus-visible + .dx3rd-check-visual {
+    outline: 2px solid var(--color-border-highlight, #ff6400);
+    outline-offset: 1px;
+}
+
+.application.sheet.dx3rd-emanim.item .acquisition-separator {
+    margin-inline: 2px;
+}
+
+/* 기본/현재 재산점은 직접 입력란이 아니라 기록 다이얼로그의 진입점이다. */
+.application.sheet.dx3rd-emanim.actor .stock-point-fields,
+.application.sheet.dx3rd-emanim.actor .stock-title {
+    cursor: pointer;
+}
+
+.application.sheet.dx3rd-emanim.actor .stock-point-fields input[readonly] {
+    cursor: pointer;
+}
+
+.application.sheet.dx3rd-emanim.actor .stock-point-fields:hover input {
+    border-color: var(--color-border-highlight, #ff6400);
+}
+
 /* 로이스: 긍정/부정/타이터스/승화 라벨은 기본 .cell--title(justify-content:center)로
    가운데 정렬한다. 체크박스(.checkbox-addon, absolute right:0)는 라벨을 기준점으로 삼아야
    타이터스+승화처럼 라벨 두 개가 한 셀에 들어가는 경우 각 체크박스가 자기 라벨 우측에

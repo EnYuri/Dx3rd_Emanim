@@ -174,6 +174,9 @@
         || options.action || null;
       const effectMatches = (kind, data, timing = data?.timing || 'instant') => !window.DX3rdItemEffectAdapter
         || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, requestedAction, timing);
+      const comboMemberEntries = item.type === 'combo'
+        ? (window.DX3rdComboHandler?.comboMemberEntries?.(actor, item) || [])
+        : [];
       try {
         // 컴펜디움 자동화 항목의 명시적 사용 제한. 플래그가 없는 기존 아이템에는 영향을 주지 않는다.
         const automationExtend = item.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
@@ -444,15 +447,19 @@
             .find(data => data?.runtimePrompt && effectMatches('damage', data)) || null;
           let runtimeSourceItem = runtimeCfg ? item : null;
           if (!runtimeCfg && item.type === 'combo') {
-            for (const effectId of this.normalizeEffectIds(item)) {
-              const eff = actor.items.get(effectId);
-              const ex = eff?.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
+            for (const {item: memberItem} of comboMemberEntries) {
+              const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, requestedAction);
+              const ex = memberItem?.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
               runtimeCfg = (window.DX3rdItemEffectAdapter?.extensionEntries?.(ex) || [])
                 .filter(entry => entry.type === 'damage')
                 .map(entry => entry.data)
-                .find(data => data?.runtimePrompt) || null;
+                .find(data => data?.runtimePrompt
+                  && (!window.DX3rdItemEffectAdapter
+                    || window.DX3rdItemEffectAdapter.extensionActionMatches(
+                      memberItem, 'damage', data, memberAction, data.timing || 'instant'
+                    ))) || null;
               if (runtimeCfg) {
-                runtimeSourceItem = eff;
+                runtimeSourceItem = memberItem;
                 break;
               }
             }
@@ -516,27 +523,25 @@
           hpCostList.push({ raw: String(runtimeConsumeAmount), source: 'runtime' });
         }
 
-        // 1-D. 콤보인 경우, 포함된 이펙트들의 익스텐션 HP 비용도 수집
+        // 1-D. 콤보인 경우, 전체 구성 아이템의 자체/익스텐션 HP 비용도 역할 액션으로 수집
         if (item.type === 'combo') {
-          const effectIds = this.normalizeEffectIds(item);
-
-          for (const effectId of effectIds) {
-            const effectItem = actor.items.get(effectId);
-            if (!effectItem) continue;
+          for (const {item: memberItem} of comboMemberEntries) {
+            const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, requestedAction);
 
             // 콤보는 멤버 이펙트를 개별 handleItemUse로 통과시키지 않으므로,
             // 이펙트 자체의 system.hp 비용도 여기서 명시적으로 합산한다.
-            const memberHpCost = String(effectItem.system?.hp?.value ?? '0').trim();
+            const memberHpCost = String(memberItem.system?.hp?.value ?? '0').trim();
             if (memberHpCost !== '0' && memberHpCost !== '' && memberHpCost !== '-') {
-              hpCostList.push({ raw: memberHpCost, source: `effect:${effectItem.name}:system.hp` });
+              hpCostList.push({ raw: memberHpCost, source: `member:${memberItem.name}:system.hp` });
             }
             
-            const effectExtend = effectItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
-            for (const entry of (window.DX3rdItemEffectAdapter?.extensionEntries?.(effectExtend) || []).filter(entry => entry.type === 'damage')) {
+            const memberExtend = memberItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
+            for (const entry of (window.DX3rdItemEffectAdapter?.extensionEntries?.(memberExtend) || []).filter(entry => entry.type === 'damage')) {
               const data = entry.data || {};
-              const matches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(effectItem, 'damage', data, 'attack', data.timing || 'instant');
+              const matches = !window.DX3rdItemEffectAdapter
+                || window.DX3rdItemEffectAdapter.extensionActionMatches(memberItem, 'damage', data, memberAction, data.timing || 'instant');
               const raw = data.hpCostActivate && data.hpCost && matches ? String(data.hpCost).trim() : '0';
-              if (raw !== '0' && raw !== '') hpCostList.push({raw, source: `effect:${effectItem.name}:${entry.id}`});
+              if (raw !== '0' && raw !== '') hpCostList.push({raw, source: `member:${memberItem.name}:${entry.id}`});
             }
           }
         }
@@ -685,6 +690,22 @@
           if (currentCostMsg) {
             msg += `<div><strong>${itemName} ${game.i18n.localize('DX3rd.Use')}</strong>: ${currentCostMsg}</div>`;
           }
+        }
+
+        // 맨손과 이펙트는 비용이 없으면 종전에는 “○○ 사용” 한 줄만 남아 무엇을
+        // 발동했는지 알기 어려웠다. 시트의 해설을 같은 채팅 카드에 작은 보조문으로 붙인다.
+        const isFist = item.type === 'weapon' && this.isFistWeaponName(item.name);
+        const usageDescription = String(item.system?.description || '').trim();
+        if ((item.type === 'effect' || isFist) && usageDescription) {
+          let enrichedDescription = usageDescription;
+          try {
+            enrichedDescription = await window.DX3rdDescriptionManager?.createEnrichedBiography?.(
+              item, usageDescription
+            ) || usageDescription;
+          } catch (error) {
+            console.warn('DX3rd | Usage description enrichment failed:', item.name, error);
+          }
+          msg += `<div class="item-description dx3rd-usage-description"><div class="description-content">${enrichedDescription}</div></div>`;
         }
         
         // 콤보인 경우 구성한 이펙트들의 이름을 기본 표시 (해설)
@@ -1092,27 +1113,31 @@
       const actor = game.actors.get(actorId);
       if (!actor) return;
       
-      // 1. 활성화 처리
-      for (const { itemId, itemName } of activations) {
+      // 1. 자기 지속 보정 처리. 새 콤보 데이터는 액션을 함께 저장하여 구성 멤버의
+      // 「사용」 버킷만 발현한다. action 없는 기존 채팅 카드는 종전 활성화로 호환한다.
+      for (const { itemId, itemName, action = null } of activations) {
         const item = actor.items.get(itemId);
-        if (item && item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state) {
+        if (!item) continue;
+        if (action) {
+          await this.applySelfModifiers(actor, item, { action });
+        } else if (item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state) {
           await item.update({ 'system.active.state': true });
         }
       }
       
       // 2. 매크로 실행
-      for (const { itemId, itemName, macroName, timing } of macros) {
+      for (const { itemId, itemName, macroName, timing, action = null } of macros) {
         const item = actor.items.get(itemId);
         if (item) {
-          await this.executeMacros(item, timing);
+          await this.executeMacros(item, timing, action);
         }
       }
       
       // 3. 어플라이드 적용
-      for (const { itemId, itemName } of applies) {
+      for (const { itemId, itemName, action = null } of applies) {
         const item = actor.items.get(itemId);
         if (item) {
-          await this.applyToTargets(actor, item, 'afterSuccess');
+          await this.applyToTargets(actor, item, 'afterSuccess', null, action);
         }
       }
       
@@ -1231,10 +1256,14 @@
         return token?.id;
       }).filter(Boolean);
       
-      // 1. 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
-      for (const { itemId, itemName } of activations) {
+      // 1. 자기 지속 보정 처리. 구성 멤버는 직렬화된 「사용」 액션만 발현한다.
+      for (const { itemId, itemName, action = null } of activations) {
         const item = actor.items.get(itemId);
-        if (item) {
+        if (!item) continue;
+        if (action) {
+          await this.applySelfModifiers(actor, item, { action });
+        } else {
+          // action 없는 기존 채팅 카드 호환
           const activeDisable = item.system?.active?.disable ?? '-';
           if (item.system?.active?.runTiming === 'afterDamage' && !item.system?.active?.state && activeDisable !== 'notCheck') {
             await item.update({ 'system.active.state': true });
@@ -1243,11 +1272,11 @@
       }
       
       // 2. 매크로 실행
-      for (const { itemId, itemName, macroName, timing } of macros) {
+      for (const { itemId, itemName, macroName, timing, action = null } of macros) {
         const item = actor.items.get(itemId);
         if (item) {
           try {
-            await this.executeMacros(item, timing);
+            await this.executeMacros(item, timing, action);
           } catch (e) {
             console.warn(`DX3rd | Combo afterDamage - Macro execution failed: ${itemName}`, e);
           }
@@ -1255,11 +1284,11 @@
       }
       
       // 3. 어플라이드 처리
-      for (const { itemId, itemName } of applies) {
+      for (const { itemId, itemName, action = 'attack' } of applies) {
         const item = actor.items.get(itemId);
-        if (item && item.system?.effect?.runTiming === 'afterDamage') {
+        if (item) {
           // damagedActors를 forcedTargets로 전달
-          await this.applyToTargets(actor, item, 'afterDamage', damagedActors);
+          await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action);
         }
       }
       
@@ -1609,6 +1638,42 @@
     },
 
     /**
+     * 비용·사용 횟수를 쓰기 전에 타입별 판정 설정이 유효한지 확인한다.
+     * 타입 핸들러에서 뒤늦게 실패하면 이미 지불한 비용을 되돌릴 수 없으므로,
+     * 정적으로 확인 가능한 기능/판정 데이터는 공용 파이프라인 앞에서 막는다.
+     */
+    validateItemUsePreflight(actor, item, itemType, action) {
+      const requiresResolvedSkill = (
+        (itemType === 'weapon' || itemType === 'vehicle') && action === 'attack'
+      ) || (
+        (itemType === 'effect' || itemType === 'psionic')
+        && ((item.system?.roll ?? '-') !== '-'
+          || (item.system?.attackRoll && item.system.attackRoll !== '-'))
+      ) || (
+        itemType === 'connection' && item.system?.skill && item.system.skill !== '-'
+      );
+
+      if (requiresResolvedSkill) {
+        const skillKey = item.system?.skill;
+        const resolved = skillKey && skillKey !== '-' ? this.resolveStatAndLabel(actor, item) : null;
+        if (!resolved?.stat) {
+          ui.notifications.warn(game.i18n.localize('DX3rd.SkillNotFound'));
+          return false;
+        }
+      }
+
+      if (itemType === 'book' && !actor.system?.attributes?.skills?.cthulhu) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.SkillNotFound'));
+        return false;
+      }
+
+      if (itemType === 'combo' && window.DX3rdComboHandler?.validateUse) {
+        return window.DX3rdComboHandler.validateUse(actor, item) !== false;
+      }
+      return true;
+    },
+
+    /**
      * 아이템 사용 처리 (getTarget 체크 포함)
      * @param {string} actorId - 액터 ID
      * @param {string} itemId - 아이템 ID
@@ -1629,6 +1694,39 @@
       const item = actor.items.get(itemId);
       if (!item) {
         return false;
+      }
+      // 커넥션/마도서는 구 타입 핸들러 안에서 일반 판정/콤보를 골랐고, 그 시점에는
+      // 이미 비용과 사용 횟수가 지불된 뒤였다. 취소하거나 콤보 빌더만 열어도 비용이
+      // 사라지지 않도록 선택 자체를 공용 비용 게이트 앞으로 끌어올린다.
+      const connectionHasRoll = itemType === 'connection'
+        && item.system?.skill && item.system.skill !== '-';
+      if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined) {
+        if (typeof window.DX3rdChooseRollMode !== 'function') {
+          ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+          return false;
+        }
+        const useCombo = await window.DX3rdChooseRollMode(options.menuAnchor);
+        if (useCombo === null) return false;
+        if (useCombo) {
+          let created;
+          if (itemType === 'book') {
+            const difficultyValue = Number(item.system?.decipher) || 0;
+            created = await this.openComboBuilder(actor, 'skill', 'cthulhu', item, {
+              isBookDecipher: true,
+              originalItem: item,
+              predefinedDifficulty: difficultyValue > 0 ? {type: 'number', value: difficultyValue} : null
+            });
+          } else {
+            const skillKey = item.system?.skill;
+            if (!skillKey || skillKey === '-') {
+              ui.notifications.warn(game.i18n.localize('DX3rd.SkillNotFound'));
+              return false;
+            }
+            created = await this.openComboBuilder(actor, 'skill', skillKey, item);
+          }
+          return !!created;
+        }
+        options = {...options, comboMode: 'normal'};
       }
       // 무기/비클은 비용·사용 채팅카드보다 먼저 판정 방식을 고른다.
       // 콤보를 고르면 개별 장비 사용으로 간주하지 않고, 즉석 콤보만 연다.
@@ -1670,9 +1768,25 @@
         || ((itemType === 'weapon' || itemType === 'vehicle') ? 'attack' : 'use');
       
       // 대상 필요 시: 타겟이 없으면 중단 (하이라이트 유지)
-      const requiresTarget = getTarget !== undefined
+      // 콤보 본체에는 멤버의 확장 카드가 복사되지 않는다. 본체만 어댑터에 물으면 false가
+      // 나와 system.getTarget=true조차 nullish 폴백에서 무시됐고, 비용·횟수를 쓴 뒤 대상
+      // 효과만 사라졌다. 일반 구성 슬롯과 무기 슬롯을 모두 역할별 액션으로 검사한다.
+      // 활성화 전용 카드 때문에 콤보가 타겟을 요구해서는 안 된다.
+      const comboMemberRequiresTarget = item.type === 'combo'
+        && (window.DX3rdComboHandler?.comboMemberEntries?.(actor, item) || []).some(({item: memberItem}) => {
+          const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, action);
+          return !!memberItem.system?.getTarget
+            || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(memberItem, memberAction);
+        });
+      // 자동 적용하지 않고 다른 액터에 수동 반영하는 컴펜디움 이펙트도 있다.
+      // 이 플래그는 호출부가 getTarget=false를 넘겨도 대상 선택을 생략할 수 없고,
+      // 자기 자신을 대상으로 삼으면 비용을 쓰기 전에 중단한다.
+      const manualTargetOtherOnly = item.getFlag?.('dx3rd-emanim', 'manualTargetOtherOnly') === true;
+      const requiresTarget = manualTargetOtherOnly || (getTarget !== undefined
         ? getTarget
-        : (window.DX3rdItemEffectAdapter?.requiresTarget(item, action) ?? !!item.system?.getTarget);
+        : (!!item.system?.getTarget
+          || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(item, action)
+          || comboMemberRequiresTarget));
       
       window.DX3rdDebug.log('DX3rd | handleItemUse target check:', {
         itemName: item.name,
@@ -1690,7 +1804,17 @@
           ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
           return false; // 하이라이트 유지하고 중단
         }
+        if (manualTargetOtherOnly && targets.some(target => target.actor?.id === actor.id)) {
+          window.DX3rdDebug.log('DX3rd | Item use blocked - self is not a valid manual target:', item.name);
+          ui.notifications.warn(game.i18n.localize('DX3rd.TargetOtherOnly'));
+          return false;
+        }
         window.DX3rdDebug.log('DX3rd | Target check passed -', targets.length, 'targets selected');
+      }
+
+      if (!this.validateItemUsePreflight(actor, item, itemType, action)) {
+        window.DX3rdDebug.log('DX3rd | handleItemUse - Type preflight rejected:', item.name);
+        return false;
       }
 
       // 사용 버튼 클릭 시 통합 처리
@@ -1853,21 +1977,26 @@
         // 핸들러 내부 예외가 조용히 삼켜져 "오류도 없이 실행 안 됨"이 되지 않도록 표면화한다.
         try {
           // 로이스 아이템의 경우 roisAction에 따라 분기
+          let handlerResult;
           if (itemType === 'rois' && roisAction) {
             if (roisAction === 'titus') {
-              await handler.handleTitus(actorId, itemId);
+              handlerResult = await handler.handleTitus(actorId, itemId);
             } else if (roisAction === 'sublimation') {
-              await handler.handleSublimation(actorId, itemId);
+              handlerResult = await handler.handleSublimation(actorId, itemId);
             } else if (roisAction === 'activate') {
               // 발동형 로이스(D로이스 등): 매크로/자기효과/코스트/사용횟수는 위 공용 파이프라인에서
               // 이미 실행됐다. RoisHandler.handle 은 티투스/승화 전용이므로 여기서 호출하면
               // 매크로가 이중 실행되고 D로이스에 의미 없는 titus 플래그가 켜진다 → 호출하지 않는다.
             } else {
-              await handler.handle(actorId, itemId, getTarget, options);
+              handlerResult = await handler.handle(actorId, itemId, getTarget, options);
             }
           } else {
-            await handler.handle(actorId, itemId, getTarget, options);
+            handlerResult = await handler.handle(actorId, itemId, getTarget, options);
           }
+          // 기존 핸들러의 undefined 성공 계약은 유지하되, 명시적 false는 반드시 호출자까지
+          // 전파한다. 그래야 채팅 완료 표시와 임시 콤보 정리가 실제 실행 실패를 성공으로
+          // 오인하지 않는다.
+          if (handlerResult === false) return false;
         } catch (e) {
           console.error(`DX3rd | handleItemUse - ${itemType} handler threw:`, e);
           ui.notifications.error(`${item.name}: ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')} (${e?.message || e})`);

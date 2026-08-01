@@ -40,7 +40,8 @@
     move_full: 'system.attributes.move.full',
     fullMove: 'system.attributes.move.full',
     saving_max: 'system.attributes.saving.max',
-    stock_point: 'system.attributes.stock.value',
+    // stock_point는 현재 재산점의 일회성 증감이 아니라 파생 기본 재산점 보너스다.
+    stock_point: 'system.attributes.stock.base',
     attack: 'system.attributes.attack.value',
     damage_roll: 'system.attributes.damage_roll.value',
     effect_level: `flags.${SCOPE}.effectLevelBonus`

@@ -7,14 +7,14 @@ window.DX3rdConnectionHandler = {
         const actor = game.actors.get(actorId);
         if (!actor) {
             ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound'));
-            return;
+            return false;
         }
         
         // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
         const item = actor.items.get(itemId) || game.items.get(itemId);
         if (!item) {
             ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
-            return;
+            return false;
         }
         
         // 판정 기능이 없는 특수 커넥션은 인라인 자동화만 실행하고 끝낸다.
@@ -45,22 +45,23 @@ window.DX3rdConnectionHandler = {
         if (options.comboMode !== 'normal') {
             if (typeof window.DX3rdChooseRollMode !== 'function') {
                 ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-                return;
+                return false;
             }
             useCombo = await window.DX3rdChooseRollMode();
         }
-        if (useCombo === null) return;
+        if (useCombo === null) return false;
 
         if (useCombo) {
             // 콤보 빌더 열기 (skill 전달)
+            let created = null;
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.openComboBuilder) {
-                await window.DX3rdUniversalHandler.openComboBuilder(actor, 'skill', skillKey, item);
+                created = await window.DX3rdUniversalHandler.openComboBuilder(actor, 'skill', skillKey, item);
             }
             // 이전 토큰 복원
             if (previousToken && canvas.tokens) {
                 previousToken.control({ releaseOthers: true });
             }
-            return;
+            return !!created;
         }
 
         // 바로 스킬 체크 (난이도 입력)

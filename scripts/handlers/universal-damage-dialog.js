@@ -10,13 +10,49 @@
 
   Object.assign(window.DX3rdUniversalHandler, {
     /**
+     * 채팅 카드가 DOM에 들어온 뒤 기존 데미지 굴림 버튼과 똑같은 클릭 경로를 실행한다.
+     * 이 경로를 공유해야 afterSuccess, 공격 횟수, 임시 콤보 플래그가 수동 굴림과 갈라지지 않는다.
+     */
+    async maybeAutoRollDamage(message) {
+      if (!message || game.settings.get('dx3rd-emanim', 'autoDamageRoll') !== true) return false;
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const button = document.querySelector(
+          `[data-message-id="${message.id}"] .damage-roll-btn`
+        );
+        if (button) {
+          button.click();
+          // 자동 굴림은 산출 창을 열기만 하는 것이 아니라 기본 산출값으로 확정까지 한다.
+          // 이후의 방어/닷지 창은 대상 측 선택이므로 자동으로 건드리지 않는다.
+          for (let dialogAttempt = 0; dialogAttempt < 20; dialogAttempt += 1) {
+            const confirm = document.querySelector(
+              '.damage-dialog button[data-action="confirm"]'
+            );
+            if (confirm) {
+              confirm.click();
+              return true;
+            }
+            await new Promise(resolve => window.setTimeout(resolve, 50));
+          }
+          console.warn(`DX3rd | Auto damage calculation dialog was not rendered: ${message.id}`);
+          return false;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 50));
+      }
+
+      console.warn(`DX3rd | Auto damage roll button was not rendered: ${message.id}`);
+      return false;
+    },
+
+    /**
      * Handle damage roll for weapons
      * @param {Actor} actor - The actor using the weapon
      * @param {Item} item - The weapon item
      * @param {number} rollResult - The result from the attack roll
      * @param {Object} preservedValues - Values preserved before disable hooks (optional)
+     * @param {ChatMessage|null} sourceMessage - 공격 판정 결과가 들어 있는 원본 채팅 메시지
      */
-    async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null) {
+    async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null, sourceMessage = null) {
       
       let weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate;
       
@@ -44,7 +80,11 @@
       }
       
       // 데미지 산출 다이얼로그 표시 (롤 결과와 보존된 값들 포함)
-      this.showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData);
+      this.showDamageCalculationDialog(
+        actor, item, weaponAttack, actorAttack, actorAttackFormula,
+        actorDamageRoll, actorDamageRollFormula, actorPenetrate,
+        rollResult, comboAfterDamageData, sourceMessage
+      );
     },
 
     /**
@@ -57,8 +97,9 @@
      * @param {number} actorPenetrate - Actor penetrate value
      * @param {number} rollResult - Attack roll result
      * @param {Object} comboAfterDamageData - Combo afterDamage data (optional)
+     * @param {ChatMessage|null} sourceMessage - 데미지 결과를 합칠 공격 판정 메시지
      */
-    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData = null) {
+    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null) {
 
       const attackRollResult = rollResult;
       
@@ -268,7 +309,9 @@
                 // 롤 결과를 HTML로 변환
                 const rollHTML = await damageRoll.render();
                 const dynamicDiceHTML = dynamicDiceRoll ? await dynamicDiceRoll.render() : '';
-                const rollMessage = `${dynamicDiceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.DamageRollDiceFormula')}: ${actorDamageRollFormula} → +${dynamicDiceCount}D10</div>${dynamicDiceHTML}</div>` : ''}<div class="dice-roll">${rollHTML}</div>`;
+                // Roll.render()가 이미 .dice-roll 루트를 반환한다. 한 번 더 감싸면
+                // Midi-QOL식 세로 결과 구획에서 폭 계산과 툴팁 배치가 어긋난다.
+                const rollMessage = `${dynamicDiceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.DamageRollDiceFormula')}: ${actorDamageRollFormula} → +${dynamicDiceCount}D10</div>${dynamicDiceHTML}</div>` : ''}${rollHTML}`;
                 
                 // 데미지 롤 정보 생성 (장갑 무시가 0이면 표시하지 않음)
                 let damageRollInfo = game.i18n.localize('DX3rd.DamageRoll');
@@ -276,21 +319,15 @@
                   damageRollInfo += ` (${game.i18n.localize('DX3rd.Penetrate')}: ${finalPenetrate})`;
                 }
                 
-                // 데미지 롤 정보, 롤 결과, 데미지 적용 버튼을 하나의 메시지로 묶기
+                // 산출 확정이 곧 대상 적용이다. 결과 아래에는 중복 적용 버튼 대신
+                // 같은 공격을 다시 시작할 수 있는 명중 굴림 버튼만 남긴다.
                 const damageApplyContent = `
-                  <div class="dx3rd-item-chat">
-                    <div class="flavor-text">${damageRollInfo}</div>
+                  <div class="dx3rd-damage-result">
+                    <div class="dx3rd-roll-label">${damageRollInfo}</div>
                     ${rollMessage}
-                    <div class="damage-roll-message">
-                      <button class="damage-apply-btn" 
-                              data-actor-id="${actor.id}"
-                              data-item-id="${item.id}"
-                              data-damage="${damageRoll.total}"
-                              data-penetrate="${finalPenetrate}"
-                              data-attack-result="${attackRollResult}">
-                        ${game.i18n.localize('DX3rd.DamageApply')}
-                      </button>
-                    </div>
+                  </div>
+                  <div class="dx3rd-card-buttons dx3rd-damage-actions">
+                    ${this.renderAttackRollButton(actor, item, {repeatable: true})}
                   </div>
                 `;
                 
@@ -320,7 +357,9 @@
                   }
                 }
                 
-                const damageMessage = await ChatMessage.create(messageData);
+                const damageMessage = sourceMessage
+                  ? await this.mergeDamageRollIntoMessage(sourceMessage, damageApplyContent, damageRoll)
+                  : await ChatMessage.create(messageData);
 
                 pendingApply = {
                   message: damageMessage,
@@ -339,8 +378,7 @@
         classes: ["dx3rd-emanim", "damage-dialog"]
       });
 
-      // 데미지 롤 = 굴림 + 적용을 한 번에. 카드의 '데미지 적용' 버튼은 남겨 두어
-      // (완료 표시) 대상을 바꿔 다시 적용하는 경로로 계속 쓸 수 있게 한다.
+      // 데미지 롤 = 굴림 + 적용을 한 번에 실행한다.
       // 호출부(handleDamageRoll)가 이 함수를 await 하지 않으므로 — afterSuccess 익스텐션이
       // 산출 창을 기다리지 않게 하려는 기존 순서다 — 여기서 예외를 삼켜 unhandled rejection 을 막는다.
       if (pendingApply) {
@@ -363,8 +401,58 @@
     },
 
     /**
-     * 데미지 적용 실행부(게이트 포함). 채팅의 '데미지 적용' 버튼과 데미지 산출 창 확정 직후의
-     * 자동 적용이 같은 경로를 쓰도록 분리했다 — 게이트(권한/타겟/증오)를 한 곳에만 둔다.
+     * 공격 판정 카드의 데미지 버튼 영역에 데미지 결과를 합친다.
+     * 재굴림이면 저장된 마지막 데미지 Roll도 교체하여 한 카드에 현재 결과만 유지한다.
+     */
+    async mergeDamageRollIntoMessage(sourceMessage, damageApplyContent, damageRoll) {
+      const root = document.createElement('div');
+      root.innerHTML = sourceMessage.content || '';
+
+      const slot = root.querySelector('.damage-roll-message');
+      const damageRollButton = slot?.querySelector('.damage-roll-btn')?.outerHTML
+        || root.querySelector('.damage-roll-btn')?.outerHTML
+        || '';
+      const damageRoot = document.createElement('div');
+      damageRoot.innerHTML = damageApplyContent;
+      let damageActions = damageRoot.querySelector('.dx3rd-damage-actions');
+      if (!damageActions) {
+        damageActions = document.createElement('div');
+        damageActions.className = 'dx3rd-card-buttons dx3rd-damage-actions';
+        damageRoot.append(damageActions);
+      }
+      if (damageRollButton) damageActions.insertAdjacentHTML('beforeend', damageRollButton);
+      const mergedContent = damageRoot.innerHTML;
+
+      if (slot) {
+        slot.innerHTML = mergedContent;
+      } else {
+        const card = root.querySelector('.dx3rd-item-chat') || root;
+        const result = document.createElement('div');
+        result.className = 'damage-roll-message';
+        result.innerHTML = mergedContent;
+        card.append(result);
+      }
+
+      const rolls = Array.from(sourceMessage.rolls || [], roll => roll.toJSON());
+      const alreadyMerged = sourceMessage.getFlag('dx3rd-emanim', 'damageRollMerged') === true;
+      const serializedDamageRoll = damageRoll.toJSON();
+      if (alreadyMerged && rolls.length > 0) {
+        rolls[rolls.length - 1] = serializedDamageRoll;
+      } else {
+        rolls.push(serializedDamageRoll);
+      }
+
+      await sourceMessage.update({
+        content: root.innerHTML,
+        rolls,
+        'flags.dx3rd-emanim.damageRollMerged': true
+      });
+      return sourceMessage;
+    },
+
+    /**
+     * 데미지 적용 실행부(게이트 포함). 데미지 산출 창 확정 직후의 적용과
+     * 구형 채팅 카드의 '데미지 적용' 버튼이 같은 경로를 쓴다.
      * 타겟은 호출 시점의 game.user.targets 를 읽는다(버튼 경로와 동일).
      * @returns {Promise<boolean>} 실제로 적용을 진행했으면 true (게이트에서 막히면 false)
      */
@@ -725,7 +813,11 @@
         })
         // 가드치 높은 순(같으면 원래 순서 유지). 다이스식은 고정치가 0이라 뒤로 간다.
         .sort((a, b) => b.guardFixed - a.guardFixed);
-      const guard = targetActor.system.attributes.guard?.value || 0;
+      // 액터 시트의 guard.value는 장착 무기 가드까지 보여 주지만, 실제 방어에서는 아래
+      // 무기 선택값을 별도로 더한다. base에서 시작해야 장착 무기가 이중 적용되지 않는다.
+      const guard = targetActor.system.attributes.guard?.base
+        ?? targetActor.system.attributes.guard?.value
+        ?? 0;
       const armor = targetActor.system.attributes.armor?.value || 0;
       const reduce = targetActor.system.attributes.reduce?.value || 0;
       // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
@@ -1203,19 +1295,55 @@
                         return;
                       }
                       
-                      const attackerItem = attacker.items.get(itemId);
-                      if (!attackerItem) {
-                        console.warn('DX3rd | Attacker item not found:', itemId);
-                        return;
-                      }
-                      
                       // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
+                      // 임시 콤보는 액터에 임베드된 Item 문서가 아니다. 따라서 itemId로
+                      // attacker.items를 먼저 조회해 반환하면, 콤보 빌더로 만든 공격은
+                      // 멤버 이펙트의 사독/회복/데미지 후 효과까지 전부 잃는다.
+                      // comboAfterDamageData는 실행에 필요한 멤버 데이터를 이미 들고 있으므로
+                      // 원본 콤보 문서와 무관하게 먼저 처리한다.
                       const comboData = activationRequest.comboAfterDamageData;
                       if (comboData && damagedTargets.length > 0) {
                         window.DX3rdDebug.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
                         // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
                         const damagedActors = damagedTargets.map(id => game.actors.get(id)).filter(a => a);
                         await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors);
+                      }
+
+                      const attackerItem = attacker.items.get(itemId);
+                      const needsAttackerItem = activationRequest.shouldExecuteMacro
+                        || activationRequest.shouldActivate
+                        || activationRequest.shouldApplyToTargets;
+                      if (!attackerItem && needsAttackerItem) {
+                        // 저장 아이템 기반 후속 작업은 원본 문서가 없으면 실행할 수 없다.
+                        // 큐를 남기면 같은 키의 다음 요청까지 막으므로 반드시 정리한다.
+                        console.warn('DX3rd | Attacker item not found:', itemId);
+                        delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
+                        return;
+                      }
+                      if (!attackerItem) {
+                        // 임시 콤보는 위의 comboData 처리만으로 완료된다. HP 데미지가 없을
+                        // 때의 알림은 저장 콤보와 동일하게 유지한다.
+                        if (damagedTargets.length === 0) {
+                          const attackerOwners = game.users.filter(user =>
+                            !user.isGM &&
+                            user.active &&
+                            attacker.testUserPermission(user, "OWNER")
+                          );
+                          if (attackerOwners.length === 0) {
+                            await window.DX3rdUniversalAlertDialogV2({
+                              title: game.i18n.localize('DX3rd.NoDamage'),
+                              content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`
+                            });
+                          } else {
+                            window.DX3rdSocketRouter.emit({
+                              type: 'showNoDamageNotification',
+                              payload: { attackerId: attackerId }
+                            });
+                          }
+                        }
+                        delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
+                        window.DX3rdDebug.log('DX3rd | Temporary combo afterDamage request removed from queue');
+                        return;
                       }
                       
                       // 1️⃣ 매크로 실행 (한 명이라도 HP 데미지 받았으면)
@@ -1955,6 +2083,11 @@
      * @returns {boolean} - 성공 여부
      */
        handleAttackRoll: async function(actor, item, options = {}) {
+        const autoAttackRoll = game.settings.get('dx3rd-emanim', 'autoAttackRoll') !== false;
+        if (!autoAttackRoll && !options.forceRoll) {
+          await this.createPendingAttackCard(actor, item);
+          return true;
+        }
         
         // 아이템의 소유자 액터를 토큰으로 선택
       let previousToken = null;
@@ -2061,7 +2194,10 @@
           };
         }
         // 판정 다이얼로그 표시 (메이저만, 무기 아이템 전달)
-        this.showStatRollDialog(actor, skillData, skillName, 'major', item, previousToken, weaponBonus);
+        this.showStatRollDialog(
+          actor, skillData, skillName, 'major', item, previousToken, weaponBonus,
+          null, null, null, false, false, null, false, options.sourceMessage || null
+        );
       }
       
       return true;
