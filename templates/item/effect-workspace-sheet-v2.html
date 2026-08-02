@@ -13,6 +13,8 @@
     <div class="tab {{tabs.description.cssClass}}" data-group="primary" data-tab="description">
       <div class="sheet-wrapper margin-top-10">
         <section class="sheet-attributes">
+          {{!-- 기능은 판정의 첫 축이므로 액션 설정이 아니라 해설 첫 칸에 둔다 --}}
+          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Skill"}}</label><select name="system.skill">{{#select system.skill}}{{#each system.skillOptions as |option|}}<option value="{{option.value}}">{{localize option.label}}</option>{{/each}}{{/select}}</select>{{#if system.skillChoicesLabel}}<small class="dx3rd-skill-choices-hint" title="{{localize "DX3rd.SkillChoicesHint"}}">{{system.skillChoicesLabel}}</small>{{/if}}</div>
           <div class="cell grid-4 space-between"><label class="cell--title"><span>{{localize "DX3rd.Difficulty"}}</span><input type="checkbox" class="cell--crit difficulty-check" {{#unless (eq system.roll "-")}}checked{{/unless}}></label><div class="rt-field" data-rt="difficulty"><select class="rt-option">{{#select difficultyField.option}}{{#each difficultyField.options}}<option value="{{this.value}}">{{this.label}}</option>{{/each}}<option value="기타">{{localize "DX3rd.Other"}}</option>{{/select}}</select><input type="text" class="rt-param" value="{{difficultyField.param}}" placeholder="{{difficultyField.paramPlaceholder}}" {{#unless difficultyField.showParam}}hidden{{/unless}}><input type="hidden" name="system.difficulty" value="{{system.difficulty}}"></div></div>
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Limit"}}</label><input name="system.limit" value="{{system.limit}}"></div>
           <div class="cell grid-4 space-between"><label class="cell--title"><span>{{localize "DX3rd.Level"}}</span><input type="checkbox" class="cell--crit" name="system.level.upgrade" {{checked system.level.upgrade}}></label><div class="flex"><input type="number" name="system.level.init" value="{{system.level.init}}" min="0"><span class="slash"> / </span><input type="number" name="system.level.max" value="{{system.level.max}}" min="0"></div></div>
@@ -21,9 +23,18 @@
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Encroach"}}</label><div class="flex"><input name="system.encroach.value" value="{{system.encroach.value}}"><span class="slash"> / </span><input name="system.encroach.init" value="{{system.encroach.init}}"></div></div>
           {{!-- HP 비용은 발동 코스트이므로 해설이 아니라 액션 설정 탭의 '이펙트 상세 설정' 다이얼로그에서 편집한다 --}}
           <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.Type"}}</label><select name="system.type">{{#select system.type}}<option value="normal">{{localize "DX3rd.Effect"}}</option><option value="easy">{{localize "DX3rd.Easy"}}</option><option value="extra">{{localize "DX3rd.ExtraData"}}</option>{{/select}}</select></div>
-          <div class="cell grid-4"><label class="cell--title">{{localize "DX3rd.EXP"}}</label><div class="dx3rd-exp-controls {{#if (eq system.type "extra")}}is-disabled{{/if}}"><label title="{{localize "DX3rd.ExpOwnHint"}}"><input type="checkbox" name="system.exp.own" aria-label="{{localize "DX3rd.ExpOwnHint"}}" {{checked system.exp.own}} {{#if (eq system.type "extra")}}disabled{{/if}}><span>{{localize "DX3rd.Acquisition"}}</span></label><label title="{{localize "DX3rd.ExpUpgradeHint"}}"><input type="checkbox" name="system.exp.upgrade" aria-label="{{localize "DX3rd.ExpUpgradeHint"}}" {{checked system.exp.upgrade}} {{#if (eq system.type "extra")}}disabled{{/if}}><span>{{localize "DX3rd.Growth"}}</span></label></div></div>
         </section>
-        <div class="cell cell--bio"><label class="cell--title bio-title-v2"><span class="bio-heading">{{localize "DX3rd.Description"}}</span></label><prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" relative toggled>{{{enrichedDescription}}}</prose-mirror></div>
+        {{!-- 경험점 취득/성장은 값이 아니라 표식이라 칸을 통째로 쓰지 않고 해설 헤더 우측에 붙인다 --}}
+        <div class="cell cell--bio">
+          <div class="cell--title bio-title-v2">
+            <span class="bio-heading">{{localize "DX3rd.Description"}}</span>
+            <span class="checkbox-addon dx3rd-exp-controls {{#if (eq system.type "extra")}}is-disabled{{/if}}">
+              <label title="{{localize "DX3rd.ExpOwnHint"}}"><input type="checkbox" name="system.exp.own" aria-label="{{localize "DX3rd.ExpOwnHint"}}" {{checked system.exp.own}} {{#if (eq system.type "extra")}}disabled{{/if}}><span>{{localize "DX3rd.Acquisition"}}</span></label>
+              <label title="{{localize "DX3rd.ExpUpgradeHint"}}"><input type="checkbox" name="system.exp.upgrade" aria-label="{{localize "DX3rd.ExpUpgradeHint"}}" {{checked system.exp.upgrade}} {{#if (eq system.type "extra")}}disabled{{/if}}><span>{{localize "DX3rd.Growth"}}</span></label>
+            </span>
+          </div>
+          <prose-mirror name="system.description" value="{{system.description}}" data-document-uuid="{{item.uuid}}" relative toggled>{{{enrichedDescription}}}</prose-mirror>
+        </div>
       </div>
     </div>
 
@@ -34,7 +45,7 @@
             <div><i class="fas fa-crosshairs"></i> {{localize "DX3rd.ActionSettings"}}</div>
           </header>
           <div class="dx3rd-action-config-grid">
-            <label class="dx3rd-action-config-field is-skill"><span>{{localize "DX3rd.Skill"}}</span><select name="system.skill">{{#select system.skill}}{{#each system.skillOptions as |option|}}<option value="{{option.value}}">{{localize option.label}}</option>{{/each}}{{/select}}</select>{{#if system.skillChoicesLabel}}<small class="dx3rd-skill-choices-hint" title="{{localize "DX3rd.SkillChoicesHint"}}">{{system.skillChoicesLabel}}</small>{{/if}}</label>
+            {{!-- 기능 드롭다운은 해설 탭 첫 칸으로 옮겼다 --}}
             <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.Timing"}}</span><select name="system.timing">{{#select system.timing}}<option value="-">-</option><option value="minor">{{localize "DX3rd.Minor"}}</option><option value="major">{{localize "DX3rd.Major"}}</option><option value="reaction">{{localize "DX3rd.Reaction"}}</option><option value="major-reaction">{{localize "DX3rd.Major"}}/{{localize "DX3rd.Reaction"}}</option><option value="auto">{{localize "DX3rd.Auto"}}</option><option value="setup">{{localize "DX3rd.Setup"}}</option><option value="cleanup">{{localize "DX3rd.Cleanup"}}</option><option value="initiative">{{localize "DX3rd.Initiative"}}</option><option value="always">{{localize "DX3rd.Always"}}</option>{{/select}}</select></label>
             <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.RollType"}}</span><select name="system.roll">{{#select system.roll}}<option value="-">-</option><option value="major">{{localize "DX3rd.Major"}}</option><option value="reaction">{{localize "DX3rd.Reaction"}}</option><option value="dodge">{{localize "DX3rd.DodgeRoll"}}</option>{{/select}}</select></label>
             <label class="dx3rd-action-config-field"><span>{{localize "DX3rd.AttackType"}}</span><select name="system.attackRoll" class="attackroll-select" {{#if (or (eq system.roll "-") (eq system.roll "dodge"))}}disabled{{/if}}>{{#select system.attackRoll}}<option value="-">-</option><option value="melee">{{localize "DX3rd.Melee"}}</option><option value="ranged">{{localize "DX3rd.Ranged"}}</option>{{/select}}</select></label>

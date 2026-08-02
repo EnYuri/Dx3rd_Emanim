@@ -43,6 +43,8 @@
               <label class="dx3rd-check-option"><input type="radio" name="system.saving.acquisition" value="permanent" {{#ifEquals system.saving.acquisition "permanent"}}checked{{/ifEquals}}><span class="dx3rd-check-visual"><i class="fas fa-check"></i></span><span>{{localize "DX3rd.SavingAcquisition"}}</span></label>
               <span>/</span>
               <label class="dx3rd-check-option"><input type="radio" name="system.saving.acquisition" value="purchase" {{#ifEquals system.saving.acquisition "purchase"}}checked{{/ifEquals}}><span class="dx3rd-check-visual"><i class="fas fa-check"></i></span><span>{{localize "DX3rd.PurchaseAcquisition"}}</span></label>
+              <span>/</span>
+              <label class="dx3rd-check-option"><input type="radio" name="system.saving.acquisition" value="other" {{#ifEquals system.saving.acquisition "other"}}checked{{/ifEquals}}><span class="dx3rd-check-visual"><i class="fas fa-check"></i></span><span>{{localize "DX3rd.OtherAcquisition"}}</span></label>
               {{#if isEquipment}}<span class="acquisition-separator">·</span><label class="dx3rd-check-option"><input type="checkbox" name="system.equipment" {{checked system.equipment}}><span class="dx3rd-check-visual"><i class="fas fa-check"></i></span><span>{{localize "DX3rd.Equipment"}}</span></label>{{/if}}
             </span>
           </div>

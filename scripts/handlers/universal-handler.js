@@ -692,11 +692,17 @@
           }
         }
 
-        // 맨손과 이펙트는 비용이 없으면 종전에는 “○○ 사용” 한 줄만 남아 무엇을
-        // 발동했는지 알기 어려웠다. 시트의 해설을 같은 채팅 카드에 작은 보조문으로 붙인다.
-        const isFist = item.type === 'weapon' && this.isFistWeaponName(item.name);
+        // 사용 카드에는 그 아이템의 해설을 작은 보조문으로 붙인다. 예전에는 이펙트와
+        // 맨손만 대상이어서 무기·마도서·커넥션·once 처럼 해설이 곧 효과인 아이템은
+        // “○○ 사용” 한 줄만 남았다 — 같은 사용 메시지인데 타입에 따라 나왔다 말았다 하는
+        // 것이 바로 그 "특정 상황"이므로 타입 게이트를 없앤다.
+        // 판단 기준은 타입이 아니라 "해설에 실제로 읽을 글자가 있는가"다. 빈 <p></p> 나
+        // &nbsp; 만 저장된 문서가 적지 않아 문자열 길이로 재면 빈 상자가 생긴다.
         const usageDescription = String(item.system?.description || '').trim();
-        if ((item.type === 'effect' || isFist) && usageDescription) {
+        const hasDescriptionText = /\S/.test(
+          usageDescription.replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
+        );
+        if (hasDescriptionText) {
           let enrichedDescription = usageDescription;
           try {
             enrichedDescription = await window.DX3rdDescriptionManager?.createEnrichedBiography?.(

@@ -45,7 +45,8 @@
       listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
       listen('change', 'select[name="system.skill"]', event => this._updateBaseAttribute(event.target.value));
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
-      listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
+      // 난이도 판정 체크박스는 name 이 없어 폼에 실리지 않는다 — 별도 update 가 submitOnChange
+      // 저장과 경합하지 않도록 _prepareSubmitData 에서 처리한다.
       listen('input', 'input[name="system.limit"]', event => this._validateLimit(event));
 
       // 사정거리/대상/난이도 드롭다운 배선(선택+파라미터 → 캐노니컬 값 저장)
@@ -158,11 +159,6 @@
       if (value === '-' || value === 'dodge') await this.item.update({'system.attackRoll': '-'});
     }
 
-    async _toggleDifficulty(checked) {
-      await this.item.update(comboData.getDifficultyToggleUpdate(this.item, checked));
-      this.render(false);
-    }
-
     _validateLimit(event) {
       if (comboData.isLimitValueValid(event.target.value)) return;
       event.target.value = this.item.system.limit || '-';
@@ -182,6 +178,14 @@
       foundry.utils.setProperty(data, 'system.encroach.value', submitValues.encroachValue);
       foundry.utils.setProperty(data, 'system.weapon', submitValues.weapons);
       foundry.utils.setProperty(data, 'system.attack.value', submitValues.attackValue);
+
+      // name 없는 난이도 판정 체크박스는 폼 데이터에 없다 — 이 서브밋에 접어 넣는다.
+      const changed = event?.target;
+      if (changed?.matches?.('.difficulty-check')) {
+        for (const [key, value] of Object.entries(comboData.getDifficultyToggleUpdate(this.item, changed.checked))) {
+          foundry.utils.setProperty(data, key, value);
+        }
+      }
       return data;
     }
   }

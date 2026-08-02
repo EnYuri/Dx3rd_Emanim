@@ -35,25 +35,29 @@
       return context;
     }
 
-    async _onRender(context, options) {
-      await super._onRender(context, options);
-      this._spellCleanups?.forEach(cleanup => cleanup());
-      this._spellCleanups = [];
-      const listen = (...args) => this._spellCleanups.push(compat.on(this.element, ...args));
-
-      listen('change', '.casting-roll-check', event => this._onCastingRollCheck(event.target.checked));
-      listen('change', '[data-target-field="system.getTarget"]', event => {
-        this.item.update({'system.getTarget': event.target.checked});
-      });
-    }
-
-    async _onCastingRollCheck(checked) {
+    // 기동판정 · 대상 지정 체크박스는 name 이 없어 폼에 실리지 않는다. 별도 item.update 로
+    // 저장하면 같은 change 이벤트의 submitOnChange 저장과 경합하므로 _prepareSubmitData 에서 처리한다.
+    static _castingRollUpdate(checked) {
       const updates = {'system.roll': checked ? 'CastingRoll' : '-'};
       if (!checked) {
         updates['system.invoke.value'] = '-';
         updates['system.evocation.value'] = '-';
       }
-      await this.item.update(updates);
+      return updates;
+    }
+
+    _prepareSubmitData(event, form, formData, updateData) {
+      const data = super._prepareSubmitData(event, form, formData, updateData);
+      const changed = event?.target;
+      if (changed?.matches?.('.casting-roll-check')) {
+        for (const [key, value] of Object.entries(DX3rdSpellSheetV2._castingRollUpdate(changed.checked))) {
+          foundry.utils.setProperty(data, key, value);
+        }
+      }
+      if (changed?.matches?.('[data-target-field="system.getTarget"]')) {
+        foundry.utils.setProperty(data, 'system.getTarget', changed.checked);
+      }
+      return data;
     }
   }
 

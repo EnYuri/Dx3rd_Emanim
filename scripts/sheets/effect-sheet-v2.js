@@ -78,11 +78,9 @@
       this._listenerCleanups = weaponManager.setupWeaponTabListeners(this.element, this) || [];
       const listen = (...args) => this._listenerCleanups.push(compat.on(this.element, ...args));
       listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
-      listen('change', '.difficulty-check', event => this._toggleDifficulty(event.target.checked));
+      // 난이도 판정 · 대상 지정 체크박스는 name 이 없어 폼에 실리지 않는다. 별도 item.update 로
+      // 저장하면 같은 change 이벤트의 submitOnChange 저장과 경합하므로 _prepareSubmitData 에서 처리한다.
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
-      listen('change', '[data-target-field="system.getTarget"]', event => {
-        this.item.update({'system.getTarget': event.target.checked});
-      });
       listen('change', '.macro-timing', event => this._updateMacro(event, 'timing'));
       listen('change', '.macro-disabled', event => this._updateMacro(event, 'disabled'));
       listen('change', '.macro-command', event => this._updateMacro(event, 'command'));
@@ -132,11 +130,6 @@
       this.render(false);
     }
 
-    async _toggleDifficulty(checked) {
-      await this.item.update(itemSheetData.getRollDifficultyToggleUpdate(this.item, checked));
-      this.render(false);
-    }
-
     async _normalizeRoll(value) {
       const update = itemSheetData.getRollChangeUpdate(value);
       if (Object.keys(update).length) await this.item.update(update);
@@ -162,6 +155,18 @@
       }
       for (const [key, value] of Object.entries(itemSheetData.getRollChangeUpdate(data.system?.roll))) {
         foundry.utils.setProperty(data, key, value);
+      }
+
+      // name 없는 체크박스 두 개는 폼 데이터에 없다. 여기서 접어 넣어야 별도 update 와
+      // 폼 저장이 경합하지 않는다(psionic 시트와 같은 방식).
+      const changed = event?.target;
+      if (changed?.matches?.('.difficulty-check')) {
+        for (const [key, value] of Object.entries(itemSheetData.getRollDifficultyToggleUpdate(this.item, changed.checked))) {
+          foundry.utils.setProperty(data, key, value);
+        }
+      }
+      if (changed?.matches?.('[data-target-field="system.getTarget"]')) {
+        foundry.utils.setProperty(data, 'system.getTarget', changed.checked);
       }
       return data;
     }

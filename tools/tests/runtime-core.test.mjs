@@ -88,13 +88,15 @@ test('saving points are recalculated from the current maximum and owned item cos
       {type:'weapon', system:{saving:{value:3}}},
       {type:'protect', system:{saving:{value:'5'}}},
       {type:'connection', system:{saving:{value:7, acquisition:'purchase'}}},
+      {type:'etc', system:{saving:{value:4, acquisition:'other'}}},
       {type:'effect', system:{saving:{value:99}}}
     ]),
-    exhausted: DX3rdSaving.remain(6, [
+    overspent: DX3rdSaving.remain(6, [
       {type:'vehicle', system:{saving:{value:10}}}
     ])
   })`, context));
-  assert.deepEqual(result, { unused: 20, partlyUsed: 12, exhausted: 0 });
+  // 초과 지출은 0으로 감추지 않는다 — 몇 점 모자란지가 화면에 보여야 한다.
+  assert.deepEqual(result, { unused: 20, partlyUsed: 12, overspent: -4 });
 
   const actor = source('scripts/document/actor.js').replace(/\s+/g, ' ');
   assert.ok(actor.includes('attrs.saving.remain = calculateSavingRemain(attrs.saving.max, actorItems);'),
@@ -120,13 +122,20 @@ test('current stock is derived from remaining saving points and recorded adjustm
   const result = JSON.parse(vm.runInContext(`JSON.stringify({
     spent: DX3rdStock.derive(12, -3, 0),
     gained: DX3rdStock.derive(12, 5, 0),
-    floored: DX3rdStock.derive(2, -9, 0)
+    overspent: DX3rdStock.derive(2, -9, 0),
+    negativeBase: DX3rdStock.derive(-5, -2, 0)
   })`, context));
+  // 0 클램프 금지: 초과 지출분이 화면에서 사라지고 modifier에 숨은 음수로 쌓인다.
   assert.deepEqual(result, {
     spent: {base: 12, modifier: -3, value: 9, max: 12, min: 0},
     gained: {base: 12, modifier: 5, value: 17, max: 12, min: 0},
-    floored: {base: 2, modifier: -9, value: 0, max: 2, min: 0}
+    overspent: {base: 2, modifier: -9, value: -7, max: 2, min: 0},
+    negativeBase: {base: -5, modifier: -2, value: -7, max: -5, min: 0}
   });
+
+  const actorSource = source('scripts/document/actor.js').replace(/\s+/g, ' ');
+  assert.ok(actorSource.includes('Math.max(Number(attrs.saving.remain) || 0, 0) + stockBonus'),
+    '상비점 초과분을 재산점 기본값으로 넘기면 한 번의 초과 지출이 두 점수에 이중으로 물린다');
 
   const dialog = source('scripts/sheets/actor-edit-dialogs.js').replace(/\s+/g, ' ');
   assert.ok(dialog.includes('"system.attributes.stock.modifier": nextStock - baseStock'),
@@ -151,7 +160,7 @@ test('current stock is derived from remaining saving points and recorded adjustm
     'stock_point 효과는 사용 기록이 아니라 기본 재산점에 기여해야 한다');
 });
 
-test('non-effect item sheets store a mutually exclusive permanent or purchased acquisition', () => {
+test('non-effect item sheets store a mutually exclusive permanent, purchased or other acquisition', () => {
   const schema = JSON.parse(source('template.json'));
   assert.equal(schema.Item.templates.item.saving.acquisition, 'permanent');
 
@@ -163,6 +172,7 @@ test('non-effect item sheets store a mutually exclusive permanent or purchased a
     const template = source(path);
     assert.match(template, /name="system\.saving\.acquisition" value="permanent"/, `${path}: 상비 선택 누락`);
     assert.match(template, /name="system\.saving\.acquisition" value="purchase"/, `${path}: 구매 선택 누락`);
+    assert.match(template, /name="system\.saving\.acquisition" value="other"/, `${path}: 기타 선택 누락`);
     assert.match(template, /class="bio-heading"/, `${path}: 해설 제목 중앙 기준점 누락`);
     assert.match(template, /class="dx3rd-check-visual"/, `${path}: DX3rd 체크 비주얼 누락`);
   }
@@ -1624,10 +1634,13 @@ test('combo members preserve prior use and attack behavior while blocking activa
     '기존 공격 시 상태이상/확장도구 수집은 유지해야 한다');
 });
 
-test('fist and effect use messages include their description as smaller chat text', () => {
+test('every use message includes its item description as smaller chat text', () => {
   const handler = source('scripts/handlers/universal-handler.js');
   const styles = source('styles/styles.css');
-  assert.match(handler, /item\.type === 'effect' \|\| isFist/);
+  // 타입 게이트를 되살리면 같은 "○○ 사용" 카드가 아이템 타입에 따라 해설을 냈다 말았다 한다.
+  assert.doesNotMatch(handler, /item\.type === 'effect' \|\| isFist/);
+  assert.match(handler, /const hasDescriptionText = [\s\S]*?if \(hasDescriptionText\) \{/,
+    '해설 노출은 타입이 아니라 실제 글자 유무로만 판단해야 한다');
   assert.match(handler, /DX3rdDescriptionManager\?\.createEnrichedBiography/);
   assert.match(handler, /class="item-description dx3rd-usage-description"/);
   assert.match(styles, /\.dx3rd-item-chat \.dx3rd-usage-description\s*\{[^}]*font-size:\s*0\.82em/s);
@@ -2633,6 +2646,31 @@ test('reaction dialog offers every auto-action item without keyword filtering', 
     '오토 액션을 설명의 방어 키워드로 다시 거르면 안 된다');
 });
 
+test('an effect with no skill applies its modifiers instead of refusing to run', () => {
+  const handler = source('scripts/handlers/effect-handler.js');
+  // 리액션 창에서 고르는 「다이스 +N」류 이펙트는 굴릴 기능이 없다. 예전에는 경고만 띄우고
+  // 중단해 코스트만 나가고 아무 일도 일어나지 않았다.
+  assert.equal(handler.includes('이펙트의 기능이 설정되지 않았습니다'), false,
+    '기능 미지정은 오류가 아니라 「판정 없이 효과만」이다');
+  assert.equal((handler.match(/DX3rdDebug\?\.log\(`DX3rd \| \$\{item\.name\}: 기능 미지정/g) || []).length, 2,
+    '무기 보너스 경로에도 같은 통과 규칙이 있어야 한다');
+  // 기능이 지정됐는데 데이터가 없는 것은 여전히 저작 오류다.
+  assert.ok(handler.includes('기능 데이터를 찾을 수 없습니다'));
+});
+
+test('a critical reduction lands even when no effect declares a critical floor', () => {
+  const actor = source('scripts/document/actor.js').replace(/\s+/g, ' ');
+  // stat.critical = Math.max(critical.min, 10 + 보정) 이므로 하한치의 기본값이 10이면
+  // 「크리티컬치 -1」이 통째로 먹힌다. 선언이 없을 때의 하한은 룰 기본치 2다.
+  assert.equal(actor.includes("R.min('critical_min', criticalMin)"), false,
+    'defaultCritical 을 하한 seed 로 쓰면 선언 없는 크리티컬 감소가 사라진다');
+  assert.equal(actor.includes("R.min('critical_min', attrs.critical?.min || defaultCritical)"), false,
+    '파생값을 다시 seed 로 먹이면 하한이 되돌아오지 않는다');
+  assert.equal((actor.match(/R\.min\('critical_min', Infinity\)/g) || []).length, 2,
+    'character/enemy 두 경로 모두 선언된 하한치에서만 도출해야 한다');
+  assert.equal((actor.match(/Number\.isFinite\(declaredCriticalMin\) \? declaredCriticalMin : 2/g) || []).length, 2);
+});
+
 /** bind() 를 돌리기 위한 최소 DOM 대역. 실제 버튼의 클릭/클래스/disabled 만 흉내낸다. */
 function fakeSection(ids) {
   const buttons = ids.map(id => {
@@ -2708,4 +2746,91 @@ test('a refused use releases the toggle instead of locking it', async () => {
   assert.equal(applied.length, 0);
   assert.equal(buttons[0].disabled, false);
   assert.equal(buttons[0].classList.contains('declared'), false);
+});
+
+test('a parametric range/target option waits for its number instead of collapsing to "-"', async () => {
+  const context = baseContext({ game: { i18n: { localize: key => key } } });
+  load(context, 'scripts/combo-range-target.js');
+
+  const handlers = new Map();
+  const bind = (id, node) => Object.assign(node, {
+    addEventListener: (name, fn) => handlers.set(`${id}:${name}`, fn)
+  });
+  // 템플릿은 hidden 속성으로 숨긴다. 인라인 display 로 되살리려던 옛 코드는 [hidden] 을
+  // 이기지 못해 입력칸이 끝내 안 보였고, 빈 파라미터가 '-' 로 저장돼 선택이 되돌아갔다.
+  const select = bind('sel', { value: '단독' });
+  const param = bind('param', {
+    value: '', hidden: true, focused: false,
+    style: { removeProperty() {} },
+    focus() { this.focused = true; }
+  });
+  const store = { value: '단독' };
+  const field = {
+    dataset: { rt: 'target' },
+    querySelector: selector => (selector === '.rt-option' ? select
+      : selector === '.rt-param' ? param : store)
+  };
+
+  const updates = [];
+  context.window.DX3rdRangeTarget.setupFieldListeners(
+    { querySelectorAll: () => [field] }, {}, { update: (item, change) => updates.push(change) });
+
+  select.value = '대상수';
+  await handlers.get('sel:change')();
+  assert.equal(param.hidden, false, '파라미터 입력칸이 실제로 드러나야 한다');
+  assert.equal(param.focused, true);
+  assert.equal(updates.length, 0, '숫자가 비어 있는 동안에는 저장하지 않는다');
+
+  param.value = '3';
+  await handlers.get('param:change')();
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0]['system.target'], '3체');
+  assert.equal(store.value, '3체');
+});
+
+test('a nameless sheet checkbox saves through the form, and keeps the authored difficulty', () => {
+  // 판정을 켜는 것뿐인데 난이도까지 비우면 저작해 둔 목표치(12 / 대결 / 효과참조)가 사라진다.
+  for (const path of ['scripts/sheets/item-sheet.js', 'scripts/sheets/combo-data.js']) {
+    const text = source(path);
+    assert.match(text, /const stale = !currentDifficulty \|\| currentDifficulty === freepassText \|\| currentDifficulty === '-';/, path);
+    assert.match(text, /'system\.difficulty': stale \? '' : currentDifficulty/, path);
+  }
+
+  // name 없는 체크박스를 별도 item.update 로 저장하면 같은 change 이벤트의 submitOnChange
+  // 저장과 경합한다. 전부 _prepareSubmitData 로 접어 넣은 상태를 고정한다.
+  const folded = {
+    'scripts/sheets/effect-sheet-v2.js': ['.difficulty-check', '[data-target-field="system.getTarget"]'],
+    'scripts/sheets/combo-sheet-v2.js': ['.difficulty-check'],
+    'scripts/sheets/psionic-sheet-v2.js': ['.difficulty-check'],
+    'scripts/sheets/spell-sheet-v2.js': ['.casting-roll-check', '[data-target-field="system.getTarget"]']
+  };
+  for (const [path, selectors] of Object.entries(folded)) {
+    const text = source(path);
+    for (const selector of selectors) {
+      assert.equal(text.includes(`listen('change', '${selector}'`), false, `${path}: ${selector}`);
+      assert.equal(text.includes(`matches?.('${selector}')`), true, `${path}: ${selector}`);
+    }
+  }
+});
+
+test('the description edit toggle hides by opacity, and the HTML source view fills the editor', () => {
+  const css = source('styles/appv2-sheets.css').replace(/\s+/g, ' ');
+
+  // 코어가 button.toggle 의 display 를 세 벌 잡고 있고 테마 모듈 CSS 는 시스템보다 뒤에
+  // 실린다. display 로 다투면 「항상 보임」/「끝내 안 보임」 중 하나로 무너지므로,
+  // 박스는 늘 flex 로 두고 드러남만 opacity 로 가른다.
+  const hidden = css.indexOf('.application.sheet.dx3rd-emanim.item prose-mirror button.toggle:enabled {');
+  assert.ok(hidden > -1, '아이템 시트 편집 토글 기본 규칙이 있어야 한다');
+  const hiddenBlock = css.slice(hidden, css.indexOf('}', hidden));
+  assert.ok(hiddenBlock.includes('opacity: 0;'), '기본 상태는 opacity 로 감춘다');
+  assert.equal(hiddenBlock.includes('display: none'), false, 'display 로 감추면 코어/모듈과 다툰다');
+
+  assert.ok(css.includes('.application.sheet.dx3rd-emanim.item prose-mirror:hover button.toggle:enabled, '
+    + '.application.sheet.dx3rd-emanim.item prose-mirror:focus-within button.toggle:enabled { opacity: 1;'),
+    '해설에 마우스를 올렸을 때(또는 포커스가 안에 있을 때)만 드러나야 한다');
+
+  // 소스 보기의 code-mirror 는 height:100%/min-height:150px 뿐이라 신축 지시가 없으면
+  // 150px 상자로 쪼그라든다.
+  assert.ok(css.includes('prose-mirror.editing-source code-mirror.source-editor { flex: 1 1 auto; height: auto;'),
+    'HTML 소스 편집창이 prose-mirror 를 그대로 채워야 한다');
 });

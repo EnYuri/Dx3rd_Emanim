@@ -179,6 +179,7 @@
   "DX3rd.Saving": "상비점",
   "DX3rd.SavingAcquisition": "상비",
   "DX3rd.PurchaseAcquisition": "구매",
+  "DX3rd.OtherAcquisition": "기타",
   "DX3rd.EXP": "경험점",
   "DX3rd.EXPInit": "초기 경험점",
   "DX3rd.EXPAppend": "획득 경험점",
@@ -701,7 +702,6 @@
   "DX3rd.StockHistoryEmpty": "기록된 변경이 없습니다.",
   "DX3rd.StockAdjustmentInvalid": "0이 아닌 정수 수정치를 입력하십시오.",
   "DX3rd.StockReasonRequired": "재산점 변경 사유를 입력하십시오.",
-  "DX3rd.StockBelowMinimum": "현재 재산점은 0보다 작아질 수 없습니다.",
   "DX3rd.StockEditHint": "클릭하여 현재 재산점을 수정하고 사유를 기록합니다.",
   "DX3rd.StockAdjusted": "{reason}: 재산점 {delta} ({before} → {after})",
 

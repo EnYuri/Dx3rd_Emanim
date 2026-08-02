@@ -271,18 +271,33 @@
       const param = field.querySelector('.rt-param');
       const hidden = field.querySelector('input[type="hidden"]');
       if (!sel || !hidden) return;
-      const apply = async () => {
+      const apply = async ({focusParam = false} = {}) => {
         const show = isParamOption(kind, sel.value);
-        if (param) param.style.display = show ? '' : 'none';
-        const value = composeValue(kind, sel.value, param ? param.value : '');
+        // 템플릿은 hidden 속성으로 숨긴다. 인라인 display 를 비워도 [hidden]{display:none}이
+        // 그대로 남아 입력칸이 끝까지 안 보였고, 그래서 숫자를 못 넣은 채 아래 composeValue 가
+        // '-' 를 저장해 방금 고른 옵션이 매번 '-' 로 되돌아갔다.
+        if (param) {
+          param.hidden = !show;
+          param.style.removeProperty('display');
+        }
+        const raw = param ? String(param.value ?? '').trim() : '';
+        // 파라미터형 옵션인데 아직 숫자가 비어 있으면 저장하지 않는다 — 저장하면 그 update 의
+        // 재렌더가 선택을 '-' 로 덮는다. 입력칸에 포커스를 주고 값이 들어오길 기다린다.
+        // 포커스는 드롭다운을 방금 고른 경우에만 — 파라미터 입력의 blur 에서 되불러오면
+        // 빈 칸을 벗어날 수 없는 포커스 덫이 된다.
+        if (show && !raw) {
+          if (focusParam) param?.focus();
+          return;
+        }
+        const value = composeValue(kind, sel.value, raw);
         hidden.value = value;
         try { await update(item, { [`system.${kind}`]: value }); }
         catch (e) { console.error('DX3rd | RangeTarget field update failed', e); }
       };
-      sel.addEventListener('change', apply);
+      sel.addEventListener('change', () => apply({focusParam: true}));
       if (param) {
-        param.addEventListener('change', apply);
-        param.addEventListener('blur', apply);
+        param.addEventListener('change', () => apply());
+        param.addEventListener('blur', () => apply());
       }
     });
   }

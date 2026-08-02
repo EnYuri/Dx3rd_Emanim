@@ -287,11 +287,8 @@
               ui.notifications.warn(game.i18n.localize("DX3rd.StockReasonRequired"));
               return false;
             }
+            // 하한 없음: 음수 재산점은 오류가 아니라 「얼마나 초과 지출했는가」다.
             const nextStock = currentStock + delta;
-            if (nextStock < (Number(stock.min) || 0)) {
-              ui.notifications.warn(game.i18n.localize("DX3rd.StockBelowMinimum"));
-              return false;
-            }
 
             const entry = {
               id: foundry.utils.randomID(),
@@ -304,9 +301,8 @@
               after: nextStock
             };
             await actor.update({
-              // 표시 중인 current는 최소값 클램프를 거친 값일 수 있다. 기존 modifier에
-              // 단순 가산하면 숨은 음수 잔액 때문에 +1을 입력해도 화면이 0에 머문다.
-              // 사용자가 확인한 nextStock을 정본으로 삼아 base와의 차이를 다시 저장한다.
+              // 사용자가 다이얼로그에서 확인한 nextStock이 정본이다. base가 바뀌어도
+              // 그 값이 유지되도록 기존 modifier 가산이 아니라 base와의 차이를 저장한다.
               "system.attributes.stock.modifier": nextStock - baseStock,
               "flags.dx3rd-emanim.stockHistory": [...history, entry].slice(-100)
             });

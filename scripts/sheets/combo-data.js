@@ -639,16 +639,19 @@
   }
 
   function getDifficultyToggleUpdate(item, checked) {
+    const freepassText = game.i18n.localize('DX3rd.Freepass');
+    const currentDifficulty = item.system?.difficulty || '';
+
     if (checked) {
+      // 판정을 켜는 것뿐인데 저작해 둔 목표치까지 지우지 않는다(item-sheet 쪽과 같은 규칙).
+      const stale = !currentDifficulty || currentDifficulty === freepassText || currentDifficulty === '-';
       return {
         'system.roll': 'major',
-        'system.difficulty': '',
+        'system.difficulty': stale ? '' : currentDifficulty,
         'system.-=roll-check': null
       };
     }
 
-    const freepassText = game.i18n.localize('DX3rd.Freepass');
-    const currentDifficulty = item.system?.difficulty || '';
     return {
       'system.roll': '-',
       'system.difficulty': (currentDifficulty === freepassText || currentDifficulty === '-') ? currentDifficulty : freepassText,

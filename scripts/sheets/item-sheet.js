@@ -28,8 +28,9 @@
             difficulty: '0',
             acquisition: 'permanent'
         };
-        prepared.saving.acquisition = prepared.saving.acquisition === 'purchase'
-            ? 'purchase'
+        // 상비/구매/기타 3택. 기타는 값을 치르지 않고 얻은 것이라 어느 쪽 점수도 쓰지 않는다.
+        prepared.saving.acquisition = ['purchase', 'other'].includes(prepared.saving.acquisition)
+            ? prepared.saving.acquisition
             : 'permanent';
         prepared.equipment ??= true;
 
@@ -164,15 +165,19 @@
     }
 
     function getRollDifficultyToggleUpdate(item, checked) {
+        const freepassText = localize('DX3rd.Freepass');
+        const currentDifficulty = item.system?.difficulty || '';
+
         if (checked) {
+            // 판정을 켤 때 난이도를 통째로 비우면 저작해 둔 목표치(12 / 대결 / 효과참조)가 날아간다.
+            // 판정이 켜진 상태에서 성립하지 않는 값(자동성공 · '-')만 비운다.
+            const stale = !currentDifficulty || currentDifficulty === freepassText || currentDifficulty === '-';
             return {
                 'system.roll': 'major',
-                'system.difficulty': ''
+                'system.difficulty': stale ? '' : currentDifficulty
             };
         }
 
-        const freepassText = localize('DX3rd.Freepass');
-        const currentDifficulty = item.system?.difficulty || '';
         return {
             'system.roll': '-',
             'system.difficulty': (currentDifficulty === freepassText || currentDifficulty === '-') ? currentDifficulty : freepassText,

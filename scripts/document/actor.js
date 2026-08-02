@@ -18,22 +18,27 @@
         for (const item of Array.from(items || [])) {
             if (!SAVING_ITEM_TYPES.has(item?.type)) continue;
             // 기존 문서에는 acquisition 필드가 없다. 데이터 이행 없이도 과거 계산을
-            // 보존하도록 누락값은 상비(permanent), purchase만 비차감으로 취급한다.
-            if (item?.system?.saving?.acquisition === 'purchase') continue;
+            // 보존하도록 누락값은 상비(permanent)로 취급하고, 구매(purchase)와
+            // 기타(other, 값을 치르지 않고 얻은 것)만 상비점에서 차감하지 않는다.
+            const acquisition = item?.system?.saving?.acquisition;
+            if (acquisition === 'purchase' || acquisition === 'other') continue;
             total += Number(item?.system?.saving?.value) || 0;
         }
         return total;
     };
+    // 초과 지출은 0으로 감추지 않고 음수로 남긴다 — 얼마나 모자란지가 곧 정보다.
     const calculateSavingRemain = (maximum, items) =>
-        Math.max((Number(maximum) || 0) - sumItemSavingCost(items), 0);
+        (Number(maximum) || 0) - sumItemSavingCost(items);
     const deriveStock = (baseValue, modifierValue = 0, minimumValue = 0) => {
-        const base = Math.max(Number(baseValue) || 0, 0);
+        const base = Number(baseValue) || 0;
         const modifier = Number(modifierValue) || 0;
+        // min은 구 데이터 호환용으로만 남는다. 여기서 클램프하면 초과 소모분이
+        // modifier에 숨은 음수로 쌓여 다음 증가분을 통째로 삼킨다.
         const min = Number(minimumValue) || 0;
         return {
             base,
             modifier,
-            value: Math.max(min, base + modifier),
+            value: base + modifier,
             // max는 구 매크로/모듈 호환용 별칭이다. 새 UI와 계산의 정본은 base다.
             max: base,
             min
@@ -793,8 +798,10 @@
             // 현재 재산점 = 기본 + 사용자가 사유와 함께 기록한 누적 수정치.
             // 구 데이터의 value=0은 초기값과 실제 0을 구분할 수 없고 기존 버그로 대부분
             // 0에 고정돼 있었으므로, modifier가 없는 문서는 수정 없음(0)으로 이행한다.
+            // 상비점 초과분(음수 remain)은 상비점 칸에만 남기고 재산점으로 넘기지 않는다 —
+            // 두 점수는 별개의 초과 지출이라 한쪽 적자를 다른 쪽에 이중으로 물리지 않는다.
             Object.assign(attrs.stock, deriveStock(
-                attrs.saving.remain + stockBonus,
+                Math.max(Number(attrs.saving.remain) || 0, 0) + stockBonus,
                 attrs.stock.modifier,
                 attrs.stock.min
             ));
@@ -1058,10 +1065,12 @@
 
             // === 크리티컬 하한치 계산 ===
             const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10; // 기본값
-            let criticalMin = defaultCritical;
-            
-            // 활성 아이템 + applied 의 critical_min(더 작은 값으로) 단일 경로
-            criticalMin = R.min('critical_min', criticalMin);
+            // 하한치는 "선언한 것이 있을 때만" 그 값이고, 없으면 룰 기본 하한(2)이다.
+            // 예전에는 defaultCritical(10)에서 시작해 min 을 잡았기 때문에, 하한치를 따로
+            // 선언하지 않은 「크리티컬치 -1」이 Math.max(10, 9) 에 먹혀 전부 사라졌다.
+            // (승화 3번이 critical:-1 에 critical_min:2 를 붙여 둔 것도 그 우회였다.)
+            const declaredCriticalMin = R.min('critical_min', Infinity);
+            const criticalMin = Number.isFinite(declaredCriticalMin) ? declaredCriticalMin : 2;
 
             // 크리티컬 하한치 설정 (최소값 2로 제한)
             if (!attrs.critical) attrs.critical = {};
@@ -1553,7 +1562,11 @@
             const R = this._makeContribReader(activeItems, appliedByKey);
 
             // === 크리티컬 하한치 계산 (능력치 critical 계산보다 먼저 실행) ===
-            const criticalMin = R.min('critical_min', attrs.critical?.min || defaultCritical);
+            // character 경로와 동일: 선언된 하한치가 없으면 룰 기본 하한(2)이다.
+            // 이전 값(attrs.critical.min)을 seed 로 쓰면 파생값이 스스로를 되먹여 한 번 내려간
+            // 하한이 다시 올라오지 않는 문제도 있었다 — 매 계산마다 선언 항목에서만 도출한다.
+            const declaredCriticalMin = R.min('critical_min', Infinity);
+            const criticalMin = Number.isFinite(declaredCriticalMin) ? declaredCriticalMin : 2;
             if (!attrs.critical) attrs.critical = {};
             attrs.critical.min = Math.max(2, criticalMin);
 

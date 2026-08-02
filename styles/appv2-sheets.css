@@ -307,6 +307,19 @@
     width: 100%;
 }
 
+/* 복수 기능 이펙트(〈백병〉〈사격〉 등)의 선택 가능 기능 표시. 액션 설정에서 해설 첫 칸으로
+   옮겨 왔으므로 .dx3rd-action-config-field 스코프의 같은 규칙이 더는 걸리지 않는다. */
+.application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .dx3rd-skill-choices-hint {
+    color: #9fb4c7;
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .application.sheet.dx3rd-emanim.item.effect-sheet-v2 .sheet-attributes .cell--title > .cell--crit {
     margin: 0;
     position: absolute;
@@ -389,8 +402,17 @@
     min-width: 0;
 }
 
-.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-skill {
-    grid-column: span 2;
+/* 기능 드롭다운이 해설 탭으로 빠져 액션 설정 첫 행이 네 칸이 됐다. 이 그리드만 8열로
+   줄여 세 행이 같은 열 경계를 공유하게 한다 — 공용 10열은 콤보 요약(.dx3rd-combo-readout)이
+   계속 쓰므로 기본값을 바꾸지 않고 여기서만 덮는다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config > .dx3rd-action-config-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config > .dx3rd-action-config-grid > .is-attack-stat,
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config > .dx3rd-action-config-grid > .is-usage-count,
+.application.sheet.dx3rd-emanim.item .dx3rd-action-config > .dx3rd-action-config-grid > .is-usage-reset {
+    grid-column: span 4;
 }
 
 .application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-editor {
@@ -446,10 +468,6 @@
 .application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > select,
 .application.sheet.dx3rd-emanim.item .dx3rd-action-config-field > button {
     align-self: center;
-    max-width: 136px;
-}
-
-.application.sheet.dx3rd-emanim.item .dx3rd-action-config-field.is-skill > select {
     max-width: 136px;
 }
 
@@ -637,29 +655,29 @@
     padding: 0 6px;
 }
 
-.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls {
+/* 경험점 취득/성장 토글. 해설 그리드의 전용 칸을 없애고 해설 헤더 우측에 붙였으므로
+   .checkbox-addon(absolute right:0)의 인라인 폭에 맞춘다 — 전폭 flex 로 두면 헤더를 덮는다. */
+.application.sheet.dx3rd-emanim.item .dx3rd-exp-controls {
     align-items: center;
-    display: flex;
-    gap: 10px;
-    height: 26px;
-    justify-content: center;
-    margin-bottom: 8px;
-    width: 100%;
-}
-
-.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls > label {
-    align-items: center;
-    display: flex;
-    font-size: 11px;
-    gap: 3px;
+    display: inline-flex;
+    gap: 8px;
     white-space: nowrap;
 }
 
-.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls input {
+.application.sheet.dx3rd-emanim.item .dx3rd-exp-controls > label {
+    align-items: center;
+    display: inline-flex;
+    font-size: 11px;
+    gap: 3px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.application.sheet.dx3rd-emanim.item .dx3rd-exp-controls input {
     margin: 0;
 }
 
-.application.sheet.dx3rd-emanim.item .sheet-attributes .dx3rd-exp-controls.is-disabled {
+.application.sheet.dx3rd-emanim.item .dx3rd-exp-controls.is-disabled {
     opacity: 0.45;
 }
 
@@ -1469,6 +1487,42 @@
     display: flex;
     justify-content: center;
     padding: 0;
+}
+
+/* 아이템 시트 공통: 편집 토글은 해설 위에 절대배치(top:0/right:0)되어 상시 노출되면
+   첫 줄 우측을 가린다. 표시 여부를 display 로 가르면 안 된다 — 코어가 같은 속성으로
+   세 벌(`prose-mirror button.toggle{display:none}`, `body.game .app prose-mirror
+   button.toggle{display:none}`, `prose-mirror:hover button.toggle:enabled{display:block}`)
+   을 잡고 있고 테마 모듈 CSS 는 시스템보다 뒤에 실린다. 그 다툼에서 어느 한쪽이 이기면
+   「항상 보임」이나 「끝내 안 보임」 중 하나로 무너진다(실제로 그랬다).
+   그래서 박스는 늘 flex 로 두고(아이콘 정중앙 정렬도 여기서 확정) 드러남만 opacity 로
+   가른다. 편집 중에는 코어가 버튼을 disabled 로 바꾸므로 :enabled 로 그 상태를 비껴간다. */
+.application.sheet.dx3rd-emanim.item prose-mirror button.toggle:enabled {
+    align-items: center;
+    display: flex !important;
+    justify-content: center;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+.application.sheet.dx3rd-emanim.item prose-mirror:hover button.toggle:enabled,
+.application.sheet.dx3rd-emanim.item prose-mirror:focus-within button.toggle:enabled {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* HTML 소스 보기(`</>`)로 바꾸면 코어가 `.editor-container` 를 display:none 으로 내리고
+   `code-mirror.source-editor` 를 prose-mirror 의 형제로 덧붙인다. 그 code-mirror 는
+   `height:100%; min-height:150px` 뿐이라 flex 신축 지시가 없고, 부모 prose-mirror 는
+   높이가 min-height(350px)로만 정해져 있어 백분율 높이가 auto 로 풀린다 — 결국 150px
+   짜리 상자만 남고 아래가 통째로 비었다(소스 편집창이 작아지는 증상). 편집 영역이
+   prose-mirror 를 그대로 채우도록 신축을 준다. */
+.application.sheet.dx3rd-emanim prose-mirror.editing-source code-mirror.source-editor {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
 }
 
 /* 워크스/신드롬은 채팅 아이콘이 추가돼 컨트롤이 3~4개가 되는데, 기본 .item-controls 는

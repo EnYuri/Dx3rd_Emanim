@@ -96,8 +96,11 @@ window.DX3rdEffectHandler = {
         
         // 아이템의 스킬로 stat 데이터 가져오기
         const skillKey = item.system?.skill;
+        // 기능이 없는 판정 타이밍 이펙트는 "굴리지 않고 효과만 거는" 이펙트다
+        // (리액션 창에서 고르는 다이스/가드 보정 이펙트가 대표적). 코스트·활성화·익스텐션은
+        // 이미 handleItemUse 가 처리했으므로 판정만 건너뛰고 성공으로 끝낸다.
         if (!skillKey || skillKey === '-') {
-            ui.notifications.warn('이펙트의 기능이 설정되지 않았습니다.');
+            window.DX3rdDebug?.log(`DX3rd | ${item.name}: 기능 미지정 → 판정 없이 효과만 적용`);
             return;
         }
 
@@ -170,8 +173,10 @@ window.DX3rdEffectHandler = {
 
         // 아이템의 스킬로 stat 데이터 가져오기
         const skillKey = item.system?.skill;
+        // 위와 같다 — 기능이 없으면 판정 없이 효과만 적용한다. 무기/자체 공격 수치는
+        // 굴릴 판정이 없으므로 이번 사용에서는 실리지 않는다.
         if (!skillKey || skillKey === '-') {
-            ui.notifications.warn('이펙트의 기능이 설정되지 않았습니다.');
+            window.DX3rdDebug?.log(`DX3rd | ${item.name}: 기능 미지정 → 판정 없이 효과만 적용(공격 수치 미사용)`);
             return;
         }
 
