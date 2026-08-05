@@ -1170,6 +1170,91 @@ test('compendium sync follows once/etc reclassification without touching same-na
   assert.deepEqual(Array.from(filtered[0].matches, match => match.item.id), ['i1']);
 });
 
+test('compendium sync keeps hand edits and only takes what the compendium actually changed', () => {
+  const context = baseContext({
+    Hooks: { once: () => {} },
+    foundry: { utils: {} },
+    game: { i18n: { localize: key => key } }
+  });
+  load(context, 'scripts/compendium-sync.js');
+  const { mergeReplacement, leafChanges, decodeBaseline } = context.window.DX3rdCompendiumSync;
+
+  const packDoc = (system) => ({
+    toObject: () => ({
+      _id: 'src', name: '나이프', type: 'weapon', img: 'a.png',
+      system: JSON.parse(JSON.stringify(system)), effects: [], flags: {}
+    })
+  });
+  const worldItem = (system, flags = {}) => ({
+    id: 'i1', sort: 0, type: 'weapon', actor: null,
+    toObject: () => ({
+      _id: 'i1', name: '나이프', type: 'weapon', img: 'a.png',
+      system: JSON.parse(JSON.stringify(system)), effects: [],
+      flags: JSON.parse(JSON.stringify(flags))
+    })
+  });
+
+  // ① 기준선이 없으면 예전대로 전체 교체하고, 그 사실을 hasBaseline 으로 알린다.
+  const v1 = { attack: 1, guard: 2, description: '원문' };
+  const fresh = mergeReplacement(worldItem(v1), packDoc(v1));
+  assert.equal(fresh.hasBaseline, false);
+  const baseline = fresh.data.flags['dx3rd-emanim'].syncBaseline;
+  assert.ok(baseline.leaves.includes('system.attack\t'), '잎 경로별 해시가 기록돼야 한다');
+
+  // ② 기준선이 있으면: 컴펜디움만 바뀐 잎은 반영, 사용자만 바꾼 잎은 유지.
+  const mine = { attack: 1, guard: 99, description: '원문' };      // 가드치를 손으로 고쳤다
+  const theirs = { attack: 5, guard: 2, description: '원문' };     // 컴펜디움은 공격력을 고쳤다
+  const merged = mergeReplacement(worldItem(mine, { 'dx3rd-emanim': { syncBaseline: baseline } }), packDoc(theirs));
+  assert.equal(merged.hasBaseline, true);
+  assert.equal(merged.data.system.attack, 5, '컴펜디움만 바뀐 값은 최신을 받아야 한다');
+  assert.equal(merged.data.system.guard, 99, '사용자가 손본 값은 갱신이 지워선 안 된다');
+  assert.deepEqual(plain(merged.kept), ['system.guard']);
+  assert.deepEqual(plain(merged.conflicts), []);
+
+  // 기준선은 병합 결과가 아니라 컴펜디움 값으로 다시 찍힌다. 그래야 다음 갱신이
+  // 「그 뒤에 사용자가 또 손댔는가」를 판정할 수 있다.
+  const rebased = decodeBaseline(merged.data);
+  assert.equal(rebased.get('system.guard'), decodeBaseline(fresh.data).get('system.guard'));
+  assert.notEqual(rebased.get('system.attack'), decodeBaseline(fresh.data).get('system.attack'));
+
+  // ③ 양쪽이 같은 잎을 바꾸면 충돌. 기본은 사용자 값 유지, 선택하면 컴펜디움 우선.
+  const bothChanged = { attack: 7, guard: 2, description: '원문' };
+  const item = worldItem({ attack: 3, guard: 2, description: '원문' },
+    { 'dx3rd-emanim': { syncBaseline: baseline } });
+  const conflict = mergeReplacement(item, packDoc(bothChanged));
+  assert.deepEqual(plain(conflict.conflicts), ['system.attack']);
+  assert.equal(conflict.data.system.attack, 3, '충돌의 기본값은 현재 값 유지다');
+  const forced = mergeReplacement(item, packDoc(bothChanged), { preferCompendium: true });
+  assert.equal(forced.data.system.attack, 7);
+
+  // ④ 컴펜디움이 잎을 지웠고 사용자는 손대지 않았으면 삭제도 따라간다.
+  const dropped = mergeReplacement(
+    worldItem(v1, { 'dx3rd-emanim': { syncBaseline: baseline } }),
+    packDoc({ attack: 1, description: '원문' })
+  );
+  assert.equal('guard' in dropped.data.system, false, '컴펜디움의 삭제도 갱신이다');
+
+  // ⑤ 인스턴스 상태는 병합 대상이 아니다 — 기준선이 뭐라 하든 항상 내 것이다.
+  const equipped = mergeReplacement(
+    worldItem({ attack: 1, guard: 2, description: '원문', equipment: true },
+      { 'dx3rd-emanim': { syncBaseline: baseline } }),
+    packDoc({ attack: 1, guard: 2, description: '원문', equipment: false })
+  );
+  assert.equal(equipped.data.system.equipment, true);
+
+  // ⑥ 표시용 변경 목록은 최상위 필드 이름이 아니라 잎 경로여야 한다.
+  const rows = leafChanges(
+    worldItem(mine, { 'dx3rd-emanim': { syncBaseline: baseline } }),
+    merged.data
+  );
+  assert.deepEqual(plain(rows), [{ path: 'system.attack', before: 1, after: 5 }]);
+
+  // 기준선 flag 만 새로 찍히는 것은 「갱신 필요」가 아니다. 그렇지 않으면 매 실행마다
+  // 모든 아이템이 삭제·재생성된다.
+  const stampedOnly = mergeReplacement(worldItem(v1), packDoc(v1));
+  assert.deepEqual(plain(leafChanges(worldItem(v1), stampedOnly.data)), []);
+});
+
 // applied-toggle 하네스: 토글 AE 동기화의 경합/배치/상시 자동활성을 실물 모듈로 검증한다.
 // AE 저장소와 setMany 완료 시점을 테스트가 직접 통제해, 콤보가 멤버를 연달아 켜는
 // 실제 타이밍(쓰기 도중 다음 토글 도착)을 재현한다.
