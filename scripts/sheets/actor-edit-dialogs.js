@@ -147,6 +147,9 @@
     });
 
     const dlg = new DialogV2({
+      // 시스템 다이얼로그 다크 테마(styles.css 상단)와 수치 편집 칸 스타일은 둘 다
+      // `dx3rd-emanim` 클래스에 걸려 있다. 빼면 흰 배경에 밝은 글자로 값이 사라진다.
+      classes: ['dx3rd-emanim', 'dialog', 'dx3rd-stat-edit-dialog'],
       window: { title },
       content,
       buttons: [{
@@ -253,10 +256,10 @@
       <style>
       .stock-dialog { padding: 5px; display:flex; flex-direction:column; gap:10px; }
       .stock-dialog .stock-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; text-align:center; }
-      .stock-dialog .stock-summary span { border:1px solid var(--color-border-light-2); padding:5px; }
+      .stock-dialog .stock-summary span { border:1px solid #3c3c3c; background:#181818; padding:5px; }
       .stock-dialog .form-group { display: flex; flex-direction: column; gap: 5px; margin: 0; }
       .stock-dialog label { font-weight: bold; font-size: 14px; }
-      .stock-dialog input { padding: 4px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+      .dx3rd-emanim.dialog .stock-dialog input { background:#222; color:#f5f5f5; padding: 4px; font-size: 14px; border: 1px solid #565656; border-radius: 4px; }
       .stock-dialog .stock-history h4 { margin:0 0 4px; }
       .stock-dialog .stock-history ol { margin:0; padding-left:22px; max-height:150px; overflow:auto; }
       .stock-dialog .stock-history li { margin-bottom:5px; }
@@ -266,6 +269,7 @@
     `;
 
     const dlg = new DialogV2({
+      classes: ['dx3rd-emanim', 'dialog', 'dx3rd-stat-edit-dialog'],
       window: { title: game.i18n.localize("DX3rd.Stock") },
       content,
       buttons: [
@@ -351,6 +355,7 @@
     const content = await foundry.applications.handlebars.renderTemplate(`${TEMPLATE_BASE}/actor-type-dialog.html`, { currentType });
 
     return DialogV2.wait({
+      classes: ['dx3rd-emanim', 'dialog', 'dx3rd-stat-edit-dialog'],
       window: { title: game.i18n.localize("DX3rd.ActorType") },
       content,
       rejectClose: false,

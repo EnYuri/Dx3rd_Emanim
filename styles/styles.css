@@ -1955,17 +1955,6 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     text-align: center;
 }
 
-.dx3rd-emanim .dialog-content .edit-list .title {
-    background: black;
-    color: white;
-    padding: 2px;
-    margin: 2px;
-}
-
-.dx3rd-emanim .dialog-content .edit-list .text {
-    background: white;
-}
-
 .dx3rd-emanim .dialog-content .skill-delete {
     float: right;
     margin-right: 8px;
@@ -1976,46 +1965,103 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     right: 0;
 }
 
-/* 어빌리티 다이얼로그 스타일 */
-.ability-title-box {
+/* ==========================================================================
+   수치 편집 다이얼로그 (능력치 · HP · 행동치 · 이동력 · 장갑 · 회피 · 기능)
+
+   이 칸들은 오랫동안 「배경만 흰색으로 지정하고 글자색은 지정하지 않은」 상태였다.
+   그러면 글자색이 코어 다크 테마의 밝은 색으로 남아 흰 배경 위에서 값이 보이지 않는다.
+   배경을 지정하는 곳에서는 글자색도 반드시 함께 지정할 것.
+
+   팔레트는 파일 상단의 시스템 다이얼로그 다크 테마
+   (`.application.dialog.dx3rd-emanim input`)와 같다. 그 규칙이 클래스 3개 + 타입 1개라
+   여기 선택자는 클래스 4개로 올려 둔다 — 클래스를 하나라도 빼면 조용히 밀린다.
+   ========================================================================== */
+
+/* 라벨 바 — DX3rd 시트의 검은 라벨을 유지하되 #121212 배경에서 뜨도록 테두리를 준다. */
+.dx3rd-emanim .dialog-content .edit-list .title,
+.dx3rd-emanim .dialog-content .edit-list .ability-title-box {
     background: #000;
-    color: #fff;
-    padding: 2px 8px;
+    color: #f5f5f5;
+    border: 1px solid #3c3c3c;
+    border-bottom: none;
     border-radius: 0;
+    padding: 3px 8px;
+    min-width: 62px;
+    box-sizing: border-box;
     font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 0.02em;
     text-align: center;
-  }
-  .ability-input-box {
-    background: rgba(255,255,255,0.8);
-    border: 1px solid #000;
+    white-space: nowrap;
+}
+
+/* 값 칸 공통. */
+.dx3rd-emanim .dialog-content .edit-list .text,
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box {
+    background: #1c1c1c;
+    color: #f5f5f5;
+    border: 1px solid #3c3c3c;
     border-radius: 0;
-    text-align: center;
-    font-weight: bold;
-    width: 60px;
+    box-sizing: border-box;
+    width: 62px;
+    height: 26px;
     margin-bottom: 2px;
-  }
-  
-  /* 스킬 다이얼로그 스타일 */
-  .skill-input-box {
-      background: rgba(255,255,255,0.8);
-      border: 1px solid #000;
-      border-radius: 0;
-      text-align: center;
-      font-weight: bold;
-      width: 90%;
-      height: 24px;
-      margin: 2px 0;
-  }
-  
-  .skill-input-box:disabled {
-      background: rgba(240,240,240,0.8);
-      color: #666;
-  }
-  
-  .skill-input-box[readonly] {
-      background: rgba(240,240,240,0.8);
-      color: #666;
-  }
+    padding: 0 2px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* 자동 계산값(합계·신드롬·웍스·보너스)은 편집 불가. 코어의 흐린 처리(opacity)로 뭉개지지
+   않도록 색을 직접 낮춰 편집 칸과 구별한다. */
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box:disabled,
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box[readonly] {
+    background: #101010;
+    color: #a8a8a8;
+    border-color: #2b2b2b;
+    opacity: 1;
+}
+
+/* 합계는 이 창의 결론이므로 한 단계 밝게. */
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box[id$="-total"]:disabled {
+    background: #191919;
+    color: #ffffff;
+    border-color: #6a6a6a;
+}
+
+/* 직접 입력하는 칸(성장·기타·기준값)은 테두리를 살려 편집 가능함을 보인다. */
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box:not(:disabled):not([readonly]) {
+    background: #222;
+    border-color: #565656;
+}
+
+.dx3rd-emanim .dialog-content .edit-list .ability-input-box:not(:disabled):hover {
+    border-color: #7a7a7a;
+}
+
+/* 기능(스킬) 다이얼로그 — 같은 팔레트, 표 안이라 폭만 다르다. */
+.dx3rd-emanim.dialog .dialog-content .skill-input-box,
+.dx3rd-emanim .dialog-content .dx3rd-skill-table .skill-input-box {
+    background: #222;
+    color: #f5f5f5;
+    border: 1px solid #565656;
+    border-radius: 0;
+    box-sizing: border-box;
+    width: 90%;
+    height: 24px;
+    margin: 2px 0;
+    text-align: center;
+    font-weight: bold;
+}
+
+.dx3rd-emanim.dialog .dialog-content .skill-input-box:disabled,
+.dx3rd-emanim.dialog .dialog-content .skill-input-box[readonly],
+.dx3rd-emanim .dialog-content .dx3rd-skill-table .skill-input-box:disabled,
+.dx3rd-emanim .dialog-content .dx3rd-skill-table .skill-input-box[readonly] {
+    background: #101010;
+    color: #a8a8a8;
+    border-color: #2b2b2b;
+    opacity: 1;
+}
 
 /* ==========================================================================
    Dice Tooltip Overrides

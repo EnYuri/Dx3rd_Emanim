@@ -79,6 +79,9 @@
     }
     const content = await foundry.applications.handlebars.renderTemplate(`${TEMPLATE_BASE}/${template}`, context);
     const dlg = new DialogV2({
+      // `dx3rd-emanim` 이 없으면 수치 편집 칸이 시스템 다크 테마를 못 받아
+      // 흰 배경 + 코어 다크 테마의 밝은 글자로 값이 보이지 않는다.
+      classes: ['dx3rd-emanim', 'dialog', 'dx3rd-stat-edit-dialog'],
       window: { title },
       content,
       buttons: [{

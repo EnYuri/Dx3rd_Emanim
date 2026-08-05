@@ -108,9 +108,10 @@
         const skill = actor.system?.attributes?.skills?.[skillId];
         if (!skill) return null;
 
+        // 폭은 넘기지 않는다 — 생성 다이얼로그와 표가 같은 9열이므로 클래스 기본값(600)을
+        // 그대로 쓴다. 여기서 900을 주면 같은 표가 편집 때만 좌우로 늘어난다.
         return {
             title: game.i18n.localize("DX3rd.EditSkill"),
-            width: 900,
             skill: {
                 key: skillId,
                 name: skill.name || "",
