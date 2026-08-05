@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release/dx3rd-emanim
-          cp system.json template.json README.md LICENSE LICENSE.md release/dx3rd-emanim/
+          cp system.json README.md LICENSE LICENSE.md release/dx3rd-emanim/
           cp -R assets lang packs scripts styles templates release/dx3rd-emanim/
           test ! -e release/dx3rd-emanim/_source
           cd release/dx3rd-emanim

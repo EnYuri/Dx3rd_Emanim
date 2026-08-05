@@ -9,6 +9,13 @@
     }
 
     function cloneSystem(system) {
+        // `item.system` 은 이제 DataModel 인스턴스다(scripts/data/document-schema.js).
+        // deepClone 은 isPlainObject 가 아니면 **원본 참조를 그대로 돌려주므로**, 그냥 넘기면
+        // 아래 prepareSystem 의 기본값 대입과 시트별 준비 코드(콤보의 effectItems·플레이스홀더
+        // 등)가 라이브 문서에 그대로 꽂힌다. template.json 시절엔 평범한 객체라 복제됐다.
+        // 한 겹 전개해서 평범한 객체로 만든 뒤 복제한다 — `toObject()` 는 _source 만 돌려주어
+        // prepareDerivedData 가 붙인 파생값을 잃으므로 쓰지 않는다.
+        if (system instanceof foundry.abstract.DataModel) system = {...system};
         return foundry.utils.deepClone(system || {});
     }
 

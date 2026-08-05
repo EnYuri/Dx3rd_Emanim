@@ -59,11 +59,50 @@ function walkFiles(directory, extensions) {
   });
 }
 
+/**
+ * 문서 스키마는 template.json(V16 에서 제거)이 아니라 런타임 스크립트가 들고 있다.
+ * 그 스크립트는 로드 시점에 window 와 Hooks 만 건드리므로(foundry/CONFIG 는 register()
+ * 안에서만 쓴다) 껍데기 둘만 주면 스키마를 그대로 꺼낼 수 있다.
+ */
+function loadDocumentSchema() {
+  const path = join(root, "scripts", "data", "document-schema.js");
+  if (!requireFile(path, "Document schema script")) return null;
+  const sandbox = {};
+  try {
+    new Function("window", "Hooks", readFileSync(path, "utf8"))(sandbox, { once() {} });
+  } catch (error) {
+    fail(`scripts/data/document-schema.js failed to evaluate: ${error.message}`);
+    return null;
+  }
+  if (!sandbox.DX3rdDocumentSchema) {
+    fail("scripts/data/document-schema.js must expose window.DX3rdDocumentSchema");
+    return null;
+  }
+  return sandbox.DX3rdDocumentSchema;
+}
+
 const manifest = readJson(join(root, "system.json"));
-const template = readJson(join(root, "template.json"));
+const schema = loadDocumentSchema();
 const locale = readJson(join(root, "lang", "ko.json"));
 
-if (!manifest || !template || !locale) process.exit(1);
+if (!manifest || !schema || !locale) process.exit(1);
+
+if (existsSync(join(root, "template.json"))) {
+  fail("template.json is deprecated (removed in V16); the schema lives in scripts/data/document-schema.js");
+}
+
+// system.json 의 서브타입 선언과 스키마가 갈리면 그 타입 문서는 만들 수 없거나 정리되지 않는다.
+for (const kind of ["Actor", "Item"]) {
+  const declared = Object.keys(manifest.documentTypes?.[kind] ?? {});
+  const defined = schema[kind]?.types ?? [];
+  for (const type of defined) {
+    if (!declared.includes(type)) fail(`system.json documentTypes.${kind} is missing "${type}"`);
+    if (!schema[kind][type]) fail(`document-schema.js ${kind}.types lists "${type}" without a definition`);
+  }
+  for (const type of declared) {
+    if (!defined.includes(type)) fail(`document-schema.js ${kind}.types is missing "${type}"`);
+  }
+}
 
 for (const field of ["scripts", "styles"]) {
   if (!Array.isArray(manifest[field])) {

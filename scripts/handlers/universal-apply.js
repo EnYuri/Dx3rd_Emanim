@@ -356,7 +356,7 @@
      * 이 함수를 쓰지 않고 active.state 토글로 남겨둔다. 이유:
      *   (1) 그 시점엔 handleItemUse가 이미 끝나 _dx3rdRuntimeInput이 지워졌으므로(finally 절)
      *       동결로 바꿔도 [소비HP]는 똑같이 0이다 — 얻는 게 없다.
-     *   (2) spell/psionic/combo는 template.json에 applyMode 필드가 아예 없어 'onUse'로 떨어지는데,
+     *   (2) spell/psionic/combo는 문서 스키마에 applyMode 필드가 아예 없어 'onUse'로 떨어지는데,
      *       이들을 동결 채널로 보내면 active.state로 "지속 적용 중"을 판단하는 곳
      *       (combo-data getPersistentEffectIds/calculateItemAttackBonus, 시트 활성 표시)이 어긋난다.
      * runTiming/active.state/disable 게이트는 호출부가 미리 판정한다.
@@ -379,7 +379,7 @@
       const active = item.system?.active || {};
       const applyMode = active.applyMode || 'onUse';
       // 토글 타입(effect/spell/psionic/combo)의 자기 보정은 actor.js 자체계산에서 빠지고
-      // 토글 AE 로만 합산된다. 그런데 spell/psionic/combo 는 template.json 에 applyMode 필드가
+      // 토글 AE 로만 합산된다. 그런데 spell/psionic/combo 는 문서 스키마에 applyMode 필드가
       // 아예 없어 기본값 'onUse'(동결)로 떨어졌다. 그 상태에서 뒤늦게 active.state 가 켜지면
       // (spell-handler.ensureActivated — runTiming 게이트도 없다 / 채팅 발동 버튼) 같은 보정이
       // toggle:<id> AE 로 한 번 더 생겨 그대로 이중 가산된다. 두 AE 는 키가 달라 upsert 로도

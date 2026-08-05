@@ -43,7 +43,7 @@
     });
 
     /**
-     * v1: template.json의 잘못된 `system:{...}` 중첩을 평탄화한 뒤,
+     * v1: 옛 template.json의 잘못된 `system:{...}` 중첩을 평탄화한 뒤,
      * 기존 액터에 남아있는 죽은 필드를 제거한다.
      * - actor.system.system  : 코드가 읽지 않는 기본값 사본(사문)
      * - actor.system.{name,type,img,items,effects} : 코어 문서 필드의 가짜 중복
@@ -148,7 +148,7 @@
         for (const actor of game.actors) {
             if (actor.type !== 'character' && actor.type !== 'enemy') continue;
 
-            // _source를 봐야 한다. actor.system은 template.json 병합 결과라
+            // _source를 봐야 한다. actor.system은 스키마 정리 결과라
             // 스키마에서 뺀 지금은 실제 저장 여부를 알 수 없다.
             const conditions = actor._source?.system?.conditions;
             if (!conditions) continue;

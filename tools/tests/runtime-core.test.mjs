@@ -28,6 +28,16 @@ function load(context, path) {
   vm.runInContext(source(path), context, { filename: path });
 }
 
+/**
+ * 문서 스키마(구 template.json). 로드 시점에 window/Hooks 만 쓰므로 vm 없이 꺼낼 수 있다.
+ * vm 컨텍스트를 쓰면 안 된다 — Foundry 의 isPlainObject 가 교차 realm 객체를 거부한다.
+ */
+function documentSchema() {
+  const sandbox = {};
+  new Function('window', 'Hooks', source('scripts/data/document-schema.js'))(sandbox, { once() {} });
+  return sandbox.DX3rdDocumentSchema;
+}
+
 function walkJs(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = resolve(directory, entry.name);
@@ -160,8 +170,75 @@ test('current stock is derived from remaining saving points and recorded adjustm
     'stock_point 효과는 사용 기록이 아니라 기본 재산점에 기여해야 한다');
 });
 
+test('the document schema declares every field live documents and sheets actually store', () => {
+  // template.json 은 스키마가 아니라 기본값 병합이라 선언에 없는 키도 살아남았다. DataModel 은
+  // 미선언 키를 정리 단계에서 지우므로, 라이브 팩·월드 실측으로 찾아낸 이 필드들이 선언에서
+  // 빠지면 그 데이터가 조용히 사라진다. 각 항목 옆 숫자는 발견 당시의 실측 문서 수다.
+  const schema = documentSchema();
+  const merged = (kind, type) => {
+    const def = schema[kind][type];
+    const out = {};
+    for (const name of def.templates || []) Object.assign(out, schema[kind].templates[name]);
+    for (const [key, value] of Object.entries(def)) if (key !== 'templates') out[key] = value;
+    return out;
+  };
+
+  assert.equal(merged('Item', 'effect').level.value, 0, 'effect.level.value (1937건)');
+  assert.equal(merged('Item', 'effect').weaponSelect, false, 'effect.weaponSelect (233건)');
+  assert.equal(merged('Item', 'effect').weaponTmp, '-', 'effect.weaponTmp');
+  assert.ok(Array.isArray(merged('Item', 'effect').weapon), 'effect.weapon');
+  assert.equal(merged('Item', 'psionic').level.value, 0, 'psionic 시트도 같은 필드를 쓴다');
+  assert.ok(Array.isArray(merged('Item', 'combo').effectIds), 'combo.effectIds — 구성 이펙트의 정본');
+  assert.equal(merged('Item', 'combo').effectTmp, '-', 'combo.effectTmp');
+  assert.equal(merged('Item', 'combo').weaponTmp, '-', 'combo.weaponTmp');
+  assert.equal(merged('Item', 'spell').temporarySpell, false, 'spell.temporarySpell');
+  assert.equal(merged('Item', 'connection').used.disable, 'notCheck', 'connection.used (17건)');
+  assert.equal(merged('Item', 'etc').hp.value, '', 'etc.hp (4건)');
+  assert.equal(merged('Item', 'protect').hp.value, '', 'protect.hp (1건)');
+  assert.equal(merged('Item', 'rois').encroach.init, 0, 'rois.encroach (4건)');
+  assert.equal(merged('Item', 'record').encroachment, 0, 'record.encroachment (13건)');
+  assert.equal(merged('Actor', 'character').description, '', '액터 약력 (42건)');
+  assert.equal(merged('Actor', 'enemy').description, '');
+
+  // 라이브 실측으로는 잡히지 않은 셋 — 기능은 있는데 아직 그 값을 담은 문서가 없었을 뿐이다.
+  // 소스 정적 검사(tools/audit-schema-coverage.mjs)가 찾아냈다. 선언이 빠지면 각각
+  // 마법서 스펠 등재 · 캐스팅 판정 선택 · 커넥션 매크로가 저장 직후 사라진다.
+  assert.ok(Array.isArray(merged('Item', 'book').spells), 'book.spells — 마법서에 등재한 스펠 id');
+  assert.equal(merged('Item', 'spell').roll, '-', 'spell.roll — 판정 종류(-/CastingRoll)');
+  assert.equal(merged('Item', 'connection').macro, '', 'connection.macro');
+
+  // 없어야 하는 것. 이 세 타입에 applyMode 가 생기면 universal-apply 가 동결 채널로 보낸다.
+  for (const type of ['spell', 'psionic', 'combo']) {
+    assert.ok(!('applyMode' in merged('Item', type).active),
+      `${type}.active.applyMode 는 없어야 'onUse' 로 떨어진다`);
+  }
+
+  // 버킷은 저작 전에는 없어야 한다 — 기본값으로 빈 객체를 채우면 「버킷이 있는가」 판정이 흔들린다.
+  const schemaSource = source('scripts/data/document-schema.js');
+  assert.match(schemaSource, /buckets = new fields\.ObjectField\(\{ required: false, nullable: true, initial: undefined \}\)/,
+    '버킷은 initial 없는 선택 필드여야 한다');
+  // 체크박스가 남긴 "on" 을 BooleanField 가 false 로 접는다(실측 38건). migrateData 가 되돌린다.
+  assert.match(schemaSource, /static migrateData\(source\) \{\s*return repairLegacyCheckboxes/,
+    '레거시 체크박스 문자열 복구가 migrateData 에 걸려 있어야 한다');
+});
+
+test('the sheet context copies item.system instead of aliasing the live DataModel', () => {
+  // `item.system` 은 DataModel 인스턴스다. foundry.utils.deepClone 은 isPlainObject 가 아니면
+  // **원본 참조를 그대로 돌려주므로**, 그냥 넘기면 시트 준비 코드의 기본값 대입(prepareSystem)과
+  // 시트별 준비(콤보의 effectItems·플레이스홀더 등)가 라이브 문서에 그대로 꽂힌다 —
+  // 시트를 여는 것만으로 문서가 변형된다. template.json 시절엔 평범한 객체라 복제됐다.
+  const sheetSource = source('scripts/sheets/item-sheet.js');
+  const clone = sheetSource.match(/function cloneSystem\(system\) \{[\s\S]*?\n {4}\}/);
+  assert.ok(clone, 'cloneSystem 이 있어야 한다');
+  const code = clone[0].replace(/^\s*\/\/.*$/gm, ''); // 주석 제외 — 아래 금지어를 설명이 언급한다
+  assert.match(code, /instanceof foundry\.abstract\.DataModel/,
+    'DataModel 이면 한 겹 전개해 평범한 객체로 만든 뒤 복제해야 한다');
+  assert.doesNotMatch(code, /toObject\(/,
+    'toObject() 는 _source 만 돌려주어 prepareDerivedData 가 붙인 파생값을 잃는다');
+});
+
 test('non-effect item sheets store a mutually exclusive permanent, purchased or other acquisition', () => {
-  const schema = JSON.parse(source('template.json'));
+  const schema = documentSchema();
   assert.equal(schema.Item.templates.item.saving.acquisition, 'permanent');
 
   for (const path of [
@@ -1647,7 +1724,7 @@ test('every use message includes its item description as smaller chat text', () 
 });
 
 test('a toggle-type item without an authored applyMode never takes the frozen channel', async () => {
-  // spell/psionic/combo 는 template.json 에 applyMode 필드가 없어 기본값 'onUse'(동결)로
+  // spell/psionic/combo 는 문서 스키마에 applyMode 필드가 없어 기본값 'onUse'(동결)로
   // 떨어졌다. 그 뒤 active.state 가 켜지면 toggle:<id> AE 가 따로 생겨 같은 자기 보정이
   // 두 번 합산된다(actor.js 는 이 타입들을 자체계산에서 빼고 AE 만 본다).
   const cases = [

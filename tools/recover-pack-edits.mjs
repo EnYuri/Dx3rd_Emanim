@@ -182,7 +182,10 @@ function same(a, b, key) {
   // null 을 undefined 와 같이 다루지 않으면 `null` vs `""` 같은 쌍이 매번 손튜닝으로 잡힌다.
   if (a === undefined || b === undefined || a === null || b === null) {
     const present = a === undefined || a === null ? b : a;
-    if (present === undefined || present === null || present === "") return true;
+    // 0 과 false 도 "" 와 같이 다룬다. 문서 스키마(scripts/data/document-schema.js)가
+    // 빌더가 생략한 필드를 이 값들로 채우는데(`getTarget:false`, `used.state:0`,
+    // `rois.encroach.init:0` …), 생략 = 그 기본값이므로 손튜닝이 아니다.
+    if (present === undefined || present === null || present === "" || present === 0 || present === false) return true;
     if (DEFAULTS.has(key) && JSON.stringify(DEFAULTS.get(key)) === JSON.stringify(present)) return true;
     if (Array.isArray(present) && present.length === 0) return true;
     if (present && typeof present === "object" && Object.keys(present).length === 0) return true;

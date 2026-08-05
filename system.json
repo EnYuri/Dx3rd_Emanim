@@ -12,9 +12,10 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "2.2.5",
+  "version": "2.2.6",
   "scripts": [
     "scripts/core/debug-log.js",
+    "scripts/data/document-schema.js",
     "scripts/application-compat.js",
     "scripts/import-compat.js",
     "scripts/core/runtime-utils.js",
@@ -130,6 +131,29 @@
     }
   ],
   "socket": true,
+  "documentTypes": {
+    "Actor": {
+      "character": {},
+      "enemy": {}
+    },
+    "Item": {
+      "works": {},
+      "syndrome": {},
+      "combo": {},
+      "effect": {},
+      "spell": {},
+      "psionic": {},
+      "rois": {},
+      "vehicle": {},
+      "weapon": {},
+      "protect": {},
+      "connection": {},
+      "book": {},
+      "once": {},
+      "etc": {},
+      "record": {}
+    }
+  },
   "packs": [
     {
       "name": "effects",
