@@ -61,6 +61,20 @@
     defense: new Set(['guard', 'guard_roll', 'armor', 'reduce', 'reduce_roll'])
   };
 
+  /**
+   * 대상 채널 보정 중 이 창에서 의미가 있는 키 — **그 공격에 대한 방어측 판정**을 깎는 것뿐.
+   *
+   * 자기 채널과 같은 목록을 쓰면 안 된다. 「당신 이외의 캐릭터가 판정을 실행하기 직전에
+   * 선언하여 그 판정에 다이스 +3」(커맨드 모빌) 같은 **남을 돕는** 대상 보정까지 명중판정
+   * 창에 올라오는데, 그건 내 공격의 상대에게 걸어 봐야 뜻이 반대가 된다. 선언자가 굴리는
+   * 판정의 상대가 받는 것 = 리액션·닷지·가드·장갑 계열만 남긴다.
+   */
+  const TARGET_CONTEXT_KEYS = {
+    attack: new Set(['reaction_dice', 'reaction_add', 'reaction_critical',
+      'dodge_dice', 'dodge_add', 'dodge_critical',
+      'guard', 'guard_roll', 'armor', 'reduce', 'reduce_roll'])
+  };
+
   const attributeEntries = attributes => Object.values(attributes || {})
     .filter(entry => entry?.key && entry.key !== '-');
 
@@ -75,12 +89,52 @@
     return (item?.system?.active?.applyMode === 'onUse') ? (item?.system?.attributes || {}) : {};
   }
 
+  /**
+   * 선언으로 **대상에게** 걸리는 보정(대상 채널의 'use' 버킷).
+   *
+   * 선언형 장비에는 자기 보정이 아니라 상대를 깎는 것도 있다 — 폴른 피스톨의 「그 공격에
+   * 대한 리액션의 크리티컬치 +1」, 발리스틱 나이프의 「그 공격에 대한 닷지에 다이스 -4」.
+   * 이 계열은 자기 채널이 비어 있어서 예전에는 선언 목록에 아예 뜨지 않았고, 그래서 대상
+   * 채널의 기본 액션 폴백(공격 아이템 → 'attack')대로 **공격할 때마다 자동으로** 붙었다.
+   * 회수 제한이 있는 것(폴른 피스톨: 시나리오 3회)조차 값을 치르지 않았다.
+   *
+   * 적용 경로는 이미 있다 — commit() → handleItemUse(action:'use') →
+   * universal-handler 의 applyToTargets(actor, item, 'instant', null, 'use') 가
+   * targetBucketAttributes 로 이 버킷을 그대로 집어 game.user.targets 에 건다.
+   * 빠져 있던 것은 「선언 목록에 넣을 자격」 판정뿐이라 여기서 자기 보정과 합친다.
+   */
+  function declaredTargetAttributes(item) {
+    const adapter = window.DX3rdItemEffectAdapter;
+    if (!adapter) return {};
+    // 채널 기본이 'use' 인 것과 행에 'use' 를 명시 저작한 것 양쪽을 집는다 —
+    // 이 함수가 채널 기본만 보면 「풀 오토 샷 건」처럼 행 단위로 나눈 저작이 빠진다.
+    const attributes = adapter.targetBucketAttributes(item, 'use', 'instant');
+    if (!attributeEntries(attributes).length) return {};
+    const lifecycle = adapter.bucketLifecycle(item, 'target', 'use');
+    if (lifecycle.disable === 'notCheck') return {};
+    if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== 'instant') return {};
+    return attributes;
+  }
+
+  /** 선언 시 걸릴 보정 전부. 채널을 달고 다니는 이유는 요약 문구를 나누기 위해서다. */
+  function declaredEntries(item) {
+    const self = attributeEntries(declaredAttributes(item)).map(entry => ({entry, channel: 'self'}));
+    const target = attributeEntries(declaredTargetAttributes(item)).map(entry => ({entry, channel: 'target'}));
+    return [...self, ...target];
+  }
+
   /** 아이템 하나가 선언형 장비인가(장착 중 · 선언 버킷에 걸 보정 있음). */
   function isDeclarable(item) {
     if (!item || !EQUIPMENT_TYPES.includes(item.type)) return false;
     if (item.system?.equipment !== true) return false;
-    if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
-    return attributeEntries(declaredAttributes(item)).length > 0;
+    const entries = declaredEntries(item);
+    if (!entries.length) return false;
+    // active.disable='notCheck' 는 **자기 채널**을 쓰지 않겠다는 표시다. 대상 보정을 거는
+    // 선언은 그 필드와 무관하므로(수명은 system.effect 쪽이다) 제외 근거가 되지 않는다.
+    if ((item.system?.active?.disable ?? '-') === 'notCheck') {
+      return entries.some(({channel}) => channel === 'target');
+    }
+    return true;
   }
 
   /**
@@ -99,17 +153,35 @@
     return { limited: true, left: Math.max(0, max - state), state, max };
   }
 
-  /** 이번에 이미 선언해 자기 보정 AE 가 붙어 있는가. */
+  /**
+   * 이번에 이미 선언해 자기 보정 AE 가 붙어 있는가.
+   *
+   * 자기 보정이 없는(대상 채널 전용) 장비에는 이 자물쇠가 없다 — 걸리는 AE 가 상대에게
+   * 붙으므로 `applied_self_*` 는 영영 생기지 않아 판정 근거가 되지 못한다. 그리고 그쪽은
+   * 판정마다 다시 선언하는 것이 원문이고(「명중판정을 실행하기 직전에 선언할 것」),
+   * 회수도 그때마다 정산되므로 중복 방지는 창 안의 버튼 잠금으로 충분하다.
+   */
   function alreadyDeclared(actor, item) {
+    if (!attributeEntries(declaredAttributes(item)).length) return false;
     const key = `applied_self_${item.id}`;
     return (actor?.effects || []).some(effect => effect.getFlag?.(SCOPE, 'appliedKey') === key);
   }
 
-  function summarize(item, keys) {
-    return attributeEntries(declaredAttributes(item))
-      .filter(entry => !keys || keys.has(entry.key))
-      .map(entry => {
-        const label = KEY_LABELS[entry.key] ? localize(KEY_LABELS[entry.key]) : entry.key;
+  /** 이 문맥에서 낼 항목인가. 채널마다 의미 있는 키가 다르다. */
+  function entryInContext({entry, channel}, context) {
+    if (!context) return true;
+    const keys = channel === 'target' ? TARGET_CONTEXT_KEYS[context] : CONTEXT_KEYS[context];
+    return !!keys?.has(entry.key);
+  }
+
+  function summarize(item, context) {
+    const targetPrefix = localize('DX3rd.Target');
+    return declaredEntries(item)
+      .filter(candidate => entryInContext(candidate, context))
+      .map(({entry, channel}) => {
+        const name = KEY_LABELS[entry.key] ? localize(KEY_LABELS[entry.key]) : entry.key;
+        // 대상에게 걸리는 것은 같은 키라도 의미가 반대라, 붙이지 않으면 자기 강화로 읽힌다.
+        const label = channel === 'target' ? `${targetPrefix} ${name}` : name;
         const value = String(entry.value ?? '').trim();
         return value ? `${label} ${value}` : label;
       })
@@ -122,22 +194,21 @@
    * @param {'roll'|'damage'|'defense'} context
    */
   function collect(actor, context) {
-    const keys = CONTEXT_KEYS[context];
-    if (!actor || !keys) return [];
+    if (!actor || !CONTEXT_KEYS[context]) return [];
     // 남의 액터에는 선언 버튼을 내주지 않는다 — handleItemUse 가 아이템을 갱신하므로
     // 소유권이 없으면 눌러도 실패한다(방어 다이얼로그는 GM 화면에도 뜰 수 있다).
     if (actor.isOwner === false) return [];
     const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
     return (actor.items || [])
       .filter(item => isDeclarable(item)
-        && attributeEntries(declaredAttributes(item)).some(entry => keys.has(entry.key))
+        && declaredEntries(item).some(candidate => entryInContext(candidate, context))
         && !alreadyDeclared(actor, item)
         && (allowExhausted || usesLeft(item).left > 0))
       .map(item => {
         const uses = usesLeft(item);
         return {
           id: item.id, name: item.name, img: item.img,
-          summary: summarize(item, keys),
+          summary: summarize(item, context),
           limited: uses.limited, left: uses.left, max: uses.max,
           exhausted: uses.limited && uses.left <= 0
         };
@@ -218,10 +289,13 @@
         const button = buttons.find(b => b.dataset.itemId === id);
         if (button) button.disabled = true;
         try {
-          // getTarget=false: 자기 보정이라 타겟이 필요 없다(요구하면 여기서 막힌다).
+          // 자기 보정만 거는 것은 타겟이 필요 없다(요구하면 여기서 막힌다). 대상 보정을
+          // 거는 것은 반대로 **요구해야** 한다 — 타겟 없이 통과시키면 아무 데도 걸리지
+          // 않은 채 회수·침식만 빠져나간다(폴른 피스톨은 시나리오 3회뿐이다).
+          const needsTarget = declaredEntries(item).some(({channel}) => channel === 'target');
           // comboMode='normal': 무기의 공격/콤보 선택 메뉴를 건너뛴다.
           const used = await window.DX3rdUniversalHandler?.handleItemUse(
-            actor.id, item.id, item.type, undefined, false, {action: 'use', comboMode: 'normal'});
+            actor.id, item.id, item.type, undefined, needsTarget, {action: 'use', comboMode: 'normal'});
           if (used === false) {
             if (button) { button.disabled = false; button.classList.remove('selected'); button.setAttribute('aria-pressed', 'false'); }
             continue;
@@ -251,6 +325,6 @@
   }
 
   window.DX3rdDeclaredEquipment = {
-    CONTEXT_KEYS, isDeclarable, collect, sectionHtml, bind
+    CONTEXT_KEYS, TARGET_CONTEXT_KEYS, isDeclarable, collect, sectionHtml, bind
   };
 })();

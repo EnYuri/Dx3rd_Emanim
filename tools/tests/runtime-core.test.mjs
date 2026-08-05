@@ -2883,6 +2883,47 @@ test('damage-side declarations belong to the accuracy roll, not the damage windo
     '데미지 산출 템플릿에 선언 섹션이 남아 있으면 안 된다');
 });
 
+/** 상대를 깎는 보정만 가진 장비(자기 채널은 비어 있다). */
+function targetDeclarableItem(overrides = {}) {
+  const { key = 'dodge_dice', value = '-(4)', action = 'use' } = overrides;
+  return {
+    id: overrides.id || 't1', name: overrides.name || '발리스틱 나이프', img: 'x.png', type: 'weapon',
+    system: {
+      equipment: true,
+      attributes: {},
+      effect: { disable: 'major', runTiming: 'instant', action, attributes: { e0: { key, value } } },
+      active: { state: false, disable: '-', runTiming: 'instant', applyMode: 'toggle', action: '' },
+      used: { state: 0, max: 3, level: false, disable: 'session' }
+    }
+  };
+}
+
+test('target-only declarations reach the roll dialog, and helping buffs do not', () => {
+  const { DX3rdDeclaredEquipment: mod } = declaredEquipmentContext();
+  // 「명중판정 직전에 선언하면 그 공격에 대한 리액션의 크리티컬치 +1」(폴른 피스톨)처럼
+  // 자기 보정 없이 **상대만** 깎는 장비가 있다. 자격 판정이 자기 채널만 보면 선언 목록에
+  // 아예 뜨지 않고, 그러면 대상 채널의 폴백대로 공격할 때마다 자동으로 붙어 회수 제한도
+  // 지불되지 않는다 — 쓸지 말지 고르는 것이 이 계열 장비의 전부인데 그 선택이 사라진다.
+  const knife = targetDeclarableItem();
+  const offered = mod.collect(actorWith([knife]), 'attack');
+  assert.deepEqual(plain(offered.map(e => e.name)), ['발리스틱 나이프']);
+  assert.match(offered[0].summary, /DX3rd\.Target/,
+    '대상에게 걸리는 것은 표시로 구별돼야 한다 — 안 그러면 자기 강화로 읽힌다');
+  assert.equal(offered[0].limited, true, '선언 경로가 회수를 정산하므로 잔여 표시도 따라와야 한다');
+
+  // 채널 기본이 공격(= 원문에 선언이 없는 무조건 적용)이면 선언 대상이 아니다.
+  assert.equal(mod.collect(actorWith([targetDeclarableItem({ action: '' })]), 'attack').length, 0);
+
+  // 「당신 이외의 캐릭터가 판정하기 직전에 선언하여 그 판정에 다이스 +3」(커맨드 모빌)처럼
+  // 남을 **돕는** 대상 보정은 내 명중판정 창에 올려 봐야 상대에게 걸려 뜻이 반대가 된다.
+  assert.equal(mod.collect(actorWith([targetDeclarableItem({ key: 'dice', value: '+(3)' })]), 'attack').length, 0);
+
+  // 타겟이 없으면 회수만 날아가므로, 대상 보정을 거는 선언은 대상 요구를 켜서 넘겨야 한다.
+  const component = source('scripts/declared-equipment.js').replace(/\s+/g, ' ');
+  assert.match(component, /const needsTarget = declaredEntries\(item\)\.some\(\(\{channel\}\) => channel === 'target'\);/);
+  assert.match(component, /handleItemUse\( actor\.id, item\.id, item\.type, undefined, needsTarget,/);
+});
+
 test('the declare section renders nothing when there is nothing to declare', () => {
   const { DX3rdDeclaredEquipment: mod } = declaredEquipmentContext();
   assert.equal(mod.sectionHtml([]), '', '후보가 없으면 섹션 자체가 없어야 한다 — 호출측이 분기를 다시 쓰지 않도록');
@@ -2909,7 +2950,7 @@ test('every dialog declares through the same shared component', () => {
     '방어 창만 배선한다 — 데미지 산출 창 배선이 되살아나면 잡는다');
   // 선언은 실제 사용 파이프라인을 탄다 — 회수·침식이 여기서 정산된다.
   const component = source('scripts/declared-equipment.js').replace(/\s+/g, ' ');
-  assert.ok(component.includes("handleItemUse( actor.id, item.id, item.type, undefined, false, {action: 'use', comboMode: 'normal'})"),
+  assert.ok(component.includes("handleItemUse( actor.id, item.id, item.type, undefined, needsTarget, {action: 'use', comboMode: 'normal'})"),
     '선언은 action:use 로 실제 사용 파이프라인을 타야 한다 — AE 만 직접 걸면 회수·침식이 새어 나간다');
 
   // 두 창 모두 굴림/확정 시점에 commit 해야 한다 — 토글만으로 소모되면 안 된다.
