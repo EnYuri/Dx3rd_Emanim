@@ -30,7 +30,7 @@
             if (version < 1) await migrateActorSchemaV1();
             // v2: 아이템 base 템플릿의 죽은 system.name 제거
             if (version < 2) await migrateItemSchemaV2();
-            // v3: 아무도 읽지 않던 conditions.lostHP / conditions.healing 제거
+            // v3: 아무도 읽지 않던 conditions.lostHP 제거
             if (version < 3) await migrateConditionsV3();
 
             await game.settings.set('dx3rd-emanim', 'systemMigrationVersion', CURRENT_MIGRATION);
@@ -133,15 +133,19 @@
     }
 
     /**
-     * v3: conditions.lostHP / conditions.healing 제거.
+     * v3: conditions.lostHP 제거.
      * 시트에 입력칸만 있고 읽는 코드가 전무했던 죽은 필드다.
-     * HP 증감은 아이템 확장(heal/damage)이 universal-healing 경로로 직접 처리하므로
-     * 이 값들은 어떤 계산에도 쓰이지 않았다.
+     * HP 감소는 아이템 확장(damage)이 직접 처리하므로 이 값은 어떤 계산에도 쓰이지 않았다.
      * 같은 conditions 아래여도 action_end/action_delay/extra-turn은 전투 상태 머신이
      * 실제로 읽으므로 건드리지 않는다.
+     *
+     * conditions.healing 도 한때 여기 있었으나 **오진이었다.** 클린업 프로세스의 회복
+     * 처리(combat.js)가 그때도 이 값을 읽고 있었고, 지우는 바람에 그 처리가 조용히
+     * 0건이 됐다. 되살린 지금은 대상에서 뺀다 — 아직 v3 를 돌지 않은 월드의 회복
+     * 설정까지 날아가기 때문이다. 다시 넣지 말 것.
      */
     async function migrateConditionsV3() {
-        const deadKeys = ['lostHP', 'healing'];
+        const deadKeys = ['lostHP'];
         const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
         let cleaned = 0;
 
@@ -172,6 +176,6 @@
             }
         }
 
-        console.log(`DX3rd | conditions 정리: ${cleaned}개 액터의 죽은 lostHP/healing 제거`);
+        console.log(`DX3rd | conditions 정리: ${cleaned}개 액터의 죽은 lostHP 제거`);
     }
 })();

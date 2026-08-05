@@ -921,9 +921,23 @@
       }
       
       const hasWeaponOrPenalty = weaponBonus || fearPenalty !== 0 || distastePenalty !== 0 || dependencyPenalty !== 0 || paranoiaPenalty !== 0;
-      const attackSign = weaponBonus && weaponBonus.attack >= 0 ? '+' : '';
-      const addSign = weaponBonus && weaponBonus.add >= 0 ? '+' : '';
       const attackSourceLabel = weaponBonus?.sourceLabel || game.i18n.localize('DX3rd.Weapon');
+
+      // 안내 줄은 **이번 판정이 실제로 쓰는 값만** 보인다.
+      //  · 공격력은 데미지 굴림에서만 소비된다 — preservedValues 는 executeStatRoll 의
+      //    `if (isAttackRoll)` 안에서만 만들어지고, 비공격 판정에는 데미지 버튼 자체가 없다.
+      //    그 숫자를 판정치 옆에 두면 이번 굴림에 적용되는 것처럼 읽힌다(조합 수치는 그 이펙트가
+      //    공격에 조합됐을 때 발현한다).
+      //  · 고정치와 다이스식을 함께 보인다. 예전에는 고정치만 찍어서 공격력이 '2d10' 인 무기가
+      //    "공격 +0" 으로 보였다 — 값이 없는 것과 구분되지 않았다.
+      const signed = text => (!text || text === '0') ? '+0' : (text.startsWith('-') ? text : `+${text}`);
+      const bonusTerms = [];
+      if (weaponBonus) {
+        if (isAttackRoll) {
+          bonusTerms.push(`${game.i18n.localize('DX3rd.Attack')} ${signed(this.joinFormulaTerms(weaponBonus.attack, weaponBonus.attackFormula))}`);
+        }
+        bonusTerms.push(`${game.i18n.localize('DX3rd.Add')} ${signed(this.joinFormulaTerms(weaponBonus.add, weaponBonus.addFormula))}`);
+      }
       
       // 상단 칸은 최종 판정치이며 직접 수정할 수 있다(자동 계산 덮어쓰기).
       // 하단 칸은 자동 계산에 더하는 수정치이고, 그쪽을 만지면 덮어쓰기가 풀린다.
@@ -962,7 +976,7 @@
           </div>
           ${hasWeaponOrPenalty ? '<hr style="margin: 12px 0; border: none; border-top: 1px solid #ccc;">' : ''}
           ${weaponBonus ? `<div class="dx3rd-mb-4 dx3rd-p-6 dx3rd-text-small dx3rd-bold" style="text-align: center;">
-            ${attackSourceLabel}: ${weaponBonus.weaponName} (${game.i18n.localize('DX3rd.Attack')} ${attackSign}${weaponBonus.attack}, ${game.i18n.localize('DX3rd.Add')} ${addSign}${weaponBonus.add})
+            ${attackSourceLabel}: ${weaponBonus.weaponName} (${bonusTerms.join(', ')})
           </div>` : ''}
           ${fearPenalty !== 0 ? `<div class="dx3rd-mb-4 dx3rd-p-6 dx3rd-text-small dx3rd-bold dx3rd-error" style="text-align: center; color: #ff6b6b;">
             ${game.i18n.localize('DX3rd.Fear')}: ${game.i18n.localize('DX3rd.Dice')} ${fearPenalty} (${game.i18n.localize('DX3rd.Target')}: ${fearTargetName})
@@ -1403,7 +1417,11 @@
             actorDamageRollFormula: bonuses.actorDamageRollFormula,
             actorPenetrate: bonuses.actorPenetrate,
             // 무기 공격력 다이스식은 데미지 확정 시점까지 보존한다.
-            weaponAttackFormula: effectiveWeaponBonus.attackFormula || String(effectiveWeaponBonus.attack || 0)
+            // 고정치(attack)와 다이스식(attackFormula)은 mergeAttackBonuses 가 **따로** 담는
+            // 서로 다른 성분이다. 둘 중 하나만 고르면(옛 `attackFormula || attack`) 「고정
+            // 공격력 이펙트 + 다이스 공격력 무기」를 조합했을 때 고정분이 통째로 사라졌다.
+            // 수정치(add)는 이미 고정=effectiveStat.add / 다이스=판정 롤의 항으로 둘 다 싣는다.
+            weaponAttackFormula: this.joinFormulaTerms(effectiveWeaponBonus.attack, effectiveWeaponBonus.attackFormula)
           };
         }
         

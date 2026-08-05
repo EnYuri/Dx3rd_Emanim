@@ -462,50 +462,32 @@ Hooks.once('ready', () => {
       if (!this._dx3rdForcedTurnChoice) {
         return window.DX3rdCombatFlow?.advance?.(this, 'forward');
       }
-      
-      // 커스텀 로직 시작
+
+      // 여기부터는 _dx3rdForcedTurnChoice 가 반드시 truthy 다(위 가드를 통과한 유일한 경우).
+      // 「선택이 없을 때」를 다시 분기하던 코드가 여기 있었으나 도달할 수 없어 걷어냈다.
+
+      // 선택은 1회용이다. 아래 가드 중 어디에 걸려 돌아가더라도 반드시 먼저 소모한다 —
+      // 예전에는 delete 가 가드 아래에 있어서, 걸려서 반환한 뒤 플래그가 남았고
+      // 그 다음번 평범한 진행이 조용히 행동 종료/대기로 둔갑했다.
+      const choice = this._dx3rdForcedTurnChoice;
+      delete this._dx3rdForcedTurnChoice;
+
       // 현재 컴배턴트 확인
       const currentCombatant = this.combatant;
-      
+
       // 셋업/클린업은 Combat 플래그로만 관리한다. 가상 컴배턴트는 만들지 않는다.
       const currentProcess = this.getFlag('dx3rd-emanim', 'currentProcess');
       if (currentProcess?.type !== 'main') return;
-      
-      // 액터가 있는 일반 컴배턴트만 다이얼로그 표시
+
+      // 액터가 있는 일반 컴배턴트만 종료/대기 규칙을 태운다.
       if (!currentCombatant || !currentCombatant.actor) {
         return wrapped();
       }
-      
-      // 행동 대기 상태 확인
-      const actor = currentCombatant.actor;
-      const isDelayed = actor?.system?.conditions?.action_delay?.active ?? false;
-      
-      // 전투 카운트 바에서 명시적으로 고른 종료/대기는 다이얼로그를 열지 않는다.
-      const forcedChoice = this._dx3rdForcedTurnChoice;
-      delete this._dx3rdForcedTurnChoice;
 
-      // FVTT 전투 트래커의 다음 턴은 시스템 선택창 없이 원래대로 즉시 넘긴다.
-      // 행동 종료/대기는 공용 전투 진행 표시줄에서만 명시적으로 선택한다.
-      if (!forcedChoice) {
-        // 원본 nextTurn이 실제로 선택한 다음 전투원을 기준으로 이니셔티브를 연다.
-        const result = await wrapped();
-        const nextCombatant = this.combatant;
-        const process = this.getFlag('dx3rd-emanim', 'currentProcess');
-        if (nextCombatant?.actor && process?.type !== 'setup' && process?.type !== 'cleanup') {
-          await executeInitiativeProcess(this, nextCombatant.id);
-        }
-        return result;
-      }
-      const choice = forcedChoice;
       // EXTRA TURN 이 붙으면 행동 종료를 골라도 action_end 가 해제되어 이번 라운드에
       // 한 번 더 행동한다. 대기와 마찬가지로 완료 집합에서 되돌려야 한다.
       let extraTurnGranted = false;
 
-      // 다이얼로그를 닫은 경우 (선택 안 함)
-      if (!choice) {
-        return;
-      }
-      
       // 선택에 따라 처리
       if (choice === 'end') {
         // 행동 종료 처리 - 액터의 action_end 상태 활성화
@@ -655,6 +637,22 @@ Hooks.once('ready', () => {
       return window.DX3rdCombatFlow?.advance?.(this, 'backward');
     };
   }
+
+  // 라운드 이동 버튼도 마찬가지다. 코어 원본은 round 와 turn 만 옮기므로,
+  // 이 시스템에서는 프로세스 플래그가 지난 라운드 상태 그대로 남아 트래커와 실제
+  // 진행이 어긋난다(클린업 표시인 채 다음 라운드가 시작되는 등).
+  for (const [method, flow] of [['nextRound', 'nextRound'], ['previousRound', 'previousRound']]) {
+    const original = Combat.prototype[method];
+    if (typeof original !== 'function') {
+      console.warn(`DX3rd | Combat - ${method} is not a function`);
+      continue;
+    }
+    if (original._dx3rdOriginal) continue;
+    Combat.prototype[method] = async function(...args) {
+      return window.DX3rdCombatFlow?.[flow]?.(this);
+    };
+    Combat.prototype[method]._dx3rdOriginal = original;
+  }
 });
 
 // === 라운드 진행 판정 =========================================================
@@ -709,19 +707,72 @@ Hooks.once('ready', async () => {
   if (game.user.isGM && game.combat) await clearProcessInitiatives(game.combat);
 });
 
+// 라운드 카운터를 옮긴다. 코어 Combat#nextRound / #previousRound 와 같은 모양으로 —
+// 예전에는 round·turn 만 갈아치웠는데, 그러면 코어가 라운드 경계에서 하는 두 가지가 빠진다:
+//   - worldTime 전진: 게임 내 시간이 라운드가 지나도 흐르지 않았다(달력·시간 기반 모듈).
+//   - combatRound 훅: 라운드 경계에 끼어들라고 코어가 마련한 확장점이라, 여기에 건
+//     모듈이 이 시스템에서만 호출되지 않았다.
+// 시간 델타 계산은 코어 getTimeDelta 에 맡긴다(CONFIG.time.roundTime/turnTime 반영).
+// 되감을 때는 델타가 음수로 나오므로 시간도 그만큼 되돌아간다.
+async function updateCombatRound(combat, targetRound) {
+  const updateData = {round: targetRound, turn: 0};
+  const delta = combat.getTimeDelta?.(combat.round, combat.turn, targetRound, 0) ?? 0;
+  const updateOptions = {direction: targetRound >= (combat.round || 0) ? 1 : -1, worldTime: {delta}};
+  Hooks.callAll('combatRound', combat, updateData, updateOptions);
+  await combat.update(updateData, updateOptions);
+}
+
 async function advanceToSetupProcess(combat) {
   if (!combat || !game.user.isGM) return;
   const process = combat.getFlag('dx3rd-emanim', 'currentProcess');
   // 새 라운드는 항상 Foundry 순서의 첫 전투원에서 시작한다.
   // 라운드만 올리고 이전 액터 커서를 유지하면 셋업/이니셔티브 대상이 뒤섞인다.
   if (process?.needsRoundAdvance) {
-    await combat.update({round: (combat.round || 0) + 1, turn: 0});
+    await updateCombatRound(combat, (combat.round || 0) + 1);
     // 라운드 지속 효과(disable: 'round')의 만료는 클린업(handleCombatUpdate)에서 한다.
     // 이니셔티브 재굴림보다 먼저 만료돼야 EXTRA TURN 패널티가 트래커에 남지 않는다.
     // (handleCombatUpdate 의 'round' 분기는 도달할 수 없어 한때 여기 있었다.)
   } else if (combat.turn !== 0) {
     await combat.update({turn: 0});
   }
+  await runCombatProcess(combat, 'setup');
+}
+
+// === 라운드 단위 이동 =========================================================
+// 전투 트래커 하단의 「다음 라운드 / 이전 라운드」 버튼이 들어오는 곳. 두 방향은 대칭이
+// 아니다 — 앞으로 가는 것은 「이번 라운드를 끝낸다」이고, 뒤로 가는 것은 「이번 라운드를
+// 없던 것으로 한다」이기 때문이다.
+
+// 다음 라운드: 남은 전투원의 차례를 모두 버리고, 클린업 프로세스를 정상적으로 이행한 뒤
+// 다음 라운드의 셋업으로 넘어간다. 클린업을 건너뛰면 라운드 종료 처리(1/라운드 사용 횟수
+// 복원, disable:'round' 만료, 회복·사독, 행동 종료/대기 해제, 이니셔티브 재굴림)가 통째로
+// 빠진 채 다음 라운드가 시작된다.
+async function jumpToNextRound(combat) {
+  if (!combat || !game.user.isGM) return;
+  const process = combat.getFlag('dx3rd-emanim', 'currentProcess');
+  if (process?.type !== 'cleanup') {
+    await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
+    // 클린업의 회복·사독 처리는 채팅 순서를 맞추려고 setTimeout(500) 뒤에 돈다.
+    // 평소에는 사람이 버튼을 누르는 사이에 끝나지만, 여기서는 그 자리에서 셋업으로
+    // 넘어가므로 기다려 준다. 안 기다리면 라운드 메시지가 회복보다 먼저 나온다.
+    await new Promise(resolve => setTimeout(resolve, 600));
+  }
+  await advanceToSetupProcess(combat);
+}
+
+// 이전 라운드: 이번 라운드를 없던 것으로 되돌리고 직전 라운드의 셋업으로 돌아간다.
+// **클린업 처리는 하지 않는다.** 클린업이 하는 일(회복·사독의 HP 증감, disable:'round'
+// 만료, EXTRA TURN 차감)은 되돌릴 수 없는 작업이라, 되감기에 섞으면 라운드를 오갈 때마다
+// 상태가 한 방향으로만 깎여 나간다. 되감기의 의도는 「이번 라운드를 무르는 것」이다.
+async function jumpToPreviousRound(combat) {
+  if (!combat || !game.user.isGM) return;
+  // 라운드 0 은 「전투 미개시」를 뜻하므로 내려가지 않는다.
+  // 1 라운드에서 눌렀다면 그 라운드의 셋업을 다시 연다.
+  const target = Math.max((combat.round || 1) - 1, 1);
+  if (target !== combat.round) await updateCombatRound(combat, target);
+  else if (combat.turn !== 0) await combat.update({turn: 0});
+  // 셋업 프로세스가 완료 집합을 비우고 전원 이니셔티브를 다시 굴린다 =
+  // 남은 전투원의 차례를 모두 버리는 것과 같다.
   await runCombatProcess(combat, 'setup');
 }
 
@@ -908,6 +959,8 @@ async function advanceCombatState(combat, direction = 'forward', {deferCurrent =
 
 window.DX3rdCombatFlow = window.DX3rdCombatFlow || {};
 window.DX3rdCombatFlow.advance = advanceCombatState;
+window.DX3rdCombatFlow.nextRound = jumpToNextRound;
+window.DX3rdCombatFlow.previousRound = jumpToPreviousRound;
 window.DX3rdCombatFlow.enterInitiative = executeInitiativeProcess;
 window.DX3rdCombatFlow.startMainProcessFromInitiative = startMainProcessFromInitiative;
 
@@ -963,13 +1016,26 @@ Hooks.on('combatStart', async (combat, updateData) => {
   await runCombatProcess(combat, 'setup');
 });
 
-async function resetRoundActorStates() {
-  const currentScene = game.scenes.active;
-  if (!currentScene) return;
-  const tokensWithActors = currentScene.tokens.filter(token => token.actor
-    && (token.actor.type === 'character' || token.actor.type === 'enemy'));
-  for (const tokenDoc of tokensWithActors) {
-    const actor = tokenDoc.actor;
+// 라운드 경계에서 행동 종료/대기와 EXTRA TURN 잔량을 되돌린다.
+//
+// 대상은 「활성 씬의 토큰 ∪ 이 전투의 전투원」이다. 씬 전체를 훑는 넓이는 의도다 —
+// deleteCombat 정리와 같은 범위이고, 전투에 올리지 않은 액터의 잔여 상태도 함께 푼다.
+// 거기에 전투원을 합치는 이유는 game.scenes.active 가 combat.scene 이 아니기 때문이다.
+// 전투가 활성 씬이 아닌 곳에서 벌어지면 그 전투원의 action_end 가 영영 풀리지 않고
+// isMainEligible 에서 계속 탈락해 2라운드부터 차례를 못 받았다.
+async function resetRoundActorStates(combat = null) {
+  const targets = new Map();
+  const collect = (actor) => {
+    if (!actor) return;
+    if (actor.type !== 'character' && actor.type !== 'enemy') return;
+    // 같은 액터를 가리키는 토큰이 여럿일 수 있다. 액터 기준으로 중복을 없앤다.
+    if (!targets.has(actor.uuid)) targets.set(actor.uuid, actor);
+  };
+
+  for (const tokenDoc of (game.scenes.active?.tokens ?? [])) collect(tokenDoc.actor);
+  for (const combatant of (combat?.combatants ?? [])) collect(combatant.actor);
+
+  for (const actor of targets.values()) {
     const updates = {
       'system.conditions.action_end.active': false,
       'system.conditions.action_delay.active': false,
@@ -1005,7 +1071,7 @@ async function handleCombatUpdate(combat, changes, options, userId) {
   if (processType === 'setup') {
     const roundText = game.i18n.localize('DX3rd.Round');
     const currentRound = combat.round || 1;
-    await resetRoundActorStates();
+    await resetRoundActorStates(combat);
     // 새 라운드다. 아무도 아직 메인 프로세스를 받지 않았다.
     await combat.unsetFlag('dx3rd-emanim', MAIN_DONE_FLAG);
     // 새 라운드의 기준 순서. 여기서는 상승분 보류 없이 전원을 무조건 다시 굴린다 —
@@ -1060,7 +1126,7 @@ async function handleCombatUpdate(combat, changes, options, userId) {
     if (typeof DX3rdDisableHooks !== 'undefined') {
       await DX3rdDisableHooks.executeDisableHook('round', null);
     }
-    await resetRoundActorStates();
+    await resetRoundActorStates(combat);
     await combat.rollInitiative(combat.combatants.map(entry => entry.id));
 
     // SpellCalamity 5번 효과 count 감소 처리

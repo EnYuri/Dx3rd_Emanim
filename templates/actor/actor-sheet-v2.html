@@ -1069,6 +1069,11 @@
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Poisoned"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.poisoned.active" {{#if system.conditions.poisoned.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.poisoned.value" value="{{#if system.conditions.poisoned.active}}{{system.conditions.poisoned.value}}{{/if}}" {{#unless system.conditions.poisoned.active}} disabled {{/unless}}>
           </div>
+          {{!-- 회복은 사독의 짝이다. 둘 다 클린업 프로세스에서 HP 를 값만큼 증감한다. --}}
+          <div class="cell grid-4 inline-field">
+            <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Healing"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.healing.active" {{#if system.conditions.healing.active}} checked {{/if}} data-dtype="Boolean"/></label>
+            <input type="text" name="system.conditions.healing.value" value="{{#if system.conditions.healing.active}}{{system.conditions.healing.value}}{{/if}}" {{#unless system.conditions.healing.active}} disabled {{/unless}}>
+          </div>
           <div class="cell grid-4 inline-field">
             <label class="cell--title"><span style="flex-grow:1;text-align:center;">{{localize "DX3rd.Hatred"}}</span><input type="checkbox" class="cell--crit" name="system.conditions.hatred.active" {{#if system.conditions.hatred.active}} checked {{/if}} data-dtype="Boolean"/></label>
             <input type="text" name="system.conditions.hatred.target" value="{{#if system.conditions.hatred.active}}{{system.conditions.hatred.target}}{{/if}}" {{#unless system.conditions.hatred.active}} disabled {{/unless}}>

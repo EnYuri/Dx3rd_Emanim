@@ -2286,6 +2286,27 @@ window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
 };
 
 /**
+ * 수치 항과 다이스식 항을 하나의 Roll 수식 문자열로 잇는다(빈 항·0 항은 버린다).
+ *
+ * 공격력 운반 객체(mergeAttackBonuses)는 고정치를 `attack`(숫자), 다이스식을
+ * `attackFormula`(문자열)에 **따로** 담는다. 둘 중 하나만 고르면(옛 `attackFormula || attack`)
+ * 「고정 공격력 이펙트 + 다이스 공격력 무기」를 조합했을 때 고정분이 조용히 사라진다.
+ * 명중 판정 시점(executeStatRoll)·에너미 달성치 경로(ComboHandler)·데미지 산출 창이
+ * 모두 이 한 함수를 쓴다 — 각자 이으면 항 하나가 빠지는 자리가 다시 생긴다.
+ * @returns {string} 이어붙인 수식(전부 비면 '0')
+ */
+window.DX3rdUniversalHandler.joinFormulaTerms = function(...terms) {
+  return terms.reduce((formula, value) => {
+    const term = String(value ?? '').trim();
+    if (!term || term === '0' || term === '+0' || term === '-0') return formula;
+    if (!formula) return term;
+    return term.startsWith('-')
+      ? `${formula} - ${term.slice(1).trim()}`
+      : `${formula} + ${term}`;
+  }, '') || '0';
+};
+
+/**
  * 아이템의 공격 타입(melee/ranged)을 판별한다.
  * weapon은 자체 type, vehicle은 항상 melee, 그 외는 attackRoll 필드를 따른다.
  * @returns {'melee'|'ranged'|null}

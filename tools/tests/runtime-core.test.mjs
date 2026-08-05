@@ -590,6 +590,186 @@ test('all attack paths use the shared Midi-QOL-inspired merged card hierarchy', 
     '고정 rem 크기가 DX3rd 채팅 폰트 설정을 덮어쓰면 안 된다');
 });
 
+test('a fixed attack bonus survives alongside a dice attack formula', () => {
+  // mergeAttackBonuses 는 고정치(attack)와 다이스식(attackFormula)을 **따로** 담는다.
+  // 옛 `attackFormula || attack` 은 둘 다 있을 때 고정분을 통째로 버렸다 —
+  // 「공격력 +2 이펙트 + 2d10 무기」 콤보에서 +2 가 조용히 사라졌다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key }, settings: { get: () => '' }, user: { targets: new Set() } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONFIG: {},
+    foundry: { utils: {} }
+  });
+  load(context, 'scripts/handlers/universal-handler.js');
+  const join = context.DX3rdUniversalHandler.joinFormulaTerms;
+
+  assert.equal(join(5, '2d10'), '5 + 2d10', '고정치와 다이스식은 둘 다 실려야 한다');
+  assert.equal(join(0, '2d10'), '2d10');
+  assert.equal(join(5, ''), '5');
+  assert.equal(join(0, ''), '0', '전부 비면 Roll 이 먹는 "0" 이어야 한다');
+  assert.equal(join(-3, '1d10'), '-3 + 1d10', '음수 고정치는 뺄셈 항으로 이어져야 한다');
+
+  // 두 발현 경로가 같은 함수를 써야 한 쪽만 항이 빠지는 자리가 다시 생기지 않는다.
+  for (const path of ['scripts/handlers/universal-roll-dialog.js', 'scripts/handlers/combo-handler.js']) {
+    const text = source(path).replace(/\s+/g, ' ');
+    assert.match(text, /joinFormulaTerms\(\s*(effectiveWeaponBonus|attackBonus\?)\.attack,\s*(effectiveWeaponBonus|attackBonus\?)\.attackFormula\)/,
+      `${path}: 공격력 고정치와 다이스식을 함께 이어야 한다`);
+    assert.doesNotMatch(text, /\.attackFormula \|\| String\(/,
+      `${path}: 둘 중 하나만 고르면 나머지 성분이 사라진다`);
+  }
+});
+
+test('the enemy achievement path does not re-add the actor attack folded into the sheet total', () => {
+  // 콤보의 system.attack.value 는 시트 표시용 **총합**이다(combo-data.calculateSubmittedAttack:
+  // 액터 공격력 + 무기 + 이펙트). 데미지 기본치는 preservedValues.actorAttack 을 따로 더하므로,
+  // 이 값을 무기 성분으로 다시 실으면 액터 공격력이 두 번 세어진다.
+  const combo = source('scripts/handlers/combo-handler.js');
+  const body = combo.slice(combo.indexOf('async createAttackMessageWithAchievement'));
+  assert.doesNotMatch(body, /system\?\.attack\?\.value/,
+    '에너미 달성치 경로가 시트 표시 총합을 무기 공격력으로 재사용하면 안 된다');
+  assert.match(body.replace(/\s+/g, ' '), /preservedItemAttackFormula = handler\.joinFormulaTerms\( ?attackBonus\?\.attack, attackBonus\?\.attackFormula\)/,
+    'PC 경로(executeStatRoll)와 같은 성분 — 무기·이펙트 보너스 — 만 실어야 한다');
+  assert.match(body, /actorAttack: bonuses\.actorAttack/, '액터 공격력은 여전히 한 번은 실려야 한다');
+
+  // 시트의 그 칸은 표시 전용이므로 손으로 넣은 값을 잃을 걱정이 없다.
+  assert.match(source('templates/item/combo-sheet-v2.html'),
+    /value="\{\{system\.attack\.value\}\}" disabled/,
+    '콤보 공격력 칸이 편집 가능해지면 이 전제를 다시 봐야 한다');
+});
+
+test('a combo preview does not count activation buckets its members never fire', () => {
+  // 구성 멤버의 활성화 버킷은 콤보로 켜지지 않는다(combo-handler.memberSelfModifiersFireAt).
+  // 미리보기가 그 행까지 더하면 시트 판정치만 높고 실제 굴림에는 안 들어간다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  load(context, 'scripts/sheets/combo-data.js');
+  context.DX3rdFormulaEvaluator = { evaluate: value => Number(value) || 0 };
+
+  const member = (id, attributes, active) => ({ id, type: 'effect', system: { timing: 'major', attributes, active } });
+  const activationOnly = member('act', { a0: { key: 'add', value: '2' } },
+    { state: false, disable: 'major', runTiming: 'instant', applyMode: 'toggle', action: 'activation' });
+  const onUse = member('use', { a0: { key: 'add', value: '3' } },
+    { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: '' });
+
+  const actor = { items: new Map([[activationOnly.id, activationOnly], [onUse.id, onUse]]), effects: [] };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+
+  const rollContext = { rollType: 'major', isAbility: false, skillKey: 'melee', effectiveBaseKey: 'body' };
+  const preview = ids => context.DX3rdComboData
+    .calculateRegisteredEffectRollBonus(actor, ids, rollContext, 10).add;
+  const fires = item => context.DX3rdComboHandler
+    .memberSelfModifiersFireAt(item, context.DX3rdItemEffectAdapter.invocationAction(item), 'instant');
+
+  assert.equal(fires(onUse), true, '전제 확인 — 사용 버킷은 콤보로 발현한다');
+  assert.equal(fires(activationOnly), false, '전제 확인 — 활성화 버킷은 콤보로 발현하지 않는다');
+  assert.equal(preview(['use']), 3, '발현하는 보정은 그대로 세야 한다');
+  assert.equal(preview(['act']), 0, '발현하지 않는 활성화 버킷을 미리보기가 더하면 안 된다');
+  assert.equal(preview(['act', 'use']), 3, '섞여 있어도 발현분만 센다');
+});
+
+test("a non-attack combo previews its members' own roll bonus, as the runtime applies it", () => {
+  // combo-handler.calculateEffectAttackBonus 는 콤보의 attackRoll 을 보지 않는다 —
+  // 구성 이펙트의 system.add 는 교섭/지각/리액션 콤보에서도 판정 다이얼로그의
+  // effectiveStat.add 로 들어간다. 미리보기만 공격 콤보로 막혀 있어서 시트 수정치가
+  // 늘 실제 굴림보다 낮았다(라이브 실측: 미리보기 0 / 실제 +6).
+  // 반대로 무기 수정치는 런타임이 `!weaponSelect && attackRoll !== '-'` 에서만 걷으므로
+  // 공격 콤보 전용이 맞다. 고정분과 다이스분이 같은 게이트에 있어야 한다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/sheets/combo-data.js');
+  context.DX3rdFormulaEvaluator = {
+    evaluate: value => Number(String(value ?? '0').replace('+', '')) || 0,
+    prepareRollFormula: value => String(value ?? '0'),
+    hasDice: value => /d\d/.test(String(value ?? ''))
+  };
+
+  const effect = {
+    id: 'e1', type: 'effect',
+    system: { timing: 'major', roll: '-', attackRoll: '-', skill: 'negotiation', add: '+6', attack: '0', active: {} }
+  };
+  const weapon = { id: 'w1', type: 'weapon', system: { type: 'melee', attack: '0', add: '+2' } };
+  context.DX3rdResolveWeapon = (_actor, id) => (id === 'w1' ? weapon : null);
+
+  const actor = {
+    system: {
+      attributes: {
+        social: { dice: 3, add: 0, critical: 10, major: { dice: 3, add: 0, critical: 10 } },
+        skills: { negotiation: { base: 'social', dice: 3, add: 0 } },
+        critical: { min: 2 }
+      }
+    },
+    items: new Map([[effect.id, effect]]),
+    effects: []
+  };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+
+  const summarize = attackRoll => {
+    const data = { system: { skill: 'negotiation', base: 'social', roll: 'major', effectIds: ['e1'], attackRoll } };
+    const item = { system: { attackRoll, weapon: ['w1'], active: {} } };
+    context.DX3rdComboData.prepareRollSummary(data, item, actor, true);
+    return data.system.add.value;
+  };
+
+  assert.equal(summarize('-'), '6', '비공격 콤보도 구성 이펙트의 수정치를 세야 한다');
+  assert.equal(summarize('melee'), '8', '공격 콤보는 이펙트 6 + 무기 2');
+});
+
+test("an effect's own roll bonus reads the same alone as it does inside a combo", () => {
+  // 콤보는 includeComboModifiers 로 읽는데 단독 사용만 그 플래그가 없어서, attackRoll 없는
+  // 판정 이펙트의 system.add 가 콤보에서만 걸렸다. 두 호출이 같은 기준을 써야 한다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  context.DX3rdFormulaEvaluator = {
+    evaluate: value => Number(String(value ?? '0').replace('+', '')) || 0,
+    prepareRollFormula: value => String(value ?? '0'),
+    hasDice: value => /d\d/.test(String(value ?? ''))
+  };
+  const adapter = context.DX3rdItemEffectAdapter;
+  const judgeOnly = { name: '조합 수정치', type: 'effect', system: { attackRoll: '-', add: '+6', attack: '0' } };
+  assert.equal(adapter.effectAttackBonus(judgeOnly, null, { includeComboModifiers: true })?.add, 6,
+    '전제 확인 — 콤보 기준으로는 읽힌다');
+
+  assert.match(source('scripts/handlers/effect-handler.js').replace(/\s+/g, ' '),
+    /effectAttackBonus\?\.\(item, actor, \{includeComboModifiers: true\}\)/,
+    '단독 사용도 콤보와 같은 기준으로 읽어야 한다');
+});
+
+test('the roll dialog only shows attack power when the roll can spend it', () => {
+  // 공격력은 데미지 굴림에서만 소비된다(preservedValues 는 `if (isAttackRoll)` 안에서만 만든다).
+  // 비공격 판정의 판정치 옆에 두면 이번 굴림에 적용되는 것처럼 읽힌다.
+  const dialog = source('scripts/handlers/universal-roll-dialog.js').replace(/\s+/g, ' ');
+  assert.match(dialog, /if \(isAttackRoll\) \{ bonusTerms\.push\(`\$\{game\.i18n\.localize\('DX3rd\.Attack'\)\}/,
+    '공격력 항은 공격 판정에서만 보여야 한다');
+  assert.match(dialog, /bonusTerms\.push\(`\$\{game\.i18n\.localize\('DX3rd\.Add'\)\}/,
+    '수정치 항은 판정 종류와 무관하게 보여야 한다');
+  // 고정치만 찍으면 공격력이 '2d10' 인 무기가 "공격 +0" 으로 보여 값이 없는 것과 구분되지 않는다.
+  for (const field of ['attack', 'add']) {
+    assert.match(dialog, new RegExp(`joinFormulaTerms\\(weaponBonus\\.${field}, weaponBonus\\.${field}Formula\\)`),
+      `${field}: 안내 줄도 고정치와 다이스식을 함께 보여야 한다`);
+  }
+  assert.doesNotMatch(dialog, /attackSign|addSign/, '고정치만 찍던 옛 표기가 남으면 안 된다');
+});
+
 test('instant combo uses the neutral combo label and saves without its brackets', () => {
   assert.ok(source('scripts/handlers/universal-roll-dialog.js')
     .includes("name: `[${game.i18n.localize('DX3rd.Combo')}]`"),

@@ -75,11 +75,22 @@
         await window.DX3rdCombatFlow?.enterInitiative?.(combat, combat.combatant?.id);
     }
 
+    // 행동 종료/대기는 액터 갱신 → AE 부착 → disable 훅 → 상태 전진까지 여러 await 를
+    // 지난다. 그 사이 두 번째 클릭이 들어오면 프로세스가 아직 main 이라 nextTurn 의
+    // 가드를 전부 통과해 처리가 통째로 두 번 돈다(EXTRA TURN 이중 차감, 상태 이중 전진).
+    let turnChoiceInFlight = false;
+
     async function chooseTurn(action) {
         const { combat, actor } = getProcess();
         if (!combat || !canUse(actor)) return;
-        combat._dx3rdForcedTurnChoice = action;
-        await combat.nextTurn();
+        if (turnChoiceInFlight) return;
+        turnChoiceInFlight = true;
+        try {
+            combat._dx3rdForcedTurnChoice = action;
+            await combat.nextTurn();
+        } finally {
+            turnChoiceInFlight = false;
+        }
     }
 
     function render() {

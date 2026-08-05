@@ -19,9 +19,14 @@
  *
  * 실측에서 미선언으로 잡혔으나 **일부러 넣지 않은 것**은 죽은 필드뿐이다 —
  * `system.system`/`system.name`/`system.type`/`system.img`(마이그레이션 v1·v2 가 지우는
- * 중첩 사본), `conditions.lostHP`/`conditions.healing`(v3), `system.roll-check`
+ * 중첩 사본), `conditions.lostHP`(v3), `system.roll-check`
  * (combo-data 가 지운다). DataModel 이 로드 시점에 자동으로 떨궈 주므로 결과는 같고,
  * 그만큼 마이그레이션이 잡을 대상이 줄어들 뿐이다.
+ *
+ * `conditions.healing` 은 한때 그 목록에 있었으나 **오진이었다.** v3 는 「읽는 코드가
+ * 전무하다」는 근거로 지웠는데, 클린업 프로세스의 회복 처리(combat.js)가 그때도 이 값을
+ * 읽고 있었다. 선언이 사라지면서 그 처리가 조용히 0건이 됐고 — 사독(클린업 HP 감소)만
+ * 남고 회복(클린업 HP 증가)이 없는 비대칭이 됐다 — 그래서 되살렸다. 빼지 말 것.
  *
  * spell/psionic/combo 에 `active.applyMode` 가 없는 것은 실수가 아니다 — 없어야
  * universal-apply 가 'onUse' 로 떨어진다(runtime-core.test.mjs 가 검증). 채우지 말 것.
@@ -50,6 +55,8 @@
         },
         conditions: {
           poisoned: { active: false, value: 0 },
+          // 사독의 짝. 클린업 프로세스에서 HP 를 value 만큼 회복한다(combat.js).
+          healing: { active: false, value: 0 },
           hatred: { active: false, target: '' },
           fear: { active: false, target: '' },
           berserk: { active: false, type: '-' },
@@ -71,6 +78,7 @@
         attributes: {},
         conditions: {
           poisoned: { active: false, value: 0 },
+          healing: { active: false, value: 0 },
           hatred: { active: false, target: '' },
           fear: { active: false, target: '' },
           berserk: { active: false, type: '-' },

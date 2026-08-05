@@ -1224,33 +1224,29 @@ window.DX3rdComboHandler = {
         }
         
         // 참조값만 명중 시점으로 고정하고, 공격력 다이스식은 데미지 굴림 확정까지 보류한다.
-        const storedAttack = item.system?.attack?.value ?? item.system?.attack ?? '0';
-        const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(storedAttack, item, actor);
-        const preservedItemAttackFormula = [itemAttackFormula, attackBonus?.attackFormula]
-            .filter(formula => formula && formula !== '0')
-            .join(' + ') || '0';
-        
+        //
+        // 여기서 `system.attack.value` 를 쓰면 안 된다. 그 값은 시트 표시용 **총합**이라
+        // (combo-data.calculateSubmittedAttack: 액터 공격력 + 무기 + 이펙트) 액터 공격력을
+        // 이미 품고 있는데, 데미지 기본치는 아래 preservedValues.actorAttack 을 따로 더한다
+        // → 액터 공격력이 두 번 세어졌다. 게다가 시트의 그 칸은 disabled 표시 전용이라
+        // 손으로 넣은 값이 실릴 일도 없다. PC 경로(executeStatRoll)와 같은 성분 —
+        // 무기·이펙트 보너스만 — 을 실어 두 경로의 전제를 하나로 맞춘다.
+        const preservedItemAttackFormula = handler.joinFormulaTerms(
+            attackBonus?.attack, attackBonus?.attackFormula);
+
         // 공격 타입/액터 보너스 산출 (명중·데미지 시점과 동일 경로)
         // 관통 다이스식은 이 판정 시점에 굴려 숫자로 굳힌다.
-        const bonuses = await window.DX3rdUniversalHandler.resolveAttackBonusesRolled(actor, item);
+        const bonuses = await handler.resolveAttackBonusesRolled(actor, item);
 
         const preservedValues = {
             actorAttack: bonuses.actorAttack,
             actorAttackFormula: bonuses.actorAttackFormula,
             actorDamageRoll: bonuses.actorDamageRoll,
             actorDamageRollFormula: bonuses.actorDamageRollFormula,
-            actorPenetrate: bonuses.actorPenetrate
+            actorPenetrate: bonuses.actorPenetrate,
+            weaponAttackFormula: preservedItemAttackFormula
         };
-        
-        // 아이템 타입별 공격력 키 설정
-        if (item.type === 'weapon') {
-            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
-        } else if (item.type === 'vehicle') {
-            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
-        } else {
-            preservedValues.weaponAttackFormula = preservedItemAttackFormula;
-        }
-        
+
         // 공격 굴림 메시지 출력 (루비 텍스트 제거)
         const cleanItemName = item.name.split('||')[0].trim();
         let flavorText = `${cleanItemName} - ${skillName} (${game.i18n.localize('DX3rd.AttackRoll')})`;

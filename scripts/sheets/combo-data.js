@@ -791,29 +791,42 @@
 
   /**
    * 항목별 「발현 액션」이 이 아이템의 발동 액션에서 걸리는가(미리보기 합산용).
-   * 콤보로 쓰면 구성 이펙트의 활성화 버킷도 그 자리에서 켜지므로 함께 세지만, 「사용 시」로만
-   * 저작된 버킷을 공격 콤보의 미리보기에까지 더하면 실제 적용값보다 높게 보인다.
+   * 「사용 시」로만 저작된 버킷을 공격 콤보의 미리보기에 더하면 실제 적용값보다 높게 보인다.
+   *
+   * @param {boolean} [asComboMember] 이 아이템이 **콤보 구성 멤버로** 발현하는가.
+   *   콤보 본체를 직접 사용하는 것은 활성화를 겸하지만(handleItemUse 의 useMeansActivation),
+   *   **구성 멤버의 활성화 버킷은 콤보로 절대 켜지지 않는다** — combo-handler 의
+   *   memberSelfModifiersFireAt 가 발동 액션(use/attack)과 일치하는 버킷만 통과시킨다.
+   *   그런데 이 필터는 활성화 행을 늘 세고 있었고, 그래서 꺼져 있는 상시(applyMode='toggle')
+   *   이펙트를 조합하면 시트 미리보기만 그 보정만큼 높고 실제 굴림에는 안 들어갔다.
+   *   (켜져 있으면 forEachInactiveRegisteredEffect 가 애초에 제외하므로 그때는 맞았다.)
    */
-  function bucketFilter(sourceItem, channel) {
+  /** 구성 멤버 자격의 합산에 넘기는 옵션(콤보 본체는 기본값 그대로 — 직접 사용은 활성화를 겸한다). */
+  const COMBO_MEMBER = {asComboMember: true};
+
+  function bucketFilter(sourceItem, channel, {asComboMember = false} = {}) {
     const adapter = window.DX3rdItemEffectAdapter;
     if (!adapter || !sourceItem) return () => true;
     const action = adapter.invocationAction(sourceItem);
     const fallback = adapter.channelAction(sourceItem, channel);
     const split = ['use', 'attack'].some(candidate => adapter.hasExplicitBucket(sourceItem, channel, candidate));
+    const activationFires = !asComboMember;
     return entry => {
       const explicit = entry?.action;
       if (!explicit || !adapter.ACTIONS.has(explicit)) {
         // 미지정 = 채널 기본 버킷. 채널을 나눈 아이템에서는 그 기본 버킷의 발현 액션에서만
         // 센다(selfFrozenAttributes 의 같은 규칙). 안 맞추면 미리보기가 실제 적용값보다 높다.
-        return !split || fallback === action || fallback === 'activation';
+        if (fallback === 'activation') return activationFires;
+        return !split || fallback === action;
       }
-      return explicit === 'activation' || explicit === action;
+      if (explicit === 'activation') return activationFires;
+      return explicit === action;
     };
   }
 
-  function forEachMainAttribute(attributes, callback, sourceItem = null) {
+  function forEachMainAttribute(attributes, callback, sourceItem = null, options = {}) {
     if (!attributes) return;
-    const includes = bucketFilter(sourceItem, 'self');
+    const includes = bucketFilter(sourceItem, 'self', options);
     for (const attrData of Object.values(attributes)) {
       if (!attrData || !attrData.key || !attrData.value) continue;
       if (!includes(attrData)) continue;
@@ -825,9 +838,9 @@
     }
   }
 
-  function forEachEffectAttribute(attributes, callback, sourceItem = null) {
+  function forEachEffectAttribute(attributes, callback, sourceItem = null, options = {}) {
     if (!attributes) return;
-    const includes = bucketFilter(sourceItem, 'target');
+    const includes = bucketFilter(sourceItem, 'target', options);
     for (const [attrName, attrValue] of Object.entries(attributes)) {
       if (attrValue && typeof attrValue === 'object' && !includes(attrValue)) continue;
       const key = (typeof attrValue === 'object' && attrValue.key) ? attrValue.key : attrName;
@@ -884,7 +897,7 @@
     }
   }
 
-  function addMainAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext) {
+  function addMainAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext, options = {}) {
     forEachMainAttribute(attributes, ({key, label, value}) => {
       addRollAttributeBonus(bonus, {
         key,
@@ -894,10 +907,10 @@
         actor,
         ...rollContext
       });
-    }, sourceItem);
+    }, sourceItem, options);
   }
 
-  function addEffectAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext) {
+  function addEffectAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext, options = {}) {
     forEachEffectAttribute(attributes, ({key, label, value}) => {
       addRollAttributeBonus(bonus, {
         key,
@@ -907,7 +920,7 @@
         actor,
         ...rollContext
       });
-    }, sourceItem);
+    }, sourceItem, options);
   }
 
   function createRollBonus(criticalMin) {
@@ -974,9 +987,10 @@
   function calculateRegisteredEffectRollBonus(actor, effectIds, rollContext, criticalMin) {
     const bonus = createRollBonus(criticalMin);
 
+    // 구성 멤버 자격으로 발현하는 보정만 센다(활성화 버킷 제외 — bucketFilter 주석 참조).
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
-      addMainAttributeBonuses(bonus, effectItem.system?.attributes, effectItem, actor, rollContext);
-      addEffectAttributeBonuses(bonus, effectItem.system?.effect?.attributes, effectItem, actor, rollContext);
+      addMainAttributeBonuses(bonus, effectItem.system?.attributes, effectItem, actor, rollContext, COMBO_MEMBER);
+      addEffectAttributeBonuses(bonus, effectItem.system?.effect?.attributes, effectItem, actor, rollContext, COMBO_MEMBER);
     });
 
     return bonus;
@@ -1073,7 +1087,7 @@
     return label === '-' || label === attackRoll;
   }
 
-  function addMainAttackBonuses(item, actor, attackRoll) {
+  function addMainAttackBonuses(item, actor, attackRoll, options = {}) {
     let attackBonus = 0;
 
     forEachMainAttribute(item.system?.attributes, ({key, label, value}) => {
@@ -1082,12 +1096,12 @@
 
       const bonusValue = window.DX3rdFormulaEvaluator?.evaluate(value, item, actor) || 0;
       attackBonus += Number(bonusValue) || 0;
-    }, item);
+    }, item, options);
 
     return attackBonus;
   }
 
-  function addEffectAttackBonuses(item, actor, attackRoll) {
+  function addEffectAttackBonuses(item, actor, attackRoll, options = {}) {
     let attackBonus = 0;
 
     forEachEffectAttribute(item.system?.effect?.attributes, ({key, label, value}) => {
@@ -1095,7 +1109,7 @@
       if (!matchesAttackLabel(label, attackRoll, true)) return;
 
       attackBonus += Number(evaluateAttributeValue(value, item, actor, 0)) || 0;
-    }, item);
+    }, item, options);
 
     return attackBonus;
   }
@@ -1109,8 +1123,8 @@
     let attackBonus = 0;
 
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
-      attackBonus += addMainAttackBonuses(effectItem, actor, attackRoll);
-      attackBonus += addEffectAttackBonuses(effectItem, actor, attackRoll);
+      attackBonus += addMainAttackBonuses(effectItem, actor, attackRoll, COMBO_MEMBER);
+      attackBonus += addEffectAttackBonuses(effectItem, actor, attackRoll, COMBO_MEMBER);
     });
 
     return attackBonus;
@@ -1159,11 +1173,19 @@
     let {skillData, dice, add, critical, criticalMin} = rollBase;
 
     const currentAttackRoll = item.system.attackRoll || data.system.attackRoll;
+    const isAttackCombo = !!currentAttackRoll && currentAttackRoll !== '-';
+    // 구성 이펙트의 자체 수정치는 **공격 콤보가 아니어도** 실린다 — combo-handler 의
+    // calculateEffectAttackBonus 가 attackRoll 을 보지 않고 계산해 판정 다이얼로그의
+    // effectiveStat.add 로 들어간다(팩 실측 13건이 전부 attackRoll 없는 조합 전용 수치다:
+    // 템테이션·완전복제·머신모핑·스킬 포커스·애큐러시 …). 이 합산만 공격 콤보로 막혀 있어서
+    // 교섭·지각·리액션 콤보의 시트 수정치가 늘 실제 굴림보다 낮았다. 같은 함수 아래에서
+    // 다이스분(directEffectAdd.diceTerms)은 조건 밖에서 늘 표시되고 있었으므로 자기모순이었다.
+    //
+    // 무기 수정치는 반대로 공격 콤보 전용이 맞다 — 런타임의 calculateRegisteredWeaponBonus 는
+    // `!weaponSelect && attackRoll !== '-'` 에서만 불린다. 고정분과 다이스분을 같은 게이트에 둔다.
     const directEffectAdd = getDirectEffectFormulaParts(actor, data.system.effectIds, 'add');
-    if (currentAttackRoll && currentAttackRoll !== '-') {
-      add += calculateWeaponAddBonus(actor, getWeaponIds(item, data));
-      add += directEffectAdd.fixed;
-    }
+    add += directEffectAdd.fixed;
+    if (isAttackCombo) add += calculateWeaponAddBonus(actor, getWeaponIds(item, data));
 
     if (rollType && rollType !== '-') {
       const isAbility = abilityKeys.includes(skillKey);
@@ -1187,7 +1209,7 @@
 
     data.system.dice = { value: dice };
     data.system.add = { value: joinPreviewFormula(add, [
-      ...getWeaponDiceFormulaTerms(actor, getWeaponIds(item, data), 'add'),
+      ...(isAttackCombo ? getWeaponDiceFormulaTerms(actor, getWeaponIds(item, data), 'add') : []),
       ...directEffectAdd.diceTerms
     ]) };
     data.system.critical = { value: critical, min: criticalMin };
@@ -1270,6 +1292,12 @@
     combineEffectsRangeTarget,
     isComboTimingCompatible,
     getPersistentEffectIds,
+    // 구성 이펙트가 콤보 판정 미리보기에 더하는 보정. 런타임(combo-handler 의
+    // memberSelfModifiersFireAt)과 어긋나면 시트 숫자가 실제 굴림과 달라지므로 노출해 검증한다.
+    calculateRegisteredEffectRollBonus,
+    // 콤보 판정 미리보기(다이스/수정치/크리티컬). 런타임 판정 다이얼로그와 어긋나면
+    // 시트 숫자가 실제 굴림과 달라지므로 노출해 검증한다.
+    prepareRollSummary,
     calculateEncroachment,
     calculateSubmittedAttack,
     prepareSubmittedCombatValues,

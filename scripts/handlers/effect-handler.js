@@ -64,7 +64,15 @@ window.DX3rdEffectHandler = {
             return;
         }
         // 직접 공격 이펙트는 무기 없이도 자신의 수정치/공격력을 공격 운반값으로 제공한다.
-        const ownAttackBonus = adapter?.effectAttackBonus?.(item, actor) || null;
+        //
+        // 콤보와 같은 기준(includeComboModifiers)으로 읽는다. 예전에는 이 호출만 플래그가 없어
+        // `!isAttackItem(item)` 게이트에 걸렸고, 그래서 attackRoll 없는 판정 이펙트의
+        // system.add 가 **콤보에서는 걸리고 단독 사용에서는 조용히 무시되는** 비대칭이 있었다.
+        // (팩 실측: roll≠'-' 41건은 전부 attackRoll 을 가져 지금 동작이 바뀌는 문서는 0건이다.
+        //  이펙트 시트의 수정치/공격력 칸은 attackRoll 과 무관하게 늘 노출되므로 저작은 가능하다.)
+        // 공격력이 데미지 굴림 없는 판정에 딸려 오는 것은 판정창 안내 줄이 isAttackRoll 로
+        // 가려 준다 — 데이터를 막아서 표시 문제를 피하지 않는다.
+        const ownAttackBonus = adapter?.effectAttackBonus?.(item, actor, {includeComboModifiers: true}) || null;
         
         // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {

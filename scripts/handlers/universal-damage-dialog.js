@@ -216,15 +216,7 @@
       // 참조는 이미 명중 시점의 값으로 고정되어 있다. 공격력의 다이스식만 확정 버튼까지
       // 남겨 두어, 산출 창에는 결과가 아닌 원 수식이 보이도록 한다.
       const weaponAttackFormula = String(weaponAttack ?? 0).trim() || '0';
-      const appendFormulaTerm = (formula, value) => {
-        const term = String(value ?? '').trim();
-        if (!term || term === '0' || term === '+0' || term === '-0') return formula;
-        if (!formula) return term;
-        return term.startsWith('-')
-          ? `${formula} - ${term.slice(1).trim()}`
-          : `${formula} + ${term}`;
-      };
-      const joinFormulaTerms = (...terms) => terms.reduce(appendFormulaTerm, '') || '0';
+      const joinFormulaTerms = (...terms) => this.joinFormulaTerms(...terms);
       const baseDamageAddFormula = joinFormulaTerms(actorAttack, actorAttackFormula, weaponAttackFormula, fearPenalty);
       const diceCount = Math.floor(attackRollResult / 10) + 1 + actorDamageRoll + madness6Bonus;
       const totalDamageAddFormula = joinFormulaTerms(baseDamageAddFormula, madness7Bonus);
