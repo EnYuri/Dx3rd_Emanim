@@ -675,6 +675,93 @@ test('a combo preview does not count activation buckets its members never fire',
   assert.equal(preview(['act', 'use']), 3, '섞여 있어도 발현분만 센다');
 });
 
+test('a combo preview never counts the target channel against the caster', () => {
+  // system.effect.attributes 는 **대상**에게 걸리는 채널이다(universal-apply.applyToTargets 는
+  // game.user.targets / 씬 토큰 / forcedTargets 에만 걸고 시전자를 절대 포함하지 않는다).
+  // 미리보기가 이것을 자기 판정에 더하면 「대상 다이스 -N」 디버프는 내 콤보 판정만 깎고
+  // 「대상 공격력 +N」 타인 버프는 내 공격력을 부풀린다(팩 실측 157건이 이 키를 들고 있다).
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/sheets/combo-data.js');
+  context.DX3rdFormulaEvaluator = { evaluate: value => Number(value) || 0 };
+
+  const member = (id, system) => ({ id, type: 'effect', system: { timing: 'major', active: {}, ...system } });
+  const selfRow = member('self', { attributes: { a0: { key: 'add', value: '3' } } });
+  const targetRow = member('tgt', {
+    getTarget: true,
+    attributes: {},
+    effect: { attributes: { a0: { key: 'add', value: '3' } }, action: '', runTiming: 'instant' }
+  });
+
+  const actor = { items: new Map([[selfRow.id, selfRow], [targetRow.id, targetRow]]), effects: [] };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+
+  const rollContext = { rollType: 'major', isAbility: false, skillKey: 'melee', effectiveBaseKey: 'body' };
+  const preview = ids => context.DX3rdComboData
+    .calculateRegisteredEffectRollBonus(actor, ids, rollContext, 10).add;
+
+  assert.equal(preview(['self']), 3, '전제 확인 — 자기 채널은 그대로 세야 한다');
+  assert.equal(preview(['tgt']), 0, '대상 채널을 시전자 미리보기에 더하면 안 된다');
+  assert.equal(preview(['self', 'tgt']), 3, '섞여 있어도 자기 채널만 센다');
+
+  assert.doesNotMatch(source('scripts/sheets/combo-data.js'), /effect\?\.attributes/,
+    '미리보기 계산이 대상 채널을 다시 읽으면 안 된다');
+});
+
+test('a vehicle registered in the weapon slot still carries its attack into the roll', () => {
+  // 무기 슬롯 드롭다운(helpers.js)과 공격 무기 선택 창(weapon-for-attack-dialog)은 비클을
+  // 정당한 등재 대상으로 싣는데 calculateRegisteredWeaponBonus 두 벌만 걸러 냈다. 그러면
+  // 비클만 등록한 콤보는 weaponIds 가 비어 hasAvailableWeapons 가 false 가 되고, 무기 경로가
+  // 통째로 건너뛰어져 비클 공격력이 판정에도 데미지 버튼에도 실리지 않는다.
+  // 비클은 공격력만 쓴다 — add 도 attack-used 도 없다(선택 창의 분기와 같은 규칙).
+  const context = baseContext({
+    game: { i18n: { localize: key => key }, settings: { get: () => '' }, user: { targets: new Set() } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONFIG: { statusEffects: [] },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  // 콤보 쪽 무기 보너스는 구성원 열거(comboMemberItems)를 거쳐 복수무기 규칙을 읽으므로
+  // 믹스인까지 실어야 실제 경로가 돈다.
+  load(context, 'scripts/handlers/universal-extensions.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  context.DX3rdFormulaEvaluator = {
+    evaluate: value => Number(String(value ?? '0').replace('+', '')) || 0,
+    prepareRollFormula: value => String(value ?? '0'),
+    hasDice: value => /d\d/.test(String(value ?? ''))
+  };
+
+  const vehicle = { id: 'v1', name: '비클', type: 'vehicle', system: { attack: '7', add: '99' } };
+  context.DX3rdResolveWeapon = (_actor, id) => (id === 'v1' ? vehicle : null);
+  const actor = { items: new Map(), effects: [] };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+  const combo = { system: { weapon: ['v1'], effectIds: [] } };
+
+  for (const [label, handler] of [
+    ['universal', context.DX3rdUniversalHandler],
+    ['combo', context.DX3rdComboHandler]
+  ]) {
+    const bonus = handler.calculateRegisteredWeaponBonus(actor, combo);
+    // vm 컨텍스트의 배열은 교차 realm 이라 deepEqual 이 거부한다 — 전개해서 비교한다.
+    assert.deepEqual([...bonus.weaponIds], ['v1'], `${label}: 비클도 무기 경로를 열어야 한다`);
+    assert.equal(bonus.attack, 7, `${label}: 비클 공격력이 실려야 한다`);
+    assert.equal(bonus.add, 0, `${label}: 비클에는 데미지 수정치가 없다`);
+  }
+
+  // attack-used 를 올리는 쪽은 여전히 weapon 타입만이어야 한다(비클에는 그 필드가 없다).
+  assert.match(source('scripts/chat/chat-ui.js').replace(/\s+/g, ' '),
+    /weaponItem && weaponItem\.type === 'weapon'/,
+    '무기 ID 목록에 비클이 섞여도 attack-used 증가는 무기에만 걸려야 한다');
+});
+
 test("a non-attack combo previews its members' own roll bonus, as the runtime applies it", () => {
   // combo-handler.calculateEffectAttackBonus 는 콤보의 attackRoll 을 보지 않는다 —
   // 구성 이펙트의 system.add 는 교섭/지각/리액션 콤보에서도 판정 다이얼로그의
@@ -1915,8 +2002,190 @@ test('direct use may activate a toggle bucket, but combo members never force act
     '콤보 멤버는 기존 발동 액션만 넘겨야 한다');
   assert.doesNotMatch(combo, /applySelfModifiers\(actor, memberItem, \{[^}]*forceToggle/,
     '콤보에 넣었다는 이유로 활성화 버킷을 강제로 켜면 안 된다');
-  assert.match(combo, /normalizeEffectIds\?\.\(comboItem\)/,
-    '선택형 사용 효과가 있는 무기 슬롯을 일반 구성원 실행 목록에 자동 합류시키면 안 된다');
+  // 구성원 목록의 출처는 comboMemberItems 한 곳이고, 그것은 effect 슬롯(normalizeEffectIds)만
+  // 읽으면서 무기/비클을 걸러 낸다. 무기 슬롯은 공격 수치·attack-used 라는 자기 경로가 따로 있어
+  // 여기에 합치면 선택형 「사용」 효과까지 자동 발동한다.
+  assert.match(combo, /comboMemberItems\?\.\(actor, comboItem\)/,
+    '구성원 열거는 공용 comboMemberItems 를 거쳐야 한다');
+  const extensions = source('scripts/handlers/universal-extensions.js');
+  assert.match(extensions.replace(/\s+/g, ' '),
+    /comboMemberItems\(actor, comboItem\) \{ return this\.normalizeEffectIds\(comboItem\)/,
+    'comboMemberItems 는 effect 슬롯만 읽어야 한다 — 무기 슬롯을 합치면 안 된다');
+  assert.match(extensions.replace(/\s+/g, ' '),
+    /isComboMemberItem\(item\) \{ return Boolean\(item\) && !\['weapon', 'vehicle'\]\.includes\(item\.type\)/,
+    '무기/비클은 자기 경로가 따로 있으므로 구성원에서 제외해야 한다');
+});
+
+test('the exhausted-use setting reaches every place that could block on exhaustion', () => {
+  // allowExhaustedUse 는 소진 **판정**이 아니라 그것을 **차단으로 이을지**만 정한다(기본 허용).
+  // 채팅 카드가 이 설정을 보지 않고 버튼을 아예 렌더하지 않아서, 설정을 켜 두어도 카드에서는
+  // 누를 것이 없었다 — 시트에서 직접 누르면 통과하므로 「설정이 안 먹는다」로 보였다.
+  const chatCard = source('scripts/sheets/actor-chat.js');
+  assert.match(chatCard, /window\.DX3rdItemExhausted\?\.allowExhaustedUse\?\.\(\) !== false/,
+    '채팅 카드도 설정을 봐야 한다');
+  assert.doesNotMatch(chatCard, /showUseButton = false|showAttackButton = false/,
+    '소진을 이유로 버튼을 무조건 숨기면 설정이 무력해진다');
+  assert.match(chatCard, /markExhausted\(useText, useExhausted\)/,
+    '남길 때는 방어·리액션 목록과 같이 「소진」을 표시해야 한다');
+
+  // afterSuccess 활성화만 경고조차 없이 조용히 건너뛰었다. 나머지 소진 지점은 전부
+  // reportUsageExhausted 로 알림과 채팅 기록을 남긴다.
+  const chat = source('scripts/chat/chat-ui.js').replace(/\s+/g, ' ');
+  assert.match(chat, /proceed = await window\.DX3rdUniversalHandler\.reportUsageExhausted\(actor, item, detail\)/,
+    '무기/비클의 afterSuccess 소진도 공용 보고 경로를 타야 한다');
+  assert.doesNotMatch(chat, /if \(usedDisable === 'notCheck' \|\| usedState < usedMax\) \{ if \(window\.DX3rdChatHandlers/,
+    '설정을 보지 않는 조용한 건너뛰기를 되살리지 말 것');
+
+  // 시트의 소진 표시는 설정과 무관하게 남는다 — 차단과 표시는 다른 축이다.
+  assert.match(source('templates/actor/actor-sheet-v2.html'), /isItemExhausted item \.\.\/actor\)\}\}item-exhausted/,
+    '소진 표시는 설정과 무관하게 그대로 둔다');
+});
+
+test('every usage condition gate is switchable, and none of them blocks by default', () => {
+  // 소진 게이트와 같은 축이다 — 위반 「판정」은 그대로 하고, 그것을 「차단으로 이을지」만
+  // 설정이 정한다. 게이트 하나라도 설정 밖에 남으면 그 진입점에서만 설정이 무력해지고,
+  // 사용자에게는 「설정이 안 먹는다」로 보인다(소진에서 실제로 넷이 그랬다).
+  const GATES = {
+    resurrect: 'allowResurrectViolation',
+    encroachLimit: 'allowEncroachLimitViolation',
+    berserk: 'allowBerserkViolation',
+    pressure: 'allowPressureViolation'
+  };
+
+  const helpers = source('scripts/helpers.js');
+  const main = source('scripts/main.js').replace(/\s+/g, ' ');
+  const handler = source('scripts/handlers/universal-handler.js');
+
+  for (const [gate, setting] of Object.entries(GATES)) {
+    assert.match(helpers, new RegExp(`${gate}: '${setting}'`),
+      `${gate} 게이트가 설정 판독기에 등록돼야 한다`);
+    // 기본값은 「막지 않음」이다. default: false 로 뒤집으면 기존 월드가 갑자기 막힌다.
+    assert.match(main, new RegExp(`'${setting}', \\{[^}]*default: true`),
+      `${setting} 은 월드 설정으로 등록되고 기본값이 true(막지 않음)여야 한다`);
+    assert.match(handler, new RegExp(`reportUsageGate\\(actor, item, '${gate}'`),
+      `${gate} 위반은 공용 보고 경로를 타야 한다`);
+  }
+
+  // 게이트 자리에 직접 return false 를 두면 설정을 건너뛴다. 넷 다 보고 경로 뒤에만 있어야 한다.
+  const flat = handler.replace(/\s+/g, ' ');
+  assert.doesNotMatch(flat, /Resurrect item blocked - HP is not 0/,
+    '리저렉트 HP 검사가 설정을 보지 않고 직접 막던 자리를 되살리지 말 것');
+  assert.doesNotMatch(flat, /Item usage blocked - Encroachment below limit/,
+    '침식률 제한이 설정을 보지 않고 직접 막던 자리를 되살리지 말 것');
+  assert.doesNotMatch(flat, /리저렉트 아이템은 침식률 100% 미만에서만 사용 가능/,
+    '리저렉트 침식률 검사는 한 벌뿐이다 — limit 블록 안의 사본은 도달 불가였고, 지금은 설정을 무시했을 자리다');
+
+  // 막지 않을 때도 경고와 채팅 기록은 남는다 — GM 이 「원래는 못 쓰는 것을 썼다」를 놓치면 안 된다.
+  assert.match(flat, /async reportUsageGate\(actor, item, gate, detail\) \{[^]*?DX3rd\.GateUseAllowed/,
+    '허용 경로에서도 사유를 남겨야 한다');
+
+  // [폭주] 는 게이트가 두 자리다 — 진짜 차단(processItemUsageCost)과, 판정 다이얼로그의
+  // 리액션·닷지 버튼 비활성화. 뒤쪽이 설정을 보지 않으면 버튼이 죽은 채라 설정이 무력해진다.
+  const rollDialog = source('scripts/handlers/universal-roll-dialog.js').replace(/\s+/g, ' ');
+  assert.match(rollDialog, /isReactionDodgeBlocked = berserkActive[^;]*DX3rdUsageGates\?\.allows\?\.\('berserk'\) === false/,
+    '판정 다이얼로그의 리액션·닷지 비활성화도 allowBerserkViolation 을 봐야 한다');
+  assert.match(rollDialog, /isExceptionItem = [^;]*DX3rdUsageGates\?\.conditionExempt\?\.\(item, 'berserk'\)/,
+    '예외 판정은 DX3rdUsageGates.conditionExempt 한 곳이어야 한다');
+  assert.doesNotMatch(rollDialog, /BerserkReactionExceptionItems/,
+    '이름 목록을 직접 파싱하던 자리를 되살리지 말 것 — 아이템 저작을 보지 못한다');
+
+  // 세 번째 자리: 데미지 적용 창의 가드. 같은 규칙이므로 같은 게이트를 쓴다.
+  const damageDialog = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  assert.match(damageDialog, /berserkBlocksGuard\(\) && window\.DX3rdUsageGates\?\.allows\?\.\('berserk'\) === false/,
+    '가드 입력 비활성화도 allowBerserkViolation 을 봐야 한다');
+  assert.match(damageDialog, /guardAllowed = await window\.DX3rdUniversalHandler\?\.reportUsageGate\?\.\(.{0,160}?'berserk'/,
+    '허용 상태로 가드했으면 공용 보고 경로로 경고를 남겨야 한다');
+  // 계산 시점에 다시 보지 않으면, 창을 열어 둔 사이 [폭주]에 걸린 대상에게 설정이 무력해진다.
+  assert.match(damageDialog, /guardChecked: guardAllowed/,
+    '보고 결과가 실제 가드 계산에 반영돼야 한다 — 경고만 하고 그대로 깎으면 차단 설정이 무력하다');
+});
+
+test('an effect can be authored as exempt from pressure and berserk', () => {
+  // 게이트 설정은 테이블 단위, 예외 저작은 아이템 단위다. 게이트를 켜 둔(=차단하는)
+  // 테이블에서도 원문상 예외인 이펙트는 통과해야 한다.
+  const helpers = source('scripts/helpers.js').replace(/\s+/g, ' ');
+  assert.match(helpers, /conditionExempt: function\(item, condition\)/,
+    '예외 판정은 한 곳이어야 한다');
+  assert.match(helpers, /item\?\.system\?\.conditionExempt\?\.\[condition\] === true/,
+    '아이템 저작을 근거로 삼아야 한다');
+  assert.match(helpers, /DX3rd\.PressureExceptionItems[^]*?DX3rd\.BerserkReactionExceptionItems/,
+    '구 이름 목록 설정도 계속 인정한다 — 그것만 쓰던 월드가 있다');
+
+  // 미선언 필드는 저장되는 것처럼 보이고 다음 로드에서 사라진다.
+  assert.match(source('scripts/data/document-schema.js'),
+    /conditionExempt: \{ pressure: false, berserk: false \}/,
+    '스키마에 선언하지 않으면 체크가 조용히 풀린다');
+
+  // 저작 자리는 확장 도구의 이펙트 설정 하나뿐이고, 체크박스는 _checked 로 읽는다
+  // (문자열 "on" 은 BooleanField._cast 가 false 로 뒤집는다).
+  const dialog = source('scripts/dialog/item-extend-dialog.js').replace(/\s+/g, ' ');
+  assert.match(dialog, /'system\.conditionExempt\.pressure': this\._checked\(/,
+    '[중압] 예외는 _checked 로 저장해야 한다');
+  assert.match(dialog, /'system\.conditionExempt\.berserk': this\._checked\(/,
+    '[폭주] 예외는 _checked 로 저장해야 한다');
+  assert.match(source('templates/dialog/item-extend-dialog.html'),
+    /name="effectSettingsPressureExempt"/,
+    '확장 도구의 이펙트 설정에 체크 칸이 있어야 한다');
+
+  // 게이트는 예외를 먼저 보고, 예외가 아닐 때만 설정에 묻는다.
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  for (const condition of ['pressure', 'berserk']) {
+    assert.match(handler,
+      new RegExp(`conditionExempt\\?\\.\\(item, '${condition}'\\)[^]*?reportUsageGate\\(actor, item, '${condition}'`),
+      `${condition} 은 예외 판정을 먼저 통과시켜야 한다`);
+  }
+});
+
+test('the actor sheet only shows a usage counter for items that have one', () => {
+  const sheet = source('templates/actor/actor-sheet-v2.html');
+  assert.doesNotMatch(sheet, /used-input" value="\{\{item\.system\.used\.state\}\}" \{\{#ifEquals/,
+    '사용 횟수를 쓰지 않는 아이템에 비활성 「0 / 0」 칸을 내지 말 것');
+  // 카운터를 그리는 자리는 전부 같은 게이트를 쓴다(이펙트·이지·엑스트라·사이오닉 + 장비 탭 4곳).
+  const gates = sheet.match(/\{\{#unless \(eq item\.system\.used\.disable "notCheck"\)\}\}/g) || [];
+  const inputs = sheet.match(/class="checkbox-input used-input" value="\{\{item\.system\.used\.state\}\}"/g) || [];
+  assert.equal(gates.length, inputs.length,
+    '사용 횟수 칸과 게이트 수가 같아야 한다 — 하나라도 게이트 밖이면 그 목록만 늘 표시된다');
+
+  // 두 자리 값이 잘리지 않도록 이 칸만 넓힌다(공용 .checkbox-input 은 22px 그대로).
+  assert.match(source('styles/appv2-sheets.css').replace(/\s+/g, ' '),
+    /\.item-addon \.used-input \{ flex: 0 0 30px; width: 30px;/,
+    '사용 횟수 칸의 고정폭이 사라지면 두 자리가 다시 잘린다');
+});
+
+test('a non-attack combo does not spend its registered weapons on nothing', () => {
+  // calculateRegisteredWeaponBonus 의 호출부는 둘 다 attackRoll !== '-' 안에 있다. 그래서
+  // 비공격 콤보는 등록 무기를 판정에도 데미지에도 싣지 않는데, 예전에는 그 무기의
+  // attack-used 만 선증가시켰다 — 게다가 이 자리에는 소진 게이트가 없어(다른 소비 지점은
+  // allowExhaustedUse 를 보거나 reportUsageExhausted 로 알린다) max 를 조용히 넘겼다.
+  const combo = source('scripts/handlers/combo-handler.js');
+  assert.match(combo, /const skipPreIncrement = !isEnemyAchievementShortcut;/,
+    '선증가는 에너미 명중 달성치 경로에서만 — 공격 콤보는 데미지 롤이, 비공격 콤보는 아무도 안 센다');
+
+  const roll = source('scripts/handlers/combo-handler.js').replace(/\s+/g, ' ');
+  assert.match(roll, /calculateRegisteredWeaponBonus\(actor, item\)/,
+    '전제 확인 — 무기 보너스는 여전히 공격 경로에서 계산한다');
+});
+
+test('one predicate decides who counts as a combo member', () => {
+  // 사용 횟수 「검사」(universal-handler)·「증가」(combo-handler)·「실행」(comboMemberEntries)이
+  // 서로 다른 기준으로 멤버를 고르면, 검사는 건너뛰는데 횟수는 올라가고 실행까지 되는 비대칭이
+  // 난다. 실제로 셋이 각각 `type === 'effect'` / 무기·비클만 제외 / 필터 없음 이었다.
+  const universal = source('scripts/handlers/universal-handler.js');
+  const combo = source('scripts/handlers/combo-handler.js');
+
+  assert.match(universal, /for \(const effect of this\.comboMemberItems\(actor, item\)\)/,
+    '사용 횟수 검사도 공용 멤버 목록을 써야 한다');
+  assert.doesNotMatch(universal, /if \(effect && effect\.type === 'effect'\)/,
+    '검사 쪽에서 멤버 자격을 다시 판정하면 안 된다(레벨 가산의 effect 한정은 별개 축이라 남는다)');
+  assert.doesNotMatch(combo, /entry\.role !== 'weapon' && !\['weapon', 'vehicle'\]/,
+    '횟수 증가 쪽에서 타입을 다시 판정하면 안 된다');
+
+  // 저장 형식 해석도 한 곳이어야 한다 — 자체 구현본은 콤보의 system.effect 가 설정 객체라는
+  // 것을 몰라 'instant' 같은 값을 아이템 id 로 집어 들었다.
+  for (const path of ['scripts/helpers.js', 'scripts/sheets/actor-chat.js', 'scripts/handlers/combo-handler.js']) {
+    assert.doesNotMatch(source(path), /Object\.values\(rawEffects\)/,
+      `${path}: effectIds 해석을 자체 구현하지 말고 normalizeEffectIds 를 쓸 것`);
+  }
 });
 
 test('combo members preserve prior use and attack behavior while blocking activation', () => {
@@ -3216,4 +3485,45 @@ test('the description edit toggle hides by opacity, and the HTML source view fil
   // 150px 상자로 쪼그라든다.
   assert.ok(css.includes('prose-mirror.editing-source code-mirror.source-editor { flex: 1 1 auto; height: auto;'),
     'HTML 소스 편집창이 prose-mirror 를 그대로 채워야 한다');
+});
+
+test('every socket type is handled in exactly one layer, so no branch is dead on arrival', () => {
+  // 타입 핸들러는 consume:true 로 등록되고, 라우터는 consumed 면 제네릭 리스너를 아예
+  // 건너뛴다(socket-router.js 의 `if (consumed) return;`). 그래서 같은 타입을 두 계층에
+  // 모두 적으면 뒤쪽(main.js) 은 **한 번도 실행되지 않는다** — 문법도 맞고 검사도 통과하니
+  // 고쳐도 조용히 무효가 된다. 실제로 그렇게 25개 분기 275줄이 남아 있었고, 그 사이
+  // healRejected 는 죽은 쪽이 하드코딩 한국어, 산 쪽이 i18n 으로 갈라져 있었다.
+  const literals = (text, pattern) => {
+    const out = new Set();
+    for (const match of text.matchAll(pattern)) {
+      for (const literal of match[1].matchAll(/['"]([^'"]+)['"]/g)) out.add(literal[1]);
+    }
+    return out;
+  };
+  const registrationPattern = /register(?:Type)?\(\s*(\[[^\]]*\]|'[^']*'|"[^"]*")/g;
+
+  const typed = new Set();
+  for (const path of ['scripts/socket-document-handlers.js', 'scripts/combat/combat-socket.js',
+    'scripts/handlers/universal-after-main.js']) {
+    for (const type of literals(source(path), registrationPattern)) typed.add(type);
+  }
+
+  const main = source('scripts/main.js');
+  const listener = main.slice(main.indexOf('socketRouter.register(async (data)'));
+  assert.ok(listener.length > 0, 'main.js 의 제네릭 소켓 리스너를 찾지 못했다');
+  const generic = new Set([...listener.matchAll(/data\.type === ['"]([^'"]+)['"]/g)].map(m => m[1]));
+
+  const shadowed = [...generic].filter(type => typed.has(type));
+  assert.deepEqual(shadowed, [],
+    `제네릭 분기가 타입 핸들러에 가려 실행되지 않는다: ${shadowed.join(', ')}`);
+
+  // 반대 방향도 같은 함정이다 — 계약만 있고 어느 계층도 받지 않으면 메시지가 조용히 버려진다.
+  const contracts = literals(source('scripts/socket-contracts.js'),
+    /contract\(\s*(\[[^\]]*\]|'[^']*'|"[^"]*")/g);
+  const orphaned = [...contracts].filter(type => !typed.has(type) && !generic.has(type));
+  assert.deepEqual(orphaned, [], `계약은 있는데 처리자가 없다: ${orphaned.join(', ')}`);
+
+  // 그리고 처리자가 있는데 계약이 없으면 발신자 권한 검사를 건너뛴다.
+  const ungoverned = [...typed, ...generic].filter(type => !contracts.has(type));
+  assert.deepEqual(ungoverned, [], `계약 없이 처리되는 타입: ${ungoverned.join(', ')}`);
 });

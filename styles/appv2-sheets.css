@@ -1311,6 +1311,16 @@
     text-align: center;
 }
 
+/* 사용 횟수는 두 자리(10/12 같은 값)가 실제로 나온다 — 공용 .checkbox-input 의 22px 로는
+   패딩·테두리를 빼면 내용폭이 한 자리 남짓이라 잘렸다. 이 칸만 조금 넓힌다(공용 값을
+   건드리면 체크박스 계열 입력까지 함께 늘어난다). flex 컨테이너 안이므로 flex-basis 도
+   같이 고정해야 줄어들지 않는다. */
+.application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .item-addon .used-input {
+    flex: 0 0 30px;
+    width: 30px;
+    min-width: 30px;
+}
+
 .application.sheet.dx3rd-emanim.actor.actor-sheet-v2 .sheet-stat .dice-info .flex {
     flex-wrap: nowrap;
 }

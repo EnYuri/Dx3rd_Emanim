@@ -342,27 +342,11 @@
 
                 // 콤보 아이템의 경우 포함된 이펙트의 onInvoke 매크로도 실행
                 if (currentItem.type === 'combo') {
-                    const rawEffects = (currentItem.system?.effectIds ?? currentItem.system?.effect?.data ?? currentItem.system?.effect) ?? [];
-                    let effectIds = [];
-                    if (Array.isArray(rawEffects)) {
-                        effectIds = rawEffects.filter(e => e && e !== '-');
-                    } else if (rawEffects && typeof rawEffects === 'object') {
-                        effectIds = Object.values(rawEffects)
-                            .map(v => (typeof v === 'string' ? v : (v?.id || null)))
-                            .filter(e => e && e !== '-');
-                    } else if (typeof rawEffects === 'string') {
-                        if (rawEffects && rawEffects !== '-') effectIds = [rawEffects];
-                    }
-                    
-                    for (const effectId of effectIds) {
-                        if (!effectId || effectId === '-') continue;
-                        const effectItem = this.actor.items.get(effectId);
-                        if (!effectItem) {
-                            console.warn('DX3rd | Combo chat - Effect item not found:', effectId);
-                            continue;
-                        }
-                        
-                        if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
+                    // 정규화·존재 확인·타입 판정은 comboMemberItems 한 곳이 담당한다.
+                    const memberItems = window.DX3rdUniversalHandler?.comboMemberItems?.(this.actor, currentItem) || [];
+
+                    for (const effectItem of memberItems) {
+                        if (window.DX3rdUniversalHandler.executeMacros) {
                             await window.DX3rdUniversalHandler.executeMacros(effectItem, 'onInvoke');
                         }
                     }
@@ -720,9 +704,18 @@
             if (itemData.type === 'effect' || itemData.type === 'psionic' || itemData.type === 'spell' || itemData.type === 'weapon' || itemData.type === 'protect' || itemData.type === 'vehicle' || itemData.type === 'connection' || itemData.type === 'etc' || itemData.type === 'once' || itemData.type === 'combo' || itemData.type === 'book') {
                 content += `<div class="item-actions">`;
 
+                // 소진을 **차단으로 이을지**는 월드 설정이 정한다(allowExhaustedUse, 기본 허용).
+                // 예전에는 이 카드만 설정을 보지 않고 버튼을 아예 렌더하지 않아, 설정을 켜 두어도
+                // 채팅 카드에서는 누를 것이 없었다 — 시트에서 직접 누르면 통과하므로 「설정이
+                // 안 먹는다」로 보였다. 남길 때는 방어·리액션 목록(universal-apply)과 같은 규칙으로
+                // 이름 뒤에 「소진」을 붙여, 고를 수는 있지만 원래는 못 쓰는 것임을 보이게 한다.
+                const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
+                const exhaustedLabel = game.i18n.localize('DX3rd.Exhausted');
+                const markExhausted = (text, exhausted) => (exhausted ? `${text} (${exhaustedLabel})` : text);
+
                 // 무기와 비클은 공격 롤 버튼 추가
                 if (itemData.type === 'weapon' || itemData.type === 'vehicle') {
-                    let showAttackButton = true;
+                    let attackExhausted = false;
 
                     // 무기의 경우 attack-used 횟수 체크
                     if (itemData.type === 'weapon') {
@@ -730,19 +723,18 @@
                         const attackUsedState = itemData['attack-used']?.state || 0;
                         const attackUsedMax = itemData['attack-used']?.max || 0;
 
-                        // notCheck가 아니고, state >= max이면 버튼 숨김 (max === 0도 0회 사용 가능)
-                        if (attackUsedDisable !== 'notCheck' && attackUsedState >= attackUsedMax) {
-                            showAttackButton = false;
-                        }
+                        // notCheck가 아니면 state >= max 에서 소진 (max === 0도 0회 사용 가능)
+                        attackExhausted = attackUsedDisable !== 'notCheck' && attackUsedState >= attackUsedMax;
                     }
 
-                    if (showAttackButton) {
-                        content += `<button class="attack-roll-btn" data-item-id="${itemData.id}">${game.i18n.localize('DX3rd.AttackRoll')}</button>`;
+                    if (!attackExhausted || allowExhausted) {
+                        const label = markExhausted(game.i18n.localize('DX3rd.AttackRoll'), attackExhausted);
+                        content += `<button class="attack-roll-btn" data-item-id="${itemData.id}">${label}</button>`;
                     }
                 }
 
                 // 모든 아이템에 사용 버튼 추가 (단, used 횟수 체크)
-                let showUseButton = true;
+                let useExhausted = false;
 
                 // used가 있는 아이템 타입만 체크 (무기는 별도 처리)
                 const itemsWithUsed = ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once'];
@@ -767,9 +759,9 @@
                         displayMax += baseLevel;
                     }
 
-                    // notCheck가 아니고, state >= displayMax이면 버튼 숨김 (displayMax === 0도 0회 사용 가능)
+                    // notCheck가 아니면 state >= displayMax 에서 소진 (displayMax === 0도 0회 사용 가능)
                     if (usedDisable !== 'notCheck' && usedState >= displayMax) {
-                        showUseButton = false;
+                        useExhausted = true;
                     }
                 }
 
@@ -779,13 +771,13 @@
                     const usedState = itemData.used?.state || 0;
                     const usedMax = itemData.used?.max || 0;
 
-                    // notCheck가 아니고, state >= max이면 버튼 숨김 (max === 0도 0회 사용 가능)
+                    // notCheck가 아니면 state >= max 에서 소진 (max === 0도 0회 사용 가능)
                     if (usedDisable !== 'notCheck' && usedState >= usedMax) {
-                        showUseButton = false;
+                        useExhausted = true;
                     }
                 }
 
-                if (showUseButton) {
+                if (!useExhausted || allowExhausted) {
                     let useText;
                     if (itemData.type === 'book') {
                         // 북은 "마도서 해독"으로 표기 (Book + Decipher 로컬라이즈 조합)
@@ -793,7 +785,7 @@
                     } else {
                         useText = game.i18n.localize(`DX3rd.${itemData.type.charAt(0).toUpperCase() + itemData.type.slice(1)}`) + " " + game.i18n.localize("DX3rd.Use");
                     }
-                    content += `<button class="use-item-btn" data-item-id="${itemData.id}" data-get-target="${itemData.getTarget || false}">${useText}</button>`;
+                    content += `<button class="use-item-btn" data-item-id="${itemData.id}" data-get-target="${itemData.getTarget || false}">${markExhausted(useText, useExhausted)}</button>`;
                 }
 
                 content += `</div>`;

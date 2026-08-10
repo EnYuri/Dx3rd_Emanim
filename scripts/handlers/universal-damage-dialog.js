@@ -670,6 +670,12 @@
             if (game.user.isGM) {
               // GM은 직접 큐에 등록
               const queueKey = `${actor.id}_${item.id}`;
+              // 소켓 경로(main.js)와 같은 규칙: 남아 있는 앞선 요청은 완료되지 못한 것이므로
+              // 덮어쓰되 조용히 지우지는 않는다.
+              const stale = window.DX3rdAfterDamageActivationQueue[queueKey];
+              if (stale) {
+                console.warn(`DX3rd | afterDamage 활성화 요청이 완료되지 않은 채 남아 있어 새 요청으로 교체합니다 (${queueKey}, 보고 ${Object.keys(stale.damageReports || {}).length}/${stale.targetActorIds?.length ?? 0})`);
+              }
               window.DX3rdAfterDamageActivationQueue[queueKey] = {
                 attackerId: actor.id,
                 itemId: item.id,
@@ -843,6 +849,14 @@
         return {fixed, formula: formulas.join(' + ')};
       };
 
+      // [폭주] 중 가드 금지 판정. 입력 비활성화(설정이 차단일 때)와 경고(허용일 때)가 같은
+      // 기준을 쓰도록 한 곳에 둔다 — 갈리면 「입력은 살아 있는데 경고가 안 뜬다」가 된다.
+      const BERSERK_GUARD_TYPES = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
+      const berserkBlocksGuard = () => {
+        const berserk = targetActor.system?.conditions?.berserk;
+        return !!(berserk?.active && BERSERK_GUARD_TYPES.includes(berserk?.type || ''));
+      };
+
       /**
        * 방어 계산 단일 정의. 실시간 표시와 확정 계산이 같은 식을 쓰도록 한 곳에 둔다.
        * (확정 시 굴리는 다이스를 표시값에서 단순히 빼면 커버링 배수·가드 선언·장갑 관통
@@ -951,11 +965,26 @@
                 await rollDeferred(reduceRollFormula, 'reduce')
               ];
               // 굴린 값은 각 항에 얹어 방어식을 다시 계산한다(가드 선언/장갑 관통/커버링 배수 반영).
+              // [폭주] 중인데 가드가 걸린 채 적용됐다면 알린다. 설정이 「허용」이면 경고와
+              // 기록만 남기고 그대로 깎고, 「차단」이면 가드를 여기서 떨어뜨린다.
+              //
+              // 위에서 입력을 죽여 두었는데도 이 검사가 필요한 이유: 비활성화는 렌더 직후
+              // 한 번뿐이라, 창을 열어 둔 사이에 대상이 [폭주]에 걸리면 입력이 살아 있다.
+              // 계산 시점에 다시 보지 않으면 그 창에서만 설정이 무력해진다.
+              // 닷지에 성공했으면 가드는 계산에 쓰이지 않으므로 세지 않는다.
+              let guardAllowed = guardChecked;
+              const guardApplied = num('#guard') + (Number(guardRoll?.total) || 0) + weaponGuard.fixed;
+              if (!reactionSuccess && guardChecked && guardApplied > 0 && berserkBlocksGuard()) {
+                const detail = `${game.i18n.localize('DX3rd.Berserk')}: ${game.i18n.localize('DX3rd.BerserkGuardBlocked')}`;
+                guardAllowed = await window.DX3rdUniversalHandler?.reportUsageGate?.(
+                  targetActor, { name: game.i18n.localize('DX3rd.Guard') }, 'berserk', detail) !== false;
+              }
+
               const coveringValue = num('#covering');
               const finalDamage = calcDefenseDamage({
                 guard: num('#guard') + (Number(guardRoll?.total) || 0),
                 weaponGuard: weaponGuard.fixed,
-                guardChecked,
+                guardChecked: guardAllowed,
                 armor: num('#armor') + (Number(armorRoll?.total) || 0),
                 reduce: num('#reduce') + (Number(reduceRoll?.total) || 0),
                 covering: coveringValue,
@@ -1000,8 +1029,9 @@
                 if (extensionRequest) {
                   // 보고 기록
                   extensionRequest.damageReports[targetActor.id] = hpChange;
-                  extensionRequest.reportCount++;
-                  
+                  // 보고 횟수가 아니라 보고한 타겟의 수를 센다 — main.js 의 같은 판정 참조.
+                  extensionRequest.reportCount = Object.keys(extensionRequest.damageReports).length;
+
                   window.DX3rdDebug.log('DX3rd | Extension damage report recorded:', {
                     target: targetActor.name,
                     hpChange: hpChange,
@@ -1010,7 +1040,7 @@
                   });
                   
                   // 모든 타겟이 보고했는지 확인
-                  if (extensionRequest.reportCount === extensionRequest.targetActorIds.length) {
+                  if (extensionRequest.reportCount >= extensionRequest.targetActorIds.length) {
                     window.DX3rdDebug.log('DX3rd | All targets reported for extensions, processing...');
                     
                     // HP 데미지를 받은 타겟 목록
@@ -1263,8 +1293,9 @@
                   if (activationRequest) {
                     // 보고 기록
                     activationRequest.damageReports[targetActor.id] = hpChange;
-                    activationRequest.reportCount++;
-                    
+                    // 보고 횟수가 아니라 보고한 타겟의 수를 센다 — main.js 의 같은 판정 참조.
+                    activationRequest.reportCount = Object.keys(activationRequest.damageReports).length;
+
                     window.DX3rdDebug.log('DX3rd | Activation report recorded:', {
                       target: targetActor.name,
                       hpChange: hpChange,
@@ -1273,7 +1304,7 @@
                     });
                     
                     // 모든 타겟이 보고했는지 확인
-                    if (activationRequest.reportCount === activationRequest.targetActorIds.length) {
+                    if (activationRequest.reportCount >= activationRequest.targetActorIds.length) {
                       window.DX3rdDebug.log('DX3rd | All targets reported, processing activation...');
                       
                       // HP 데미지를 받은 타겟 목록
@@ -1500,12 +1531,11 @@
       const root = dialog.element;
       if (!root) return;
 
-      // Berserk 상태이상 체크 (normal, slaughter, battlelust, delusion, fear, hatred)
-      const berserkActive = targetActor.system?.conditions?.berserk?.active || false;
-      const berserkType = targetActor.system?.conditions?.berserk?.type || '';
-      const berserkTypes = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
-
-      if (berserkActive && berserkTypes.includes(berserkType)) {
+      // [폭주] 중에는 가드할 수 없다. 리액션 제한과 같은 규칙이라 **같은 게이트**
+      // (`allowBerserkViolation`)를 쓴다 — 리액션은 허용하면서 가드만 막는 테이블은 없다.
+      // 설정이 「막지 않음」(기본)이면 입력을 살려 두고, 실제로 가드가 걸린 채 적용될 때
+      // 경고와 채팅 기록만 남긴다(위 판정 다이얼로그·처리 경로와 같은 문구 체계).
+      if (berserkBlocksGuard() && window.DX3rdUsageGates?.allows?.('berserk') === false) {
         // 가드 입력 필드 비활성화 및 0으로 설정
         const guardInput = root.querySelector('#guard');
         if (guardInput) {

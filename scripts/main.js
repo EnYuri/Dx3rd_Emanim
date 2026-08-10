@@ -89,6 +89,46 @@ Hooks.once('init', async function() {
         default: true
     });
 
+    // 사용 조건 게이트 — 소진 게이트와 같은 기준이다(기본은 막지 않고 경고만).
+    // 판독은 helpers 의 DX3rdUsageGates 가, 보고·차단은 universal-handler 의
+    // reportUsageGate 가 한 곳에서 한다. 여기에 설정을 더하면 그 두 곳에도 반드시
+    // 키를 등록할 것 — 설정만 있고 읽는 곳이 없으면 「설정이 안 먹는다」가 된다.
+    game.settings.register('dx3rd-emanim', 'allowResurrectViolation', {
+        name: 'DX3rd.AllowResurrectViolation',
+        hint: 'DX3rd.AllowResurrectViolationHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
+    game.settings.register('dx3rd-emanim', 'allowEncroachLimitViolation', {
+        name: 'DX3rd.AllowEncroachLimitViolation',
+        hint: 'DX3rd.AllowEncroachLimitViolationHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
+    game.settings.register('dx3rd-emanim', 'allowBerserkViolation', {
+        name: 'DX3rd.AllowBerserkViolation',
+        hint: 'DX3rd.AllowBerserkViolationHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
+    game.settings.register('dx3rd-emanim', 'allowPressureViolation', {
+        name: 'DX3rd.AllowPressureViolation',
+        hint: 'DX3rd.AllowPressureViolationHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
     // 설정 등록: AfterMain 큐 (월드에 저장)
     // v13/v14 호환: type: Array는 v14에서 경고가 발생할 수 있으므로 방어적으로 처리
     game.settings.register('dx3rd-emanim', 'afterMainQueue', {
@@ -752,129 +792,6 @@ Hooks.once('ready', async function() {
             return;
         }
 
-        if (data.type === 'actionTrackerConsume') {
-            if (socketRouter.isResponsibleGM()
-                && data.payload
-                && isAuthorizedActorRequest(data, data.payload.actorId)) {
-                await window.DX3rdTurnProcessUI?.updateUsage?.(data.payload);
-            }
-            return;
-        }
-
-        if (data.type === 'healRequest' || data.type === 'healApply') {
-            // HP 회복: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM()
-                && data.requestData
-                && isAuthorizedActorRequest(data, data.requestData.actorId)
-                && window.DX3rdUniversalHandler?.handleHealRequest) {
-                await window.DX3rdUniversalHandler.handleHealRequest(data.requestData);
-            }
-            return;
-        }
-
-        if (data.type === 'statusClearRequest' || data.type === 'statusClearApply') {
-            // 상태이상 소거: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM()
-                && data.requestData
-                && isAuthorizedActorRequest(data, data.requestData.actorId)
-                && window.DX3rdUniversalHandler?.handleStatusClearRequest) {
-                await window.DX3rdUniversalHandler.handleStatusClearRequest(data.requestData);
-            }
-            return;
-        }
-
-        if (data.type === 'encroachRequest') {
-            // 침식률 조정(대상 침식 감소) 요청 (GM만 처리)
-            if (socketRouter.isResponsibleGM()
-                && data.requestData
-                && isAuthorizedActorRequest(data, data.requestData.actorId)
-                && window.DX3rdUniversalHandler?.handleEncroachRequest) {
-                await window.DX3rdUniversalHandler.handleEncroachRequest(data.requestData);
-            }
-            return;
-        }
-        
-        if (data.type === 'healRejected') {
-            // HP 회복 거부 알림 (요청자만 처리)
-            if (data.data.userId === game.user.id) {
-                ui.notifications.warn('GM이 HP 회복 요청을 거부했습니다.');
-            }
-            return;
-        }
-        
-        if (data.type === 'setSpellCalamityHighlight') {
-            // SpellCalamity 하이라이트 설정 요청 (모든 사용자가 처리)
-            if (window.DX3rdSpellHandler && window.DX3rdSpellHandler.drawSpellCalamityHighlight) {
-                const token = canvas.tokens?.placeables?.find(t => t.id === data.data.tokenId);
-                if (token && data.data.position) {
-                    await window.DX3rdSpellHandler.drawSpellCalamityHighlight(token, data.data.range, data.data.userColor, data.data.position);
-                    // 하이라이트 데이터 저장
-                    if (!window.DX3rdSpellCalamityHighlightData) {
-                        window.DX3rdSpellCalamityHighlightData = [];
-                    }
-                    window.DX3rdSpellCalamityHighlightData.push(data.data);
-                }
-            }
-            return;
-        }
-        
-        if (data.type === 'clearSpellCalamityHighlight') {
-            // SpellCalamity 하이라이트 제거 요청 (모든 사용자가 처리)
-            if (window.DX3rdSpellHandler && window.DX3rdSpellHandler.clearSpellCalamityHighlight) {
-                window.DX3rdSpellHandler.clearSpellCalamityHighlight(data.data.tokenId);
-            }
-            return;
-        }
-        
-        if (data.type === 'addDeathMark') {
-            // Death mark 추가 요청 (모든 사용자가 처리)
-            if (canvas.scene && canvas.scene.id === data.data.sceneId) {
-                const tokenDoc = canvas.scene.tokens.get(data.data.tokenId);
-                if (tokenDoc) {
-                    const tokenObj = tokenDoc.object;
-                    if (tokenObj && !tokenObj.dx3rdDeathMark && window.addDeathMarkToToken) {
-                        await window.addDeathMarkToToken(tokenObj);
-                        tokenObj.refresh();
-                    }
-                }
-            }
-            return;
-        }
-        
-        if (data.type === 'removeDeathMark') {
-            // Death mark 제거 요청 (모든 사용자가 처리)
-            if (canvas.scene && canvas.scene.id === data.data.sceneId) {
-                const tokenDoc = canvas.scene.tokens.get(data.data.tokenId);
-                if (tokenDoc) {
-                    const tokenObj = tokenDoc.object;
-                    if (tokenObj && tokenObj.dx3rdDeathMark && window.removeDeathMarkFromToken) {
-                        window.removeDeathMarkFromToken(tokenObj);
-                        tokenObj.refresh();
-                    }
-                }
-            }
-            return;
-        }
-        
-        if (data.type === 'damageRequest' || data.type === 'damageApply') {
-            // HP 데미지: 대표 GM만 권한 중계한다. 사용자에게 승인 단계는 없다.
-            if (socketRouter.isResponsibleGM()
-                && data.requestData
-                && isAuthorizedActorRequest(data, data.requestData.actorId)
-                && window.DX3rdUniversalHandler?.handleDamageRequest) {
-                await window.DX3rdUniversalHandler.handleDamageRequest(data.requestData);
-            }
-            return;
-        }
-        
-        if (data.type === 'damageRejected') {
-            // HP 데미지 거부 알림 (요청자만 처리)
-            if (data.data.userId === game.user.id) {
-                ui.notifications.warn('GM이 HP 데미지 요청을 거부했습니다.');
-            }
-            return;
-        }
-        
         if (data.type === 'spellRoisSelectRequest') {
             // 로이스 선택 요청 (GM만 처리)
             if (!socketRouter.isResponsibleGM()
@@ -990,84 +907,6 @@ Hooks.once('ready', async function() {
             return;
         }
         
-        if (data.type === 'spellCatastrophe7Request') {
-            // SpellCatastrophe 7 요청 (GM만 처리)
-            if (!socketRouter.isResponsibleGM()
-                || !window.DX3rdSpellHandler
-                || !data.requestData
-                || !isAuthorizedActorRequest(data, data.requestData.actorId)) return;
-            
-            const { actorId } = data.requestData;
-            const actor = game.actors.get(actorId);
-            if (!actor) {
-                console.error('DX3rd | Actor not found for SpellCatastrophe 7 request:', actorId);
-                return;
-            }
-            
-            // GM이 직접 처리
-            await window.DX3rdSpellHandler.executeSpellCatastrophe7(actor);
-            return;
-        }
-        
-        if (data.type === 'spellCatastrophe8Request') {
-            // SpellCatastrophe 8 요청 (GM만 처리)
-            if (!socketRouter.isResponsibleGM()
-                || !window.DX3rdSpellHandler
-                || !data.requestData
-                || !isAuthorizedActorRequest(data, data.requestData.actorId)) return;
-            
-            const { actorId, itemId } = data.requestData;
-            const actor = game.actors.get(actorId);
-            if (!actor) {
-                console.error('DX3rd | Actor not found for SpellCatastrophe 8 request:', actorId);
-                return;
-            }
-            
-            const item = itemId ? actor.items.get(itemId) : null;
-            
-            // GM이 직접 처리
-            await window.DX3rdSpellHandler.executeSpellCatastrophe8(actor, item);
-            return;
-        }
-        
-        if (data.type === 'conditionRequest' || data.type === 'conditionApply') {
-            // 상태이상 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
-            if (socketRouter.isResponsibleGM()
-                && data.requestData
-                && isAuthorizedActorRequest(data, data.requestData.actorId)
-                && window.DX3rdUniversalHandler?.handleConditionRequest) {
-                await window.DX3rdUniversalHandler.handleConditionRequest(data.requestData);
-            }
-            return;
-        }
-        
-        if (data.type === 'conditionRejected') {
-            // 상태이상 거부 알림 (요청자만 처리)
-            if (data.data.userId === game.user.id) {
-                ui.notifications.warn('GM이 상태이상 요청을 거부했습니다.');
-            }
-            return;
-        }
-
-        if (data.type === 'removeConditionRequest') {
-            // 대상측 배드 스테이터스 소거 요청 (GM만 처리)
-            if (socketRouter.isResponsibleGM() && window.DX3rdUniversalHandler?.handleRemoveConditionRequest) {
-                await window.DX3rdUniversalHandler.handleRemoveConditionRequest(data.data);
-            }
-            return;
-        }
-        
-        if (data.type === 'conditionRequestBulk' || data.type === 'conditionApplyBulk') {
-            // 상태이상 다건 부여: 대표 GM이 비소유 대상에 한해 조용히 권한을 중계한다.
-            if (socketRouter.isResponsibleGM()
-                && data.data
-                && isAuthorizedActorRequest(data, data.data.actorId)
-                && window.DX3rdUniversalHandler?.handleConditionRequestBulk) {
-                await window.DX3rdUniversalHandler.handleConditionRequestBulk(data.data);
-            }
-            return;
-        }
-        
         if (data.type === 'registerAfterDamageExtension') {
             // AfterDamage 익스텐드 큐 등록 요청 (GM만 처리)
             if (!socketRouter.isResponsibleGM()
@@ -1092,47 +931,6 @@ Hooks.once('ready', async function() {
               triggerItemName: triggerItemName
             };
             
-            return;
-        }
-        
-        if (data.type === 'showDefenseDialog') {
-            // 디펜스 다이얼로그 표시 요청
-            const targetActor = game.actors.get(data.dialogData.targetActorId);
-            
-            if (!targetActor || !targetActor.isOwner) {
-                return;
-            }
-            
-            // GM이 아닌 접속 중인 소유자가 있으면 GM은 건너뛰기
-            if (game.user.isGM) {
-                if (!socketRouter.isResponsibleGM()) return;
-                const nonGMOwners = game.users.filter(u => 
-                    !u.isGM && 
-                    u.active && 
-                    targetActor.testUserPermission(u, 'OWNER')
-                );
-                if (nonGMOwners.length > 0) {
-                    return;
-                }
-            }
-            
-            // 기존 showDefenseDialog 사용 (queueIndex 포함)
-            if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showDefenseDialog) {
-                // dialogData를 payload 형식으로 변환
-                // queueIndex가 있으면 afterDamage 큐 시스템, 없으면 기존 시스템
-                const payload = {
-                    ...data.dialogData, // 모든 필드 복사 (damage, penetrate, attackerName 등)
-                    queueIndex: data.dialogData.queueIndex // 큐 인덱스 전달 (있으면)
-                };
-                
-                await window.DX3rdUniversalHandler.showDefenseDialog(payload);
-            }
-            
-            return;
-        }
-        
-        if (data.type === 'userTyping') {
-            // 타이핑 상태 변경 처리 (다른 모듈로 이동됨)
             return;
         }
         
@@ -1166,39 +964,6 @@ Hooks.once('ready', async function() {
             if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
                 await window.DX3rdUniversalHandler.executeMacros(item, 'afterDamage');
             }
-        } else if (data.type === 'applyItemAttributes') {
-            // 아이템 어트리뷰트 적용 요청
-            const { sourceActorId, itemId, targetActorId, targetAttributes } = data.payload;
-            
-            const sourceActor = game.actors.get(sourceActorId);
-            const targetActor = game.actors.get(targetActorId);
-            
-            if (!sourceActor || !targetActor) {
-                console.warn('DX3rd | Actor not found');
-                return;
-            }
-            
-            // 현재 유저가 타겟 액터의 소유자인지 확인
-            if (!targetActor.isOwner) {
-                return;
-            }
-            
-            // 접속 중인 GM이 아닌 소유자가 있는지 확인
-            const nonGMOwners = game.users.filter(user => 
-                !user.isGM && 
-                user.active &&  // 접속 중인 유저만
-                targetActor.testUserPermission(user, 'OWNER')
-            );
-            
-            // 접속 중인 GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
-                return;
-            }
-            
-            const item = sourceActor.items.get(itemId);
-            if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._applyItemAttributes) {
-                await window.DX3rdUniversalHandler._applyItemAttributes(sourceActor, item, targetActor, targetAttributes);
-            }
         } else if (data.type === 'registerAfterDamageActivation') {
             // GM 전용: afterDamage 활성화 요청 등록
             if (!socketRouter.isResponsibleGM()
@@ -1211,11 +976,16 @@ Hooks.once('ready', async function() {
             const { attackerId, itemId, targetActorIds, shouldExecuteMacro, shouldActivate, shouldApplyToTargets, needsDialog, comboAfterDamageData } = data.payload;
             const queueKey = `${attackerId}_${itemId}`;
             
-            // 이미 등록되어 있으면 무시 (중복 방지)
+            // 같은 키의 앞선 요청이 남아 있으면 **버리는 쪽은 새 요청이 아니라 옛 요청이다.**
+            // 완료된 요청은 큐에서 지워지므로, 남아 있다는 것은 타겟 하나가 끝내 보고하지 않아
+            // 멈춰 선 요청이라는 뜻이다. 예전에는 새 요청을 무시했고(중복 방지 의도), 그러면
+            // 그 아이템은 그 세션 내내 afterDamage 가 한 번도 발현하지 않았다 — 침묵하는 고장이라
+            // 원인을 짚기도 어렵다. 덮어쓰면 다음 공격에서 스스로 회복한다.
             if (window.DX3rdAfterDamageActivationQueue[queueKey]) {
-                return;
+                const stale = window.DX3rdAfterDamageActivationQueue[queueKey];
+                console.warn(`DX3rd | afterDamage 활성화 요청이 완료되지 않은 채 남아 있어 새 요청으로 교체합니다 (${queueKey}, 보고 ${Object.keys(stale.damageReports || {}).length}/${stale.targetActorIds?.length ?? 0})`);
             }
-            
+
             window.DX3rdAfterDamageActivationQueue[queueKey] = {
                 attackerId: attackerId,
                 itemId: itemId,
@@ -1245,10 +1015,13 @@ Hooks.once('ready', async function() {
             if (request) {
                 // 보고 기록
                 request.damageReports[targetActorId] = hpChange;
-                request.reportCount++;
-                
-                // 모든 타겟이 보고했는지 확인
-                if (request.reportCount === request.targetActorIds.length) {
+                request.reportCount = Object.keys(request.damageReports).length;
+
+                // 모든 타겟이 보고했는지 확인.
+                // **세는 것은 보고 횟수가 아니라 보고한 타겟의 수다.** 같은 타겟이 두 번 보고하면
+                // (재전송·중복 클릭) 카운터만 앞질러 `===` 가 영원히 성립하지 않고, 그 요청은
+                // 큐에 남아 다음 등록까지 막았다.
+                if (request.reportCount >= request.targetActorIds.length) {
                     // HP 데미지를 받은 타겟 목록
                     const damagedTargets = Object.entries(request.damageReports)
                         .filter(([id, hp]) => hp > 0)

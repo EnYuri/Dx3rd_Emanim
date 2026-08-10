@@ -838,13 +838,18 @@ window.DX3rdChatToggleManager = {
                     
                     // 무기/비클은 다이얼로그 표시, 나머지는 자동 처리
                     if (item.type === 'weapon' || item.type === 'vehicle') {
-                        // 횟수 제한 확인 후 다이얼로그 표시
-                        if (usedDisable === 'notCheck' || usedState < usedMax) {
-                            if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.showAfterSuccessDialog) {
-                                await window.DX3rdChatHandlers.showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets);
-                            }
+                        // 소진을 차단으로 이을지는 월드 설정이 정한다(allowExhaustedUse, 기본 허용).
+                        // 예전에는 여기만 설정을 보지 않고 **경고도 없이** 조용히 건너뛰었다 —
+                        // 다른 소진 지점은 전부 reportUsageExhausted 로 알림과 채팅 기록을 남긴다.
+                        const exhausted = usedDisable !== 'notCheck' && usedState >= usedMax;
+                        let proceed = true;
+                        if (exhausted) {
+                            const detail = `${game.i18n.localize('DX3rd.ExhaustedUsageCount')} (${usedState}/${usedMax})`;
+                            proceed = await window.DX3rdUniversalHandler.reportUsageExhausted(actor, item, detail);
                         }
-                        // usedState >= usedMax인 경우 아무것도 안 함 (이미 소진)
+                        if (proceed && window.DX3rdChatHandlers?.showAfterSuccessDialog) {
+                            await window.DX3rdChatHandlers.showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets);
+                        }
                     } else {
                         // 무기/비클이 아닌 경우: 활성화 + 대상 적용 (횟수 증가는 사용 시점에 이미 처리됨)
                         const updates = {};

@@ -156,7 +156,12 @@
           attrKey: 'add',
           label: '-',
           disable: 'main'
-        }
+        },
+        // [중압]/[폭주] 예외. 원문에 「[중압] 중에도 사용할 수 있다」류의 명시가 있는
+        // 이펙트만 켠다 — 확장 도구의 「이펙트 상세 설정」에서 저작하고,
+        // DX3rdUsageGates.conditionExempt 가 읽는다. 두 상태이상은 막는 타이밍이 서로 달라
+        // (중압=오토 / 폭주=리액션·닷지) 한 칸으로 합치지 않았다.
+        conditionExempt: { pressure: false, berserk: false }
       },
       combo: {
         templates: ['base'],

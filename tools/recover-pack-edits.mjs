@@ -174,7 +174,10 @@ function folderPath(folders, id) {
 // Foundry 는 팩을 읽을 때 스키마를 강제해 숫자를 문자로(또는 그 반대로) 바꾸고, 빌더가
 // 생략한 필드를 기본값으로 채운다(`action: ""`, `applyMode: "toggle"`, `macros: []` …).
 // 그 잡음을 손튜닝으로 오인하면 매 커밋 오버라이드가 부풀어 오른다.
-const DEFAULTS = new Map([["action", ""], ["applyMode", "toggle"], ["state", false], ["macros", []]]);
+// conditionExempt: 스키마가 모든 effect 에 `{pressure:false, berserk:false}` 를 채우므로,
+// 시트에서 한 번 저장하기만 해도 「빌더가 안 실은 값」이 생긴다 — 둘 다 false 면 무변경이다.
+const DEFAULTS = new Map([["action", ""], ["applyMode", "toggle"], ["state", false], ["macros", []],
+                          ["conditionExempt", { pressure: false, berserk: false }]]);
 
 function same(a, b, key) {
   if (a === b) return true;
@@ -251,7 +254,7 @@ function collect(live, prev, liveFolders, prevFolders) {
     put("active", act, "active(자기 채널)");
   }
 
-  for (const k of ["encroach", "hp", "resourceCost", "used"]) {
+  for (const k of ["encroach", "hp", "resourceCost", "used", "conditionExempt"]) {
     if (!same(live.system?.[k], prev.system?.[k], k)) put(k, live.system[k], k);
   }
   if (!same(live.system?.macros, prev.system?.macros, "macros")) put("macros", live.system.macros ?? [], "macros");
@@ -294,7 +297,7 @@ if (audit) {
       for (const k of ["description", ...SIMPLE_SYSTEM.filter((x) => x !== "description")]) {
         if (ov[k] !== undefined && !same(doc.system?.[k], ov[k], k)) bad.push(k);
       }
-      for (const k of ["encroach", "hp", "resourceCost", "used"]) {
+      for (const k of ["encroach", "hp", "resourceCost", "used", "conditionExempt"]) {
         if (ov[k] !== undefined && !same(doc.system?.[k], ov[k], k)) bad.push(k);
       }
       if (ov.attributes !== undefined) {

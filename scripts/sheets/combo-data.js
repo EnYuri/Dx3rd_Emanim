@@ -8,9 +8,18 @@
     return (Array.isArray(source) ? source : [source]).filter(id => typeof id === 'string' && id && id !== '-');
   }
 
+  // 콤보 구성 이펙트 ID. **저장 형식 해석의 정본은 universal-extensions 의 normalizeEffectIds**
+  // 하나이고, 여기서는 시트 컨텍스트의 평문 객체(data)까지 받는 껍데기만 더한다. 해석을 여기에
+  // 다시 쓰면 시트와 런타임이 다른 목록을 보게 된다(예전 자체 구현은 system.effect.data 형식을
+  // 몰랐다). 스키마가 effectIds 를 항상 배열로 채우므로 data 폴백은 실제로는 도달하지 않는다.
   function getEffectIds(item, data = null) {
-    const legacyEffect = item.system?.effect;
-    return normalizeIdList(item.system?.effectIds ?? (Array.isArray(legacyEffect) ? legacyEffect : data?.system?.effectIds));
+    const handler = window.DX3rdUniversalHandler;
+    const normalize = target => (handler?.normalizeEffectIds
+      ? handler.normalizeEffectIds(target)
+      : normalizeIdList(target?.system?.effectIds));
+    const fromItem = normalize(item);
+    if (fromItem.length || item?.system?.effectIds != null) return fromItem;
+    return normalize(data);
   }
 
   function getWeaponIds(item, data = null) {
@@ -838,17 +847,14 @@
     }
   }
 
-  function forEachEffectAttribute(attributes, callback, sourceItem = null, options = {}) {
-    if (!attributes) return;
-    const includes = bucketFilter(sourceItem, 'target', options);
-    for (const [attrName, attrValue] of Object.entries(attributes)) {
-      if (attrValue && typeof attrValue === 'object' && !includes(attrValue)) continue;
-      const key = (typeof attrValue === 'object' && attrValue.key) ? attrValue.key : attrName;
-      const label = (typeof attrValue === 'object' && attrValue.label) ? attrValue.label :
-        (typeof attrName === 'string' && attrName.includes(':')) ? attrName.split(':')[1] : '';
-      callback({key, label, value: attrValue});
-    }
-  }
+  // 대상 채널(system.effect.attributes)은 **시전자 미리보기에 세지 않는다.** applyToTargets 는
+  // 그 채널을 game.user.targets / 씬 토큰 / forcedTargets 에만 걸고 시전자는 절대 포함하지
+  // 않으며(universal-apply.js), 공격력도 런타임은 최상위 system.attack/add 만 읽는다
+  // (item-effect-adapter 의 effectAttackBonus). 예전에는 이 채널을 자기 dice/add/critical/
+  // attack 에 합산해서, 「대상 다이스 -[레벨]*2」(그래비티 에어리어) 를 조합하면 내 콤보
+  // 미리보기만 그만큼 낮고, 「대상 공격력 +[레벨]*4」(빙열의 군단) 같은 타인 버프는 내
+  // 공격력을 부풀렸다(팩 실측 157건이 이 키를 들고 있다. getTarget/scene 이 둘 다 꺼진
+  // 「죽은 채널」은 0건 — 전부 진짜 대상용 저작이다). 되살리지 말 것.
 
   function addRollAttributeBonus(bonus, {key, label, value, sourceItem, actor, rollType, isAbility, skillKey, effectiveBaseKey}) {
     if (!key) return;
@@ -910,19 +916,6 @@
     }, sourceItem, options);
   }
 
-  function addEffectAttributeBonuses(bonus, attributes, sourceItem, actor, rollContext, options = {}) {
-    forEachEffectAttribute(attributes, ({key, label, value}) => {
-      addRollAttributeBonus(bonus, {
-        key,
-        label,
-        value,
-        sourceItem,
-        actor,
-        ...rollContext
-      });
-    }, sourceItem, options);
-  }
-
   function createRollBonus(criticalMin) {
     return {
       dice: 0,
@@ -943,7 +936,6 @@
   function calculateItemRollBonus(item, actor, rollContext, criticalMin) {
     const bonus = createRollBonus(criticalMin);
     addMainAttributeBonuses(bonus, item.system?.attributes, item, actor, rollContext);
-    addEffectAttributeBonuses(bonus, item.system?.effect?.attributes, item, actor, rollContext);
     return bonus;
   }
 
@@ -990,7 +982,6 @@
     // 구성 멤버 자격으로 발현하는 보정만 센다(활성화 버킷 제외 — bucketFilter 주석 참조).
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
       addMainAttributeBonuses(bonus, effectItem.system?.attributes, effectItem, actor, rollContext, COMBO_MEMBER);
-      addEffectAttributeBonuses(bonus, effectItem.system?.effect?.attributes, effectItem, actor, rollContext, COMBO_MEMBER);
     });
 
     return bonus;
@@ -1101,22 +1092,10 @@
     return attackBonus;
   }
 
-  function addEffectAttackBonuses(item, actor, attackRoll, options = {}) {
-    let attackBonus = 0;
-
-    forEachEffectAttribute(item.system?.effect?.attributes, ({key, label, value}) => {
-      if (key !== 'attack') return;
-      if (!matchesAttackLabel(label, attackRoll, true)) return;
-
-      attackBonus += Number(evaluateAttributeValue(value, item, actor, 0)) || 0;
-    }, item, options);
-
-    return attackBonus;
-  }
-
+  // 대상 채널의 attack 행도 마찬가지로 세지 않는다 — 위 addRollAttributeBonus 앞의 주석 참조.
   function calculateItemAttackBonus(item, actor, attackRoll) {
     if (item.system?.active?.state === true) return 0;
-    return addMainAttackBonuses(item, actor, attackRoll) + addEffectAttackBonuses(item, actor, attackRoll);
+    return addMainAttackBonuses(item, actor, attackRoll);
   }
 
   function calculateRegisteredEffectAttackBonus(actor, effectIds, attackRoll) {
@@ -1124,7 +1103,6 @@
 
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
       attackBonus += addMainAttackBonuses(effectItem, actor, attackRoll, COMBO_MEMBER);
-      attackBonus += addEffectAttackBonuses(effectItem, actor, attackRoll, COMBO_MEMBER);
     });
 
     return attackBonus;

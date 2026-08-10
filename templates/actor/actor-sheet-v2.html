@@ -493,8 +493,13 @@
                     {{#if item.showActiveToggle}}
                     <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{/if}}
-                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
+                    {{!-- 사용 횟수를 쓰지 않는 아이템(disable: notCheck)은 칸 자체를 내지 않는다.
+                          예전에는 비활성 입력으로 「0 / 0」을 늘 보여 줘서 목록이 그만큼 시끄러웠다.
+                          장비 탭의 커넥션·기타·소모품 목록은 처음부터 이 규칙이었다. --}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -532,8 +537,13 @@
                     {{#if item.showActiveToggle}}
                     <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{/if}}
-                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
+                    {{!-- 사용 횟수를 쓰지 않는 아이템(disable: notCheck)은 칸 자체를 내지 않는다.
+                          예전에는 비활성 입력으로 「0 / 0」을 늘 보여 줘서 목록이 그만큼 시끄러웠다.
+                          장비 탭의 커넥션·기타·소모품 목록은 처음부터 이 규칙이었다. --}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -571,8 +581,13 @@
                     {{#if item.showActiveToggle}}
                     <input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>
                     {{/if}}
-                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
+                    {{!-- 사용 횟수를 쓰지 않는 아이템(disable: notCheck)은 칸 자체를 내지 않는다.
+                          예전에는 비활성 입력으로 「0 / 0」을 늘 보여 줘서 목록이 그만큼 시끄러웠다.
+                          장비 탭의 커넥션·기타·소모품 목록은 처음부터 이 규칙이었다. --}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}
@@ -645,8 +660,13 @@
                   </h4>
                   <h4 class="item-addon">
                     {{#if item.showActiveToggle}}<input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>{{/if}}
-                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}" {{#ifEquals item.system.used.disable "notCheck"}} disabled {{/ifEquals}}> /
+                    {{!-- 사용 횟수를 쓰지 않는 아이템(disable: notCheck)은 칸 자체를 내지 않는다.
+                          예전에는 비활성 입력으로 「0 / 0」을 늘 보여 줘서 목록이 그만큼 시끄러웠다.
+                          장비 탭의 커넥션·기타·소모품 목록은 처음부터 이 규칙이었다. --}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" value="{{item.system.used.state}}"> /
                     <input type="number" class="checkbox-input used-input" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
                   </h4>
                   <div class="item-controls">
                     {{#if ../canEdit}}<a class="item-control item-edit" data-action="editItem" title="{{localize "DX3rd.Edit"}}"><i class="fas fa-edit"></i></a>{{/if}}

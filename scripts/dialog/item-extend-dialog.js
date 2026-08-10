@@ -876,7 +876,11 @@
                         'system.resourceCost.mult': Number(this._value('input[name="effectSettingsResourceMult"]')) || 1,
                         'system.resourceCost.attrKey': this._value('select[name="effectSettingsResourceAttrKey"]'),
                         'system.resourceCost.label': this._value('select[name="effectSettingsResourceLabel"]'),
-                        'system.resourceCost.disable': this._value('select[name="effectSettingsResourceDisable"]')
+                        'system.resourceCost.disable': this._value('select[name="effectSettingsResourceDisable"]'),
+                        // 체크박스는 반드시 _checked 로 읽는다 — 문자열 "on" 이 넘어가면
+                        // BooleanField._cast 가 `value === "true"` 로만 참을 보므로 false 로 뒤집힌다.
+                        'system.conditionExempt.pressure': this._checked('input[name="effectSettingsPressureExempt"]'),
+                        'system.conditionExempt.berserk': this._checked('input[name="effectSettingsBerserkExempt"]')
                     });
                     // 열려 있는 원본 시트가 숨긴 필드의 현재값을 계속 들고 있지 않도록 즉시 갱신한다.
                     item.sheet?.render(false);

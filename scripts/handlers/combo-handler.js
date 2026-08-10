@@ -208,9 +208,7 @@ window.DX3rdComboHandler = {
      */
     comboMemberEntries(actor, comboItem) {
         const handler = window.DX3rdUniversalHandler;
-        return (handler?.normalizeEffectIds?.(comboItem) || [])
-            .map(id => actor.items.get(id))
-            .filter(Boolean)
+        return (handler?.comboMemberItems?.(actor, comboItem) || [])
             .map(item => ({item, role: 'member'}));
     },
 
@@ -337,18 +335,26 @@ window.DX3rdComboHandler = {
         // 콤보 본체 즉시 활성화/매크로/어플라이드는 handleItemUse에서 처리됨 → 익스텐드는 아래에서 일괄 수집
         window.DX3rdDebug.log('DX3rd | ComboHandler - Collecting extensions from combo item:', item.name);
 
-        // 포함된 무기의 공격 횟수 증가 (notCheck가 아닌 경우)
-        // 단, 공격 판정 콤보(attackRoll !== '-')는 실제 데미지 롤 시점에 main.js의 damage-roll-btn 핸들러가
-        // 실제로 사용된 무기(data-weapon-ids)만 +1 하므로 여기서 미리 올리면 이중 증가가 된다.
-        // 게다가 미리 올리면 calculateRegisteredWeaponBonus가 해당 무기를 "이미 소진"으로 보고
-        // 보너스를 빼버려, 정작 그 공격에 무기 보너스가 빠지는 버그가 생긴다. → 공격 콤보는 건너뜀.
+        // 포함된 무기의 공격 횟수 증가.
+        //
+        // **여기서 올리는 경우는 에너미 명중 달성치 경로 하나뿐이다.**
+        // ⑴ 공격 판정 콤보(attackRoll !== '-')는 실제 데미지 롤 시점에 chat-ui 의 damage-roll-btn
+        //    핸들러가 실제로 사용된 무기(data-weapon-ids)만 +1 한다. 여기서 미리 올리면 이중 증가일
+        //    뿐 아니라, calculateRegisteredWeaponBonus 가 그 무기를 「이미 소진」으로 보고 보너스를
+        //    빼 버려 정작 그 공격에서 무기 수치가 사라진다.
+        // ⑵ 비공격 콤보(attackRoll === '-')는 **등록 무기를 아예 쓰지 않는다** —
+        //    calculateRegisteredWeaponBonus 의 호출부 두 곳이 모두 attackRoll 게이트 안에 있어
+        //    무기가 판정에도 데미지에도 실리지 않는다. 그런데도 예전에는 여기서 공격 횟수만
+        //    소비했고, 게다가 이 자리에는 소진 게이트가 없어(다른 소비 지점은 전부
+        //    allowExhaustedUse 를 보거나 reportUsageExhausted 로 알린다) max 를 조용히 넘겼다.
+        //    콤보 시트의 무기 픽커는 attackRoll 과 무관하게 뜨므로 저작만으로 걸리는 경로다.
+        // ⑶ 에너미 명중 달성치 경로만 롤 없이 처리되어 데미지 버튼에 무기 ID를 싣지 않으므로
+        //    (chat-ui 의 증가 핸들러가 동작하지 않음) 이 자리에서 올려야 한다.
         const isAttackCombo = item.system?.attackRoll && item.system.attackRoll !== '-';
-        // 단, 에너미 명중 달성치 경로는 롤 없이 처리되어 데미지 버튼에 무기 ID를 싣지 않으므로
-        // (main.js의 증가 핸들러가 동작하지 않음) 이 경우는 예외로 여기서 미리 증가시킨다.
         const isEnemyAchievementShortcut = actor.type === 'enemy' &&
             item.system?.attackAchievement && item.system.attackAchievement !== '-' && item.system.attackAchievement !== '' &&
             isAttackCombo;
-        const skipPreIncrement = isAttackCombo && !isEnemyAchievementShortcut;
+        const skipPreIncrement = !isEnemyAchievementShortcut;
         const weaponIds = item.system?.weapon || [];
         if (!skipPreIncrement && Array.isArray(weaponIds) && weaponIds.length > 0) {
             for (const weaponId of weaponIds) {
@@ -369,15 +375,17 @@ window.DX3rdComboHandler = {
                 }
             }
         } else if (skipPreIncrement) {
-            window.DX3rdDebug.log('DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (attack combo; counted at damage roll)');
+            window.DX3rdDebug.log(`DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (${isAttackCombo ? 'attack combo; counted at damage roll' : 'non-attack combo; registered weapons are not used'})`);
         }
 
         // 일반 구성 아이템의 사용 횟수 증가 (notCheck가 아닌 경우) — 무기 슬롯은 별도의
         // attack-used 경로가 담당한다. 멤버 수만큼 개별 update 를 하면
         // 그 수만큼 DB 왕복 + 액터 재파생 + 시트 재렌더가 연쇄돼 콤보 발동이 눈에 띄게 느려진다.
         // 콤보는 하나의 사용 행위이므로 카운터는 한 번에 올린다(멤버 처리 전에 전원 반영).
+        // 타입 판정은 comboMemberEntries(→ isComboMemberItem)가 이미 끝냈다 — 여기서 다시 쓰면
+        // 「검사·증가·실행」의 기준이 또 갈린다.
         const usedUpdates = memberEntries
-            .filter(entry => entry.role !== 'weapon' && !['weapon', 'vehicle'].includes(entry.item.type))
+            .filter(entry => entry.role !== 'weapon')
             .map(entry => entry.item)
             .filter(memberItem => (memberItem.system?.used?.disable || 'notCheck') !== 'notCheck')
             .map(memberItem => ({ _id: memberItem.id, 'system.used.state': (memberItem.system?.used?.state || 0) + 1 }));
@@ -974,11 +982,8 @@ window.DX3rdComboHandler = {
     calculateEffectAttackBonus(actor, item) {
         const adapter = window.DX3rdItemEffectAdapter;
         if (!adapter) return null;
-        const effectIds = item.system?.effectIds || (Array.isArray(item.system?.effect) ? item.system.effect : []);
-        const bonuses = effectIds
-            .map(id => actor.items.get(id))
-            .filter(Boolean)
-            .map(effect => adapter.effectAttackBonus?.(effect, actor, {includeComboModifiers: true}))
+        const bonuses = this.comboMemberEntries(actor, item)
+            .map(({item: effect}) => adapter.effectAttackBonus?.(effect, actor, {includeComboModifiers: true}))
             .filter(Boolean);
         return adapter.mergeAttackBonuses?.(bonuses) || null;
     },
@@ -991,8 +996,9 @@ window.DX3rdComboHandler = {
         
         // 무기 탭에 등록된 무기들 가져오기
         const registeredWeapons = item.system?.weapon || [];
-        const comboEffects = (item.system?.effectIds || []).map(id => actor.items.get(id)).filter(Boolean);
-        const multiWeapon = comboEffects.map(effect => effect.system?.multiWeapon).find(rule => rule?.enabled);
+        const multiWeapon = this.comboMemberEntries(actor, item)
+            .map(({item: effect}) => effect.system?.multiWeapon)
+            .find(rule => rule?.enabled);
         const selectedWeapons = registeredWeapons.filter(id => id && id !== '-');
         if (selectedWeapons.length > 1 && !multiWeapon) {
             ui.notifications.warn('복수 무기 합산 이펙트 없이 여러 무기를 사용합니다. 모든 무기를 합산합니다.');
@@ -1005,28 +1011,33 @@ window.DX3rdComboHandler = {
             if (weaponId && weaponId !== '-') {
                 // 액터의 아이템 또는 가상 무기에서 무기 데이터 가져오기
                 const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-                if (weaponItem && weaponItem.type === 'weapon') {
-                    if (multiWeapon?.weaponType && multiWeapon.weaponType !== '-' && weaponItem.system?.type !== multiWeapon.weaponType) {
+                // 비클도 무기 슬롯의 정당한 등재 대상이다(공격력만 쓰고 add·attack-used 는 없다).
+                // 자세한 근거는 universal-handler 의 같은 이름 함수 주석 참조.
+                if (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle')) {
+                    const isVehicle = weaponItem.type === 'vehicle';
+                    if (!isVehicle && multiWeapon?.weaponType && multiWeapon.weaponType !== '-' && weaponItem.system?.type !== multiWeapon.weaponType) {
                         ui.notifications.warn(`복수 무기 조건: ${weaponItem.name}은(는) 요구 종별(${multiWeapon.weaponType})과 다릅니다. 합산은 유지합니다.`);
                     }
-                    if (multiWeapon?.requireSameSkill && weaponBonus.weaponIds.length) {
+                    if (!isVehicle && multiWeapon?.requireSameSkill && weaponBonus.weaponIds.length) {
                         const first = window.DX3rdResolveWeapon(actor, weaponBonus.weaponIds[0]);
                         if (first?.system?.skill !== weaponItem.system?.skill) {
                             ui.notifications.warn(`복수 무기 조건: ${weaponItem.name}은(는) 첫 무기와 기능이 다릅니다. 합산은 유지합니다.`);
                         }
                     }
-                    // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
-                    const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
-                    const attackUsedState = weaponItem.system['attack-used']?.state || 0;
-                    const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
-                    const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
-                    
-                    // 공격 횟수가 소진된 무기는 제외 — 차단 여부는 월드 설정이 정한다.
-                    if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
-                        window.DX3rdDebug.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name} attack exhausted, skipping (${attackUsedState}/${attackUsedMax})`);
-                        continue;
+                    if (!isVehicle) {
+                        // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
+                        const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
+                        const attackUsedState = weaponItem.system['attack-used']?.state || 0;
+                        const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
+                        const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
+
+                        // 공격 횟수가 소진된 무기는 제외 — 차단 여부는 월드 설정이 정한다.
+                        if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
+                            window.DX3rdDebug.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name} attack exhausted, skipping (${attackUsedState}/${attackUsedMax})`);
+                            continue;
+                        }
                     }
-                    
+
                     // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
                     const formula = window.DX3rdFormulaEvaluator;
                     const addFormulaTerm = (target, raw) => {
@@ -1035,8 +1046,8 @@ window.DX3rdComboHandler = {
                         else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
                     };
                     addFormulaTerm('attackFormula', weaponItem.system?.attack);
-                    addFormulaTerm('addFormula', weaponItem.system?.add);
-                    
+                    if (!isVehicle) addFormulaTerm('addFormula', weaponItem.system?.add);
+
                     // 무기 이름 추가 (루비 텍스트 제거)
                     const cleanWeaponName = weaponItem.name.split('||')[0].trim();
                     if (!weaponBonus.weaponName) {

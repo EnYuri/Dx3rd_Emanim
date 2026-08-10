@@ -126,6 +126,18 @@
                     {{/select}}
                 </select>
             </div>
+
+            {{!-- 상태이상 예외. 막는 타이밍이 서로 다르므로([중압]=오토 / [폭주]=리액션·닷지)
+                  한 칸으로 합치지 않는다. 월드 설정으로 그 게이트를 꺼 둔 테이블에서는
+                  어차피 막지 않으므로 이 칸은 게이트를 켠 테이블에서만 의미가 있다. --}}
+            <div class="form-label" title="{{localize "DX3rd.PressureExemptHint"}}">{{localize "DX3rd.PressureExempt"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="effectSettingsPressureExempt" {{#if item.system.conditionExempt.pressure}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.BerserkExemptHint"}}">{{localize "DX3rd.BerserkExempt"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="effectSettingsBerserkExempt" {{#if item.system.conditionExempt.berserk}}checked{{/if}}>
+            </div>
         </div>
     </section>
     {{/if}}

@@ -21,16 +21,25 @@
         if (weaponId && weaponId !== '-') {
           // 액터의 아이템에서 직접 무기 데이터 가져오기
           const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-          if (weaponItem && weaponItem.type === 'weapon') {
-            // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
-            const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
-            const attackUsedState = weaponItem.system['attack-used']?.state || 0;
-            const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
-            const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
+          // 비클도 무기 슬롯의 정당한 등재 대상이다 — 슬롯 드롭다운(helpers.js)과 공격 무기
+          // 선택 창(weapon-for-attack-dialog)이 둘 다 비클을 싣는데 여기서만 걸러 냈고, 그러면
+          // 비클만 등록한 콤보는 weaponIds 가 비어 hasAvailableWeapons 가 false 가 되어
+          // 무기 경로 전체가 통째로 건너뛰어졌다(공격력이 판정에도 데미지 버튼에도 안 실림).
+          // 비클은 공격력만 쓰고 add·attack-used 는 없다 — 선택 창의 분기와 같은 규칙이다.
+          if (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle')) {
+            const isVehicle = weaponItem.type === 'vehicle';
 
-            // 공격 횟수가 소진된 무기는 제외 — 다만 소진을 차단으로 이을지는 월드 설정이 정한다.
-            if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
-              continue;
+            if (!isVehicle) {
+              // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
+              const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
+              const attackUsedState = weaponItem.system['attack-used']?.state || 0;
+              const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
+              const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
+
+              // 공격 횟수가 소진된 무기는 제외 — 다만 소진을 차단으로 이을지는 월드 설정이 정한다.
+              if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
+                continue;
+              }
             }
 
             // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
@@ -41,7 +50,7 @@
               else weaponBonus[target === 'attackFormula' ? 'attack' : 'add'] += Number(formula.evaluate(raw, weaponItem, actor)) || 0;
             };
             addFormulaTerm('attackFormula', weaponItem.system?.attack);
-            addFormulaTerm('addFormula', weaponItem.system?.add);
+            if (!isVehicle) addFormulaTerm('addFormula', weaponItem.system?.add);
 
             // 무기 이름 추가
             if (!weaponBonus.weaponName) {
@@ -53,7 +62,7 @@
             // 무기 ID 추가
             weaponBonus.weaponIds.push(weaponId);
           }
-          // 무기가 아니거나 찾을 수 없는 경우는 건너뛴다.
+          // 무기·비클이 아니거나 찾을 수 없는 경우는 건너뛴다.
         }
       }
 
@@ -163,6 +172,46 @@
     },
 
     /**
+     * 사용 조건 위반을 알린다. 위반 **판정**은 부르는 쪽이 하고, 여기서는 그것을
+     * **차단으로 이을지**만 정한다(월드 설정, 기본은 막지 않음).
+     *
+     * reportUsageExhausted 와 같은 구조·같은 문구 체계를 쓴다. 게이트마다 알림 방식이
+     * 갈리면 「어떤 것은 조용히 막히고 어떤 것은 경고만 나온다」가 되어, 사용자가 무엇에
+     * 막혔는지 알 수 없게 된다 — 소진 게이트에서 실제로 그랬다(chat-ui 의 무기 활성화가
+     * 경고조차 없이 건너뛰던 것).
+     *
+     * @param {Actor} actor
+     * @param {Item} item
+     * @param {string} gate   DX3rdUsageGates.SETTINGS 의 키
+     * @param {string} detail 이미 조립된 사유("침식률 제한: 60% 이상에서만 …")
+     * @returns {Promise<boolean>} 계속 진행해도 되는가
+     */
+    async reportUsageGate(actor, item, gate, detail) {
+      const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
+      const allowed = window.DX3rdUsageGates?.allows?.(gate) !== false;
+      const speaker = ChatMessage.getSpeaker({ actor });
+
+      if (allowed) {
+        ui.notifications.warn(`${itemName}: ${detail} — ${game.i18n.localize('DX3rd.GateUseAllowed')}`);
+        await ChatMessage.create({
+          speaker,
+          content: `<div class="dx3rd-item-chat"><div class="dx3rd-warning"><strong>${itemName}</strong><br>${detail} — ${game.i18n.localize('DX3rd.GateUseAllowed')}</div></div>`
+        });
+        window.DX3rdDebug.log('DX3rd | Usage condition violated but allowed by setting:', gate, itemName, detail);
+        return true;
+      }
+
+      ui.notifications.warn(`${itemName}: ${detail}`);
+      await ChatMessage.create({
+        speaker,
+        content: `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>${detail}</div></div>`,
+        style: CONST.CHAT_MESSAGE_STYLES.OTHER
+      });
+      window.DX3rdDebug.log('DX3rd | Item usage blocked by condition gate:', gate, itemName, detail);
+      return false;
+    },
+
+    /**
      * Process item usage cost (encroachment/HP) and send unified chat message.
      * @param {Actor} actor
      * @param {Item} item
@@ -187,116 +236,71 @@
         if (Number.isFinite(maxEncroachmentExclusive) && maxEncroachmentExclusive > 0) {
           const encroachment = Number(actor.system?.attributes?.encroachment?.value) || 0;
           if (encroachment >= maxEncroachmentExclusive) {
-            ui.notifications.warn(game.i18n.format('DX3rd.AutomationMaxEncroachment', { limit: maxEncroachmentExclusive }));
-            return false;
+            // 침식률 때문에 못 쓰는 것은 system.limit 과 같은 종류의 제한이므로 같은 설정이
+            // 관장한다. 여기만 설정 밖에 두면 「침식률 제한을 껐는데 여전히 막힌다」가 된다.
+            const detail = game.i18n.format('DX3rd.AutomationMaxEncroachment', { limit: maxEncroachmentExclusive });
+            if (!await this.reportUsageGate(actor, item, 'encroachLimit', detail)) return false;
           }
         }
 
-        // 0. Pressure 상태이상 체크 (오토 타이밍 아이템의 채팅 메시지 차단)
+        // 0. [중압] 상태이상 체크 (오토 타이밍 아이템 사용 차단)
+        //    예외 판정(아이템 저작 + 월드 이름 목록)은 DX3rdUsageGates.conditionExempt 한 곳이고,
+        //    차단 여부는 월드 설정이 정한다 — 예외로 저작된 아이템은 설정과 무관하게 통과한다.
         const pressureActive = actor.system?.conditions?.pressure?.active || false;
-        if (pressureActive) {
-          const runTiming = item.system?.timing || '-';
-          
-          // 오토 타이밍이고 예외 아이템이 아니면 채팅 메시지 생성 안 함
-          if (runTiming === 'auto') {
-            const exceptionItems = game.settings.get('dx3rd-emanim', 'DX3rd.PressureExceptionItems') || '';
-            const exceptionList = exceptionItems.split(',').map(n => n.trim());
-            
-            // 아이템 이름에서 ||RubyText 제거
-            let itemName = item.name;
-            const rubyPattern = /^(.+)\|\|(.+)$/;
-            const match = itemName.match(rubyPattern);
-            if (match) {
-              itemName = match[1];
-            }
-            
-            // 예외 아이템 목록에 없으면 채팅 메시지 생성 안 함
-            if (!exceptionList.includes(itemName)) {
-              window.DX3rdDebug.log(`DX3rd | Chat message blocked: ${itemName} has auto timing with pressure condition`);
-              
-              // 에러 메시지 출력
-              await ChatMessage.create({
-                speaker: ChatMessage.getSpeaker({ actor }),
-                content: `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}: ${game.i18n.localize('DX3rd.Pressure')}</strong></div></div>`
-              });
-              
-              return false; // 아이템 사용 차단
-            }
+        if (pressureActive && (item.system?.timing || '-') === 'auto') {
+          if (!window.DX3rdUsageGates?.conditionExempt?.(item, 'pressure')) {
+            const detail = `${game.i18n.localize('DX3rd.Pressure')}: ${game.i18n.localize('DX3rd.PressureAutoBlocked')}`;
+            if (!await this.reportUsageGate(actor, item, 'pressure', detail)) return false;
           }
         }
-        
-        // 0.1. 폭주 타입 체크 (reaction/dodge 타이밍 아이템 사용 차단)
+
+        // 0.1. [폭주] 타입 체크 (reaction/dodge 타이밍 아이템 사용 차단)
         const berserkActive = actor.system?.conditions?.berserk?.active || false;
         const berserkType = actor.system?.conditions?.berserk?.type || '';
         const berserkTypesToBlock = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
-        
+
         if (berserkActive && berserkTypesToBlock.includes(berserkType)) {
-          const runTiming = item.system?.roll || '-';
-          
-          // reaction 또는 dodge 타이밍이고 예외 아이템이 아니면 사용 불가
-          if (runTiming === 'reaction' || runTiming === 'dodge') {
-            const exceptionItems = game.settings.get('dx3rd-emanim', 'DX3rd.BerserkReactionExceptionItems') || '';
-            const exceptionList = exceptionItems.split(',').map(n => n.trim());
-            
-            // 아이템 이름에서 ||RubyText 제거
-            let itemName = item.name;
-            const rubyPattern2 = /^(.+)\|\|(.+)$/;
-            const match2 = itemName.match(rubyPattern2);
-            if (match2) {
-              itemName = match2[1];
-            }
-            
-            // 예외 아이템 목록에 없으면 사용 불가
-            if (!exceptionList.includes(itemName)) {
-              window.DX3rdDebug.log(`DX3rd | Item usage blocked: ${itemName} has ${runTiming} timing with berserk condition`);
-              
-              // 에러 메시지 출력
-              await ChatMessage.create({
-                speaker: ChatMessage.getSpeaker({ actor }),
-                content: `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}: ${game.i18n.localize('DX3rd.Berserk')}</strong></div></div>`
-              });
-              
-              return false; // 아이템 사용 차단
+          const rollTiming = item.system?.roll || '-';
+          if (rollTiming === 'reaction' || rollTiming === 'dodge') {
+            if (!window.DX3rdUsageGates?.conditionExempt?.(item, 'berserk')) {
+              const detail = `${game.i18n.localize('DX3rd.Berserk')}: ${game.i18n.localize('DX3rd.BerserkReactionBlocked')}`;
+              if (!await this.reportUsageGate(actor, item, 'berserk', detail)) return false;
             }
           }
         }
-        
-        // 1. 콤보는 포함된 이펙트들의 사용 횟수 체크
+
+        // 1. 콤보는 포함된 구성 멤버들의 사용 횟수 체크.
+        // 멤버 목록은 comboMemberItems 한 곳에서 온다 — 이 검사와 combo-handler 의 횟수 증가·
+        // 멤버 실행이 서로 다른 기준으로 멤버를 고르면, 검사는 건너뛰는데 횟수는 올라가는
+        // 비대칭이 난다(isComboMemberItem 주석 참조).
         if (item.type === 'combo') {
-          const effectIds = this.normalizeEffectIds(item);
-          if (effectIds.length > 0) {
-            for (const effectId of effectIds) {
-              if (effectId && effectId !== '-') {
-                const effect = actor.items.get(effectId);
-                if (effect && effect.type === 'effect') {
-                  const effectExtend = effect.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
-                  const effectAutomation = effectExtend.automation || effect.getFlag?.('dx3rd-emanim', 'automation') || {};
-                  if (effectAutomation.noCombo) {
-                    ui.notifications.warn(game.i18n.format('DX3rd.AutomationNoCombo', { name: effect.name }));
-                    return false;
-                  }
-                  const effectUsedDisable = effect.system.used?.disable || 'notCheck';
-                  if (effectUsedDisable !== 'notCheck') {
-                    const effectUsedState = effect.system.used?.state || 0;
-                    const effectUsedMax = effect.system.used?.max || 0;
-                    const effectUsedLevel = effect.system.used?.level || false;
-                    
-                    // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
-                    let effectDisplayMax = Number(effectUsedMax) || 0;
-                    if (effectUsedLevel && effect.type === 'effect') {
-                      const finalLevel = window.DX3rdEffectLevel
-                        ? window.DX3rdEffectLevel.value(effect, actor)
-                        : Number(effect.system?.level?.init) || 0;
-                      effectDisplayMax += finalLevel;
-                    }
-                    
-                    if (effectDisplayMax <= 0 || effectUsedState >= effectDisplayMax) {
-                      const detail = `${game.i18n.localize('DX3rd.ExhaustedIncludedEffect')}: ${effect.name} (${effectUsedState}/${effectDisplayMax})`;
-                      if (!await this.reportUsageExhausted(actor, item, detail)) return false;
-                    }
-                  }
-                }
-              }
+          for (const effect of this.comboMemberItems(actor, item)) {
+            const effectExtend = effect.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
+            const effectAutomation = effectExtend.automation || effect.getFlag?.('dx3rd-emanim', 'automation') || {};
+            if (effectAutomation.noCombo) {
+              ui.notifications.warn(game.i18n.format('DX3rd.AutomationNoCombo', { name: effect.name }));
+              return false;
+            }
+            const effectUsedDisable = effect.system.used?.disable || 'notCheck';
+            if (effectUsedDisable === 'notCheck') continue;
+
+            const effectUsedState = effect.system.used?.state || 0;
+            const effectUsedMax = effect.system.used?.max || 0;
+            const effectUsedLevel = effect.system.used?.level || false;
+
+            // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가).
+            // 레벨 가산은 이펙트 전용이다 — DX3rdEffectLevel.value 가 effect 가 아니면 0을 준다.
+            let effectDisplayMax = Number(effectUsedMax) || 0;
+            if (effectUsedLevel && effect.type === 'effect') {
+              const finalLevel = window.DX3rdEffectLevel
+                ? window.DX3rdEffectLevel.value(effect, actor)
+                : Number(effect.system?.level?.init) || 0;
+              effectDisplayMax += finalLevel;
+            }
+
+            if (effectDisplayMax <= 0 || effectUsedState >= effectDisplayMax) {
+              const detail = `${game.i18n.localize('DX3rd.ExhaustedIncludedEffect')}: ${effect.name} (${effectUsedState}/${effectDisplayMax})`;
+              if (!await this.reportUsageExhausted(actor, item, detail)) return false;
             }
           }
         }
@@ -340,95 +344,40 @@
         if (hasResurrect) {
           const currentHP = Number(actor.system?.attributes?.hp?.value ?? 0);
           const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
-          
-          // 아이템 이름에서 || 패턴 제거
-          let itemName = item.name;
-          const rubyPattern = /^(.+)\|\|(.+)$/;
-          const match = itemName.match(rubyPattern);
-          if (match) {
-            itemName = match[1]; // 메인 이름만 사용
-          }
-          
+
           // HP가 0보다 많으면 사용 불가
           if (currentHP > 0) {
-            const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong> (${game.i18n.localize('DX3rd.Current')} HP: ${currentHP})</div></div>`;
-            
-            ChatMessage.create({
-              speaker: ChatMessage.getSpeaker({ actor }),
-              content: errorMsg,
-              style: CONST.CHAT_MESSAGE_STYLES.OTHER
-            });
-            window.DX3rdDebug.log('DX3rd | Resurrect item blocked - HP is not 0:', currentHP);
-            return false;
+            const detail = `${game.i18n.localize('DX3rd.ResurrectRequiresZeroHP')} (${game.i18n.localize('DX3rd.Current')} HP: ${currentHP})`;
+            if (!await this.reportUsageGate(actor, item, 'resurrect', detail)) return false;
           }
-          
+
           // 침식률이 100 이상이면 사용 불가
           if (currentEncroachment >= 100) {
-            const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong> (${game.i18n.localize('DX3rd.Current')} ${game.i18n.localize('DX3rd.Encroachment')}: ${currentEncroachment}%)</div></div>`;
-            
-            ChatMessage.create({
-              speaker: ChatMessage.getSpeaker({ actor }),
-              content: errorMsg,
-              style: CONST.CHAT_MESSAGE_STYLES.OTHER
-            });
-            window.DX3rdDebug.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
-            return false;
+            const detail = `${game.i18n.localize('DX3rd.ResurrectRequiresEncroachUnder100')} (${game.i18n.localize('DX3rd.Current')} ${game.i18n.localize('DX3rd.Encroachment')}: ${currentEncroachment}%)`;
+            if (!await this.reportUsageGate(actor, item, 'resurrect', detail)) return false;
           }
         }
         
         // 3. system.limit 체크 - 침식률 제한 조건 확인
-        const itemLimit = item.system?.limit;
-        if (itemLimit && itemLimit.trim() !== '') {
-          const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
-          
-          // 리저렉트 체크가 되어 있으면 limit 조건을 무시하고 무조건 침식률 100 미만일 때만 사용 가능
-          if (hasResurrect) {
-            if (currentEncroachment >= 100) {
-              // 아이템 이름에서 || 패턴 제거
-              let itemName = item.name;
-              const rubyPattern = /^(.+)\|\|(.+)$/;
-              const match = itemName.match(rubyPattern);
-              if (match) {
-                itemName = match[1];
-              }
-              
-              const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>리저렉트 아이템은 침식률 100% 미만에서만 사용 가능 (현재: ${currentEncroachment}%)</div></div>`;
-              
-              ChatMessage.create({
-                speaker: ChatMessage.getSpeaker({ actor }),
-                content: errorMsg,
-                style: CONST.CHAT_MESSAGE_STYLES.OTHER
+        //
+        // 리저렉트 아이템은 「제한」란의 침식률 하한을 적용하지 않는다(자기 조건은 위 2번에서
+        // 이미 판정했다). 예전에는 여기 안에 침식률 100 검사가 한 벌 더 있었는데, 2번이 먼저
+        // 반환하므로 도달할 수 없는 죽은 가지였다 — 게이트 설정이 생긴 지금은 도달했다면
+        // 설정을 무시하고 다시 막았을 자리라 함께 걷어냈다. 되살리지 말 것.
+        const itemLimit = String(item.system?.limit ?? '').trim();
+        if (!hasResurrect && itemLimit !== '') {
+          // 숫자만 추출하여 비교 (해당 값 이상일 때 사용 가능)
+          const numberMatch = itemLimit.match(/(\d+)/);
+          if (numberMatch) {
+            const limitValue = Number(numberMatch[1]);
+            const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
+
+            if (currentEncroachment < limitValue) {
+              const detail = game.i18n.format('DX3rd.EncroachLimitBlocked', {
+                limit: limitValue,
+                current: currentEncroachment
               });
-              window.DX3rdDebug.log('DX3rd | Resurrect item blocked - Encroachment is 100 or higher:', currentEncroachment);
-              return false;
-            }
-          } else {
-            // 일반 limit 체크 - 숫자만 추출하여 비교 (해당 값 이상일 때 사용 가능)
-            const limitText = itemLimit.trim();
-            const numberMatch = limitText.match(/(\d+)/);
-            
-            if (numberMatch) {
-              const limitValue = Number(numberMatch[1]);
-              
-              if (currentEncroachment < limitValue) {
-                // 아이템 이름에서 || 패턴 제거
-                let itemName = item.name;
-                const rubyPattern = /^(.+)\|\|(.+)$/;
-                const match = itemName.match(rubyPattern);
-                if (match) {
-                  itemName = match[1];
-                }
-                
-                const errorMsg = `<div class="dx3rd-item-chat"><div class="dx3rd-error"><strong>${itemName} ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')}</strong><br>침식률 제한: ${limitValue}% 이상에서만 사용 가능 (현재: ${currentEncroachment}%)</div></div>`;
-                
-                ChatMessage.create({
-                  speaker: ChatMessage.getSpeaker({ actor }),
-                  content: errorMsg,
-                  style: CONST.CHAT_MESSAGE_STYLES.OTHER
-                });
-                window.DX3rdDebug.log('DX3rd | Item usage blocked - Encroachment below limit:', { currentEncroachment, limitValue });
-                return false;
-              }
+              if (!await this.reportUsageGate(actor, item, 'encroachLimit', detail)) return false;
             }
           }
         }
@@ -716,13 +665,8 @@
         
         // 콤보인 경우 구성한 이펙트들의 이름을 기본 표시 (해설)
         if (item.type === 'combo') {
-          const comboEffectIds = this.normalizeEffectIds(item);
-          const comboEffectNames = comboEffectIds
-            .map(id => {
-              const eff = actor.items.get(id);
-              return eff ? eff.name.split('||')[0].trim() : null;
-            })
-            .filter(Boolean);
+          const comboEffectNames = this.comboMemberItems(actor, item)
+            .map(eff => eff.name.split('||')[0].trim());
           if (comboEffectNames.length > 0) {
             msg += `<div class="dx3rd-mt-4">· ${game.i18n.localize('DX3rd.ComboEffects')}: ${comboEffectNames.join(', ')}</div>`;
           }

@@ -1420,6 +1420,85 @@
         }
     };
 
+    /**
+     * 사용 조건 게이트 — 「위반인가」와 「막을 것인가」는 다른 축이다.
+     *
+     * 소진 게이트(DX3rdItemExhausted.allowExhaustedUse)와 같은 구조다. 위반 판정은
+     * 부르는 쪽이 그대로 하고, 여기서 읽는 월드 설정은 그것을 **차단으로 이을지**만 정한다.
+     * 기본값은 전부 「막지 않음」이다 — 자동화가 다듬어지는 중이라 데이터 한 줄이 틀렸다는
+     * 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다. 대신 막지 않을 때도 경고와
+     * 채팅 기록은 남겨 GM 이 「원래는 못 쓰는 것을 썼다」를 놓치지 않게 한다.
+     *
+     * 설정이 등록되기 전(init 이전)이나 등록 실패 시에는 막지 않는 쪽으로 떨어진다.
+     */
+    window.DX3rdUsageGates = {
+        // 게이트 키 → 월드 설정 키. universal-handler 의 reportUsageGate 가 유일한 소비자다.
+        SETTINGS: {
+            resurrect: 'allowResurrectViolation',
+            encroachLimit: 'allowEncroachLimitViolation',
+            berserk: 'allowBerserkViolation',
+            pressure: 'allowPressureViolation'
+        },
+
+        /**
+         * 이 게이트의 위반을 그대로 통과시킬 것인가.
+         * @param {string} gate  SETTINGS 의 키
+         * @returns {boolean} true 면 경고만 하고 사용 허용
+         */
+        allows: function(gate) {
+            const setting = this.SETTINGS[gate];
+            if (!setting) return true;
+            try {
+                return game.settings.get('dx3rd-emanim', setting) !== false;
+            } catch (error) {
+                return true;
+            }
+        },
+
+        /**
+         * 그 상태이상 중에도 쓸 수 있다고 **저작된** 아이템인가.
+         *
+         * 게이트 설정(위)과는 다른 축이다 — 설정은 「규칙을 강제할 것인가」를 테이블 단위로
+         * 정하고, 이쪽은 「이 아이템은 원문상 그 규칙의 예외인가」를 아이템 단위로 정한다.
+         * 그래서 설정을 켜 둔(=차단하는) 테이블에서도 예외 아이템은 그대로 통과한다.
+         *
+         * 근거는 둘을 OR 한다:
+         *   ⑴ 아이템 자신의 저작(`system.conditionExempt.<상태>`, 확장 도구의 이펙트 설정).
+         *   ⑵ 월드 설정의 이름 목록(구 경로). 아이템에 저작할 자리가 없던 시절의 데이터가
+         *      그대로 도는 월드가 있어 남긴다 — 새로 쓸 때는 ⑴ 을 쓸 것.
+         * @param {Item} item
+         * @param {'pressure'|'berserk'} condition
+         * @returns {boolean}
+         */
+        conditionExempt: function(item, condition) {
+            if (item?.system?.conditionExempt?.[condition] === true) return true;
+
+            // 콤보는 자기 칸이 없다(예외 저작은 이펙트 시트에만 있다). 구성 멤버 중 하나라도
+            // 예외로 저작돼 있으면 그 콤보도 예외로 본다 — 예외 이펙트를 넣은 리액션 콤보가
+            // [폭주] 중에 막히면, 그 이펙트를 단독으로 쓸 때와 결과가 갈린다.
+            if (item?.type === 'combo') {
+                const actor = item.actor;
+                const members = window.DX3rdUniversalHandler?.comboMemberItems?.(actor, item) || [];
+                if (members.some(member => member?.system?.conditionExempt?.[condition] === true)) return true;
+            }
+
+            const legacySetting = condition === 'pressure'
+                ? 'DX3rd.PressureExceptionItems'
+                : 'DX3rd.BerserkReactionExceptionItems';
+            let names = '';
+            try {
+                names = game.settings.get('dx3rd-emanim', legacySetting) || '';
+            } catch (error) {
+                return false;
+            }
+            if (!names) return false;
+
+            // 루비(`이름||요미가나`)는 표시 이름만 남긴다 — 목록에는 표시 이름으로 적는다.
+            const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
+            return names.split(',').map(n => n.trim()).includes(itemName);
+        }
+    };
+
     // 아이템 소진 여부 확인 유틸리티 함수
     window.DX3rdItemExhausted = {
         /**
@@ -1450,18 +1529,15 @@
             
             // 콤보는 포함된 이펙트 중 하나라도 소진되면 소진으로 간주
             if (item.type === 'combo') {
-                // 콤보의 이펙트 ID 배열: effectIds 우선, 없으면 effect로 폴백 (호환성)
-                const rawEffects = item.system?.effectIds ?? item.system?.effect ?? [];
-                let effectIds = [];
-                
-                if (Array.isArray(rawEffects)) {
-                    effectIds = rawEffects.filter(e => e && e !== '-');
-                } else if (typeof rawEffects === 'object' && rawEffects !== null) {
-                    effectIds = Object.values(rawEffects).filter(e => e && e !== '-');
-                } else if (rawEffects && rawEffects !== '-') {
-                    effectIds = [rawEffects];
-                }
-                
+                // 콤보의 구성 이펙트 ID: 정규화는 normalizeEffectIds 한 곳이 담당한다.
+                // 여기 있던 자체 구현은 콤보의 system.effect 가 { disable, runTiming, attributes }
+                // **설정 객체**라는 것을 몰라서, effectIds 가 비면 Object.values 로 'instant' 같은
+                // 값을 아이템 id 로 집어 들었다. (스키마가 effectIds 를 항상 배열로 채우므로
+                // 실제로 도달하지는 않았다. 이 함수는 helpers 가 먼저 로드되어도 호출은 런타임이라
+                // 안전하다.)
+                const effectIds = window.DX3rdUniversalHandler?.normalizeEffectIds?.(item)
+                    ?? (Array.isArray(item.system?.effectIds) ? item.system.effectIds.filter(e => e && e !== '-') : []);
+
                 if (effectIds.length === 0) {
                     return false; // 포함된 이펙트가 없으면 소진되지 않음
                 }

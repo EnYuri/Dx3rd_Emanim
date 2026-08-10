@@ -51,6 +51,33 @@
       return [];
     },
 
+    /**
+     * 콤보의 구성 슬롯(system.effectIds)에 실린 것을 구성 멤버로 볼 것인가.
+     *
+     * 저작 경로는 콤보 시트의 추가 드롭다운 하나뿐이고 거기에는 effect 만 실리므로
+     * (`combo-data.prepareActorEffects`, `combo-sheet-v2._addEffect`) 실데이터는 전부 effect 다.
+     * 그래도 술어를 두는 이유는 **판정 기준이 세 군데로 갈려 있었기 때문**이다 — 사용 횟수
+     * 「검사」는 `type === 'effect'`, 「증가」는 무기/비클만 제외, 「실행」은 아무 필터도 없었다.
+     * 매크로·마이그레이션·모듈이 다른 타입을 밀어 넣으면 **검사는 건너뛰는데 횟수는 올라가고
+     * 실행까지 되는** 비대칭이 난다.
+     *
+     * `=== 'effect'` 로 좁히지 않은 것은 의도다. 좁히면 옛 월드에 다른 타입이 들어 있을 때
+     * 지금 돌던 실행이 조용히 사라진다. 넓게 잡으면 최악이라야 검사가 하나 더 붙는 쪽이고,
+     * 그 검사는 기본 설정에서 차단이 아니라 경고다(`reportUsageExhausted`).
+     * 무기/비클만 제외하는 것은 무기 슬롯(`system.weapon`)이 공격 수치·attack-used 라는
+     * 자기 경로를 따로 갖기 때문이다 — 양쪽에 걸리면 이중 처리가 된다.
+     */
+    isComboMemberItem(item) {
+      return Boolean(item) && !['weapon', 'vehicle'].includes(item.type);
+    },
+
+    /** 콤보의 구성 멤버 아이템. ID 정규화·존재 확인·타입 판정을 한곳에서 끝낸다. */
+    comboMemberItems(actor, comboItem) {
+      return this.normalizeEffectIds(comboItem)
+        .map(id => actor?.items?.get(id))
+        .filter(memberItem => this.isComboMemberItem(memberItem));
+    },
+
     groupExtensionsByKey(extensions) {
       return window.DX3rdRuntimeUtils.groupExtensionsByKey(extensions);
     },

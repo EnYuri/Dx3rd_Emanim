@@ -743,28 +743,25 @@
       );
       
       // 폭주 타입 체크 (reaction/dodge 버튼 비활성화용)
+      //
+      // 이것은 [폭주] 게이트의 **두 번째 자리**다 — 진짜 차단은 universal-handler 의
+      // processItemUsageCost 가 하고, 여기서는 버튼을 죽여 애초에 못 누르게 한다. 그래서
+      // 게이트 설정(`allowBerserkViolation`)과 아이템별 예외 저작을 **여기서도 똑같이**
+      // 봐야 한다. 보지 않으면 설정을 켜도 버튼이 비활성인 채라 「설정이 안 먹는다」가 된다
+      // (actor-chat 의 버튼 미렌더·chat-ui 의 조용한 건너뜀과 같은 부류의 결함이었다).
       const berserkActive = actor.system?.conditions?.berserk?.active || false;
       const berserkType = actor.system?.conditions?.berserk?.type || '';
       const berserkTypesToBlock = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
-      const isReactionDodgeBlocked = berserkActive && berserkTypesToBlock.includes(berserkType);
-      
-      // 예외 아이템 확인
-      let isExceptionItem = false;
-      if (isReactionDodgeBlocked && item) {
-        const exceptionItems = game.settings.get('dx3rd-emanim', 'DX3rd.BerserkReactionExceptionItems') || '';
-        const exceptionList = exceptionItems.split(',').map(n => n.trim());
-        
-        // 아이템 이름에서 ||RubyText 제거
-        let itemName = item.name;
-        const rubyPatternException = /^(.+)\|\|(.+)$/;
-        const matchException = itemName.match(rubyPatternException);
-        if (matchException) {
-          itemName = matchException[1];
-        }
-        
-        isExceptionItem = exceptionList.includes(itemName);
-      }
-      
+      const isReactionDodgeBlocked = berserkActive
+        && berserkTypesToBlock.includes(berserkType)
+        && window.DX3rdUsageGates?.allows?.('berserk') === false;
+
+      // 예외 아이템 확인. 판정은 DX3rdUsageGates.conditionExempt 한 곳이다 — 아이템 저작
+      // (`system.conditionExempt.berserk`)과 구 이름 목록 설정을 함께 본다.
+      const isExceptionItem = isReactionDodgeBlocked && item
+        ? window.DX3rdUsageGates?.conditionExempt?.(item, 'berserk') === true
+        : false;
+
       // 공포 패널티 확인 (공격 명중 판정인 경우: 무기/비클, 콤보, 이펙트, 사이오닉)
       let fearPenalty = 0;
       let fearTargetName = '';
