@@ -6,6 +6,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  normalizeDiceFormula,
+  migrate as normalizeDiceNotation
+} from "./migrations/2026-08-13-normalize-dice-count-parens.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -63,8 +67,10 @@ function expectedValue(sourceKey, value) {
   const raw = String(value ?? "").trim();
   if (!raw || raw === "-") return raw;
   if (Number(raw) === 0) return "0";
-  if (!DEDICATED[sourceKey].alwaysCount && STANDARD_DICE.test(raw)) return raw;
-  return `(${raw})d10`;
+  if (!DEDICATED[sourceKey].alwaysCount && STANDARD_DICE.test(raw)) return normalizeDiceFormula(raw);
+  // 2026-08-13 에 다이스 표기를 정리했다. 기대값도 같은 규칙을 통과시켜야 정리된 팩이
+  // 「미적용」으로 보고되지 않는다.
+  return normalizeDiceFormula(`(${raw})d10`);
 }
 
 function expectedLabel(sourceKey, label) {
@@ -213,6 +219,11 @@ for (const pack of backedPacks) {
         }
       }
     }
+
+    // 2026-08-13 의 다이스 표기 정리는 08-11 의 변환 분기를 타지 않은 행(이미 일반 키였던
+    // 것)과 최상위 attack/add 에도 적용됐다. 기대 문서에 그 마이그레이션을 통째로 태워야
+    // 정리된 문서가 「미적용」이나 「예상하지 못한 변경」으로 보고되지 않는다.
+    normalizeDiceNotation(expected);
 
     if (JSON.stringify(expected) !== JSON.stringify(current)) {
       for (const mapPath of MAPS) {

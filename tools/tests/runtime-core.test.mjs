@@ -7,6 +7,10 @@ import {
   convertedValue as convertLegacyD10Value,
   migrate as migrateLegacyD10Modifiers
 } from '../migrations/2026-08-11-dice-only-modifiers-to-formulas.mjs';
+import {
+  normalizeDiceCount,
+  normalizeDiceFormula
+} from '../migrations/2026-08-13-normalize-dice-count-parens.mjs';
 
 const root = resolve(import.meta.dirname, '..', '..');
 const source = path => readFileSync(resolve(root, path), 'utf8');
@@ -43,10 +47,13 @@ function documentSchema() {
 }
 
 test('dedicated D10 modifier fields migrate to equivalent general roll formulas', () => {
-  assert.equal(convertLegacyD10Value('damage_roll', '+[level]*2'), '(+[level]*2)d10');
+  // 괄호는 안쪽에 연산이 있을 때만 남는다. 없으면 `[level]+1d10` = level + (1d10) 이 되어
+  // 뜻이 달라지기 때문이고, 단일 항이면 괄호도 선행 `+` 도 아무 일을 하지 않는다.
+  assert.equal(convertLegacyD10Value('damage_roll', '+[level]*2'), '([level]*2)d10');
   assert.equal(convertLegacyD10Value('guard_roll', '[level]+1'), '([level]+1)d10');
   assert.equal(convertLegacyD10Value('reduce_roll', '2d10'), '2d10');
-  assert.equal(convertLegacyD10Value('dxroll', 3), '(3)d10');
+  assert.equal(convertLegacyD10Value('dxroll', 3), '3d10');
+  assert.equal(convertLegacyD10Value('damage_roll', '+2'), '2d10');
 
   const doc = {
     system: {
@@ -65,9 +72,9 @@ test('dedicated D10 modifier fields migrate to equivalent general roll formulas'
   migrateLegacyD10Modifiers(doc, {fail: message => failures.push(message)});
 
   assert.deepEqual(doc.system.attributes.damage,
-    {key: 'attack', label: 'melee', value: '(+2)d10', action: 'attack'});
+    {key: 'attack', label: 'melee', value: '2d10', action: 'attack'});
   assert.deepEqual(doc.system.attributes.guard,
-    {key: 'guard', label: '-', value: '([level])d10'});
+    {key: 'guard', label: '-', value: '[level]d10'});
   assert.deepEqual(doc.system.attributes.ordinary,
     {key: 'add', label: '-', value: '1d10'});
   assert.deepEqual(doc.system.effect.attributes.reduction,
@@ -3617,4 +3624,58 @@ test('a dialog button callback never returns nullish, so cancel cannot arrive as
   }
   assert.deepEqual([...new Set(offenders)], [],
     `DialogV2 콜백이 nullish 를 반환한다(action 문자열로 바꿔치기된다): ${offenders.join(' | ')}`);
+});
+
+// 다이스 개수 자리의 괄호는 안쪽에 연산이 있을 때만 뜻을 갖는다. 벗기면 안 되는 것을 벗기면
+// `([level]+1)d10`(= level+1 개) 이 `[level]+1d10`(= level + 1d10) 으로 조용히 뒤바뀐다.
+// 반대로 잉여 `+` 는 Foundry 가 버리므로(grammar.pegjs 의 leading, parser.mjs 의 `=== "-"`)
+// 떼어도 값이 변하지 않는다 — `-` 는 부호를 뒤집으므로 절대 건드리지 않는다.
+test('dice-count parentheses are stripped only where they carry no meaning', () => {
+  const unchanged = [
+    '([level]+1)d10',   // 연산이 있다 — 괄호가 없으면 결합이 달라진다
+    '([level]*2)d10',
+    '([level]*2+1)d10',
+    '(-2)d10',          // 선행 `-` 는 의미가 있다
+    '(1d10)d10',        // 동적 개수 — 안쪽이 단일 항이 아니다
+    '2d10',
+    '[level]d10',
+    '1d10 + 3',
+    '(3)',              // 뒤에 다이스가 없으면 개수 자리가 아니다
+    ''
+  ];
+  for (const formula of unchanged) {
+    assert.equal(normalizeDiceCount(formula), formula, `${formula} 는 그대로여야 한다`);
+  }
+
+  assert.equal(normalizeDiceCount('(+3)d10'), '3d10');
+  assert.equal(normalizeDiceCount('(+[level])d10'), '[level]d10');
+  assert.equal(normalizeDiceCount('(2)d10'), '2d10');
+  assert.equal(normalizeDiceCount('(+[level]+1)d10'), '([level]+1)d10');
+  assert.equal(normalizeDiceCount('(+([level]+1))d10'), '([level]+1)d10');
+  assert.equal(normalizeDiceCount('1d10 + (+2)d10'), '1d10 + 2d10');
+
+  // 두 번 돌려도 같아야 한다(팩 마이그레이션 하네스의 멱등성 검증과 같은 요구).
+  for (const formula of [...unchanged, '(+3)d10', '(+([level]+1))d10']) {
+    assert.equal(normalizeDiceCount(normalizeDiceCount(formula)), normalizeDiceCount(formula));
+  }
+});
+
+// 선행 `+` 를 떼는 축은 다이스식 전용이다. 일반 수정치의 `+5`·`+[level]*2` 는 이 컴펜디움의
+// 확립된 표기이고(보정 행 1107건 중 선행 `+` 616 · 무부호 361), 무부호로 쓰는 키가 따로 있다
+// (`critical_min`·`penetrate`·`reduce` 는 전부 무부호 = 가산이 아니라 값의 성질을 따르는 자리).
+// 그 축까지 통일하면 「가산인가 대입인가」의 구분이 표기에서 사라진다.
+test('the leading-plus cleanup applies to dice formulas only, never to plain modifiers', () => {
+  assert.equal(normalizeDiceFormula('+2d10'), '2d10');
+  assert.equal(normalizeDiceFormula('+([level]*3)+1d10'), '([level]*3)+1d10');
+  assert.equal(normalizeDiceFormula('(+3)d10'), '3d10');
+
+  for (const plain of ['+5', '+[level]*2', '+[level]+1', '-3', '5', '[level]*3']) {
+    assert.equal(normalizeDiceFormula(plain), plain, `${plain} 은 다이스식이 아니므로 그대로여야 한다`);
+  }
+  // 음수는 다이스식이어도 뜻이 있다.
+  assert.equal(normalizeDiceFormula('-2d10'), '-2d10');
+  // 두 번 돌려도 같다.
+  for (const formula of ['+2d10', '+([level]*3)+1d10', '+5', '-2d10']) {
+    assert.equal(normalizeDiceFormula(normalizeDiceFormula(formula)), normalizeDiceFormula(formula));
+  }
 });

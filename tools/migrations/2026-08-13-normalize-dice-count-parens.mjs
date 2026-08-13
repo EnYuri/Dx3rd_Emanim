@@ -15,9 +15,12 @@
 //
 // 괄호를 벗기는 것은 안쪽이 단일 항일 때뿐이다. `[level]+1` 처럼 연산이 있으면
 // `[level]+1d10` = level + (1d10) 이 되어 뜻이 완전히 달라진다.
+//
+// 이어서 값 **전체**의 선행 `+` 도 다이스식에 한해 뗀다(`+2d10` → `2d10`). 비다이스
+// 수정치의 `+5` 는 손대지 않는다 — 자세한 근거는 `normalizeDiceFormula` 주석 참조.
 
 export const description =
-  "다이스 개수 괄호의 잉여 선행 `+` 와 불필요한 괄호를 정리(값 변화 없음)";
+  "다이스 수식 표기 통일 — 개수 괄호의 잉여 선행 `+`·불필요한 괄호 제거, 다이스식의 선행 `+` 제거(값 변화 없음)";
 
 /** 괄호 안이 그 자체로 완결된 단일 항이라 괄호 없이 써도 같은가. */
 const SINGLE_TERM = /^(?:\d+(?:\.\d+)?|\[[^[\]]+\])$/;
@@ -65,12 +68,33 @@ export function normalizeDiceCount(value) {
   return result;
 }
 
+const HAS_DICE = /(?:^|[^a-z0-9_])\d*\s*d\s*\d+(?=$|[^a-z0-9_])/i;
+
+/**
+ * 다이스식 값의 표기를 팩 관행에 맞춘다 = 개수 괄호 정리 + 선행 `+` 제거.
+ *
+ * **선행 `+` 는 다이스식에서만 뗀다.** 일반 수정치의 `+5`·`+[level]*2` 는 이 컴펜디움의
+ * 확립된 표기이고(보정 행 1107건 중 선행 `+` 616 · 무부호 361), 무부호로 쓰는 키는
+ * 따로 있다(`critical_min` 58건 · `penetrate` 38건 · `reduce` 43건 전부 무부호 = 가산이
+ * 아니라 값의 성질을 따르는 자리). 그 축을 다이스 표기 통일에 휩쓸어 넣으면 의미가 섞인다.
+ * 다이스식 쪽은 반대로 100건 중 98건이 이미 무부호라, 남은 2건이 예외다.
+ * @param {string} value
+ * @returns {string}
+ */
+export function normalizeDiceFormula(value) {
+  const normalized = normalizeDiceCount(value);
+  if (!HAS_DICE.test(normalized)) return normalized;
+  let result = normalized;
+  while (/^\s*\+/.test(result)) result = result.replace(/^\s*\+\s*/, "");
+  return result;
+}
+
 function migrateAttributes(attributes) {
   if (!attributes || typeof attributes !== "object" || Array.isArray(attributes)) return;
   for (const row of Object.values(attributes)) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     if (typeof row.value !== "string") continue;
-    const next = normalizeDiceCount(row.value);
+    const next = normalizeDiceFormula(row.value);
     // 읽는 조건과 쓰는 값이 같은 식이므로 두 번 돌려도 0건이다.
     if (next !== row.value) row.value = next;
   }
@@ -83,7 +107,7 @@ export function migrate(doc) {
   for (const key of ["attack", "add"]) {
     const value = doc.system?.[key];
     if (typeof value !== "string") continue;
-    const next = normalizeDiceCount(value);
+    const next = normalizeDiceFormula(value);
     if (next !== value) doc.system[key] = next;
   }
 }

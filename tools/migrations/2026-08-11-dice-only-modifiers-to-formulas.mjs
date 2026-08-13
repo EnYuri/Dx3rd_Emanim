@@ -15,6 +15,11 @@
 export const description =
   "전용 D10 보정 damage_roll/guard_roll/reduce_roll/dxroll을 일반 attack/guard/reduce/add 다이스식으로 변환";
 
+// 이 변환은 값을 통째로 감싸므로 원본이 수정치 표기(`+3`)면 `(+3)d10` 이 나온다. 동작은
+// 옳지만(괄호 안 선행 `+` 는 Foundry 가 버린다) 읽기 어려워 2026-08-13 에 표기를 정리했다.
+// 그 정리를 여기서 함께 태워, 이 마이그레이션을 다시 돌려도 옛 표기가 되살아나지 않게 한다.
+import { normalizeDiceCount } from "./2026-08-13-normalize-dice-count-parens.mjs";
+
 const STANDARD_DICE = /(?:^|[^a-z0-9_])\d*\s*d\s*\d+(?=$|[^a-z0-9_])/i;
 const DX_DICE = /(?:^|[^a-z0-9_])\d*\s*d\s*x\s*\d+(?=$|[^a-z0-9_])/i;
 
@@ -36,7 +41,7 @@ export function convertedValue(sourceKey, value) {
   if (!raw || raw === "-") return raw;
   if (Number(raw) === 0) return "0";
   if (!conversion.alwaysCount && STANDARD_DICE.test(raw)) return raw;
-  return `(${raw})d10`;
+  return normalizeDiceCount(`(${raw})d10`);
 }
 
 function normalizedLabel(sourceKey, label) {
