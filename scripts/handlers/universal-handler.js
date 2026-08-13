@@ -430,7 +430,8 @@
               defaultValue: Number(runtimeCfg.runtimeDefault) || 0,
               maxValue
             });
-            if (entered === null || entered === undefined) {
+            // 0 이 유효값이라 falsy 검사를 쓸 수 없고, 취소는 숫자가 아닌 값으로 온다.
+            if (!Number.isFinite(entered)) {
               window.DX3rdDebug.log('DX3rd | Item use canceled at runtime input prompt');
               return false; // 취소 → 사용 중단(코스트 미차감)
             }
@@ -2031,7 +2032,7 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
 
     // n 입력(0~usableMax). input 모드는 초기값 0(입력 유도).
     const n = await this.promptResourceAmount(item, resource, usableMax, isInput ? 0 : usableMax);
-    if (n === null || n <= 0) return; // 취소 또는 0
+    if (!Number.isFinite(n) || n <= 0) return; // 취소 또는 0
 
     // 자원 차감(hp만; input/기타는 차감 없음)
     if (resource === 'hp') {
@@ -2106,7 +2107,7 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
 
   // 감소량 X 입력 (0~cap)
   const x = await this.promptEncroachAmount(item, cap);
-  if (x === null || x <= 0) return; // 취소 또는 0
+  if (!Number.isFinite(x) || x <= 0) return; // 취소 또는 0
 
   // 1) 자신 침식 상승 (자기 액터 직접)
   const selfDelta = x * (Number(selfMult) || 1);
@@ -2146,7 +2147,8 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
 
 /**
  * 침식률 조정 감소량 입력 다이얼로그 (호출한 클라이언트에만 표시).
- * @returns {Promise<number|null>} 입력값(0~cap) 또는 취소 시 null
+ * @returns {Promise<number|false|null>} 입력값(0~cap), 취소/닫기는 숫자가 아닌 값.
+ *   0 이 유효값이므로 호출자는 Number.isFinite 로 판정할 것.
  */
 window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
   const enc = game.i18n.localize('DX3rd.Encroachment') || '침식률';
@@ -2182,7 +2184,7 @@ window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
         action: 'cancel',
         icon: '<i class="fas fa-times"></i>',
         label: game.i18n.localize('DX3rd.Cancel') || '취소',
-        callback: () => null
+        callback: () => false
       }
     ]
   });
@@ -2264,7 +2266,7 @@ window.DX3rdUniversalHandler.resolveAttackType = function(item) {
 };
 
 /**
- * 액터의 공격력/데미지 굴림/관통 보너스를 공격 타입에 맞춰 합산한다.
+ * 액터의 공격력/관통 보너스를 공격 타입에 맞춰 합산한다.
  * 명중 판정 시점(executeAttackRoll)과 데미지 굴림 시점(handleDamageRoll), 콤보 경로가
  * 모두 이 함수를 거쳐야 두 시점의 값이 갈라지지 않는다.
  * @param {object} [options]
@@ -2272,7 +2274,6 @@ window.DX3rdUniversalHandler.resolveAttackType = function(item) {
  * @param {string} [options.fistWeaponName] 맨손 보너스를 아이템이 아닌 이 무기 이름으로 판정한다.
  *                                          이펙트/콤보가 weapon-for-attack으로 무기를 고른 경우 사용.
  * @returns {{attackType: string|null, actorAttack: number, actorAttackFormula: string,
- *            actorDamageRoll: number, actorDamageRollFormula: string,
  *            actorPenetrate: number, actorPenetrateFormula: string}}
  */
 window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, options = {}) {
@@ -2300,24 +2301,10 @@ window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, option
     actorAttack += this.getFistAttackBonus(actor, item);
   }
 
-  // 공격 타입에 맞는 damage_roll 보너스 계산
-  let actorDamageRoll = attrs.damage_roll?.value || 0;
-  const damageRollFormulas = attrs.damage_roll?.rollFormula || {};
-  let actorDamageRollFormula = damageRollFormulas._ || '';
-  if (attackType === 'melee' && attrs.damage_roll?.melee) {
-    actorDamageRoll += attrs.damage_roll.melee;
-    actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.melee].filter(Boolean).join(' + ');
-  } else if (attackType === 'ranged' && attrs.damage_roll?.ranged) {
-    actorDamageRoll += attrs.damage_roll.ranged;
-    actorDamageRollFormula = [actorDamageRollFormula, damageRollFormulas.ranged].filter(Boolean).join(' + ');
-  }
-
   return {
     attackType,
     actorAttack,
     actorAttackFormula,
-    actorDamageRoll,
-    actorDamageRollFormula,
     actorPenetrate: attrs.penetrate?.value || 0,
     // 관통 다이스식(굴리지 않은 원문). 숫자로 굳히려면 resolveAttackBonusesRolled 를 쓴다.
     actorPenetrateFormula: attrs.penetrate?.rollFormula || ''
@@ -2345,7 +2332,7 @@ window.DX3rdUniversalHandler.resolveAttackBonusesRolled = async function(actor, 
   return bonuses;
 };
 
-/** 자원소비량 n 입력 다이얼로그(0~max). 취소 시 null. */
+/** 자원소비량 n 입력 다이얼로그(0~max). 취소/닫기는 숫자가 아닌 값 — Number.isFinite 로 판정할 것. */
 window.DX3rdUniversalHandler.promptResourceAmount = async function(item, resource, max, initial = max) {
   const DialogV2 = foundry.applications?.api?.DialogV2;
   if (!DialogV2?.wait) {
@@ -2380,7 +2367,7 @@ window.DX3rdUniversalHandler.promptResourceAmount = async function(item, resourc
         action: 'cancel',
         icon: '<i class="fas fa-times"></i>',
         label: game.i18n.localize('DX3rd.Cancel'),
-        callback: () => null
+        callback: () => false
       }
     ]
   });

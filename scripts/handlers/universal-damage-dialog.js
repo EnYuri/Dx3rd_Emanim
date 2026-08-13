@@ -54,15 +54,13 @@
      */
     async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null, sourceMessage = null) {
       
-      let weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate;
+      let weaponAttack, actorAttack, actorAttackFormula, actorPenetrate;
       
       if (preservedValues) {
         // 보존된 값들 사용 (비활성화 훅 실행 전의 값)
         weaponAttack = preservedValues.weaponAttackFormula ?? preservedValues.weaponAttack ?? 0;
         actorAttack = preservedValues.actorAttack || 0;
         actorAttackFormula = preservedValues.actorAttackFormula || '';
-        actorDamageRoll = preservedValues.actorDamageRoll || 0;
-        actorDamageRollFormula = preservedValues.actorDamageRollFormula || '';
         actorPenetrate = preservedValues.actorPenetrate || 0;
       } else {
         // 현재 값들 사용 (비활성화 훅 실행 후의 값)
@@ -74,15 +72,13 @@
         const bonuses = await this.resolveAttackBonusesRolled(actor, item);
         actorAttack = bonuses.actorAttack;
         actorAttackFormula = bonuses.actorAttackFormula;
-        actorDamageRoll = bonuses.actorDamageRoll;
-        actorDamageRollFormula = bonuses.actorDamageRollFormula;
         actorPenetrate = bonuses.actorPenetrate;
       }
       
       // 데미지 산출 다이얼로그 표시 (롤 결과와 보존된 값들 포함)
       this.showDamageCalculationDialog(
         actor, item, weaponAttack, actorAttack, actorAttackFormula,
-        actorDamageRoll, actorDamageRollFormula, actorPenetrate,
+        actorPenetrate,
         rollResult, comboAfterDamageData, sourceMessage
       );
     },
@@ -93,13 +89,12 @@
      * @param {Item} item - The weapon item
      * @param {number} weaponAttack - Weapon attack value
      * @param {number} actorAttack - Actor attack value
-     * @param {number} actorDamageRoll - Actor damage roll value
      * @param {number} actorPenetrate - Actor penetrate value
      * @param {number} rollResult - Attack roll result
      * @param {Object} comboAfterDamageData - Combo afterDamage data (optional)
      * @param {ChatMessage|null} sourceMessage - 데미지 결과를 합칠 공격 판정 메시지
      */
-    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorDamageRoll, actorDamageRollFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null) {
+    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null) {
 
       const attackRollResult = rollResult;
       
@@ -218,12 +213,10 @@
       const weaponAttackFormula = String(weaponAttack ?? 0).trim() || '0';
       const joinFormulaTerms = (...terms) => this.joinFormulaTerms(...terms);
       const baseDamageAddFormula = joinFormulaTerms(actorAttack, actorAttackFormula, weaponAttackFormula, fearPenalty);
-      const diceCount = Math.floor(attackRollResult / 10) + 1 + actorDamageRoll + madness6Bonus;
       const totalDamageAddFormula = joinFormulaTerms(baseDamageAddFormula, madness7Bonus);
       
       // 템플릿 데이터 준비 (과대망상·트리거 해피 각각 구분 표기)
-      const dynamicDicePart = actorDamageRollFormula ? ` + (${actorDamageRollFormula})` : '';
-      const dicePart = `[${attackRollResult} / 10 + 1 + ${actorDamageRoll}${dynamicDicePart}${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
+      const dicePart = `[${attackRollResult} / 10 + 1${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
       const addPart = `${baseDamageAddFormula}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
       // 선언형 장비(로켓 런처의 장갑무시 등)는 여기가 아니라 명중판정 창에서 선언한다.
       // 룰이 「명중판정을 실행하기 직전에 선언할 것」이므로, 맞은 걸 본 뒤 고르게 하면
@@ -272,19 +265,7 @@
               const addDamage = parseInt(form?.querySelector('#add-damage')?.value) || 0;
               
               // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
-              let dynamicDiceCount = 0;
-              let dynamicDiceRoll = null;
-              if (actorDamageRollFormula) {
-                try {
-                  dynamicDiceRoll = await (new Roll(actorDamageRollFormula)).evaluate();
-                  dynamicDiceCount = Math.max(0, Math.floor(Number(dynamicDiceRoll.total) || 0));
-                } catch (error) {
-                  console.warn(`DX3rd | damage_roll formula failed: ${actorDamageRollFormula}`, error);
-                  ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${actorDamageRollFormula}`);
-                  return;
-                }
-              }
-              const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + actorDamageRoll + dynamicDiceCount + addDamageRoll + madness6Bonus;
+              const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + addDamageRoll + madness6Bonus;
               
               // 아이템 공격력의 다이스식은 바로 여기서 한 번만 확정한다.
               const finalDamageAddFormula = joinFormulaTerms(totalDamageAddFormula, addDamage);
@@ -300,10 +281,9 @@
                 
                 // 롤 결과를 HTML로 변환
                 const rollHTML = await damageRoll.render();
-                const dynamicDiceHTML = dynamicDiceRoll ? await dynamicDiceRoll.render() : '';
                 // Roll.render()가 이미 .dice-roll 루트를 반환한다. 한 번 더 감싸면
                 // Midi-QOL식 세로 결과 구획에서 폭 계산과 툴팁 배치가 어긋난다.
-                const rollMessage = `${dynamicDiceRoll ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize('DX3rd.DamageRollDiceFormula')}: ${actorDamageRollFormula} → +${dynamicDiceCount}D10</div>${dynamicDiceHTML}</div>` : ''}${rollHTML}`;
+                const rollMessage = rollHTML;
                 
                 // 데미지 롤 정보 생성 (장갑 무시가 0이면 표시하지 않음)
                 let damageRollInfo = game.i18n.localize('DX3rd.DamageRoll');
@@ -819,13 +799,10 @@
       const armor = targetActor.system.attributes.armor?.value || 0;
       const reduce = targetActor.system.attributes.reduce?.value || 0;
       // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
-      // 굴림 필드(guard_roll/reduce_roll)와 값 필드에 직접 쓴 다이스식(valueFormula)은
-      // 굴리는 시점이 같으므로 하나의 수식으로 합쳐 표시·굴림 채널을 단일화한다.
+      // 일반 값 필드에 쓴 다이스식은 방어를 확정할 때 한 번만 굴린다.
       const deferredDefenseFormula = (attrKey) => {
         const attr = targetActor.system.attributes[attrKey] || {};
-        const countN = Number(attr.roll || 0);
-        const fromRollField = attr.rollFormula || (countN > 0 ? `${countN}d10` : '');
-        return [fromRollField, attr.valueFormula].filter(Boolean).join(' + ');
+        return attr.valueFormula || '';
       };
       let guardRollFormula = deferredDefenseFormula('guard');
       let armorRollFormula = deferredDefenseFormula('armor');

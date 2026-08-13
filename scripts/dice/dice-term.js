@@ -179,9 +179,16 @@
                         classes: classes.join(" ")
                     });
                 });
+                // 체인 결과는 그 체인의 주사위와 같은 줄 오른쪽에 붙는다(오른쪽 플로트).
+                // 뒤이어 높이 0 의 구분 줄이 다음 체인을 아래로 내리고 선을 긋는다 —
+                // 선을 <hr> 로 그리면 border-bottom 과 두 겹이 되고 여백까지 벌어진다.
                 rolls.push({
-                    result: `${this.chainMaxes[idx]}<hr>`,
-                    classes: "clear"
+                    result: `${this.chainMaxes[idx]}`,
+                    classes: "dx3rd-chain-total"
+                });
+                rolls.push({
+                    result: "",
+                    classes: "dx3rd-chain-break"
                 });
             });
             rolls.push({
@@ -705,10 +712,14 @@
                         classes: classes.join(" ")
                     });
                 });
-                // 체인 구분선과 체인별 합계 표시
+                // 체인 구분선과 체인별 합계 표시 (같은 줄 오른쪽 + 높이 0 구분 줄)
                 rolls.push({
-                    result: `${this.chainValues[idx]}<hr>`,
-                    classes: "clear"
+                    result: `${this.chainValues[idx]}`,
+                    classes: "dx3rd-chain-total"
+                });
+                rolls.push({
+                    result: "",
+                    classes: "dx3rd-chain-break"
                 });
             });
 

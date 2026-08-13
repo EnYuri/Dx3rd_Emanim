@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
+import {
+  convertedValue as convertLegacyD10Value,
+  migrate as migrateLegacyD10Modifiers
+} from '../migrations/2026-08-11-dice-only-modifiers-to-formulas.mjs';
 
 const root = resolve(import.meta.dirname, '..', '..');
 const source = path => readFileSync(resolve(root, path), 'utf8');
@@ -37,6 +41,65 @@ function documentSchema() {
   new Function('window', 'Hooks', source('scripts/data/document-schema.js'))(sandbox, { once() {} });
   return sandbox.DX3rdDocumentSchema;
 }
+
+test('dedicated D10 modifier fields migrate to equivalent general roll formulas', () => {
+  assert.equal(convertLegacyD10Value('damage_roll', '+[level]*2'), '(+[level]*2)d10');
+  assert.equal(convertLegacyD10Value('guard_roll', '[level]+1'), '([level]+1)d10');
+  assert.equal(convertLegacyD10Value('reduce_roll', '2d10'), '2d10');
+  assert.equal(convertLegacyD10Value('dxroll', 3), '(3)d10');
+
+  const doc = {
+    system: {
+      attributes: {
+        damage: {key: 'damage_roll', label: 'melee', value: '+2', action: 'attack'},
+        guard: {key: 'guard_roll', label: 'guard_roll', value: '[level]'},
+        ordinary: {key: 'add', label: '-', value: '1d10'}
+      },
+      effect: {attributes: {
+        reduction: {key: 'reduce_roll', label: 'reduce_roll', value: '2d10'},
+        orphanLabel: {key: 'reduce', label: 'reduce_roll', value: '1d10'}
+      }}
+    }
+  };
+  const failures = [];
+  migrateLegacyD10Modifiers(doc, {fail: message => failures.push(message)});
+
+  assert.deepEqual(doc.system.attributes.damage,
+    {key: 'attack', label: 'melee', value: '(+2)d10', action: 'attack'});
+  assert.deepEqual(doc.system.attributes.guard,
+    {key: 'guard', label: '-', value: '([level])d10'});
+  assert.deepEqual(doc.system.attributes.ordinary,
+    {key: 'add', label: '-', value: '1d10'});
+  assert.deepEqual(doc.system.effect.attributes.reduction,
+    {key: 'reduce', label: '-', value: '2d10'});
+  assert.deepEqual(doc.system.effect.attributes.orphanLabel,
+    {key: 'reduce', label: '-', value: '1d10'});
+  assert.deepEqual(failures, []);
+});
+
+test('DX dice formulas in modifier rows are reported instead of silently converted', () => {
+  const doc = {system: {attributes: {bad: {key: 'dxroll', label: '-', value: '10dx7'}}}};
+  const failures = [];
+  migrateLegacyD10Modifiers(doc, {fail: message => failures.push(message)});
+  assert.equal(doc.system.attributes.bad.key, 'dxroll');
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /10dx7/);
+});
+
+test('runtime authoring exposes only general modifier fields', () => {
+  const forbidden = ['damage_roll', 'guard_roll', 'reduce_roll', 'dxroll'];
+  const runtimeFiles = walkJs(resolve(root, 'scripts'));
+  const storedSources = [
+    resolve(root, '_source/item-mech-overrides.json'),
+    resolve(root, '_source/effect-mech-overrides.json')
+  ];
+  for (const path of [...runtimeFiles, ...storedSources]) {
+    const text = readFileSync(path, 'utf8');
+    for (const key of forbidden) {
+      assert.equal(text.includes(key), false, `${path} still contains ${key}`);
+    }
+  }
+});
 
 function walkJs(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
@@ -3526,4 +3589,32 @@ test('every socket type is handled in exactly one layer, so no branch is dead on
   // 그리고 처리자가 있는데 계약이 없으면 발신자 권한 검사를 건너뛴다.
   const ungoverned = [...typed, ...generic].filter(type => !contracts.has(type));
   assert.deepEqual(ungoverned, [], `계약 없이 처리되는 타입: ${ungoverned.join(', ')}`);
+});
+
+// DialogV2.wait 은 버튼 콜백이 nullish 를 돌려주면 그 자리에 **버튼의 action 문자열**을 채운다
+// (foundry client/applications/api/dialog.mjs 의 `(await callback(...)) ?? button?.action`).
+// 그래서 취소 콜백의 `() => null` 은 호출부에 truthy 한 "cancel" 로 도착한다 — X 로 닫으면
+// null 이 오므로(같은 파일의 `resolve(result ?? null)`) 두 취소 경로가 조용히 갈린다.
+// 실제로 컴펜디움 동기화는 취소가 계획으로 오해되어 터졌고, 자원/침식 입력 창은 취소해도
+// 그대로 진행돼 HP 에 NaN 을 쓸 수 있었다.
+test('a dialog button callback never returns nullish, so cancel cannot arrive as its action string', () => {
+  const offenders = [];
+  for (const path of walkJs(resolve(root, 'scripts'))) {
+    const text = readFileSync(path, 'utf8');
+    // `new DialogV2(...)` 를 직접 만들어 자기 Promise 를 resolve 하는 자리는 이 경로를
+    // 타지 않는다. wait() 를 쓰는 파일만 본다.
+    if (!text.includes('DialogV2.wait')) continue;
+    const relative = path.slice(resolve(root).length + 1).split(sep).join('/');
+    // 블록 본문은 중첩 함수의 `return null` 과 최상위 반환을 정적으로 구별할 수 없으므로
+    // 검사하지 않는다(실제 함정은 전부 한 줄 화살표였다). 대신 한 줄 화살표는 전부 본다.
+    for (const match of text.matchAll(/callback:\s*(?:async\s*)?\([^)]*\)\s*=>\s*([^\n{][^\n]*)/g)) {
+      const body = match[1].trim().replace(/[,;]\s*$/, '');
+      // `|| null` 도 같은 함정이다 — 미선택 상태로 확인을 누르면 "confirm" 이 값이 된다.
+      if (/^(null|undefined)$/.test(body) || /\|\|\s*(null|undefined)$/.test(body)) {
+        offenders.push(`${relative}: ${match[0].trim().slice(0, 70)}`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `DialogV2 콜백이 nullish 를 반환한다(action 문자열로 바꿔치기된다): ${offenders.join(' | ')}`);
 });

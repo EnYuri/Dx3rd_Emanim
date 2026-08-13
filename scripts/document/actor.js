@@ -66,8 +66,6 @@
                 init: { value: 0 },
                 move: { battle: 0, full: 0 },
                 attack: { value: 0, melee: 0, ranged: 0 },
-                damage_roll: { value: 0, melee: 0, ranged: 0 },
-                dxroll: { value: 0 },
                 armor: { value: 0, min: 0 },
                 guard: { value: 0, min: 0 },
                 penetrate: { value: 0, min: 0 },
@@ -445,16 +443,6 @@
             attrs.attack.fist = atk.fist;
             attrs.attack.rollFormula = atkDiceFormula;
 
-            // === Damage Roll 계산 === (라벨 버킷: melee/ranged, 무라벨/'-' → 전체 '_')
-            const dmgr = R.bucket('damage_roll', ['melee', 'ranged']);
-            const dmgrDiceFormula = R.actionDiceFormula('damage_roll', ['melee', 'ranged']);
-
-            if (!attrs.damage_roll) attrs.damage_roll = { value: 0, melee: 0, ranged: 0 };
-            attrs.damage_roll.value = dmgr._;
-            attrs.damage_roll.melee = dmgr.melee;
-            attrs.damage_roll.ranged = dmgr.ranged;
-            attrs.damage_roll.rollFormula = dmgrDiceFormula;
-
             // === Armor 계산 ===
             let armorBonus = 0;
             // 장비 고유 필드(protect/vehicle 의 system.armor)에 쓴 다이스식은 어트리뷰트 채널이
@@ -487,7 +475,6 @@
 
             // === Guard 계산 ===
             let guardBonus = 0;
-            let guardRoll = 0;   // 가드 시 굴리는 D10 개수(가드치에 +[N]D10 — 방어 다이얼로그에서 굴려 가산)
             let equipmentGuardBonus = 0;
             const equipmentGuardFormulas = [];
 
@@ -502,23 +489,15 @@
                 else equipmentGuardBonus += Number(F.evaluate(raw, weapon, this)) || 0;
             }
 
-            // 활성 아이템 + applied 의 guard / guard_roll 보너스
+            // 활성 아이템 + applied 의 guard 보너스
             guardBonus += R.sum('guard');
-            guardRoll += R.sum('guard_roll');
 
             attrs.guard.base = Math.max(guardBonus, attrs.guard.min || 0, 0);
             attrs.guard.equipment = equipmentGuardBonus;
             attrs.guard.equipmentFormula = equipmentGuardFormulas.join(' + ');
             attrs.guard.value = Math.max(attrs.guard.base + equipmentGuardBonus, attrs.guard.min || 0, 0);
-            attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
-            attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             attrs.guard.valueFormula = R.actionDiceFormula('guard')._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
 
-            // === DxRoll 계산(달성치에 +[N]D10) — 판정 시 Nd10 굴려 달성치(add)에 가산 ===
-            const dxRoll = R.sum('dxroll');
-            if (!attrs.dxroll) attrs.dxroll = { value: 0 };
-            attrs.dxroll.value = Math.max(0, dxRoll);   // (하위호환 잔존) 순수 개수 합
-            attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
 
             // === Penetrate 계산 ===
@@ -534,14 +513,11 @@
 
             // === Reduce 계산 ===
             const reduceBonus = R.sum('reduce');
-            const reduceRoll = R.sum('reduce_roll');   // 피격 시 굴리는 D10 개수(HP데미지 [N]D10점 경감 — 방어 다이얼로그에서 굴려 경감치에 가산)
 
             attrs.reduce.value = reduceBonus;
             // 최소값 보정: reduce는 최소 0
             if (attrs.reduce.value < 0) attrs.reduce.value = 0;
             if (attrs.reduce.value < attrs.reduce.min) attrs.reduce.value = attrs.reduce.min;
-            attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
-            attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;   // 경감치 필드에 쓴 다이스식(방어 확정 시 굴림)
 
             // 이니셔티브 계산 (sense.total * 2 + mind.total + 아이템/적용 효과 보너스)
@@ -1355,27 +1331,8 @@
                     for (const { val } of (appliedByKey[key] || [])) s += Number(val) || 0;
                     return s;
                 },
-                // 굴림 필드용 다이스식 리스트(reduce_roll/guard_roll 등): 각 소스 값을 참조치환한 뒤,
-                //   다이스식(2d10·[level]d10)이면 그대로 보존, 순수 개수(2·[level]+2)면 Nd10 으로 환산.
-                //   결과를 ' + ' 로 조인 → 소비부가 단일 Roll 로 굴리면 각 항이 개별로 굴려져 합산된다.
-                //   (개수 합산 모델과 하위호환: 순수 개수만 있으면 "Nd10 + Md10 + …" = 총 (N+M+…)d10 와 동일.)
-                rollFormula(key) {
-                    const F = window.DX3rdFormulaEvaluator;
-                    const terms = [];
-                    const push = (v, item) => {
-                        if (v === null || v === undefined || v === '' || v === '-') return;
-                        const resolved = F.prepareRollFormula(String(v), item, actor);
-                        if (F.hasDice(resolved)) { terms.push(resolved); return; }   // 예: "2d10", "[level]d10"→"3d10"
-                        const n = Number(F.evaluate(v, item, actor)) || 0;           // 예: "[level]*2"→6, "2"→2
-                        if (n > 0) terms.push(`${n}d10`);
-                    };
-                    eachOfKey(key, (a, item) => push(a.value, item));
-                    for (const { val } of (appliedByKey[key] || [])) push(val, null);
-                    return terms.join(' + ');
-                },
-                // 수식 결과가 "주사위 개수"가 되는 행동 필드용(현재 damage_roll).
-                // 고정 개수는 기존 sum/bucket에 남기고, 다이스식만 별도로 보존해 소비 시점에
-                // 한 번 굴린 뒤 개수로 더한다. 라벨 버킷을 유지한다.
+                // 행동 시점에만 확정할 다이스식을 라벨별로 보존한다.
+                // 고정 수치는 기존 sum/bucket에 남고 다이스식만 실제 굴림으로 넘어간다.
                 actionDiceFormula(key, labels = []) {
                     const F = window.DX3rdFormulaEvaluator;
                     const out = { _: [] };
@@ -1427,7 +1384,7 @@
                     for (const { val } of (appliedByKey[key] || [])) { const v = Number(val) || 0; if (v < m) m = v; }
                     return m;
                 },
-                // 라벨 버킷 (attack: melee/ranged/fist, damage_roll: melee/ranged). 그 외/'-'/무라벨 → '_'
+                // 라벨 버킷(attack: melee/ranged/fist). 그 외/'-'/무라벨 → '_'
                 bucket(key, labels) {
                     const out = { _: 0 };
                     for (const l of labels) out[l] = 0;
@@ -1697,11 +1654,9 @@
             attrs.move.full = attrs.move.battle * 2 + moveFullBonus;
             if (attrs.move.full < 0) attrs.move.full = 0;
 
-            // === Attack, Damage Roll 계산 === (라벨 버킷)
+            // === Attack 계산 === (라벨 버킷)
             const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);   // fist = 맨손 한정(축퇴기관 등)
             const atkDiceFormula = R.actionDiceFormula('attack', ['melee', 'ranged', 'fist']);
-            const dmgr = R.bucket('damage_roll', ['melee', 'ranged']);
-            const dmgrDiceFormula = R.actionDiceFormula('damage_roll', ['melee', 'ranged']);
 
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
             attrs.attack.value = atk._;
@@ -1710,20 +1665,11 @@
             attrs.attack.fist = atk.fist;
             attrs.attack.rollFormula = atkDiceFormula;
 
-            if (!attrs.damage_roll) attrs.damage_roll = { value: 0, melee: 0, ranged: 0 };
-            attrs.damage_roll.value = dmgr._;
-            attrs.damage_roll.melee = dmgr.melee;
-            attrs.damage_roll.ranged = dmgr.ranged;
-            attrs.damage_roll.rollFormula = dmgrDiceFormula;
-
             // === Armor, Guard, Penetrate, Reduce 계산 === (활성 아이템 + applied 단일 경로)
             const armorBonus = R.sum('armor');
             const guardBonus = R.sum('guard');
-            const guardRoll = R.sum('guard_roll');     // 가드 시 굴리는 D10 개수(가드치에 +[N]D10)
-            const dxRoll = R.sum('dxroll');            // 판정 시 굴리는 D10 개수(달성치에 +[N]D10)
             const penetrateBonus = R.sum('penetrate');
             const reduceBonus = R.sum('reduce');
-            const reduceRoll = R.sum('reduce_roll');   // 피격 시 굴리는 D10 개수(HP데미지 [N]D10점 경감)
 
             // armor.base가 없으면 기존 value를 base로 설정 (마이그레이션)
             if (attrs.armor.base === undefined || attrs.armor.base === null) {
@@ -1733,18 +1679,11 @@
             // 값 필드에 직접 쓴 다이스식은 굴리지 않고 보존 → 방어 다이얼로그가 확정 시 한 번 굴린다.
             attrs.armor.valueFormula = R.actionDiceFormula('armor')._;
             attrs.guard.value = Math.max(0, guardBonus);
-            attrs.guard.roll = Math.max(0, guardRoll);   // (하위호환 잔존) 순수 개수 합
-            attrs.guard.rollFormula = R.rollFormula('guard_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             attrs.guard.valueFormula = R.actionDiceFormula('guard')._;
-            if (!attrs.dxroll) attrs.dxroll = { value: 0 };
-            attrs.dxroll.value = Math.max(0, dxRoll);    // (하위호환 잔존) 순수 개수 합
-            attrs.dxroll.formula = R.rollFormula('dxroll');   // 판정 핸들러가 읽어 굴림(리터럴 NdM 지원)
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
             attrs.penetrate.value = Math.max(0, penetrateBonus);
             attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;   // 명중 판정 시점에 굴림
             attrs.reduce.value = Math.max(0, reduceBonus);
-            attrs.reduce.roll = Math.max(0, reduceRoll);   // (하위호환 잔존) 순수 개수 합
-            attrs.reduce.rollFormula = R.rollFormula('reduce_roll');   // 방어 다이얼로그가 읽어 굴림(리터럴 NdM 지원)
             attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;
 
             // === 회피치 계산 (base + 보정치) ===

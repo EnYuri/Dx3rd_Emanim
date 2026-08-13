@@ -103,8 +103,6 @@
         const preservedValues = {
           actorAttack: bonuses.actorAttack,
           actorAttackFormula: bonuses.actorAttackFormula,
-          actorDamageRoll: bonuses.actorDamageRoll,
-          actorDamageRollFormula: bonuses.actorDamageRollFormula,
           actorPenetrate: bonuses.actorPenetrate,
           weaponAttackFormula: itemAttackFormula
         };
@@ -144,16 +142,12 @@
         const autoFailByPool = rolledDice <= 0;
         const finalDice = Math.max(1, rolledDice);
 
-        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 롤에 항으로 실어 카드에서 함께 공개한다.
         const add2 = add;
-        const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        const dxRollFormula = this.validateRollTerm(
-          actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : ''), 'dxroll');
         // 무기 명중 수정치의 다이스는 판정 버튼을 누른 지금 한 번만 같은 Roll에 포함한다.
         // 결과는 사전 다이얼로그가 아니라 명중 롤 카드의 Foundry 항별 결과로 공개된다.
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${Math.max(2, rolledCritical)}`, String(add2),
-          addDiceFormula, dxRollFormula, weaponAddFormula].filter(Boolean).join(' + ');
+          addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
@@ -213,8 +207,6 @@
                     data-roll-result="${rollResult}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
                     data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
-                    data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
-                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
         // 아이템 타입별 공격력 데이터 속성 추가
@@ -1410,8 +1402,6 @@
           preservedValues = {
             actorAttack: bonuses.actorAttack,
             actorAttackFormula: bonuses.actorAttackFormula,
-            actorDamageRoll: bonuses.actorDamageRoll,
-            actorDamageRollFormula: bonuses.actorDamageRollFormula,
             actorPenetrate: bonuses.actorPenetrate,
             // 무기 공격력 다이스식은 데미지 확정 시점까지 보존한다.
             // 고정치(attack)와 다이스식(attackFormula)은 mergeAttackBonuses 가 **따로** 담는
@@ -1456,15 +1446,11 @@
         // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
         const autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
-        // 달성치 D10 굴림(달성치에 +[N]D10 모델): 판정 롤에 항으로 실어 카드에서 함께 공개한다.
         const add2 = add;
-        const dxRollN = Number(actor.system.attributes.dxroll?.value || 0);
-        const dxRollFormula = this.validateRollTerm(
-          actor.system.attributes.dxroll?.formula || (dxRollN > 0 ? `${dxRollN}d10` : ''), 'dxroll');
         // 콤보/이펙트 공격도 무기에서 넘겨 받은 다이스 명중 수정치를 동일한 판정 롤에 보존한다.
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${critical}`, String(add2),
-          addDiceFormula, dxRollFormula, weaponAddFormula].filter(Boolean).join(' + ');
+          addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
@@ -1532,8 +1518,6 @@
                     data-roll-result="${rollResult}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
                     data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
-                    data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
-                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"
                     data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"
                     data-weapon-ids="${weaponIdsStr}">
@@ -1957,7 +1941,7 @@
                         attrs.stock_point = { key: 'stock_point', value: -4 };
                         attrs.stat_add_will = { key: 'stat_add', label: 'will', value: 2 };
                       } else if (madnessNumber === 11) {
-                        attrs.damage_roll = { key: 'damage_roll', value: 1 };
+                        attrs.attack = { key: 'attack', value: '1d10' };
                       } else if (madnessNumber === 13) {
                         attrs.stat_dice_perception = { key: 'stat_dice', label: 'perception', value: 3 };
                       } else if (madnessNumber === 14) {

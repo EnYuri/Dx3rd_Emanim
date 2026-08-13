@@ -190,15 +190,9 @@
   "DX3rd.Attack": "공격력",
   "DX3rd.MeleeAttack": "백병 공격력",
   "DX3rd.RangedAttack": "사격 공격력",
-  "DX3rd.MeleeDamageRoll": "백병 데미지롤",
-  "DX3rd.RangedDamageRoll": "사격 데미지롤",
   "DX3rd.Guard": "가드",
   "DX3rd.GuardRoll": "가드 굴림",
-  "DX3rd.GuardRollDice": "가드 추가 d10",
-  "DX3rd.DxRoll": "달성치 굴림",
-  "DX3rd.DxRollDice": "판정 추가 d10",
   "DX3rd.ReduceRoll": "경감 굴림",
-  "DX3rd.ReduceRollDice": "피해 경감 추가 d10",
   "DX3rd.Armor": "장갑",
   "DX3rd.ArmorRoll": "장갑 굴림",
   "DX3rd.DiceNotRollableField": "{field}: 굴릴 시점이 없는 값이라 다이스 수식을 쓸 수 없습니다. 이대로 저장하면 0으로 처리됩니다.",
@@ -555,7 +549,6 @@
 
   
   "DX3rd.DamageRoll": "데미지 롤",
-  "DX3rd.DamageRollDiceFormula": "피해 다이스 보정",
   "DX3rd.DamageRollFormulaInvalid": "피해 다이스 수식을 굴릴 수 없습니다",
   "DX3rd.WeaponSelect": "무기 선택",
 

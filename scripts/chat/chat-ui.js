@@ -734,14 +734,12 @@ window.DX3rdChatToggleManager = {
 
             // 개별 보존된 값들 읽기
             const preservedActorAttack = dx3rdReadData(button, 'preserved-actor-attack');
-            const preservedActorDamageRoll = dx3rdReadData(button, 'preserved-actor-damage-roll');
             const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
             const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
             const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
             // 속성이 없을 때만 null로 남겨 구형 카드의 숫자 보존값(weaponAttack) 폴백을 살린다.
             const preservedAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-attack-formula') || null;
             const preservedActorAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-actor-attack-formula');
-            const preservedActorDamageRollFormula = dx3rdReadEncodedFormula(button, 'preserved-actor-damage-roll-formula');
 
             if (!actorId || !itemId) return;
             
@@ -784,8 +782,6 @@ window.DX3rdChatToggleManager = {
             const preservedValues = {
                 actorAttack: preservedActorAttack || 0,
                 actorAttackFormula: preservedActorAttackFormula,
-                actorDamageRoll: preservedActorDamageRoll || 0,
-                actorDamageRollFormula: preservedActorDamageRollFormula,
                 actorPenetrate: preservedActorPenetrate || 0,
                 // 이전 채팅 카드는 숫자 보존값을 계속 지원한다.
                 weaponAttack: preservedWeaponAttack || 0,

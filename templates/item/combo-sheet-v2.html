@@ -218,6 +218,9 @@
             {{#unless system.weaponSelect}}
             <select name="system.weaponTmp" id="actor-weapon">
               {{#select system.weaponTmp}}
+              {{!-- 저장 기본값 '-' 에 해당하는 옵션이 없으면 브라우저가 첫 무기를 보여 주고,
+                    폼 제출이 그 값을 문서에 굳혀 컴펜디움 동기화가 매번 차이로 잡는다. --}}
+              <option value="-">-</option>
               {{#each actorWeapon as |item id|}}
               <option value="{{id}}">{{item}}</option>
               {{/each}}
@@ -305,6 +308,7 @@
           <div class="add-skills">
             <select name="system.effectTmp" id="actor-effect">
               {{#select system.effectTmp}}
+              <option value="-">-</option>
               {{#each actorEffect as |item id|}}
               <option value="{{id}}">{{item}}</option>
               {{/each}}

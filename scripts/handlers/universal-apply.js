@@ -273,7 +273,7 @@
 
         // key 는 필수. label 은 원본 label 을 보존한다:
         //   - stat_* 류는 표시용 이름(능력치/스킬)이 label 에 온다.
-        //   - attack/damage_roll 은 서브버킷(fist/melee/ranged)이 label 에 온다 → 소비부(actor.js bucket)가
+        //   - attack 은 서브버킷(fist/melee/ranged)이 label 에 온다 → 소비부(actor.js bucket)가
         //     label 로 서브버킷하므로, 여기서 label 을 key 로 덮어쓰면 맨손/백병 한정이 유실된다(축퇴기관 등).
         //   - 그 외 키(add/guard/dice/critical/major_* 등)는 소비부가 label 을 무시하므로 label=null 이어도 무해.
         const key = attrData.key;
@@ -476,7 +476,7 @@
 
       // 아이템을 직렬화해 applyEffectData 로 보내지 않는다. 그 경로는 원본 Item 을 잃어
       //  (1) 수식을 item=null 로 평가하므로 [level]/[Lv]/[레벨] 이 치환되지 않아 0 으로 떨어지고,
-      //  (2) attack/damage_roll 의 label(fist/melee/ranged)을 key 로 덮어써 한정이 풀리며,
+      //  (2) attack 의 label(fist/melee/ranged)을 key 로 덮어써 한정이 풀리며,
       //  (3) 권한 분기가 없어 남의 액터(적 등)에는 쓰기가 실패한다.
       // 사용 파이프라인(applyToTargets)과 같은 단일 경로로 보낸다.
       for (const target of targets) {
@@ -578,7 +578,7 @@
         if (!attrData || !attrData.value) continue;
 
         // key 는 필수. label 은 원본을 보존한다(_applyItemAttributes 와 같은 규약).
-        // 예전에는 stat_* 이외의 label 을 key 로 덮어썼는데, 그러면 attack/damage_roll 의
+        // 예전에는 stat_* 이외의 label 을 key 로 덮어썼는데, 그러면 attack 의
         // 서브버킷(fist/melee/ranged)이 사라져 소비부(actor.js bucket)가 '_'(무한정) 로
         // 흘려보낸다 → 백병 한정 보정이 사격·맨손까지 올려주는 과적용이 된다.
         const key = attrData.key;

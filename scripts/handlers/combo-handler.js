@@ -1252,8 +1252,6 @@ window.DX3rdComboHandler = {
         const preservedValues = {
             actorAttack: bonuses.actorAttack,
             actorAttackFormula: bonuses.actorAttackFormula,
-            actorDamageRoll: bonuses.actorDamageRoll,
-            actorDamageRollFormula: bonuses.actorDamageRollFormula,
             actorPenetrate: bonuses.actorPenetrate,
             weaponAttackFormula: preservedItemAttackFormula
         };
@@ -1306,8 +1304,6 @@ window.DX3rdComboHandler = {
                     data-roll-result="${achievementValue}"
                     data-preserved-actor-attack="${preservedValues.actorAttack}"
                     data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
-                    data-preserved-actor-damage-roll="${preservedValues.actorDamageRoll}"
-                    data-preserved-actor-damage-roll-formula="${encodeURIComponent(preservedValues.actorDamageRollFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
         // 아이템 타입별 공격력 데이터 속성 추가

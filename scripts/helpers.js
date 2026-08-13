@@ -63,7 +63,7 @@
          * 반드시 이 상수 한 곳만 수정할 것.
          */
         ROLL_TIME_KEYS: new Set([
-            'attack', 'damage_roll', 'guard_roll', 'reduce_roll', 'dxroll',
+            'attack',
             // 방어 시점(방어 다이얼로그)에 굴리는 값 필드
             'guard', 'armor', 'reduce',
             // 관통은 공격자 값이라 명중 판정 시점에 굴려 숫자로 굳혀 방어 창까지 넘긴다
@@ -759,8 +759,8 @@
                 });
             };
 
-            if (selectedKey === 'attack' || selectedKey === 'damage_roll') {
-                // attack 또는 damage_roll 키인 경우 드롭다운으로 변경
+            if (selectedKey === 'attack') {
+                // 공격력은 백병/사격 한정 보정을 고를 수 있다.
                 if (labelElement.matches('input')) {
                     const select = createSelect();
                     addOption(select, '-', '-');
@@ -1378,7 +1378,6 @@
                 'penetrate': 'DX3rd.Penetrate',
                 'reduce': 'DX3rd.ReduceDamage',
                 'attack': 'DX3rd.Attack',
-                'damage_roll': 'DX3rd.DamageRoll',
                 'dice': 'DX3rd.Dice',
                 'add': 'DX3rd.Add',
                 'critical': 'DX3rd.Critical',

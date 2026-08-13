@@ -326,14 +326,16 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
             default: true,
             callback: (event, button) => {
               const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-target")?.value || null;
+              return root?.querySelector("#condition-target")?.value || false;
             }
           },
           {
             action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
-            callback: () => null
+            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
+            // 취소가 유효한 대상값으로 새어 나간다.
+            callback: () => false
           }
         ]
       });
@@ -407,14 +409,16 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
             default: true,
             callback: (event, button) => {
               const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-target")?.value || null;
+              return root?.querySelector("#condition-target")?.value || false;
             }
           },
           {
             action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
-            callback: () => null
+            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
+            // 취소가 유효한 대상값으로 새어 나간다.
+            callback: () => false
           }
         ]
       });
@@ -480,14 +484,16 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
             default: true,
             callback: (event, button) => {
               const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-type")?.value || null;
+              return root?.querySelector("#condition-type")?.value || false;
             }
           },
           {
             action: 'cancel',
             icon: '<i class="fas fa-times"></i>',
             label: game.i18n.localize("DX3rd.Cancel"),
-            callback: () => null
+            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
+            // 취소가 유효한 대상값으로 새어 나간다.
+            callback: () => false
           }
         ]
       });

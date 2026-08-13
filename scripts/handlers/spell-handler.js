@@ -46,7 +46,8 @@ async function promptRoisSelection({ title, content }) {
                     const selectedId = button.form?.querySelector('#rois-select')?.value;
                     if (!selectedId) {
                         ui.notifications.warn('로이스를 선택해주세요.');
-                        return null;
+                        // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열로 바꿔치기한다.
+                        return false;
                     }
                     return selectedId;
                 }
@@ -55,7 +56,7 @@ async function promptRoisSelection({ title, content }) {
                 action: 'cancel',
                 icon: 'fas fa-times',
                 label: game.i18n.localize('DX3rd.Cancel'),
-                callback: () => null
+                callback: () => false
             }
         ],
         close: () => null

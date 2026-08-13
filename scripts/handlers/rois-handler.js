@@ -293,7 +293,7 @@ window.DX3rdRoisHandler = {
                     
                 case '8': // S로이스: 데미지 롤에 5개의 주사위 추가
                     await this.createAppliedEffect(actor, effectName, 'roll', {
-                        damage_roll: 5
+                        attack: '5d10'
                     }, item.img);
                     return true;
                     

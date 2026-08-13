@@ -31,9 +31,8 @@
     major_dice: 'DX3rd.MajorDice', major_add: 'DX3rd.MajorAdd', major_critical: 'DX3rd.Critical',
     reaction_dice: 'DX3rd.ReactionDice', reaction_add: 'DX3rd.ReactionAdd',
     dodge_dice: 'DX3rd.DodgeDice', dodge_add: 'DX3rd.DodgeAdd',
-    attack: 'DX3rd.Attack', damage_roll: 'DX3rd.DamageRoll', penetrate: 'DX3rd.Penetrate',
-    guard: 'DX3rd.Guard', guard_roll: 'DX3rd.GuardRoll',
-    armor: 'DX3rd.Armor', reduce: 'DX3rd.Reduce', reduce_roll: 'DX3rd.ReduceRoll',
+    attack: 'DX3rd.Attack', penetrate: 'DX3rd.Penetrate',
+    guard: 'DX3rd.Guard', armor: 'DX3rd.Armor', reduce: 'DX3rd.Reduce',
     battleMove: 'DX3rd.BattleMove', init: 'DX3rd.Init'
   };
 
@@ -41,7 +40,7 @@
     'major_dice', 'major_add', 'major_critical',
     'reaction_dice', 'reaction_add', 'reaction_critical',
     'dodge_dice', 'dodge_add', 'dodge_critical'];
-  const DAMAGE_KEYS = ['attack', 'damage_roll', 'penetrate'];
+  const DAMAGE_KEYS = ['attack', 'penetrate'];
 
   /**
    * 문맥별로 「지금 이 창에서 의미 있는」 보정 키.
@@ -58,7 +57,7 @@
   const CONTEXT_KEYS = {
     roll: new Set(ROLL_KEYS),
     attack: new Set([...ROLL_KEYS, ...DAMAGE_KEYS]),
-    defense: new Set(['guard', 'guard_roll', 'armor', 'reduce', 'reduce_roll'])
+    defense: new Set(['guard', 'armor', 'reduce'])
   };
 
   /**
@@ -72,7 +71,7 @@
   const TARGET_CONTEXT_KEYS = {
     attack: new Set(['reaction_dice', 'reaction_add', 'reaction_critical',
       'dodge_dice', 'dodge_add', 'dodge_critical',
-      'guard', 'guard_roll', 'armor', 'reduce', 'reduce_roll'])
+      'guard', 'armor', 'reduce'])
   };
 
   const attributeEntries = attributes => Object.values(attributes || {})

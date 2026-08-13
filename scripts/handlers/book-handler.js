@@ -73,14 +73,15 @@ window.DX3rdBookHandler = {
                     callback: (event, button) => {
                         const selected = button.form?.querySelector('input[name="selected-spell"]:checked');
                         if (!selected?.value) ui.notifications.warn('술식을 선택해주세요.');
-                        return selected?.value || null;
+                        // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열로 바꿔치기한다.
+                        return selected?.value || false;
                     }
                 },
                 {
                     action: 'cancel',
                     icon: '<i class="fas fa-times"></i>',
                     label: game.i18n.localize('DX3rd.Cancel'),
-                    callback: () => null
+                    callback: () => false
                 }
             ],
             render: (event, dialog) => {

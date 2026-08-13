@@ -197,6 +197,11 @@
     }
 
     function stableStringify(value) {
+        // JSON.stringify 는 undefined(와 함수·심볼)에 문자열이 아니라 undefined 를 돌려준다.
+        // 그대로 내보내면 hashValue 의 str.length 가 터진다 — comparable() 이 name/type/img 를
+        // 무조건 키로 만들므로 img 없는 컴펜디움 문서 하나로도 undefined 잎이 생긴다.
+        // 따옴표 없는 토큰이라 실제 문자열 "undefined"( → "\"undefined\"" )와 충돌하지 않는다.
+        if (value === undefined) return 'undefined';
         if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
         if (value && typeof value === 'object') {
             return `{${Object.keys(value).sort().map(key =>
@@ -215,7 +220,7 @@
     // 잎 경로별 해시. 32비트 두 갈래를 이어 붙여 충돌 확률을 실질적으로 없앤다.
     // 충돌해도 결과는 「그 잎만 예전처럼 판정」이라 데이터가 깨지지는 않는다.
     function hashValue(value) {
-        const str = stableStringify(value);
+        const str = stableStringify(value) ?? 'undefined';   // 직렬화 불가값(함수·심볼) 방어
         let h1 = 0x811c9dc5;
         let h2 = 0xdeadbeef;
         for (let i = 0; i < str.length; i++) {
@@ -743,7 +748,10 @@
                     action: 'cancel',
                     icon: 'fas fa-times',
                     label: localize('DX3rd.Cancel'),
-                    callback: () => null
+                    // null 을 돌려주면 안 된다 — DialogV2 는 콜백이 nullish 일 때 그 자리에
+                    // 버튼의 action 문자열을 채우므로("cancel"), 취소가 truthy 로 새어 나간다.
+                    // (foundry client/applications/api/dialog.mjs 의 `?? button?.action`)
+                    callback: () => false
                 }
             ]
         });
@@ -991,7 +999,9 @@
             duplicates,
             contentBefore
         });
-        if (!selection) return;
+        // 취소·닫기는 계획을 돌려주지 않는다. 「falsy 인가」가 아니라 「계획이 있는가」로
+        // 판정해야 DialogV2 가 흘려보내는 action 문자열에 걸리지 않는다.
+        if (!selection?.plan) return;
         if (selection.rescan) {
             ui.notifications.info(localize('DX3rd.CompendiumSyncRescan'));
             return openItemSync();
@@ -1048,7 +1058,9 @@
             contentBefore,
             contentAfter: runtimeAuditContent(runtime)
         });
-        if (!selection) return;
+        // 취소·닫기는 계획을 돌려주지 않는다. 「falsy 인가」가 아니라 「계획이 있는가」로
+        // 판정해야 DialogV2 가 흘려보내는 action 문자열에 걸리지 않는다.
+        if (!selection?.plan) return;
         if (selection.rescan) {
             ui.notifications.info(localize('DX3rd.CompendiumSyncRescan'));
             return open();

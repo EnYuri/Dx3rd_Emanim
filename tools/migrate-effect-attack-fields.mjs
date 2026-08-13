@@ -49,12 +49,6 @@ const ADD_VALUE_OVERRIDES = new Map([
   ["템테이션", "+[level]*2"]
 ]);
 
-const ATTACK_DICE_ATTRIBUTE_REPLACEMENTS = new Set([
-  "신수격",
-  "자이언트 그로우스",
-  "전신의 축복"
-]);
-
 function shouldMove(item, attribute) {
   if (attribute.key === "attack") {
     return item.system.timing === "major" && !KEEP_ATTACK_ATTRIBUTE.has(item.name);
@@ -101,15 +95,6 @@ export function migrateEffectAttackFields(item) {
       }
     }
   }
-  if (ATTACK_DICE_ATTRIBUTE_REPLACEMENTS.has(item.name)) {
-    for (const [id, attribute] of Object.entries(attributes)) {
-      if (attribute.key === "damage_roll") {
-        delete attributes[id];
-        moved.push("damage_roll 제거");
-      }
-    }
-  }
-
   return moved;
 }
 

@@ -20,7 +20,9 @@
   };
 
   // 사용 시 수치 입력 프롬프트 (변동형 이펙트: "소모한 HP만큼" 등).
-  // 확인 시 입력한 숫자(음수/소수 방어), 취소 시 null 반환.
+  // 확인 시 입력한 숫자(음수/소수 방어), 취소 시 숫자가 아닌 값 반환.
+  // 호출자는 반드시 Number.isFinite 로 판정할 것 — 0 이 유효값이라 falsy 검사는 못 쓰고,
+  // DialogV2 가 취소 콜백의 nullish 를 action 문자열로 바꿔치기하므로 === null 도 못 쓴다.
   window.DX3rdUniversalNumberPromptV2 = async function({ title, label, defaultValue = 0, maxValue = null } = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
     if (!DialogV2?.wait) {
@@ -57,7 +59,7 @@
           action: 'cancel',
           icon: '<i class="fas fa-times"></i>',
           label: game.i18n.localize('DX3rd.Cancel'),
-          callback: () => null
+          callback: () => false
         }
       ],
       rejectClose: false

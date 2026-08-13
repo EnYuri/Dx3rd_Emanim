@@ -516,9 +516,9 @@
    },
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -700,9 +700,9 @@
   "레이징 블레이드": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     },
     {
      "key": "init",
@@ -720,9 +720,9 @@
   "폴른 랜스": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+3"
+     "key": "attack",
+     "label": "-",
+     "value": "3d10"
     }
    ],
    "active": {
@@ -928,9 +928,9 @@
   "그래비티 앱소버": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "3"
+     "key": "reduce",
+     "label": "-",
+     "value": "3d10"
     }
    ],
    "active": {
@@ -988,9 +988,9 @@
   "리액티브 실드": {
    "attributes": [
     {
-     "key": "guard_roll",
-     "label": "guard_roll",
-     "value": "1"
+     "key": "guard",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -1951,9 +1951,9 @@
   "리빙코트": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "4"
+     "key": "reduce",
+     "label": "-",
+     "value": "4d10"
     }
    ],
    "active": {
@@ -2003,9 +2003,9 @@
   "아머 스킨": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "1"
+     "key": "reduce",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -2056,9 +2056,9 @@
   "리액티브 아머": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "2"
+     "key": "reduce",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -2147,9 +2147,9 @@
   "리액티브 코트": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "3"
+     "key": "reduce",
+     "label": "-",
+     "value": "3d10"
     }
    ],
    "active": {
@@ -2237,9 +2237,9 @@
   "죄인의 속박": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+3"
+     "key": "attack",
+     "label": "-",
+     "value": "3d10"
     }
    ],
    "active": {
@@ -3364,9 +3364,9 @@
   "스팅어": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -3891,9 +3891,9 @@
   "스위퍼": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -4161,9 +4161,9 @@
   "크리스탈 경비 보장": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -4215,9 +4215,9 @@
   "에피션트 워크": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -4325,9 +4325,9 @@
   "맨 이터": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -4675,9 +4675,9 @@
   "오버카운터": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -4759,9 +4759,9 @@
   "트래퍼": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -4919,9 +4919,9 @@
   "킨 슬레이어": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -5116,9 +5116,9 @@
   "워몽거": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -5327,9 +5327,9 @@
   "서바이버": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "5"
+     "key": "reduce",
+     "label": "-",
+     "value": "5d10"
     }
    ],
    "active": {
@@ -5464,9 +5464,9 @@
   "S랭크:디펜더": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "2"
+     "key": "reduce",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -5486,9 +5486,9 @@
   "S랭크:어택커": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -5737,9 +5737,9 @@
   "오르페우스 링": {
    "attributes": [
     {
-     "key": "guard_roll",
-     "label": "guard_roll",
-     "value": "1"
+     "key": "guard",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -5952,9 +5952,9 @@
   "양산품": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "1"
+     "key": "reduce",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -6215,9 +6215,9 @@
   "브레이크 불릿": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -6458,9 +6458,9 @@
   "콤비네이터": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -6614,9 +6614,9 @@
   "R 엔핸서": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -6751,9 +6751,9 @@
   "미제리코드": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     }
    ],
    "active": {
@@ -8576,9 +8576,9 @@
   "No.60 시인": {
    "attributes": [
     {
-     "key": "reduce_roll",
-     "label": "reduce_roll",
-     "value": "2"
+     "key": "reduce",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -8744,9 +8744,9 @@
   "No.10 전승자": {
    "attributes": [
     {
-     "key": "dxroll",
-     "label": "dxroll",
-     "value": "3"
+     "key": "add",
+     "label": "-",
+     "value": "3d10"
     }
    ],
    "active": {
@@ -8772,9 +8772,9 @@
   "No.53 강화병": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     },
     {
      "key": "stat_add",
@@ -8861,9 +8861,9 @@
   "No.04 대항종": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+2"
+     "key": "attack",
+     "label": "-",
+     "value": "2d10"
     }
    ],
    "active": {
@@ -8899,9 +8899,9 @@
      "value": "+5"
     },
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+1"
+     "key": "attack",
+     "label": "-",
+     "value": "1d10"
     },
     {
      "key": "dodge_dice",
@@ -8962,9 +8962,9 @@
   "No.91 비의 중의 비의": {
    "attributes": [
     {
-     "key": "damage_roll",
-     "label": "damage_roll",
-     "value": "+4"
+     "key": "attack",
+     "label": "-",
+     "value": "4d10"
     }
    ],
    "active": {

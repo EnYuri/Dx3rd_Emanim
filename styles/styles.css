@@ -2071,14 +2071,58 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     margin-top: 2px;
     margin-bottom: 2px;
   }
-  /* 다이스 테이블 스타일 */
-  .dice-tooltip .dice-rolls .clear {
+  /* 툴팁 본문 여백은 **바깥 한 겹**이 정한다. 수식·주사위·체인 결과·합계가
+     모두 같은 왼쪽(그리고 오른쪽) 선에 서고, 안쪽 요소는 여백을 따로 갖지 않는다.
+     요소마다 패딩을 주면 어느 줄이 얼마나 들어갔는지가 제각각이 된다. */
+  .dice-tooltip .tooltip-part {
+    padding: 0 6px;
+}
+
+
+  /* 체인(익스플로드) 결과 = 그 체인의 주사위와 **같은 줄** 오른쪽 끝.
+     코어의 `.dice-rolls .roll` 은 float:left · 주사위 배경을 갖는 한 칸이라,
+     폭을 100% 로 늘리면 값이 통째로 다음 줄로 밀려 내려간다. 그래서 값 칸은
+     오른쪽 플로트로 돌려 주사위 줄에 붙이고, 줄바꿈은 바로 뒤의 높이 0 짜리
+     구분 줄이 clear 로 담당한다(선도 이쪽이 그린다). */
+  .dice-tooltip .dice-rolls .dx3rd-chain-total {
+    float: right;
+    width: auto;
+    min-width: 0;
+    background-image: none;
+    line-height: 24px;
+    font-size: var(--font-size-16, 16px);
+    font-weight: bold;
+    padding: 0 4px 0 12px;
+    margin-right: 0;
+    text-align: right;
+}
+
+.dice-tooltip .dice-rolls .dx3rd-chain-break {
+    clear: both;
+    float: left;
     width: 100%;
-    border-bottom: 2px solid var(--color-text-light-6);
-    margin: 4px 0;
+    min-width: 0;
+    height: 0;
+    line-height: 0;
+    background-image: none;
+    border-bottom: 1px solid var(--color-text-light-6);
+    margin: 2px 0 4px;
+    padding: 0;
+}
+
+/* 마지막 줄(주사위 합계)은 전체 폭 한 줄. */
+.dice-tooltip .dice-rolls .clear {
+    clear: both;
+    float: none;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    line-height: 20px;
+    font-size: var(--font-size-14, 14px);
     background-image: none;
     text-align: right;
-    padding: 0 10px;
+    padding: 0 4px;
+    margin: 0;
 }
 
 .dice-rolls .dice {

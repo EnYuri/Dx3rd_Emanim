@@ -312,9 +312,9 @@
   "피하기 어려운 팔": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+2"
+        "key": "attack",
+        "label": "-",
+        "value": "2d10"
       }
     ],
     "active": {
@@ -912,9 +912,9 @@
       "runTiming": "instant",
       "attributes": [
         {
-          "key": "damage_roll",
-          "label": "damage_roll",
-          "value": "+1"
+          "key": "attack",
+          "label": "-",
+          "value": "1d10"
         },
         {
           "key": "attack",
@@ -1099,9 +1099,9 @@
   "살육의 송곳니": {
     "attributes": [
       {
-        "key": "damage_roll",
+        "key": "attack",
         "label": "melee",
-        "value": "[level]+2"
+        "value": "([level]+2)d10"
       }
     ],
     "active": {
@@ -1155,9 +1155,9 @@
   "대식가": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+3"
+        "key": "attack",
+        "label": "-",
+        "value": "3d10"
       }
     ],
     "active": {
@@ -1261,9 +1261,9 @@
   "오스드 웨폰": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "[level]+1"
+        "key": "attack",
+        "label": "-",
+        "value": "([level]+1)d10"
       }
     ],
     "active": {
@@ -2124,9 +2124,9 @@
   "수왕의 헌신": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+[level]"
+        "key": "attack",
+        "label": "-",
+        "value": "[level]d10"
       }
     ],
     "active": {
@@ -2149,9 +2149,9 @@
   "환상의 수왕": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+[level]"
+        "key": "attack",
+        "label": "-",
+        "value": "[level]d10"
       }
     ],
     "active": {
@@ -2641,9 +2641,9 @@
   "에너지 블레이드": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+2"
+        "key": "attack",
+        "label": "-",
+        "value": "2d10"
       },
       {
         "key": "dice",
@@ -2671,9 +2671,9 @@
   "거칠게 먹는 것": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+2"
+        "key": "attack",
+        "label": "-",
+        "value": "2d10"
       }
     ],
     "active": {
@@ -2696,9 +2696,9 @@
   "썬더스톰": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "label": "damage_roll",
-        "value": "+3"
+        "key": "attack",
+        "label": "-",
+        "value": "3d10"
       }
     ],
     "active": {
@@ -2819,9 +2819,9 @@
       "runTiming": "instant",
       "attributes": [
         {
-          "key": "reduce_roll",
-          "label": "reduce_roll",
-          "value": "[level]+3"
+          "key": "reduce",
+          "label": "-",
+          "value": "([level]+3)d10"
         }
       ]
     },
@@ -2856,9 +2856,9 @@
       "runTiming": "instant",
       "attributes": [
         {
-          "key": "reduce_roll",
-          "label": "reduce_roll",
-          "value": "[level]+3"
+          "key": "reduce",
+          "label": "-",
+          "value": "([level]+3)d10"
         }
       ]
     },
@@ -2875,8 +2875,9 @@
   "오픈 페인": {
     "attributes": [
       {
-        "key": "damage_roll",
-        "value": "+([level]+1)"
+        "key": "attack",
+        "value": "([level]+1)d10",
+        "label": "-"
       }
     ],
     "active": {
@@ -2899,8 +2900,9 @@
   "이형의 포식자": {
     "attributes": [
       {
-        "key": "reduce_roll",
-        "value": "[level]+2"
+        "key": "reduce",
+        "value": "([level]+2)d10",
+        "label": "-"
       }
     ],
     "active": {
@@ -2923,8 +2925,9 @@
   "불사의 짐승": {
     "attributes": [
       {
-        "key": "reduce_roll",
-        "value": "[level]*2"
+        "key": "reduce",
+        "value": "([level]*2)d10",
+        "label": "-"
       }
     ],
     "active": {
@@ -2951,8 +2954,9 @@
       "runTiming": "instant",
       "attributes": [
         {
-          "key": "reduce_roll",
-          "value": "[level]*2"
+          "key": "reduce",
+          "value": "([level]*2)d10",
+          "label": "-"
         }
       ]
     },
@@ -2980,8 +2984,9 @@
       "runTiming": "instant",
       "attributes": [
         {
-          "key": "reduce_roll",
-          "value": "[level]*2"
+          "key": "reduce",
+          "value": "([level]*2)d10",
+          "label": "-"
         }
       ]
     },
