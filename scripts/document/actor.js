@@ -473,30 +473,46 @@
             attrs.armor.valueFormula = [R.actionDiceFormula('armor')._, ...equipmentArmorFormulas]
                 .filter(Boolean).join(' + ');
 
-            // === Guard 계산 ===
-            let guardBonus = 0;
+            // === Guard 계산 === (라벨 버킷: melee/ranged/fist, 무라벨/'-' → 전체 '_')
+            // 공격력과 같은 축이다 — 「맨손의 가드치에 +N」(특수장갑의수 등)은 **그 무기로
+            // 가드할 때만** 붙어야 하므로, 어느 무기로 가드할지 정해지는 시점까지 버킷에
+            // 남겨 둔다. base 로 내려가는 것은 무조건 붙는 `_`(전체)뿐이다.
+            const grd = R.bucket('guard', ['melee', 'ranged', 'fist']);
+            const grdDiceFormula = R.actionDiceFormula('guard', ['melee', 'ranged', 'fist']);
             let equipmentGuardBonus = 0;
             const equipmentGuardFormulas = [];
 
             // 액터 시트의 표시값에는 장착 무기의 고유 가드치를 포함한다. 방어 다이얼로그는
             // 아래 base 값에서 출발해 실제 선택한 무기만 다시 더하므로 이중 적용하지 않는다.
             for (const weapon of equippedWeapons) {
-                const raw = weapon.system?.guard;
-                if (!raw) continue;
                 const F = window.DX3rdFormulaEvaluator;
-                const prepared = F.prepareRollFormula(raw, weapon, this);
-                if (F.hasDice(prepared)) equipmentGuardFormulas.push(`(${prepared})`);
-                else equipmentGuardBonus += Number(F.evaluate(raw, weapon, this)) || 0;
+                const raw = weapon.system?.guard;
+                if (raw) {
+                    const prepared = F.prepareRollFormula(raw, weapon, this);
+                    if (F.hasDice(prepared)) equipmentGuardFormulas.push(`(${prepared})`);
+                    else equipmentGuardBonus += Number(F.evaluate(raw, weapon, this)) || 0;
+                }
+                // 그 무기가 속한 버킷의 보정도 **표시값에만** 싣는다. base 에 넣으면 무기를
+                // 고르지 않아도 붙고, 여기서 빼면 시트의 가드치가 실제보다 작게 보인다.
+                // 규칙은 방어 다이얼로그와 같다(무기 한 자루당 한 번) — 갈리면 시트와 창의
+                // 숫자가 어긋난다.
+                // 맨손은 fist 와 melee 를 둘 다 받는다(가산) — 공격력 쪽과 같은 규칙이다.
+                const buckets = window.DX3rdUniversalHandler?.resolveGuardBuckets?.(weapon) || [];
+                for (const bucket of buckets) {
+                    equipmentGuardBonus += grd[bucket] || 0;
+                    if (grdDiceFormula[bucket]) equipmentGuardFormulas.push(`(${grdDiceFormula[bucket]})`);
+                }
             }
 
-            // 활성 아이템 + applied 의 guard 보너스
-            guardBonus += R.sum('guard');
-
-            attrs.guard.base = Math.max(guardBonus, attrs.guard.min || 0, 0);
+            attrs.guard.base = Math.max(grd._, attrs.guard.min || 0, 0);
+            attrs.guard.melee = grd.melee;
+            attrs.guard.ranged = grd.ranged;
+            attrs.guard.fist = grd.fist;
+            attrs.guard.rollFormula = grdDiceFormula;
             attrs.guard.equipment = equipmentGuardBonus;
             attrs.guard.equipmentFormula = equipmentGuardFormulas.join(' + ');
             attrs.guard.value = Math.max(attrs.guard.base + equipmentGuardBonus, attrs.guard.min || 0, 0);
-            attrs.guard.valueFormula = R.actionDiceFormula('guard')._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
+            attrs.guard.valueFormula = grdDiceFormula._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
 
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
 
@@ -1667,7 +1683,11 @@
 
             // === Armor, Guard, Penetrate, Reduce 계산 === (활성 아이템 + applied 단일 경로)
             const armorBonus = R.sum('armor');
-            const guardBonus = R.sum('guard');
+            // 가드도 공격력과 같은 라벨 버킷을 쓴다(맨손 한정 가드치 등). 무기가 정해지는
+            // 방어 다이얼로그가 버킷분을 더하므로, 여기 내려가는 것은 전체(`_`)뿐이다.
+            const grd = R.bucket('guard', ['melee', 'ranged', 'fist']);
+            const grdDiceFormula = R.actionDiceFormula('guard', ['melee', 'ranged', 'fist']);
+            const guardBonus = grd._;
             const penetrateBonus = R.sum('penetrate');
             const reduceBonus = R.sum('reduce');
 
@@ -1679,7 +1699,12 @@
             // 값 필드에 직접 쓴 다이스식은 굴리지 않고 보존 → 방어 다이얼로그가 확정 시 한 번 굴린다.
             attrs.armor.valueFormula = R.actionDiceFormula('armor')._;
             attrs.guard.value = Math.max(0, guardBonus);
-            attrs.guard.valueFormula = R.actionDiceFormula('guard')._;
+            attrs.guard.base = attrs.guard.value;
+            attrs.guard.melee = grd.melee;
+            attrs.guard.ranged = grd.ranged;
+            attrs.guard.fist = grd.fist;
+            attrs.guard.rollFormula = grdDiceFormula;
+            attrs.guard.valueFormula = grdDiceFormula._;
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
             attrs.penetrate.value = Math.max(0, penetrateBonus);
             attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;   // 명중 판정 시점에 굴림

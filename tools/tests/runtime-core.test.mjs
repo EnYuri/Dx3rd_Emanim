@@ -358,7 +358,9 @@ test('equipment toggles commit derived state before rerendering the actor sheet'
 
   const actor = source('scripts/document/actor.js').replace(/\s+/g, ' ');
   assert.ok(actor.includes("const equippedWeapons = itemsOfType('weapon').filter(i => i.system?.equipment === true);"));
-  assert.ok(actor.includes('attrs.guard.base = Math.max(guardBonus, attrs.guard.min || 0, 0);'));
+  // base 는 무기를 가리지 않는 전체 버킷(`_`)만 받는다. 종류 한정분은 방어 창이 실제로
+  // 고른 무기에 대해서만 더한다 — `a weapon-limited guard bonus …` 테스트 참조.
+  assert.ok(actor.includes('attrs.guard.base = Math.max(grd._, attrs.guard.min || 0, 0);'));
   assert.ok(actor.includes('attrs.guard.value = Math.max(attrs.guard.base + equipmentGuardBonus'),
     '시트 가드치는 장착 무기의 고정 가드치를 포함해야 한다');
   const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
@@ -3798,39 +3800,110 @@ test('the virtual weapon is a single blank row that carries nothing into the rol
 // (`-`/melee/ranged/fist). 열 헤더는 한 벌뿐인데 한 목록에 키가 다른 행이 섞이므로,
 // 뜻을 알리는 것은 옵션 글자와 툴팁뿐이다. 그리고 `fist`(맨손 한정)는 런타임이 처음부터
 // 집계하는데 이 목록에 없어 저작할 방법이 없었다 — 실측 0건의 원인이 그것이었다.
-test('the attack modifier label offers every bucket the runtime counts, and never leaves a stored value unrepresented', () => {
+test('the weapon-type modifier label offers every bucket the runtime counts, and never leaves a stored value unrepresented', () => {
   const helpers = source('scripts/helpers.js');
-  const block = helpers.slice(helpers.indexOf("if (selectedKey === 'attack')"));
+  const block = helpers.slice(helpers.indexOf("if (selectedKey === 'attack'"));
   const pane = block.slice(0, block.indexOf('} else if'));
+  assert.ok(pane.length > 100 && pane.length < block.length,
+    '공격/가드 종류 드롭다운 블록을 찾지 못했다');
 
-  // actor.js 가 가르는 버킷과 드롭다운이 갈리면 저작할 수 없는 버킷이 생긴다.
-  const buckets = source('scripts/document/actor.js')
-    .match(/R\.bucket\('attack',\s*\[([^\]]+)\]\)/);
-  assert.ok(buckets, "actor.js 가 attack 을 라벨 버킷으로 가르는 곳을 찾지 못했다");
-  for (const label of buckets[1].match(/'([a-z]+)'/g).map(s => s.slice(1, -1))) {
-    assert.ok(pane.includes(`addOption(select, '${label}'`),
-      `공격 종류 드롭다운에 '${label}' 버킷이 없어 저작할 방법이 없다`);
+  // 라벨이 무기 종류 버킷인 키. 이 둘은 **같은 목록**을 써야 한다 — 갈라 두면 「맨손의
+  // 공격력과 가드치에 각각 +N」(강인한 골격) 한 문장을 두 어휘로 저작하게 된다.
+  const actor = source('scripts/document/actor.js');
+  for (const key of ['attack', 'guard']) {
+    assert.ok(pane.includes(`selectedKey === '${key}'`),
+      `'${key}' 행이 종류 드롭다운을 받지 못한다`);
+    // actor.js 가 가르는 버킷과 드롭다운이 갈리면 저작할 수 없는 버킷이 생긴다.
+    const buckets = actor.match(new RegExp(`R\\.bucket\\('${key}',\\s*\\[([^\\]]+)\\]\\)`));
+    assert.ok(buckets, `actor.js 가 ${key} 를 라벨 버킷으로 가르는 곳을 찾지 못했다`);
+    for (const label of buckets[1].match(/'([a-z]+)'/g).map(s => s.slice(1, -1))) {
+      assert.ok(pane.includes(`addOption(select, '${label}'`),
+        `종류 드롭다운에 '${label}' 버킷이 없어 저작할 방법이 없다(${key})`);
+    }
+    // 고정 수치와 다이스식이 같은 버킷 목록을 써야 한다. 갈리면 그 버킷의 다이스식이
+    // `_`(전체)로 새어 무기를 가리지 않고 굴러간다.
+    assert.ok(actor.includes(`R.actionDiceFormula('${key}', [${buckets[1]}])`),
+      `${key} 의 다이스식이 같은 버킷 목록을 쓰지 않는다`);
   }
+
   // 전체(무한정)를 고르는 행. 값은 `-` 그대로여야 기존 데이터와 뜻이 같다.
   assert.match(pane, /addOption\(select, '-', game\.i18n\.localize\('DX3rd\.AttackTypeAll'\)\)/,
-    "`-`(전체)는 뜻을 말하는 글자로 보여야 한다 — `-` 로는 이 칸이 공격 종류라는 것을 알 수 없다");
-  assert.match(pane, /select\.title = game\.i18n\.localize\('DX3rd\.AttackTypeHint'\)/);
+    "`-`(전체)는 뜻을 말하는 글자로 보여야 한다 — `-` 로는 이 칸이 무기 종류라는 것을 알 수 없다");
+  assert.match(pane, /'DX3rd\.AttackTypeHint' : 'DX3rd\.GuardTypeHint'/,
+    '툴팁이 키에 따라 갈리지 않으면 가드 행에 공격 설명이 붙는다');
 
   // 목록에 없는 저장값을 그대로 대입하면 브라우저가 첫 항목을 보여 준다(= 칸이 비거나
   // 뜻이 바뀐다). 뜻이 같은 `-` 로 명시해 맞춘다. [드롭다운의 저장 기본값] 절과 같은 함정.
   assert.match(pane, /includes\(currentValue\)\s*\?\s*currentValue\s*:\s*'-'/,
     "저장값이 목록에 없을 때 `-` 로 떨어지지 않으면 칸이 빈 채로 보인다");
 
-  for (const key of ['DX3rd.AttackTypeAll', 'DX3rd.AttackTypeHint', 'DX3rd.Fist']) {
+  for (const key of ['DX3rd.AttackTypeAll', 'DX3rd.AttackTypeHint', 'DX3rd.GuardTypeHint', 'DX3rd.Fist']) {
     assert.ok(key in JSON.parse(source('lang/ko.json')), `${key} 가 ko.json 에 없다`);
   }
 
   // 빌더의 행 조립기는 라벨 기본값을 키 이름으로 둔다. 다른 키에서는 런타임이 라벨을 읽지
-  // 않아 무해하지만 attack 만은 뜻이 있는 자리라, `'attack'` 이 굳으면 드롭다운에 없는 값이
-  // 된다(팩 146건이 그랬다). 이 예외가 사라지면 재빌드가 그 표기를 되살린다.
+  // 않아 무해하지만 이 둘만은 뜻이 있는 자리라, 키 이름이 굳으면 드롭다운에 없는 값이
+  // 된다(팩 attack 146건 · guard 57건). 이 예외가 사라지면 재빌드가 그 표기를 되살린다.
   assert.match(source('_source/apply-overrides.mjs'),
-    /a\.key === 'attack' \? '-' : a\.key/,
-    "attrRow 가 attack 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 'attack' 라벨을 되살린다");
+    /\(a\.key === 'attack' \|\| a\.key === 'guard'\) \? '-' : a\.key/,
+    "attrRow 가 두 키의 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 키 이름 라벨을 되살린다");
+});
+
+test('a weapon-limited guard bonus is counted only for the weapon actually used to guard', () => {
+  const actor = source('scripts/document/actor.js');
+  const handler = source('scripts/handlers/universal-handler.js');
+  const dialog = source('scripts/handlers/universal-damage-dialog.js');
+
+  // 버킷분이 base 로 내려가면 무기를 고르지 않아도 붙는다 — 「맨손의 가드치 +3」이
+  // 총으로 가드할 때도, 아예 무기를 고르지 않았을 때도 붙는다는 뜻이다.
+  assert.match(actor, /attrs\.guard\.base = Math\.max\(grd\._/,
+    'guard.base 가 전체 버킷(`_`)만 받지 않으면 종류 한정 보정이 무조건 붙는다');
+  for (const bucket of ['melee', 'ranged', 'fist']) {
+    assert.ok(actor.includes(`attrs.guard.${bucket} = grd.${bucket};`),
+      `guard.${bucket} 을 내보내지 않으면 방어 창이 그 몫을 꺼낼 수 없다`);
+  }
+
+  // 맨손 판정이 종별보다 먼저다 — 맨손의 system.type 은 melee 라, 순서를 뒤집으면
+  // fist 버킷이 영영 걸리지 않는다.
+  const resolve = handler.slice(handler.indexOf('resolveGuardBuckets = function'),
+    handler.indexOf('getWeaponGuardBonus = function'));
+  const fistAt = resolve.indexOf('isFistWeaponName');
+  const typeAt = resolve.indexOf("type === 'melee'");
+  assert.ok(fistAt > -1 && typeAt > -1 && fistAt < typeAt,
+    '맨손 판정이 종별 판정보다 뒤에 있으면 맨손이 melee 로 뭉개져 fist 가 죽는다');
+
+  // **맨손은 fist 와 melee 를 둘 다 받는다 — 배타가 아니라 가산이다.** 룰상 맨손은
+  // 「종별: 백병」이라 「백병 무기의 가드치에 +N」이 맨손으로 가드할 때도 붙어야 하고,
+  // 공격력 쪽이 이미 그렇다(맨손의 system.type 이 melee 라 melee 버킷이 붙고 그 위에
+  // getFistAttackBonus 가 fist 를 **더한다**). 여기서 하나만 고르면 같은 라벨 어휘가 두
+  // 키에서 다른 뜻이 되어 「맨손 및 백병」을 저작할 수 없다.
+  assert.ok(!/return 'fist';/.test(resolve),
+    '맨손에서 조기 반환하면 melee 버킷이 빠져 공격력 쪽과 뜻이 갈린다');
+  assert.match(resolve, /buckets\.push\('fist'\)/, '맨손 버킷을 누적하지 않는다');
+  assert.match(handler.slice(handler.indexOf('getWeaponGuardBonus = function')),
+    /for \(const bucket of this\.resolveGuardBuckets\(weapon\)\)/,
+    '가드 보정 합산이 버킷 하나만 보면 맨손의 백병분이 사라진다');
+
+  // 무기가 정해지는 곳은 방어 다이얼로그의 무기 목록 하나다. 여기서 합류시키지 않으면
+  // 버킷에 남겨 둔 몫이 아무 데도 도달하지 않는다(= 조용히 사라진다).
+  assert.match(dialog, /getWeaponGuardBonus\(targetActor, weapon\)/,
+    '방어 창이 무기별 버킷 보정을 꺼내지 않으면 버킷에 남긴 몫이 사라진다');
+  assert.match(dialog, /const guardFixed = \([\s\S]{0,120}\)\s*\n?\s*\+ bucket\.fixed;/,
+    '무기 고유 가드치와 버킷 보정이 한 값으로 합쳐지지 않는다');
+  // 다이스식도 같이 실려야 한다. 고정분만 합치면 `[레벨]d10` 짜리 버킷 보정이 0이 된다.
+  assert.match(dialog, /bucket\.formula\]\.filter\(Boolean\)\.join\(' \+ '\)/,
+    '버킷의 다이스식이 무기 가드 수식에 합류하지 않는다');
+
+  // 방어 중 효과가 가드를 바꿨을 때의 **차분**은 심은 값과 읽는 값이 같은 양이어야 한다.
+  // 창의 입력칸은 `base` 에서 출발하는데(장착 무기분은 무기 선택으로 따로 더한다) 차분을
+  // `value`(= base + 장착 무기분)로 읽으면, 첫 차분에 장착 무기분이 통째로 얹혀 이중
+  // 가산이 된다. 버킷 보정이 생기면서 그 차이가 더 커졌다.
+  const seed = dialog.indexOf('let lastKnownDefense');
+  const refresh = dialog.slice(seed, dialog.indexOf('lastKnownDefense = current;', seed));
+  assert.ok(!/guard\?\.value \|\| 0/.test(refresh),
+    '차분 계산이 guard.value 를 읽으면 장착 무기 가드치가 이중 가산된다');
+  assert.match(refresh, /guard\?\.base/,
+    '차분 계산은 입력칸의 출발값과 같은 guard.base 를 읽어야 한다');
 });
 
 test('the fist item is restored from its pre-change snapshot, never from hardcoded defaults', () => {

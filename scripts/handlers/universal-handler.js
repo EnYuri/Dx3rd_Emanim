@@ -2232,6 +2232,48 @@ window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
 };
 
 /**
+ * 가드 보정의 무기 버킷을 판별한다. `attrs.guard.<버킷>` 을 고르는 키들.
+ *
+ * 공격력의 버킷(`resolveAttackBonuses`)과 다른 점은 **판정 시점**이다. 공격은 어느 무기로
+ * 때리는지가 판정 시작 시 정해지지만, 가드는 맞고 나서 방어 다이얼로그에서 무기를 고른다.
+ * 그래서 액터의 파생값은 버킷에 남겨 두고 여기서 무기별로 꺼낸다.
+ *
+ * **맨손은 `fist` 와 `melee` 를 둘 다 받는다 — 배타가 아니라 가산이다.** 룰상 맨손은
+ * 「종별: 백병」이므로 「백병 무기의 가드치에 +N」은 맨손으로 가드할 때도 붙어야 한다.
+ * 공격력 쪽이 이미 그렇다(`resolveAttackBonuses`: 맨손의 `system.type` 이 `melee` 라
+ * melee 버킷이 붙고, 그 위에 `getFistAttackBonus` 가 fist 버킷을 **더한다**). 여기만
+ * 하나를 고르면 같은 어휘가 두 키에서 다른 뜻이 되어, 「맨손 및 백병」을 저작할 수 없다.
+ * 순서는 좁은 것부터다(표시용으로 첫 항을 쓰는 곳이 생겨도 맨손이 melee 로 뭉개지지 않게).
+ * @returns {Array<'fist'|'melee'|'ranged'>} 전체(`_`)만 받는 무기면 빈 배열
+ */
+window.DX3rdUniversalHandler.resolveGuardBuckets = function(weapon) {
+  if (!weapon || weapon.type !== 'weapon') return [];
+  const type = weapon.system?.type;
+  const buckets = [];
+  // 맨손 판정이 먼저다 — 맨손은 종별이 melee 라서 순서를 뒤집으면 fist 가 영영 안 걸린다.
+  if (this.isFistWeaponName(weapon.name)) buckets.push('fist');
+  if (type === 'melee' || type === 'ranged') buckets.push(type);
+  return buckets;
+};
+
+/**
+ * 그 무기로 가드할 때만 붙는 버킷 보정. 고정분과 다이스식을 갈라 돌려준다
+ * (다이스식은 방어를 확정할 때 한 번만 굴린다).
+ * @returns {{fixed: number, formula: string}}
+ */
+window.DX3rdUniversalHandler.getWeaponGuardBonus = function(actor, weapon) {
+  const guard = actor?.system?.attributes?.guard || {};
+  let fixed = 0;
+  const formulas = [];
+  for (const bucket of this.resolveGuardBuckets(weapon)) {
+    fixed += Number(guard[bucket]) || 0;
+    const formula = guard.rollFormula?.[bucket];
+    if (formula) formulas.push(formula);
+  }
+  return { fixed, formula: formulas.join(' + ') };
+};
+
+/**
  * 수치 항과 다이스식 항을 하나의 Roll 수식 문자열로 잇는다(빈 항·0 항은 버린다).
  *
  * 공격력 운반 객체(mergeAttackBonuses)는 고정치를 `attack`(숫자), 다이스식을

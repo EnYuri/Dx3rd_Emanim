@@ -759,20 +759,23 @@
                 });
             };
 
-            if (selectedKey === 'attack') {
-                // 공격력 행에서만 이 칸은 「능력치/기능」이 아니라 **공격 종류**다. 열 헤더는 한
-                // 벌뿐인데 한 목록에 키가 다른 행이 섞이므로 헤더로는 그 사실을 알릴 수 없다 —
-                // 그래서 옵션 글자 자체가 뜻을 말하게 하고(`-` 를 「전체」로 보여 준다) 툴팁을 단다.
-                // 저장값은 그대로 `-`/melee/ranged/fist 이며, actor.js 의
-                // `R.bucket('attack', ['melee','ranged','fist'])` 가 이 라벨로 버킷을 가른다.
+            if (selectedKey === 'attack' || selectedKey === 'guard') {
+                // 공격력·가드치 행에서만 이 칸은 「능력치/기능」이 아니라 **무기 종류**다. 열
+                // 헤더는 한 벌뿐인데 한 목록에 키가 다른 행이 섞이므로 헤더로는 그 사실을 알릴
+                // 수 없다 — 그래서 옵션 글자 자체가 뜻을 말하게 하고(`-` 를 「전체」로 보여 준다)
+                // 툴팁을 단다. 저장값은 그대로 `-`/melee/ranged/fist 이며, actor.js 의
+                // `R.bucket('<키>', ['melee','ranged','fist'])` 가 이 라벨로 버킷을 가른다.
+                // 두 키의 목록이 같은 것은 의도다 — 갈라 두면 「맨손의 공격력과 가드치에 각각
+                // +N」(강인한 골격 등) 한 문장을 두 가지 어휘로 저작하게 된다.
                 if (labelElement.matches('input')) {
                     const select = createSelect();
-                    select.title = game.i18n.localize('DX3rd.AttackTypeHint');
+                    select.title = game.i18n.localize(selectedKey === 'attack'
+                        ? 'DX3rd.AttackTypeHint' : 'DX3rd.GuardTypeHint');
                     addOption(select, '-', game.i18n.localize('DX3rd.AttackTypeAll'));
                     addOption(select, 'melee', game.i18n.localize('DX3rd.Melee'));
                     addOption(select, 'ranged', game.i18n.localize('DX3rd.Ranged'));
-                    // 맨손 한정(축퇴기관 등). 런타임(`attrs.attack.fist`)은 처음부터 있었으나
-                    // 이 목록에 없어 저작할 방법이 없었다 — 그래서 실측 0건이었다.
+                    // 맨손 한정(축퇴기관·특수장갑의수 등). 런타임(`attrs.attack.fist`)은 처음부터
+                    // 있었으나 이 목록에 없어 저작할 방법이 없었다 — 그래서 실측 0건이었다.
                     addOption(select, 'fist', game.i18n.localize('DX3rd.Fist'));
                     // 저장값이 이 넷 중에 없으면(빌더가 키 이름을 라벨에 복사해 둔 옛 데이터 등)
                     // 브라우저가 첫 항목을 보여 주는 대신 뜻이 같은 `-`(전체)로 명시해 맞춘다.

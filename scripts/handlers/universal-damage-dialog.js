@@ -780,13 +780,19 @@
           const raw = weapon.system.guard;
           const prepared = F.prepareRollFormula(raw, weapon, targetActor);
           const isDice = F.hasDice(prepared);
-          const guardFixed = isDice ? 0 : (Number(F.evaluate(raw, weapon, targetActor)) || 0);
+          // 「맨손의 가드치에 +N」 같은 버킷 보정은 그 무기로 가드할 때만 붙는다. 무기가
+          // 정해지는 곳이 여기뿐이므로, 액터가 버킷에 남겨 둔 몫을 여기서 합류시킨다.
+          const bucket = window.DX3rdUniversalHandler.getWeaponGuardBonus(targetActor, weapon);
+          const guardFixed = (isDice ? 0 : (Number(F.evaluate(raw, weapon, targetActor)) || 0))
+            + bucket.fixed;
+          const guardFormula = [isDice ? prepared : '', bucket.formula].filter(Boolean).join(' + ');
           return {
             id: weapon.id,
             name: weapon.name,
             guardFixed,
-            guardFormula: isDice ? prepared : '',
-            guardLabel: isDice ? prepared : String(guardFixed)
+            guardFormula,
+            guardLabel: [guardFixed || !guardFormula ? String(guardFixed) : '', guardFormula]
+              .filter(Boolean).join(' + ')
           };
         })
         // 가드치 높은 순(같으면 원래 순서 유지). 다이스식은 고정치가 0이라 뒤로 간다.
@@ -1587,7 +1593,12 @@
       let lastKnownDefense = { guard, armor, reduce };
       const refreshDefenseValuesFromActor = async () => {
         const current = {
-          guard: targetActor.system.attributes.guard?.value || 0,
+          // **`value` 가 아니라 `base` 다.** 이 창의 가드 입력칸은 base 에서 출발하고
+          // (위 `const guard`), 장착 무기분은 아래 무기 선택으로 따로 더한다. `value` 는
+          // base + 장착 무기분이라, 여기서 그것을 읽으면 첫 차분에 장착 무기분이 통째로
+          // 섞여 들어가 이중 가산이 된다. 심는 값과 읽는 값은 같은 양이어야 한다.
+          guard: targetActor.system.attributes.guard?.base
+            ?? targetActor.system.attributes.guard?.value ?? 0,
           armor: targetActor.system.attributes.armor?.value || 0,
           reduce: targetActor.system.attributes.reduce?.value || 0
         };
