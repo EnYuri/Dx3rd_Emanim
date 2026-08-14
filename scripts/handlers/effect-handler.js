@@ -146,8 +146,8 @@ window.DX3rdEffectHandler = {
         
         // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
         const allWeapons = actor.items.filter(w => w.type === 'weapon' || w.type === 'vehicle');
-        // 가상(월드) 무기 항상 노출 - 대응 무기가 없어도 백병/사격 공격 채널 제공
-        const virtualWeapons = window.DX3rdVirtualWeapons?.list?.() || [];
+        // 「무기 없음」 한 장을 맨 위에 노출 - 무기가 하나도 없어도 판정으로 넘어갈 수 있게.
+        const virtualWeapons = window.DX3rdVirtualWeapons?.list?.(attackRollType) || [];
         const weapons = [...virtualWeapons, ...allWeapons];
 
         // 무기 선택 다이얼로그 표시

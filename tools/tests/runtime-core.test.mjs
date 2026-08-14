@@ -3679,3 +3679,141 @@ test('the leading-plus cleanup applies to dice formulas only, never to plain mod
     assert.equal(normalizeDiceFormula(normalizeDiceFormula(formula)), normalizeDiceFormula(formula));
   }
 });
+
+// 저장 기본값에 해당하는 <option> 이 없는 <select> 는 조용히 값을 바꾼다. 브라우저가 첫
+// 항목을 표시하고, AppV2 의 submitOnChange 가 그 표시값을 문서에 굳히기 때문이다 —
+// 시트를 열어 아무 칸이나 건드리는 것만으로. weaponTmp 가 '-' 에서 'virtual-melee' 로
+// 새어 나가 컴펜디움 동기화가 매번 같은 아이템을 「갱신 필요」로 잡았고, 팩에도 13건이
+// 굳은 채 커밋돼 있었다(2026-08-14 정리).
+//
+// 기능 드롭다운(`system.skill` 계열)이 안전한 이유는 옵션 생성기가 '-' 를 먼저 넣기
+// 때문이다(helpers.js 의 getSkillSelectOptions). 동적 목록을 쓰면서 그런 보장이 없는
+// select 는 정적 <option> 으로 「비어 있음」을 직접 제공해야 한다.
+test('a dynamic select always offers an option for its stored default', () => {
+  const templateRoot = resolve(root, 'templates');
+  const walkHtml = (directory) => readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const full = resolve(directory, entry.name);
+    return entry.isDirectory() ? walkHtml(full) : (entry.name.endsWith('.html') ? [full] : []);
+  });
+
+  // 옵션 생성기가 '-' 를 보장하는 컨텍스트. 여기서 나온 목록은 정적 option 이 없어도 안전하다.
+  const GUARANTEED = ['skillOptions', 'effectSkillOptions', 'weaponSkillOptions', 'vehicleSkillOptions'];
+  const offenders = [];
+  for (const file of walkHtml(templateRoot)) {
+    const text = readFileSync(file, 'utf8');
+    for (const match of text.matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select>/g)) {
+      const [, attrs, body] = match;
+      const name = attrs.match(/name\s*=\s*"([^"]+)"/)?.[1];
+      if (!name) continue;                                   // name 이 없으면 폼에 실리지 않는다
+      if (!/\{\{#each\b/.test(body)) continue;                 // 정적 목록은 저작자가 값을 다 적었다
+      if (/<option\s+value="[^"{}]*"/.test(body)) continue;   // 정적 option 이 「비어 있음」을 제공한다
+      if (GUARANTEED.some(source => body.includes(source))) continue;
+      const line = text.slice(0, match.index).split('\n').length;
+      offenders.push(`${file.slice(resolve(root).length + 1).split(sep).join('/')}:${line} name="${name}"`);
+    }
+  }
+  assert.deepEqual(offenders, [],
+    `저장 기본값을 표시할 수 없는 select 가 있다(첫 항목이 폼 제출로 굳는다): ${offenders.join(' | ')}`);
+});
+
+// 가상 무기는 「무기 없음」 한 장뿐이고, 아무것도 고르지 않은 것과 결과가 같아야 한다.
+//
+// 예전 두 장(`RC : 백병`/`RC : 사격`)은 「대응 무기가 없어도 백병/사격 채널을 준다」가
+// 목적이었는데, 그 목적은 이미 아이템 자신의 attackRoll 이 달성한다(resolveAttackType →
+// resolveAttackBonuses → isAttackRoll). 실측(팩+월드 3872건)에서 system.weapon 에 등록된
+// 가상 무기는 0건이고, 대신 무기 드롭다운의 첫 항목이 되어 weaponTmp 유출의 표적이 됐다.
+// 남은 역할은 「빈 선택을 거부하는 무기 선택 창에서 무기 없이 빠져나가기」 하나뿐이다.
+test('the virtual weapon is a single blank row that carries nothing into the roll', () => {
+  const context = baseContext();
+  load(context, 'scripts/virtual-weapons.js');
+  const virtual = context.DX3rdVirtualWeapons;
+
+  const rows = virtual.list('melee');
+  assert.equal(rows.length, 1, '가상 무기는 한 장이다');
+  const [row] = rows;
+  assert.equal(row.name, '-', '이름은 아무것도 고르지 않은 것처럼 보여야 한다');
+  // 공격 종류만 이 판정의 attackRoll 을 따르고, 더할 수치는 하나도 없다.
+  assert.equal(row.system.type, 'melee');
+  assert.equal(row.system.skill, 'melee');
+  for (const field of ['attack', 'add', 'guard', 'range']) {
+    assert.equal(row.system[field], '',
+      `${field} 는 0 이 아니라 빈칸이어야 표에 아무것도 그려지지 않는다`);
+  }
+  assert.equal(row.system['attack-used'].disable, 'notCheck', '소진 개념이 없다');
+  assert.equal(virtual.list('ranged')[0].system.type, 'ranged');
+  // 문맥이 없으면 공격 종류도 비운다 — 없는 값을 지어내지 않는다.
+  assert.equal(virtual.list()[0].system.type, '');
+
+  // 옛 두 id 는 해석만 해 준다(새로 만들지는 않는다). 그래야 남아 있는 저장값이
+  // 갑자기 undefined 로 풀려 호출부가 터지지 않는다.
+  for (const [legacy, type] of [['virtual-melee', 'melee'], ['virtual-ranged', 'ranged']]) {
+    assert.ok(virtual.isVirtual(legacy), `${legacy} 는 여전히 가상 id 로 인식된다`);
+    assert.equal(virtual.get(legacy).system.type, type, '옛 id 는 제 이름에서 종류를 되찾는다');
+    assert.equal(virtual.get(legacy).id, virtual.ID, '되찾아도 id 는 새 한 장으로 통일된다');
+  }
+  assert.equal(virtual.isVirtual('some-real-item-id'), false);
+  // DX3rdResolveWeapon 은 콤보 계산 6곳이 옵셔널 체이닝 없이 부르므로 사라지면 안 된다.
+  assert.equal(typeof context.DX3rdResolveWeapon, 'function');
+  assert.equal(context.DX3rdResolveWeapon({items: {get: () => 'real'}}, 'x'), 'real');
+
+  // 선택 결과가 운반값에 남지 않는다: 가상만 고르면 무기 보너스 자체가 null 이고,
+  // 실무기와 함께 골라도 이름·id 목록에 끼지 않는다.
+  const dialog = source('scripts/dialog/weapon-for-attack-dialog.js');
+  assert.match(dialog, /realWeaponIds\s*=\s*selectedWeaponIds\.filter\(id => !isVirtual\(id\)\)/);
+  assert.match(dialog, /if \(realWeaponIds\.length === 0\) \{\s*\n\s*await this\.callback\(null\);/);
+  assert.match(dialog, /for \(const weaponId of realWeaponIds\)/);
+  assert.match(dialog, /weaponIds: realWeaponIds/);
+
+  // 시트의 무기 등록 드롭다운에는 넣지 않는다 — 거기엔 이미 같은 뜻의 정적 `-` 옵션이 있어
+  // 두 벌이 되고, 등록해 봐야 수치 기여가 0 이라 목록만 흐려진다.
+  // (옛 저장값이 등록돼 있을 때 편집 버튼을 막는 isVirtual 가드는 그대로 둔다 —
+  //  여기서 막는 것은 목록에 **얹는** 쪽이다.)
+  assert.doesNotMatch(source('scripts/helpers.js'), /DX3rdVirtualWeapons\?\.list/,
+    '무기 등록 드롭다운은 가상 무기를 싣지 않는다');
+
+  // 반대로 공격 시 선택 창 셋은 반드시 실어야 한다(그것이 남은 유일한 역할이다).
+  for (const path of ['scripts/handlers/effect-handler.js', 'scripts/handlers/combo-handler.js',
+                      'scripts/handlers/psionic-handler.js']) {
+    assert.match(source(path), /DX3rdVirtualWeapons\?\.list\?\.\(attackRollType\)/,
+      `${path} 는 이 판정의 공격 종류로 「무기 없음」 행을 만들어야 한다`);
+  }
+});
+
+// 공격력 보정 행의 라벨은 「능력치/기능」이 아니라 **공격 종류 버킷**이다
+// (`-`/melee/ranged/fist). 열 헤더는 한 벌뿐인데 한 목록에 키가 다른 행이 섞이므로,
+// 뜻을 알리는 것은 옵션 글자와 툴팁뿐이다. 그리고 `fist`(맨손 한정)는 런타임이 처음부터
+// 집계하는데 이 목록에 없어 저작할 방법이 없었다 — 실측 0건의 원인이 그것이었다.
+test('the attack modifier label offers every bucket the runtime counts, and never leaves a stored value unrepresented', () => {
+  const helpers = source('scripts/helpers.js');
+  const block = helpers.slice(helpers.indexOf("if (selectedKey === 'attack')"));
+  const pane = block.slice(0, block.indexOf('} else if'));
+
+  // actor.js 가 가르는 버킷과 드롭다운이 갈리면 저작할 수 없는 버킷이 생긴다.
+  const buckets = source('scripts/document/actor.js')
+    .match(/R\.bucket\('attack',\s*\[([^\]]+)\]\)/);
+  assert.ok(buckets, "actor.js 가 attack 을 라벨 버킷으로 가르는 곳을 찾지 못했다");
+  for (const label of buckets[1].match(/'([a-z]+)'/g).map(s => s.slice(1, -1))) {
+    assert.ok(pane.includes(`addOption(select, '${label}'`),
+      `공격 종류 드롭다운에 '${label}' 버킷이 없어 저작할 방법이 없다`);
+  }
+  // 전체(무한정)를 고르는 행. 값은 `-` 그대로여야 기존 데이터와 뜻이 같다.
+  assert.match(pane, /addOption\(select, '-', game\.i18n\.localize\('DX3rd\.AttackTypeAll'\)\)/,
+    "`-`(전체)는 뜻을 말하는 글자로 보여야 한다 — `-` 로는 이 칸이 공격 종류라는 것을 알 수 없다");
+  assert.match(pane, /select\.title = game\.i18n\.localize\('DX3rd\.AttackTypeHint'\)/);
+
+  // 목록에 없는 저장값을 그대로 대입하면 브라우저가 첫 항목을 보여 준다(= 칸이 비거나
+  // 뜻이 바뀐다). 뜻이 같은 `-` 로 명시해 맞춘다. [드롭다운의 저장 기본값] 절과 같은 함정.
+  assert.match(pane, /includes\(currentValue\)\s*\?\s*currentValue\s*:\s*'-'/,
+    "저장값이 목록에 없을 때 `-` 로 떨어지지 않으면 칸이 빈 채로 보인다");
+
+  for (const key of ['DX3rd.AttackTypeAll', 'DX3rd.AttackTypeHint', 'DX3rd.Fist']) {
+    assert.ok(key in JSON.parse(source('lang/ko.json')), `${key} 가 ko.json 에 없다`);
+  }
+
+  // 빌더의 행 조립기는 라벨 기본값을 키 이름으로 둔다. 다른 키에서는 런타임이 라벨을 읽지
+  // 않아 무해하지만 attack 만은 뜻이 있는 자리라, `'attack'` 이 굳으면 드롭다운에 없는 값이
+  // 된다(팩 146건이 그랬다). 이 예외가 사라지면 재빌드가 그 표기를 되살린다.
+  assert.match(source('_source/apply-overrides.mjs'),
+    /a\.key === 'attack' \? '-' : a\.key/,
+    "attrRow 가 attack 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 'attack' 라벨을 되살린다");
+});

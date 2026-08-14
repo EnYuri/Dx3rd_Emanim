@@ -49,6 +49,9 @@
         <div class="add-skills">
           <select name="system.skillTmp">
             {{#select system.skillTmp}}
+            {{!-- 컨텍스트 기본값 '-' 에 해당하는 옵션이 없으면 브라우저가 첫 기능을 보여 주고,
+                  폼 제출이 그 값을 문서에 굳힌다(weaponTmp 가 그렇게 새어 나갔다). --}}
+            <option value="-">-</option>
             {{#each system.actorSkills as |value key|}}
             <option value="{{key}}">{{skill value.name}}</option>
             {{/each}}

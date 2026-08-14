@@ -760,13 +760,24 @@
             };
 
             if (selectedKey === 'attack') {
-                // 공격력은 백병/사격 한정 보정을 고를 수 있다.
+                // 공격력 행에서만 이 칸은 「능력치/기능」이 아니라 **공격 종류**다. 열 헤더는 한
+                // 벌뿐인데 한 목록에 키가 다른 행이 섞이므로 헤더로는 그 사실을 알릴 수 없다 —
+                // 그래서 옵션 글자 자체가 뜻을 말하게 하고(`-` 를 「전체」로 보여 준다) 툴팁을 단다.
+                // 저장값은 그대로 `-`/melee/ranged/fist 이며, actor.js 의
+                // `R.bucket('attack', ['melee','ranged','fist'])` 가 이 라벨로 버킷을 가른다.
                 if (labelElement.matches('input')) {
                     const select = createSelect();
-                    addOption(select, '-', '-');
+                    select.title = game.i18n.localize('DX3rd.AttackTypeHint');
+                    addOption(select, '-', game.i18n.localize('DX3rd.AttackTypeAll'));
                     addOption(select, 'melee', game.i18n.localize('DX3rd.Melee'));
                     addOption(select, 'ranged', game.i18n.localize('DX3rd.Ranged'));
-                    select.value = currentValue;
+                    // 맨손 한정(축퇴기관 등). 런타임(`attrs.attack.fist`)은 처음부터 있었으나
+                    // 이 목록에 없어 저작할 방법이 없었다 — 그래서 실측 0건이었다.
+                    addOption(select, 'fist', game.i18n.localize('DX3rd.Fist'));
+                    // 저장값이 이 넷 중에 없으면(빌더가 키 이름을 라벨에 복사해 둔 옛 데이터 등)
+                    // 브라우저가 첫 항목을 보여 주는 대신 뜻이 같은 `-`(전체)로 명시해 맞춘다.
+                    // 그러지 않으면 칸이 빈 채로 보이고, 한 번 건드리는 것만으로 뜻이 바뀐다.
+                    select.value = ['-', 'melee', 'ranged', 'fist'].includes(currentValue) ? currentValue : '-';
                     bindLabelUpdate(select);
                     labelElement.replaceWith(select);
                 }
@@ -961,9 +972,9 @@
 
             // 액터 무기 아이템 목록 생성 (무기 + 비클, sort 값으로 정렬)
             data.actorWeapon = {};
-            // 가상(월드) 무기를 맨 위에 노출 - 액터/컴펜디움 무관하게 항상 등록 가능
-            const virtualWeapons = window.DX3rdVirtualWeapons?.list?.() || [];
-            virtualWeapons.forEach(vw => { data.actorWeapon[vw.id] = vw.name; });
+            // 가상 무기(「무기 없음」)는 여기에 넣지 않는다 — 이 드롭다운에는 이미 같은 뜻의
+            // 정적 `-` 옵션이 있고, 등록해 봐야 수치 기여가 0 이라 목록만 흐려진다.
+            // 그 한 장은 공격 시 무기 선택 다이얼로그에서만 쓴다.
             if (item.actor) {
                 // 무기 먼저 추가 (sort 값으로 정렬)
                 const weaponItems = item.actor.items.filter(i => i.type === 'weapon')

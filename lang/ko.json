@@ -1017,6 +1017,8 @@
   "DX3rd.EffectExecutionSettings": "액션 실행 설정",
   "DX3rd.ActionSettings": "액션 설정",
   "DX3rd.AttackType": "공격 타입",
+  "DX3rd.AttackTypeAll": "전체",
+  "DX3rd.AttackTypeHint": "이 공격력 보정이 걸릴 공격 종류입니다. 「전체」는 백병·사격을 가리지 않고, 「맨손」은 맨손 무기로 공격할 때만 가산합니다.",
   "DX3rd.AttackSource": "공격 구성",
   "DX3rd.EffectExecutionHint": "비용과 사용 횟수는 개별 효과가 아니라 사용/공격 액션 전체에 적용됩니다.",
   "DX3rd.SelfModifiers": "자신 지속 효과",

@@ -92,6 +92,28 @@
         }
 
         prepareWeaponData(weapon) {
+            // 「무기 없음」 한 장. 이름은 `-` 고 수치 칸은 전부 빈칸이라, 표에서 아무것도
+            // 고르지 않은 것처럼 보인다. 공격 종류만 이 판정의 attackRoll 을 따른다.
+            if (weapon.isVirtualWeapon) {
+                return {
+                    id: weapon.id,
+                    name: weapon.name,
+                    type: this.getSkillDisplay(weapon.system.type),
+                    skill: '',
+                    range: '',
+                    add: '',
+                    attack: '',
+                    guard: '',
+                    equipped: false,
+                    isVehicle: false,
+                    isVirtual: true,
+                    sort: weapon.sort || 0,
+                    attackExhausted: false,
+                    attackDisabled: false,
+                    attackUsedState: 0,
+                    attackUsedMax: 0
+                };
+            }
             if (weapon.type === 'vehicle') {
                 return {
                     id: weapon.id,
@@ -175,13 +197,24 @@
                 return;
             }
 
+            // 「무기 없음」 한 장은 운반값에 남기지 않는다 — 이름도 id 도 수치도 싣지 않아야
+            // 판정 카드에 「무기: -」 줄이 생기지 않고, 정말 안 고른 것과 결과가 같아진다.
+            // 그것만 골랐으면 무기 보너스 자체가 없는 것이므로 null 을 돌려준다.
+            const isVirtual = (id) => window.DX3rdVirtualWeapons?.isVirtual?.(id);
+            const realWeaponIds = selectedWeaponIds.filter(id => !isVirtual(id));
+            if (realWeaponIds.length === 0) {
+                await this.callback(null);
+                this.close();
+                return;
+            }
+
             let totalAttack = 0;
             let totalAdd = 0;
             let attackFormula = '';
             let addFormula = '';
             const weaponNames = [];
 
-            for (const weaponId of selectedWeaponIds) {
+            for (const weaponId of realWeaponIds) {
                 const weapon = this.weapons.find(w => w.id === weaponId);
                 if (!weapon) continue;
                 const formula = window.DX3rdFormulaEvaluator;
@@ -204,7 +237,7 @@
                 attackFormula,
                 addFormula,
                 weaponName: weaponNames.join(', '),
-                weaponIds: selectedWeaponIds
+                weaponIds: realWeaponIds
             });
             this.close();
         }
