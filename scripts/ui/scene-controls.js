@@ -284,26 +284,13 @@ Hooks.on('getSceneControlButtons', (controls) => {
 
                                     const allActors = game.actors.filter(a => a.type === "character" || a.type === "enemy");
                                     const characterActors = game.actors.filter(a => a.type === "character");
-                                    const fistName = game.i18n.localize("DX3rd.Fist");
                                     const tempItemText = game.i18n.localize("DX3rd.TemporaryItem");
-                                    const engageText = game.i18n.localize("DX3rd.Engage");
                                     const conditionsToRemove = ["rigor", "pressure", "dazed", "poisoned", "hatred", "fear", "berserk", "boarding", "fly", "stealth"];
 
-                                    // 1. 캐릭터 액터 Fist 초기화
+                                    // 1. 캐릭터 액터 Fist 초기화 — 변경 전 스냅샷으로만 되돌린다(리터럴 덮어쓰기 금지).
                                     for (const actor of characterActors) {
-                                        const fistItems = actor.items.filter(item => {
-                                            if (item.type !== "weapon") return false;
-                                            return item.name === fistName || item.name.includes(`[${fistName}]`);
-                                        });
-                                        for (const fistItem of fistItems) {
-                                            await fistItem.update({
-                                                name: fistName,
-                                                "system.add": "+0",
-                                                "system.attack": "-5",
-                                                "system.guard": "0",
-                                                "system.range": engageText
-                                            });
-                                        }
+                                        await window.DX3rdUniversalHandler.clearItemGrants(actor);
+                                        await window.DX3rdUniversalHandler.restoreFistItems(actor);
                                         const tempItems = actor.items.filter(item => {
                                             if (!["weapon", "protect", "vehicle"].includes(item.type)) return false;
                                             return item.name.endsWith(tempItemText);
@@ -390,26 +377,13 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                 callback: async () => {
                                                     const allActors = game.actors.filter(a => a.type === "character" || a.type === "enemy");
                                                     const characterActors = game.actors.filter(a => a.type === "character");
-                                                    const fistName = game.i18n.localize("DX3rd.Fist");
                                                     const tempItemText = game.i18n.localize("DX3rd.TemporaryItem");
-                                                    const engageText = game.i18n.localize("DX3rd.Engage");
                                                     const conditionsToRemove = ["rigor", "pressure", "dazed", "poisoned", "hatred", "fear", "berserk", "boarding", "fly", "stealth"];
 
-                                                    // 1. 캐릭터 액터 Fist 초기화
+                                                    // 1. 캐릭터 액터 Fist 초기화 — 변경 전 스냅샷으로만 되돌린다(리터럴 덮어쓰기 금지).
                                                     for (const actor of characterActors) {
-                                                        const fistItems = actor.items.filter(item => {
-                                                            if (item.type !== "weapon") return false;
-                                                            return item.name === fistName || item.name.includes(`[${fistName}]`);
-                                                        });
-                                                        for (const fistItem of fistItems) {
-                                                            await fistItem.update({
-                                                                name: fistName,
-                                                                "system.add": "+0",
-                                                                "system.attack": "-5",
-                                                                "system.guard": "0",
-                                                                "system.range": engageText
-                                                            });
-                                                        }
+                                                        await window.DX3rdUniversalHandler.clearItemGrants(actor);
+                                                        await window.DX3rdUniversalHandler.restoreFistItems(actor);
                                                         const tempItems = actor.items.filter(item => {
                                                             if (!["weapon", "protect", "vehicle"].includes(item.type)) return false;
                                                             return item.name.endsWith(tempItemText);

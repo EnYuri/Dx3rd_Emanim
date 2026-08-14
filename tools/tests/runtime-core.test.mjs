@@ -939,7 +939,9 @@ test('instant combo uses the neutral combo label and saves without its brackets'
 
 test('created weapon amount evaluates the source effect level formula', async () => {
   const context = baseContext({
-    game: { i18n: { localize: () => '(임시)' } }
+    game: { i18n: { localize: () => '(임시)' } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONST: { ACTIVE_EFFECT_SHOW_ICON: { ALWAYS: 2, NEVER: 0 } }
   });
   context.DX3rdUniversalHandler = {};
   context.DX3rdFormulaEvaluator = {
@@ -949,10 +951,13 @@ test('created weapon amount evaluates the source effect level formula', async ()
   load(context, 'scripts/handlers/universal-extensions.js');
 
   const created = [];
+  const grants = [];
   const actor = {
-    createEmbeddedDocuments: async (_type, documents) => {
-      created.push(...documents);
-      return documents;
+    uuid: 'Actor.test',
+    createEmbeddedDocuments: async (type, documents) => {
+      // 생성물의 수명을 쥐는 표식 AE 는 무기와 같은 API 로 만들어지므로 따로 센다.
+      (type === 'ActiveEffect' ? grants : created).push(...documents);
+      return documents.map((d, i) => ({ ...d, id: `${type}-${i}` }));
     }
   };
   const result = await context.DX3rdUniversalHandler.createWeaponItems(actor, {
@@ -962,6 +967,16 @@ test('created weapon amount evaluates the source effect level formula', async ()
   assert.equal(created.length, 3);
   assert.equal(result.length, 3);
   assert.equal(created[0].name, '일본도(임시)');
+
+  // 생성물의 수명은 표식 하나가 쥔다. 표식이 없으면 지울 방법이 사라지고, 무기마다
+  // 하나씩 붙이면 한 장을 지웠을 때 나머지가 유령이 된다.
+  assert.equal(grants.length, 1, '생성 무기 묶음마다 표식 AE 는 하나여야 한다');
+  const payload = grants[0].flags['dx3rd-emanim'].itemGrant;
+  assert.equal(payload.kind, 'weapon');
+  assert.equal(payload.createdItemIds.length, 3, '표식이 자기가 만든 무기를 전부 알아야 지울 수 있다');
+  // vm 컨텍스트의 배열은 다른 realm 이라 deepEqual 이 통하지 않는다 — 길이로 본다.
+  assert.equal(grants[0].system.changes.length, 0,
+    '표식은 계산에 관여하지 않는다 — changes 가 생기면 코어가 액터 데이터를 건드린다');
 });
 
 test('runtime number prompt clamps variable HP input to the configured maximum', async () => {
@@ -3816,4 +3831,102 @@ test('the attack modifier label offers every bucket the runtime counts, and neve
   assert.match(source('_source/apply-overrides.mjs'),
     /a\.key === 'attack' \? '-' : a\.key/,
     "attrRow 가 attack 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 'attack' 라벨을 되살린다");
+});
+
+test('the fist item is restored from its pre-change snapshot, never from hardcoded defaults', () => {
+  const ext = source('scripts/handlers/universal-extensions.js');
+
+  // 기본치의 출처는 한 곳뿐이다. 예전에는 이 리터럴이 생성 1곳 + 복원 3곳에 복제돼 있었고,
+  // 복원 쪽이 「되돌리기」가 아니라 「덮어쓰기」라 손본 맨손과 영구 변경(《사이버 암》)을
+  // 전투가 끝날 때마다 지웠다.
+  assert.match(ext, /defaultFistSystem\(\)\s*\{/, 'defaultFistSystem 이 없다');
+
+  // 변경 직전 스냅샷이 복원의 유일한 근거다. 이것이 사라지면 복원은 다시 리터럴로 돌아간다.
+  assert.match(ext, /fistOriginal/, '맨손 원본 스냅샷 플래그가 없다');
+  assert.match(ext, /snapshotFistItem\(fistItem\)\s*\{[\s\S]*?getFlag\('dx3rd-emanim', 'fistOriginal'\)\)\s*return/,
+    '스냅샷이 기존 값을 덮어쓰면 《파괴의 손톱》 뒤에 《백열》을 쓸 때 원본이 사라진다');
+
+  // 변경하는 필드와 되돌리는 필드는 같은 목록이어야 한다 — 갈리면 「변경은 됐는데 복원이
+  // 안 되는 필드」가 조용히 생긴다.
+  const fields = ext.match(/FIST_MUTABLE_FIELDS: \[([^\]]+)\]/)?.[1];
+  assert.ok(fields, 'FIST_MUTABLE_FIELDS 를 찾지 못했다');
+  const declared = fields.split(',').map(s => s.trim().replace(/^'|'$/g, ''));
+  const defaults = ext.match(/defaultFistSystem\(\)\s*\{\s*return \{([\s\S]*?)\};/)?.[1] ?? '';
+  for (const key of declared) {
+    assert.ok(defaults.includes(`${key}:`), `defaultFistSystem 에 ${key} 가 없다`);
+  }
+
+  // 복원 경로는 셋이 공유하는 하나뿐이다. 한 곳이라도 자기 리터럴로 되돌리면 그 진입점에서만
+  // 스냅샷이 무시되어, 사용자에게는 「전투 종료로는 살아남는데 씬 초기화로는 날아간다」가 된다.
+  for (const path of ['scripts/combat/combat.js', 'scripts/ui/scene-controls.js']) {
+    const text = source(path);
+    assert.match(text, /restoreFistItems\(actor\)/, `${path} 가 공용 복원 경로를 부르지 않는다`);
+    assert.doesNotMatch(text, /['"]system\.attack['"]:\s*['"]-5['"]/,
+      `${path} 에 맨손 리터럴 리셋이 되살아났다`);
+  }
+
+  // 영구 변경(《사이버 암》)은 「복원하지 않음」을 **스냅샷을 남기지 않음**으로 표현한다.
+  // 두 생성 가지가 모두 이 플래그를 봐야 한다 — 한쪽만 보면 맨손이 있느냐 없느냐에 따라
+  // 같은 이펙트가 영구가 됐다 안 됐다 한다.
+  assert.match(ext, /if \(!data\.fistPermanent\) await this\.snapshotFistItem\(fistItem\)/,
+    '영구 변경이 스냅샷을 남기면 전투 종료마다 되돌아간다');
+  assert.match(ext, /flags: data\.fistPermanent \? \{\} :/,
+    '맨손을 새로 만드는 가지도 영구 변경이면 스냅샷을 두지 않아야 한다');
+
+  // 저작 경로가 없으면 이 플래그는 영영 꺼진 채다(맨손 한정 `fist` 라벨이 그랬다).
+  const dialog = source('scripts/dialog/item-extend-dialog.js');
+  assert.match(dialog, /fistPermanent: this\._checked\('input\[name="weaponFistPermanent"\]', root\)/,
+    '확장 도구가 영구 변경 값을 수집하지 않는다');
+  assert.match(source('templates/dialog/item-extend-dialog.html'), /name="weaponFistPermanent"/,
+    '확장 도구 무기 탭에 영구 변경 입력이 없다');
+  // 맨손 체크가 꺼지면 뜻이 없는 값이므로 저작이 남지 않아야 한다.
+  assert.match(dialog, /if \(permanentField && !isFistMode\) permanentField\.checked = false/,
+    '맨손 모드가 꺼질 때 영구 변경 저작이 남으면 안 된다');
+
+  const ko = JSON.parse(source('lang/ko.json'));
+  for (const key of ['DX3rd.FistPermanent', 'DX3rd.FistPermanentHint']) {
+    assert.ok(key in ko, `${key} 가 ko.json 에 없다`);
+  }
+});
+
+test('an equipment grant is undone by deleting its marker, never by disabling it', () => {
+  const ext = source('scripts/handlers/universal-extensions.js');
+
+  // 되돌리는 것은 삭제뿐이다. disabled 에 반응하면 「잠깐 꺼 두기」가 곧 파괴가 되어,
+  // 껐다 켜도 생성물이 돌아오지 않는다. 코어가 disabled AE 를 appliedEffects 에서 빼므로
+  // 토큰 오버레이 아이콘은 그것만으로 사라진다.
+  assert.match(ext, /Hooks\.on\('deleteActiveEffect'/, '표식 삭제 훅이 없다');
+  assert.doesNotMatch(ext, /Hooks\.on\('updateActiveEffect'/,
+    'updateActiveEffect 훅을 달면 비활성화가 파괴가 된다');
+
+  // 맨손 표식은 여러 개 쌓일 수 있다(「이미 있어도 중복 가능」한 이펙트). 하나가 사라지면
+  // 남은 것 중 최신 상태로 다시 맞추고, 전부 사라졌을 때만 스택의 바닥으로 되돌린다.
+  assert.match(ext, /const remaining = this\.fistGrantEffects\(actor, effect\.id\)/,
+    '삭제된 표식을 뺀 나머지로 재계산해야 중간 것을 지워도 일관된다');
+  assert.match(ext, /const top = remaining\.length \? this\.grantPayload\(remaining\.at\(-1\)\)\.applied : null/,
+    '남은 표식이 있으면 그중 최신 applied 가 현재값이다');
+  assert.match(ext, /await this\.restoreFistItems\(actor\)/,
+    '표식이 전부 사라지면 최초 원본으로 되돌아가야 한다');
+
+  // 영구 변경에는 표식을 붙이지 않는다 — 되돌릴 스냅샷이 없으므로 지울 수 있는 표식을
+  // 두면 「지웠는데 아무 일도 안 일어나는」 거짓말이 된다.
+  const grantCalls = ext.match(/if \(!data\.fistPermanent\) \{\s*await this\.createGrantEffect/g) ?? [];
+  assert.equal(grantCalls.length, 2,
+    '맨손을 고치는 가지와 새로 만드는 가지 둘 다 영구 변경을 걸러야 한다');
+
+  // 정리 로직이 두 벌이 되면 반드시 갈린다. 전투 종료·씬 초기화는 표식을 지우기만 한다.
+  for (const path of ['scripts/combat/combat.js', 'scripts/ui/scene-controls.js']) {
+    assert.match(source(path), /clearItemGrants\(actor\)/,
+      `${path} 가 표식을 지우지 않으면 유령 표식이 남는다`);
+  }
+
+  // 컨디션 동기화 훅이 표식의 합성 status 를 상태이상으로 오인하면 안 된다.
+  assert.match(source('scripts/condtions.js'),
+    /if \(effect\.getFlag\?\.\('dx3rd-emanim', 'itemGrant'\)\) return;/,
+    '컨디션 훅이 장비 변경 표식을 걸러내지 않는다');
+
+  const ko = JSON.parse(source('lang/ko.json'));
+  for (const key of ['DX3rd.GrantFistDescription', 'DX3rd.GrantWeaponDescription']) {
+    assert.ok(key in ko, `${key} 가 ko.json 에 없다`);
+  }
 });

@@ -1317,7 +1317,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "무형의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1349,7 +1349,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "사이버 암",
         "type": "melee",
         "skill": "melee",
@@ -1357,7 +1357,8 @@
         "add": "0",
         "attack": "[level]+3",
         "guard": "5",
-        "range": "지근"
+        "range": "지근",
+        "fistPermanent": true
       }
     },
     "active": {
@@ -1381,7 +1382,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "백열",
         "type": "melee",
         "skill": "melee",
@@ -1413,7 +1414,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "일각귀",
         "type": "melee",
         "skill": "melee",
@@ -1445,7 +1446,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "뼈의 검",
         "type": "melee",
         "skill": "melee",
@@ -1477,7 +1478,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "에어로 드라이브",
         "type": "melee",
         "skill": "melee",
@@ -1509,7 +1510,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "멸망의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1541,7 +1542,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "파괴의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1573,7 +1574,7 @@
     "itemExtend": {
       "weapon": {
         "activate": true,
-        "fist": false,
+        "fist": true,
         "name": "독사",
         "type": "melee",
         "skill": "melee",
@@ -14381,6 +14382,20 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": true,
+        "name": "샤이닝 암",
+        "type": "melee",
+        "skill": "melee",
+        "amount": 1,
+        "add": "0",
+        "attack": "[sense]",
+        "guard": "0",
+        "range": "지근"
+      }
     }
   },
   "샤인 블레이드": {

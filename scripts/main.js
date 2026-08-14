@@ -1358,12 +1358,10 @@ Hooks.on('createActor', async (actor, options, userId) => {
                     type: 'weapon',
                     img: 'icons/skills/melee/unarmed-punch-fist-yellow-red.webp',
                     system: {
-                        type: 'melee',
-                        skill: 'melee',
-                        add: '+0',
-                        attack: '-5',
-                        guard: '0',
-                        range: game.i18n.localize("DX3rd.Engage"),
+                        // 기본치의 출처는 한 곳뿐이다(`universal-extensions.js` 의 defaultFistSystem).
+                        // 예전에는 이 리터럴이 복원 경로 3곳에도 복제돼 있었고, 그쪽이 복원이 아니라
+                        // 덮어쓰기로 동작해 손본 맨손을 전투마다 지웠다.
+                        ...window.DX3rdUniversalHandler.defaultFistSystem(),
                         description: game.i18n.localize("DX3rd.FistDescription"),
                         equipment: false,
                         active: {

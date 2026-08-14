@@ -1380,7 +1380,6 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
   await executeMacrosByPrefix('combat-end-macro-');
   
   // 현재 씬의 토큰 액터만 Fist 아이템 리셋 및 행동 상태 초기화 (캐릭터 + 에너미)
-  const fistName = game.i18n.localize("DX3rd.Fist");
   const currentScene = game.scenes.active;
   
   if (currentScene) {
@@ -1391,20 +1390,14 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
       
       // Fist 아이템 리셋·임시 아이템 삭제는 캐릭터만
       if (actor.type === 'character') {
-        const fistItems = actor.items.filter(item => {
-          if (item.type !== 'weapon') return false;
-          const isFist = item.name === fistName || item.name.includes(`[${fistName}]`);
-          return isFist;
-        });
-        for (const fistItem of fistItems) {
-          await fistItem.update({
-            'name': fistName,
-            'system.add': '+0',
-            'system.attack': '-5',
-            'system.guard': '0',
-            'system.range': game.i18n.localize("DX3rd.Engage")
-          });
-        }
+        // 장비 변경의 수명은 표식(AE)이 쥔다 — 표식을 지우면 삭제 훅이 맨손을 되돌리고
+        // 생성 무기를 지운다. 여기서 복원 로직을 다시 쓰면 두 벌이 되어 반드시 갈린다.
+        // 이어지는 restoreFistItems 는 표식 없이 남은 옛 데이터를 위한 것이다.
+        //
+        // 예전에는 이 자리에서 이름이 맨손인 무기를 전부 찾아 -5/0 리터럴로 덮었는데, 그러면
+        // 맨손을 손본 액터와 《사이버 암》처럼 영구 변경된 맨손까지 전투가 끝날 때마다 초기화됐다.
+        await window.DX3rdUniversalHandler.clearItemGrants(actor);
+        await window.DX3rdUniversalHandler.restoreFistItems(actor);
         const tempItemText = game.i18n.localize('DX3rd.TemporaryItem');
         const tempItems = actor.items.filter(item => {
           if (!['weapon', 'protect', 'vehicle'].includes(item.type)) return false;

@@ -1312,6 +1312,9 @@ Hooks.once('ready', async function() {
 
     // applied 버프(네이티브 AE)는 컨디션 동기화 대상이 아니다 — 합성 status 로 인한 오탐 방지
     if (effect.getFlag?.('dx3rd-emanim', 'appliedKey')) return;
+    // 장비 변경 표식도 같은 이유로 제외한다(고유 status `dx3rd-grant-*` 를 들고 있다).
+    // 정리는 universal-extensions.js 의 전용 훅이 한다.
+    if (effect.getFlag?.('dx3rd-emanim', 'itemGrant')) return;
 
     const conditionId = Array.from(effect.statuses || [])[0];
     

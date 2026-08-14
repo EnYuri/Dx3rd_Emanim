@@ -487,13 +487,18 @@
             const fistCheckbox = this._query('input[name="weaponFist"]', weaponContent);
             const nameField = this._query('input[name="weaponName"]', weaponContent);
             const amountField = this._query('input[name="weaponAmount"]', weaponContent);
+            const permanentField = this._query('input[name="weaponFistPermanent"]', weaponContent);
 
-            this.toggleWeaponFields(Boolean(fistCheckbox?.checked), nameField, amountField);
+            this.toggleWeaponFields(Boolean(fistCheckbox?.checked), nameField, amountField, permanentField);
         }
 
-        toggleWeaponFields(isFistMode, nameField, amountField) {
+        toggleWeaponFields(isFistMode, nameField, amountField, permanentField = null) {
             this._setDisabled(nameField, false);
             this._setDisabled(amountField, isFistMode);
+            // 「영구 변경」은 맨손을 고쳐 쓸 때만 뜻이 있다 — 별개 무기를 만드는 경로에는
+            // 되돌릴 원본 자체가 없다. 끌 때 값도 함께 내려 저작이 남지 않게 한다.
+            this._setDisabled(permanentField, !isFistMode);
+            if (permanentField && !isFistMode) permanentField.checked = false;
         }
 
         setupHealResurrectToggle() {
@@ -726,7 +731,8 @@
                     this.toggleWeaponFields(
                         this._checked('input[name="weaponFist"]', weaponContent),
                         this._query('input[name="weaponName"]', weaponContent),
-                        this._query('input[name="weaponAmount"]', weaponContent)
+                        this._query('input[name="weaponAmount"]', weaponContent),
+                        this._query('input[name="weaponFistPermanent"]', weaponContent)
                     );
                 }
 
@@ -800,6 +806,8 @@
                     range: this._value('input[name="weaponRange"]', root),
                     amount: this._value('input[name="weaponAmount"]', root),
                     fist: this._checked('input[name="weaponFist"]', root),
+                    // 영구 변경(《사이버 암》류): 되돌릴 스냅샷을 남기지 않는다.
+                    fistPermanent: this._checked('input[name="weaponFistPermanent"]', root),
                     activate: this._checked('input[name="weaponActivate"]', root)
                 };
             }

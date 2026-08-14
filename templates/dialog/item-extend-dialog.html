@@ -453,11 +453,21 @@
             <div><input type="text" name="weaponAmount" placeholder="Amount"></div>
             <div style="display: flex; align-items: center; gap: 0px;">
                 <input type="checkbox" name="weaponFist" id="weaponFist">
-                <label for="weaponFist">{{localize "DX3rd.Fist"}}</label>
+                <!-- 이 칸은 무기를 새로 만들 것인가 / 기존 맨손을 고쳐 쓸 것인가를 가른다.
+                     `DX3rd.Fist` 는 맨손 **아이템의 이름 그 자체**라(`item.name === localize('DX3rd.Fist')`)
+                     그 키를 손대면 아이템 이름이 바뀐다. 그래서 라벨 전용 키를 따로 둔다. -->
+                <label for="weaponFist" title="{{localize 'DX3rd.FistApplyHint'}}">{{localize "DX3rd.FistApply"}}</label>
             </div>
             <div style="display: flex; align-items: center; gap: 0px;">
                 <input type="checkbox" name="weaponActivate" id="weaponActivate">
                 <label for="weaponActivate">{{localize "DX3rd.Activate"}}</label>
+            </div>
+
+            <!-- Row 6 : 맨손 변경이 영구인가(《사이버 암》류). 맨손 체크가 켜져야 뜻이 있다. -->
+            <div class="form-label">{{localize "DX3rd.FistPermanent"}}</div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="weaponFistPermanent" id="weaponFistPermanent"
+                       title="{{localize 'DX3rd.FistPermanentHint'}}">
             </div>
         </div>
     </section>

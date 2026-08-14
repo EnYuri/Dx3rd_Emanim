@@ -437,7 +437,189 @@
         createdItems.push(createdItem[0]);
       }
 
+      // 생성물의 수명도 표식이 쥔다. 무기 표식은 서로 독립이므로 몇 개든 쌓일 수 있고,
+      // 하나를 지우면 그 표식이 만든 무기만 사라진다.
+      if (createdItems.length) {
+        await this.createGrantEffect(actor, item, {
+          kind: 'weapon',
+          sourceItemId: item?.id ?? null,
+          createdItemIds: createdItems.map(i => i.id),
+          order: Date.now()
+        });
+      }
+
       return createdItems;
+    },
+
+    /**
+     * 맨손 데이터를 변경하는 이펙트가 덮어쓰는 필드. 스냅샷·복원이 같은 목록을 써야
+     * 「변경은 됐는데 복원이 안 되는 필드」가 생기지 않는다.
+     */
+    FIST_MUTABLE_FIELDS: ['type', 'skill', 'add', 'attack', 'guard', 'range'],
+
+    /**
+     * 액터가 처음 받는 맨손의 기본 데이터. `main.js` 의 맨손 생성과 **여기 한 곳**만 쓴다 —
+     * 예전에는 이 값이 생성 1곳 + 리셋 3곳에 리터럴로 흩어져 있었고, 그래서 맨손을 손본
+     * 액터도 전투가 끝날 때마다 이 값으로 돌아갔다(복원이 아니라 덮어쓰기였다).
+     */
+    defaultFistSystem() {
+      return {
+        type: 'melee',
+        skill: 'melee',
+        add: '+0',
+        attack: '-5',
+        guard: '0',
+        range: game.i18n.localize('DX3rd.Engage')
+      };
+    },
+
+    /** 맨손 아이템(이름이 `맨손` 또는 `…[맨손]`)을 찾는다. */
+    findFistItem(actor) {
+      const fistName = game.i18n.localize('DX3rd.Fist');
+      return actor?.items?.find(it =>
+        it.type === 'weapon' &&
+        (it.name === fistName || it.name.endsWith(`[${fistName}]`))
+      ) || null;
+    },
+
+    /**
+     * 맨손을 변경하기 **직전**의 모습을 아이템 플래그에 적어 둔다. 복원은 이 값으로만 하며,
+     * 플래그가 없는 맨손은 아무도 변경한 적이 없다는 뜻이라 복원이 손대지 않는다
+     * (= 손으로 조정한 맨손과 영구 변경이 살아남는다).
+     *
+     * **이미 스냅샷이 있으면 덮어쓰지 않는다.** 《파괴의 손톱》 뒤에 《백열》을 쓰면 두 번째
+     * 호출이 보는 「현재 값」은 첫 번째의 결과물이라, 덮어쓰면 원본이 영영 사라진다.
+     */
+    async snapshotFistItem(fistItem) {
+      if (!fistItem || fistItem.getFlag('dx3rd-emanim', 'fistOriginal')) return;
+      const sys = fistItem.system || {};
+      const original = { name: fistItem.name };
+      for (const key of this.FIST_MUTABLE_FIELDS) original[key] = sys[key];
+      await fistItem.setFlag('dx3rd-emanim', 'fistOriginal', original);
+    },
+
+    // ── 장비 변경의 수명은 ActiveEffect 가 쥔다 ──────────────────────────────
+    //
+    // 맨손 변경과 무기 생성은 「전투가 끝나면」이라는 고정 트리거가 아니라 **표식(AE)이
+    // 살아 있는 동안** 유지된다. AE 를 지우면 그 변경이 되돌아가고 생성물이 사라진다.
+    // 그래서 GM 은 씬·시나리오 어디서든 효과 탭에서 지우는 것으로 즉시 되돌릴 수 있다.
+    //
+    // **비활성화(disabled)는 되돌리지 않는다.** 코어가 disabled AE 를 `appliedEffects`
+    // 에서 빼므로 토큰 오버레이 아이콘만 사라지고, 무기·맨손 데이터는 그대로 남는다.
+    // 되돌리는 것은 **삭제**뿐이다 — 그래서 `updateActiveEffect` 훅을 두지 않는다.
+    //
+    // 맨손 AE 는 **여러 개 쌓일 수 있다**(「이미 있어도 중복 가능」한 이펙트가 있다).
+    // 그래서 각 AE 가 자기가 만든 맨손 데이터(`applied`)와 적용 시각(`order`)을 들고,
+    // 하나가 사라지면 남은 것 중 **가장 최근의 applied** 로 다시 맞춘다. 전부 사라지면
+    // 아이템 플래그 `fistOriginal`(= 스택의 바닥, 최초 원본)로 되돌린다. 중간 것을 지워도
+    // 바닥이 흔들리지 않는 이유가 이것이다.
+
+    GRANT_FLAG: 'itemGrant',
+
+    /** 이 AE 가 장비 변경 표식인가. 아니면 null. */
+    grantPayload(effect) {
+      return effect?.getFlag?.('dx3rd-emanim', this.GRANT_FLAG) ?? null;
+    },
+
+    /** 액터의 맨손 변경 AE 를 오래된 순으로. */
+    fistGrantEffects(actor, excludeId = null) {
+      return (actor?.effects ?? [])
+        .filter(e => e.id !== excludeId && this.grantPayload(e)?.kind === 'fist')
+        .sort((a, b) => (this.grantPayload(a).order ?? 0) - (this.grantPayload(b).order ?? 0));
+    },
+
+    /**
+     * 장비 변경 표식 AE 를 만든다. 계산에는 관여하지 않는다 —
+     * `system.changes` 를 비워 두므로 코어가 액터 데이터를 건드릴 여지가 없고,
+     * 보정은 지금까지처럼 `DX3rdAppliedEffects` 쪽 단일 경로가 담당한다.
+     */
+    async createGrantEffect(actor, item, payload) {
+      const key = `${payload.kind}-${item?.id ?? 'unknown'}-${payload.order}`;
+      const data = {
+        name: item?.name || game.i18n.localize('DX3rd.Effect'),
+        img: item?.img || 'icons/svg/sword.svg',
+        description: game.i18n.localize(payload.kind === 'fist'
+          ? 'DX3rd.GrantFistDescription' : 'DX3rd.GrantWeaponDescription'),
+        disabled: false,
+        // 토큰에 아이콘을 띄운다 — 비활성화하면 코어가 이 목록에서 빼므로 아이콘만 사라진다.
+        showIcon: CONST.ACTIVE_EFFECT_SHOW_ICON?.ALWAYS ?? 2,
+        statuses: [`dx3rd-grant-${key}`],   // 고유 status = 아이콘 병합 방지
+        origin: item ? `${actor.uuid}.Item.${item.id}` : actor.uuid,
+        system: { changes: [] },
+        flags: { 'dx3rd-emanim': { [this.GRANT_FLAG]: payload } }
+      };
+      try {
+        const [created] = await actor.createEmbeddedDocuments('ActiveEffect', [data]);
+        return created;
+      } catch (e) {
+        console.error('DX3rd | 장비 변경 표식 AE 생성 실패:', e);
+        return null;
+      }
+    },
+
+    /**
+     * 장비 변경 표식이 사라졌을 때의 정리. `deleteActiveEffect` 훅이 부른다.
+     * 생성 무기는 지우고, 맨손은 **남은 표식을 다시 계산해서** 맞춘다.
+     */
+    async revertItemGrant(actor, effect) {
+      const grant = this.grantPayload(effect);
+      if (!actor || !grant) return;
+
+      if (grant.kind === 'weapon') {
+        const ids = (grant.createdItemIds || []).filter(id => actor.items.get(id));
+        if (ids.length) await actor.deleteEmbeddedDocuments('Item', ids);
+        return;
+      }
+
+      if (grant.kind !== 'fist') return;
+      const fistItem = actor.items.get(grant.fistItemId) || this.findFistItem(actor);
+      if (!fistItem) return;
+
+      // 이 AE 는 이미 삭제됐다. 남은 것이 있으면 그중 최신 상태가 옳은 현재값이다.
+      const remaining = this.fistGrantEffects(actor, effect.id);
+      const top = remaining.length ? this.grantPayload(remaining.at(-1)).applied : null;
+      if (top) {
+        const update = { name: top.name };
+        for (const key of this.FIST_MUTABLE_FIELDS) {
+          if (top[key] !== undefined) update[`system.${key}`] = top[key];
+        }
+        await fistItem.update(update);
+        return;
+      }
+      // 전부 사라졌다 → 스택의 바닥(최초 원본)으로.
+      await this.restoreFistItems(actor);
+    },
+
+    /**
+     * 그 액터의 장비 변경 표식을 전부 지운다. 실제 되돌리기는 삭제 훅이 하므로
+     * **여기서 복원 로직을 다시 쓰지 말 것** — 두 벌이 되면 반드시 갈린다.
+     */
+    async clearItemGrants(actor) {
+      const ids = (actor?.effects ?? []).filter(e => this.grantPayload(e)).map(e => e.id);
+      if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
+      return ids.length;
+    },
+
+    /**
+     * 맨손 데이터를 변경 전으로 되돌린다. 씬/전투 종료와 씬 컨트롤의 초기화가 공유하는
+     * **단 하나의 복원 경로**다. 스냅샷이 없는 아이템은 건너뛴다.
+     * @returns {number} 되돌린 아이템 수
+     */
+    async restoreFistItems(actor) {
+      let restored = 0;
+      for (const it of actor?.items ?? []) {
+        if (it.type !== 'weapon') continue;
+        const original = it.getFlag('dx3rd-emanim', 'fistOriginal');
+        if (!original) continue;
+        const update = { name: original.name || game.i18n.localize('DX3rd.Fist') };
+        for (const key of this.FIST_MUTABLE_FIELDS) {
+          if (original[key] !== undefined) update[`system.${key}`] = original[key];
+        }
+        await it.update(update);
+        await it.unsetFlag('dx3rd-emanim', 'fistOriginal');
+        restored++;
+      }
+      return restored;
     },
 
     /**
@@ -448,14 +630,21 @@
      */
     async updateFistItem(actor, data, item = null) {
       const fistName = game.i18n.localize('DX3rd.Fist');
-      
+
       // 기존 맨손 아이템 찾기 (이름이 맨손이거나 [맨손]으로 끝나는 아이템)
-      const fistItem = actor.items.find(item => 
-        item.type === 'weapon' && 
-        (item.name === fistName || item.name.endsWith(`[${fistName}]`))
-      );
+      const fistItem = this.findFistItem(actor);
 
       if (fistItem) {
+        // 덮어쓰기 전에 원본을 남긴다. 이것이 없으면 복원할 근거가 사라진다.
+        //
+        // **영구 변경은 예외다.** 《사이버 암》은 「그 씬 동안」이 아니라 **취득 시 영구**로
+        // 맨손을 대체하므로(weapons 팩 문서: 「이 아이템은 [사이버 암] 이펙트 취득시 입수한다」)
+        // 되돌릴 대상이 아니다. 스냅샷을 남기지 않으면 `restoreFistItems` 가 이 아이템을
+        // 아예 건너뛴다 — 즉 「복원하지 않음」을 표현하는 방법이 「근거를 남기지 않음」이다.
+        //
+        // 그 뒤에 《파괴의 손톱》 같은 씬 한정 이펙트를 쓰면 그때 스냅샷이 찍히고, 복원의
+        // 목적지는 기본 맨손이 아니라 **사이버 암 상태**가 된다. 그것이 원문대로다.
+        if (!data.fistPermanent) await this.snapshotFistItem(fistItem);
         // 아이템의 레벨 가져오기 (없으면 1)
         const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;
         const itemForFormula = { type: item?.type || 'effect', system: { level: { value: itemLevel } } };
@@ -471,15 +660,35 @@
         const evaluatedRange = this.evaluateFormulaForExtension(data.range, itemForFormula, actor, true);
         
         // 기존 맨손 아이템 업데이트
+        const applied = {
+          name: newName,
+          type: data.type || 'melee',
+          skill: data.skill || 'melee',
+          add: evaluatedAdd,
+          attack: evaluatedAttack,
+          guard: evaluatedGuard,
+          range: evaluatedRange
+        };
         await fistItem.update({
-          'name': newName,
-          'system.type': data.type || 'melee',
-          'system.skill': data.skill || 'melee',
-          'system.add': evaluatedAdd,
-          'system.attack': evaluatedAttack,
-          'system.guard': evaluatedGuard,
-          'system.range': evaluatedRange
+          'name': applied.name,
+          'system.type': applied.type,
+          'system.skill': applied.skill,
+          'system.add': applied.add,
+          'system.attack': applied.attack,
+          'system.guard': applied.guard,
+          'system.range': applied.range
         });
+        // 영구 변경에는 표식을 붙이지 않는다 — 되돌릴 근거(스냅샷)가 없으므로 지울 수 있는
+        // 표식을 두면 「지웠는데 아무 일도 안 일어나는」 거짓말이 된다.
+        if (!data.fistPermanent) {
+          await this.createGrantEffect(actor, item, {
+            kind: 'fist',
+            sourceItemId: item?.id ?? null,
+            fistItemId: fistItem.id,
+            order: Date.now(),
+            applied
+          });
+        }
       } else {
         // 맨손 아이템이 없으면 새로 생성
         // 아이템의 레벨 가져오기 (없으면 1)
@@ -522,10 +731,35 @@
               max: 0,
               disable: 'notCheck'
             }
+          },
+          // 맨손이 없어 새로 만드는 경로다. 복원의 목적지는 「변경 전 값」이 아니라 기본 맨손이므로
+          // 스냅샷에 기본치를 넣는다 — 넣지 않으면 이 아이템만 영영 복원 대상에서 빠진다.
+          // 영구 변경은 위와 같은 이유로 스냅샷 자체를 두지 않는다.
+          flags: data.fistPermanent ? {} : {
+            'dx3rd-emanim': {
+              fistOriginal: { name: fistName, ...this.defaultFistSystem() }
+            }
           }
         };
 
-        await actor.createEmbeddedDocuments('Item', [itemData]);
+        const [madeFist] = await actor.createEmbeddedDocuments('Item', [itemData]);
+        if (!data.fistPermanent) {
+          await this.createGrantEffect(actor, item, {
+            kind: 'fist',
+            sourceItemId: item?.id ?? null,
+            fistItemId: madeFist?.id ?? null,
+            order: Date.now(),
+            applied: {
+              name: newName,
+              type: data.type || 'melee',
+              skill: data.skill || 'melee',
+              add: evaluatedAdd,
+              attack: evaluatedAttack,
+              guard: evaluatedGuard,
+              range: evaluatedRange
+            }
+          });
+        }
       }
     },
 
@@ -738,5 +972,27 @@
       };
       return game.i18n.localize(titles[itemType] || 'DX3rd.Item');
     },
+  });
+
+  // 장비 변경 표식이 사라지면 그 변경을 되돌린다.
+  //
+  // **삭제에만 반응한다.** `updateActiveEffect` 훅은 일부러 두지 않았다 — 비활성화는
+  // 코어가 `appliedEffects` 에서 빼서 토큰 오버레이 아이콘만 끄고, 무기·맨손 데이터는
+  // 그대로 두는 것이 이 표식의 규약이다. 여기에 disabled 반응을 더하면 「잠깐 꺼 두기」가
+  // 곧 파괴가 되어, 껐다 켜도 생성물이 돌아오지 않는다. **되살리지 말 것.**
+  //
+  // 한 클라이언트만 쓴다(`game.user.id !== userId`). 전원이 돌면 같은 아이템 삭제를
+  // 인원수만큼 시도해 경합한다.
+  Hooks.on('deleteActiveEffect', async (effect, options, userId) => {
+    if (game.user.id !== userId) return;
+    const actor = effect?.parent;
+    if (!actor?.items) return;
+    const H = window.DX3rdUniversalHandler;
+    if (!H?.grantPayload?.(effect)) return;
+    try {
+      await H.revertItemGrant(actor, effect);
+    } catch (e) {
+      console.error('DX3rd | 장비 변경 표식 정리 실패:', e);
+    }
   });
 })();
