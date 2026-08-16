@@ -143,7 +143,7 @@
 
     // 무기 삭제 직후: 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용).
     async _onWeaponRemoved(weaponId) {
-      await comboData.applyWeaponRemoved(this.item, this.item.actor);
+      await comboData.applyWeaponRemoved(this.item, this.item.actor, weaponId);
     }
 
     async _toggleWeaponSelection(event) {

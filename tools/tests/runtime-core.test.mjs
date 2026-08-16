@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
@@ -447,6 +447,145 @@ test('runtime utils create versioned socket envelopes and escape HTML', () => {
   assert.equal(result.escaped, '&lt;b title=&quot;x&quot;&gt;&amp;&lt;/b&gt;');
 });
 
+test('after-damage targeting preserves self and targetAll while narrowing selected targets', () => {
+  const context = baseContext();
+  load(context, 'scripts/core/runtime-utils.js');
+  const resolve = context.DX3rdRuntimeUtils.resolveAfterDamageTarget;
+
+  assert.deepEqual(plain(resolve('self', ['t1'])),
+    {target: 'self', selectedTargetIds: [], targetsFrozen: true});
+  assert.deepEqual(plain(resolve('targetToken', ['t1', 't1', 't2'])),
+    {target: 'targetToken', selectedTargetIds: ['t1', 't2'], targetsFrozen: true});
+  assert.deepEqual(plain(resolve('targetAll', ['t1'])),
+    {target: 'targetAll', selectedTargetIds: ['t1'], targetsFrozen: true},
+    'targetAll을 targetToken으로 바꾸면 시전자가 대상에서 사라진다');
+  assert.deepEqual(plain(resolve('targetAll', [])),
+    {target: 'self', selectedTargetIds: [], targetsFrozen: true},
+    '피해 대상이 없을 때 빈 배열이 GM의 현재 선택 대상으로 다시 해석되면 안 된다');
+  assert.deepEqual(plain(resolve('damagedTargets', ['t2'])),
+    {target: 'targetToken', selectedTargetIds: ['t2'], targetsFrozen: true});
+});
+
+test('after-damage completion counts tokens even when they share one actor', () => {
+  const context = baseContext();
+  load(context, 'scripts/core/runtime-utils.js');
+  const request = {
+    targetActorIds: ['same-actor', 'same-actor'],
+    targetTokenIds: ['token-1', 'token-2'],
+    damageReports: {},
+    reportActorIds: {}
+  };
+  const first = context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+    targetTokenId: 'token-1', targetActorId: 'same-actor', hpChange: 3
+  });
+  const second = context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+    targetTokenId: 'token-2', targetActorId: 'same-actor', hpChange: 4
+  });
+  assert.equal(first.complete, false);
+  assert.equal(second.complete, true);
+  assert.equal(second.reportCount, 2);
+});
+
+test('an empty frozen after-damage target never falls back to the current UI targets', async () => {
+  let wrongTargetUpdated = false;
+  const wrongTarget = {id: 'wrong', update: async () => { wrongTargetUpdated = true; }};
+  const actor = {id: 'caster', name: 'caster'};
+  const context = baseContext({
+    DX3rdUniversalHandler: {},
+    game: {user: {targets: new Set([{id: 'wrong-token', actor: wrongTarget}])}},
+    canvas: {tokens: {get: () => null}},
+    ui: {notifications: {warn: () => {}, error: () => {}}}
+  });
+  load(context, 'scripts/handlers/universal-healing.js');
+  await context.DX3rdUniversalHandler.executeHealExtensionNow(actor, {
+    formulaDice: 0,
+    formulaAdd: 1,
+    target: 'targetToken',
+    selectedTargetIds: [],
+    targetsFrozen: true
+  });
+  assert.equal(wrongTargetUpdated, false);
+});
+
+test('a self after-damage extension does not wake target-only siblings when nobody was damaged', async () => {
+  const calls = [];
+  const actor = {id: 'caster', name: 'caster', items: new Map()};
+  const handler = {
+    executeHealExtensionNow: async () => calls.push('heal'),
+    executeDamageExtensionNow: async () => calls.push('damage'),
+    executeStatusClearExtension: async () => calls.push('clear'),
+    executeConditionExtensionNow: async () => calls.push('condition'),
+    executeItemExtension: async () => calls.push('item'),
+    addToAfterMainQueue: async () => calls.push('afterMain')
+  };
+  const context = baseContext({
+    DX3rdUniversalHandler: handler,
+    game: {actors: new Map([[actor.id, actor]])},
+    canvas: {tokens: {placeables: []}}
+  });
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/handlers/universal-damage-dialog.js');
+  await handler.processAfterDamageExtensionRequest({
+    attackerId: actor.id,
+    itemId: 'item',
+    targetActorIds: ['victim'],
+    targetTokenIds: ['token'],
+    damageReports: {token: 0},
+    reportActorIds: {token: 'victim'},
+    extensions: {
+      heal: {target: 'self', timing: 'afterDamage'},
+      condition: [{target: 'targetToken', timing: 'afterDamage', type: 'fear'}]
+    }
+  });
+  assert.deepEqual(calls, ['heal']);
+});
+
+test('cancelled and expired after-damage requests release both queues', () => {
+  let expiryCallback = null;
+  const context = baseContext({
+    DX3rdUniversalHandler: {},
+    setTimeout: callback => { expiryCallback = callback; return 7; },
+    clearTimeout: () => {}
+  });
+  load(context, 'scripts/handlers/universal-damage-dialog.js');
+  context.DX3rdAfterDamageExtensionQueue = {q1: {}, q2: {}};
+  context.DX3rdAfterDamageActivationQueue = {q1: {}, q2: {}};
+  context.DX3rdTargetApplyQueue = {};
+  context.DX3rdUniversalHandler.discardAfterDamageRequest('q1');
+  assert.equal(context.DX3rdAfterDamageExtensionQueue.q1, undefined);
+  assert.equal(context.DX3rdAfterDamageActivationQueue.q1, undefined);
+
+  context.DX3rdUniversalHandler.scheduleAfterDamageRequestExpiry('q2');
+  assert.equal(typeof expiryCallback, 'function');
+  expiryCallback();
+  assert.equal(context.DX3rdAfterDamageExtensionQueue.q2, undefined);
+  assert.equal(context.DX3rdAfterDamageActivationQueue.q2, undefined);
+});
+
+test('HP transitions are classified at zero and below, on the initiating client only', () => {
+  const context = baseContext({
+    game: { user: { id: 'u1' } },
+    ChatMessage: { getSpeaker: () => ({}) }
+  });
+  load(context, 'scripts/core/runtime-utils.js');
+  const classify = context.DX3rdRuntimeUtils.classifyHpTransition;
+
+  assert.equal(classify(5, 0), 'defeated');
+  assert.equal(classify(5, -3), 'defeated', 'HP costs may legitimately cross below zero');
+  assert.equal(classify(0, 4), 'revived');
+  assert.equal(classify(-3, 4), 'revived');
+  assert.equal(classify(-3, 0), null);
+  assert.equal(classify(4, 3), null);
+
+  const conditions = source('scripts/condtions.js');
+  const hpHooks = conditions.slice(conditions.indexOf('const _previousHpValues'), conditions.indexOf('// 전역으로 함수 노출'));
+  assert.match(hpHooks, /preUpdateActor[\s\S]*?userId !== game\.user\.id/);
+  assert.match(hpHooks, /updateActor[\s\S]*?userId !== game\.user\.id/);
+  assert.match(hpHooks, /classifyHpTransition\?\.\(oldHp, newHp\)/);
+  assert.doesNotMatch(hpHooks, /if \(!game\.user\.isGM\) return/,
+    'player-originated HP updates must not depend on a cache that exists only on the player');
+});
+
 test('extension grouping preserves condition source lifetimes', () => {
   const context = baseContext();
   load(context, 'scripts/core/runtime-utils.js');
@@ -461,9 +600,84 @@ test('extension grouping preserves condition source lifetimes', () => {
   assert.deepEqual(grouped.filter(bucket => bucket.type === 'condition').map(bucket => bucket.duration).sort(), ['round', 'turn']);
 });
 
+test('conditional combo damage executes once per bucket at every runtime stage', async () => {
+  let authoredTiming = 'instant';
+  const combo = {
+    id: 'c1', name: '조건부 콤보', type: 'combo',
+    system: { effectIds: [], weapon: [], attackRoll: '-', active: {} },
+    getFlag: () => ({
+      damage: { activate: true, timing: authoredTiming, target: 'self', conditionalFormula: true, ignoreReduce: true }
+    })
+  };
+  const actor = {
+    id: 'a1', name: '사용자', type: 'character', system: {}, effects: [],
+    items: new Map([[combo.id, combo]]),
+    updateEmbeddedDocuments: async () => {}
+  };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+  const context = baseContext({
+    game: {
+      actors: new Map([[actor.id, actor]]),
+      user: { targets: new Set() },
+      settings: { get: () => '' },
+      i18n: { localize: key => key }
+    },
+    canvas: { tokens: { placeables: [] } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONFIG: { statusEffects: [] },
+    foundry: { utils: { deepClone: value => structuredClone(value) } }
+  });
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+
+  const handler = context.DX3rdUniversalHandler;
+  const grouped = handler.groupExtensionsByKey([{
+    type: 'damage', timing: 'afterSuccess', target: 'self', parentRunTiming: 'instant',
+    itemId: combo.id, itemName: combo.name, actorId: actor.id,
+    conditionalFormula: true, ignoreReduce: true
+  }]);
+  const [bucket] = handler.mergeGroupedExtensionBuckets(actor, grouped);
+  bucket.selectedTargetIds = ['t1'];
+  assert.equal(bucket.custom, true);
+  assert.equal(bucket.merged, null);
+  assert.equal(handler.damageDataFromExtensionBucket(bucket).sourceItemId, combo.id);
+
+  const executed = [];
+  const queued = [];
+  handler.executeDamageExtensionNow = async (_actor, data) => { executed.push(data); };
+  handler.addToAfterMainQueue = async (_actor, data, _item, type) => { queued.push([type, data]); };
+
+  // Immediate combo use goes through ComboHandler; serialized follow-ups go through UniversalHandler.
+  await context.DX3rdComboHandler.processInstantExtensions(actor, combo, 'attack');
+  authoredTiming = 'afterMain';
+  await context.DX3rdComboHandler.processInstantExtensions(actor, combo, 'attack');
+  await handler.processComboAfterSuccess({ actorId: actor.id, comboItemId: combo.id, extensions: [bucket] });
+  await handler.processComboAfterDamage({ actorId: actor.id, comboItemId: combo.id, extensions: [bucket] });
+  await handler.processComboAfterSuccess({ actorId: actor.id, comboItemId: combo.id, afterMainExtensions: [bucket] });
+
+  assert.equal(executed.length, 3, 'instant, afterSuccess, and afterDamage each execute one bucket');
+  for (const data of executed) {
+    assert.equal(data.conditionalFormula, true);
+    assert.equal(data.ignoreReduce, true);
+  }
+  assert.equal(queued.length, 2, 'afterMain queues from both instant and serialized follow-up stages');
+  for (const [type, data] of queued) {
+    assert.equal(type, 'damage');
+    assert.equal(data.conditionalFormula, true, 'afterMain must prompt when the queue entry executes');
+  }
+
+  const comboSource = source('scripts/handlers/combo-handler.js');
+  const universalSource = source('scripts/handlers/universal-handler.js');
+  assert.doesNotMatch(comboSource, /Skipping custom bucket/);
+  assert.doesNotMatch(universalSource, /bucket\.type === 'damage' && !bucket\.custom/);
+});
+
 test('temporary combos process after-damage members before requiring an embedded combo item', () => {
   const damageHandler = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
-  const comboProcess = damageHandler.indexOf('await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors)');
+  const comboProcess = damageHandler.indexOf('await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds)');
   const itemLookup = damageHandler.indexOf('const attackerItem = attacker.items.get(itemId)', comboProcess);
   assert.ok(comboProcess >= 0 && itemLookup > comboProcess,
     '임시 콤보는 액터 아이템 조회보다 먼저 멤버의 afterDamage 데이터를 처리해야 한다');
@@ -520,6 +734,50 @@ test('combo follow-up target modifiers use each bucket lifecycle and preserve it
   assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action)"));
   assert.ok(!handler.includes("if (item && item.system?.effect?.runTiming === 'afterDamage')"),
     '실행 단계에서 평탄 runTiming을 다시 확인하면 하위 버킷이 또 누락된다');
+});
+
+test('combo after-damage extensions preserve authored targets at immediate and after-main stages', () => {
+  const handler = source('scripts/handlers/universal-handler.js');
+  const body = handler.slice(handler.indexOf('async processComboAfterDamage'), handler.indexOf('async handleSuccessButton'));
+  assert.match(body, /const afterDamageTarget = bucket => window\.DX3rdRuntimeUtils\.resolveAfterDamageTarget/);
+  assert.ok((body.match(/const targetData = afterDamageTarget\(bucket\)/g) || []).length >= 6,
+    '즉시와 afterMain의 회복·데미지·상태이상이 같은 대상 규칙을 써야 한다');
+  assert.doesNotMatch(body, /\? 'targetToken' : bucket\.target/,
+    '피해자가 있다는 이유만으로 self·targetAll 저작을 targetToken으로 덮으면 안 된다');
+});
+
+test('each damage application keeps an independent after-damage request id through every client', () => {
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  const main = source('scripts/main.js').replace(/\s+/g, ' ');
+  const contracts = source('scripts/socket-contracts.js').replace(/\s+/g, ' ');
+
+  assert.ok(damage.includes("const damageRequestId = window.DX3rdRuntimeUtils.createRequestId('afterDamage')"));
+  assert.ok(damage.includes('const extensionQueueKey = damageRequestId'));
+  assert.ok(damage.includes('const activationQueueKey = damageRequestId'));
+  assert.ok(damage.includes('itemId: item?.id || null, damageRequestId'),
+    '모든 방어 다이얼로그가 공격 1회 식별자를 받아야 한다');
+  assert.ok(damage.includes('targetTokenIds: targetTokenIds'));
+  assert.ok(damage.includes('recordAfterDamageReport(extensionRequest'),
+    '같은 Actor를 공유하는 토큰도 각각 독립 보고로 완료되어야 한다');
+  assert.ok(main.includes('const queueKey = damageRequestId'));
+  assert.ok(main.includes('const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[queueKey]'));
+  assert.ok(main.includes('const request = window.DX3rdAfterDamageActivationQueue?.[queueKey]'),
+    '대상측 보고 하나가 같은 공격의 확장·활성화 큐를 모두 완료해야 한다');
+  assert.match(contracts, /isId\(data\.payload\.damageRequestId\)/);
+  assert.match(contracts, /isId\(data\.payload\.targetTokenId\)/);
+  assert.match(contracts, /isId\(data\.dialogData\.damageRequestId\)/);
+  assert.ok(damage.includes('close: cancelDamageRequest'));
+  assert.ok(main.includes("data.type === 'cancelAfterDamageRequest'"));
+});
+
+test('registered reaction combos cannot suppress member target requirements', () => {
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  const start = damage.indexOf('const useRegisteredReaction = async (itemId) =>');
+  const end = damage.indexOf('const useInstantReactionCombo = async () =>', start);
+  const body = damage.slice(start, end);
+  assert.match(body, /item\.type, null, .*?undefined, \{/,
+    'getTarget을 미지정으로 넘겨야 공용 게이트가 콤보 구성원까지 검사한다');
+  assert.doesNotMatch(body, /item\.system\?\.getTarget/);
 });
 
 test('a rejected instant combo stays open instead of deleting the builder document', () => {
@@ -830,8 +1088,213 @@ test('a vehicle registered in the weapon slot still carries its attack into the 
 
   // attack-used 를 올리는 쪽은 여전히 weapon 타입만이어야 한다(비클에는 그 필드가 없다).
   assert.match(source('scripts/chat/chat-ui.js').replace(/\s+/g, ' '),
-    /weaponItem && weaponItem\.type === 'weapon'/,
+    /if \(!weaponItem \|\| weaponItem\.type !== 'weapon'\) continue;/,
     '무기 ID 목록에 비클이 섞여도 attack-used 증가는 무기에만 걸려야 한다');
+});
+
+test('damage rerolls spend registered weapon attack counts only once per attack card', () => {
+  const chat = source('scripts/chat/chat-ui.js').replace(/\s+/g, ' ');
+  assert.ok(chat.includes("message.getFlag('dx3rd-emanim', 'weaponAttackUseSpent') === true"),
+    '재굴림은 채팅 메시지에 남은 최초 소비 기록을 확인해야 한다');
+  assert.ok(chat.includes("await message.setFlag('dx3rd-emanim', 'weaponAttackUseSpent', true)"),
+    '최초 데미지 굴림은 카드가 교체돼도 남는 소비 기록을 저장해야 한다');
+  assert.ok(chat.includes('await dx3rdSpendWeaponAttacksOnce(message, actor, weaponIdsJson);'),
+    '데미지 버튼은 매번 무기를 직접 증가시키지 말고 1회 소비 경로를 거쳐야 한다');
+  assert.equal((chat.match(/'system\.attack-used\.state': \(attackUsed\.state \|\| 0\) \+ 1/g) || []).length, 1,
+    '채팅 데미지 경로의 attack-used 증가는 1회 소비 함수 안에만 있어야 한다');
+});
+
+test('attack rerolls preserve the attack card spend marker and skip enemy shortcut weapon spend', () => {
+  const chat = source('scripts/chat/chat-ui.js').replace(/\s+/g, ' ');
+  const combo = source('scripts/handlers/combo-handler.js').replace(/\s+/g, ' ');
+
+  assert.ok(chat.includes("actor.id, item.id, item.type, undefined, undefined, { reroll: true, sourceMessage: message }"),
+    '콤보 공격 재굴림은 원래 공격 카드와 재굴림 문맥을 사용 파이프라인에 넘겨야 한다');
+  assert.ok(combo.includes("skipWeaponAttackSpend: options.reroll === true"),
+    '에너미 고정 달성치 콤보도 공격 재굴림이면 무기 횟수 선차감을 건너뛰어야 한다');
+  assert.equal((combo.match(/options\.sourceMessage \|\| null/g) || []).length, 3,
+    '일반·무기 보너스·고정 달성치 콤보가 모두 원래 공격 카드를 재사용해야 한다');
+  assert.ok(combo.includes('attackMessage = sourceMessage'),
+    '고정 달성치 경로도 새 카드가 아니라 원래 카드를 갱신해야 한다');
+});
+
+test('adding a vehicle turns a blank combo into a configured attack combo', async () => {
+  const getProperty = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { getProperty } }
+  });
+  load(context, 'scripts/sheets/combo-data.js');
+
+  const vehicle = { id: 'v1', type: 'vehicle', system: { skill: 'drive:car', attack: '7' } };
+  context.DX3rdResolveWeapon = (_actor, id) => id === vehicle.id ? vehicle : null;
+  const actor = {
+    system: { attributes: { attack: { value: 2, melee: 3 }, skills: { 'drive:car': { base: 'body' } } } },
+    items: new Map()
+  };
+  let written = null;
+  const combo = {
+    system: {
+      weapon: ['v1'], effectIds: [], skill: '-', base: '-', roll: '-', attackRoll: '-',
+      attack: { value: '-' }
+    },
+    update: async updates => { written = updates; }
+  };
+
+  assert.equal(await context.DX3rdComboData.applyWeaponAutoAttack(combo, actor, 'v1'), true);
+  assert.equal(written['system.skill'], 'drive:car');
+  assert.equal(written['system.base'], 'body');
+  assert.equal(written['system.attackRoll'], 'melee');
+  assert.equal(written['system.roll'], 'major');
+  assert.equal(written['system.attack.value'], 12, 'actor 2 + melee 3 + vehicle 7');
+});
+
+test('removing the last combo source clears inherited fields', async () => {
+  const getProperty = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { getProperty } }
+  });
+  load(context, 'scripts/sheets/combo-data.js');
+
+  const effect = { id: 'e1', type: 'effect', system: { timing: 'major', skill: 'melee', attackRoll: 'melee' } };
+  const actor = { system: { attributes: { attack: {}, skills: { melee: { base: 'body' } } } }, items: new Map([[effect.id, effect]]) };
+  const staleSystem = () => ({
+    effectIds: ['e1'], weapon: [], skill: 'melee', base: 'body', roll: 'major', difficulty: '대결',
+    timing: 'major', range: '시야', target: '1체', attackRoll: 'melee', attack: { value: 9 }
+  });
+
+  let effectRemoval = null;
+  const effectCombo = { system: staleSystem(), update: async updates => { effectRemoval = updates; } };
+  await context.DX3rdComboData.removeRegisteredEffect(effectCombo, actor, 'e1');
+
+  for (const [path, expected] of Object.entries({
+    'system.skill': '-', 'system.base': '-', 'system.roll': '-', 'system.difficulty': '',
+    'system.timing': '-', 'system.range': '', 'system.target': '-', 'system.attackRoll': '-',
+    'system.attack.value': '-'
+  })) assert.equal(effectRemoval[path], expected, `last effect: ${path}`);
+
+  let weaponRemoval = null;
+  const weaponCombo = { system: { ...staleSystem(), effectIds: [], weapon: [] }, update: async updates => { weaponRemoval = updates; } };
+  await context.DX3rdComboData.applyWeaponRemoved(weaponCombo, actor);
+  assert.equal(weaponRemoval['system.skill'], '-');
+  assert.equal(weaponRemoval['system.attackRoll'], '-');
+  assert.equal(weaponRemoval['system.attack.value'], '-');
+});
+
+test('removing the last effect keeps a vehicle attack but drops effect-only metadata', async () => {
+  const getProperty = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { getProperty } }
+  });
+  load(context, 'scripts/sheets/combo-data.js');
+
+  const effect = {
+    id: 'e1', type: 'effect',
+    system: { timing: 'reaction', roll: 'dodge', difficulty: '대결', range: '시야', target: '범위', skill: 'dodge' }
+  };
+  const vehicle = { id: 'v1', type: 'vehicle', system: { skill: 'drive:car', attack: '7' } };
+  context.DX3rdResolveWeapon = (_actor, id) => id === vehicle.id ? vehicle : null;
+  const actor = {
+    system: { attributes: { attack: { value: 0, melee: 0 }, skills: { 'drive:car': { base: 'body' } } } },
+    items: new Map([[effect.id, effect]])
+  };
+  let written = null;
+  const combo = {
+    system: {
+      effectIds: ['e1'], weapon: ['v1'], timing: 'reaction', roll: 'dodge', difficulty: '대결',
+      range: '시야', target: '범위', skill: 'dodge', base: 'body', attackRoll: '-', attack: { value: '-' }
+    },
+    update: async updates => { written = updates; }
+  };
+
+  await context.DX3rdComboData.removeRegisteredEffect(combo, actor, 'e1');
+  assert.equal(written['system.skill'], 'drive:car');
+  assert.equal(written['system.attackRoll'], 'melee');
+  assert.equal(written['system.attack.value'], 7);
+  assert.equal(written['system.timing'], 'major');
+  assert.equal(written['system.roll'], 'major');
+  assert.equal(written['system.difficulty'], '');
+  assert.equal(written['system.range'], '');
+  assert.equal(written['system.target'], '-');
+});
+
+test('removing a weapon clears its attack fields while retaining a non-attack effect', async () => {
+  const getProperty = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { getProperty } }
+  });
+  load(context, 'scripts/sheets/combo-data.js');
+
+  const effect = { id: 'e1', type: 'effect', system: { timing: 'major', skill: 'negotiation', attackRoll: '-' } };
+  const weapon = { id: 'w1', type: 'weapon', system: { type: 'melee', skill: 'melee', attack: 8 } };
+  context.DX3rdResolveWeapon = (_actor, id) => id === weapon.id ? weapon : null;
+  const actor = {
+    system: { attributes: { attack: { value: 0, melee: 0 }, skills: { negotiation: { base: 'social' } } } },
+    items: new Map([[effect.id, effect]])
+  };
+  let written = null;
+  const combo = {
+    // WeaponTabManager has already removed w1 from this array before invoking the hook.
+    system: {
+      effectIds: ['e1'], weapon: [], skill: 'melee', base: 'body', roll: 'major',
+      attackRoll: 'melee', attack: { value: 8 }
+    },
+    update: async updates => { written = updates; }
+  };
+
+  await context.DX3rdComboData.applyWeaponRemoved(combo, actor, 'w1');
+  assert.equal(written['system.skill'], 'negotiation');
+  assert.equal(written['system.base'], 'social');
+  assert.equal(written['system.attackRoll'], '-');
+  assert.equal(written['system.attack.value'], '-');
+});
+
+test('combat deletion elects one GM and cleans both active-scene actors and combatants', () => {
+  const combat = source('scripts/combat/combat.js');
+  const collector = combat.slice(combat.indexOf('function collectCombatActors'), combat.indexOf('async function resetRoundActorStates'));
+  const deletion = combat.slice(combat.indexOf("Hooks.on('deleteCombat'"), combat.indexOf('// An updateActor hook'));
+
+  assert.match(collector, /game\.scenes\.active\?\.tokens/);
+  assert.match(collector, /combat\?\.combatants/);
+  assert.match(deletion, /DX3rdSocketRouter/);
+  assert.match(deletion, /isResponsibleGM\(\)/);
+  assert.match(deletion, /collectCombatActors\(combat\)/);
+  assert.match(deletion, /collectCombatActors\(combat, \{combatantsOnly: true\}\)/);
+});
+
+test('reviveSelf clears the registered dead status id before healing', async () => {
+  const context = baseContext({
+    game: { i18n: { localize: key => key }, settings: { get: () => '' }, user: { targets: new Set() } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONFIG: {},
+    foundry: { utils: {} }
+  });
+  load(context, 'scripts/handlers/universal-handler.js');
+
+  const toggles = [];
+  let update = null;
+  const actor = {
+    effects: [{ statuses: new Set(['dead']) }],
+    system: { attributes: { hp: { value: 0, max: 20 }, encroachment: { value: 10 } } },
+    toggleStatusEffect: async (id, options) => toggles.push([id, options.active]),
+    update: async value => { update = value; }
+  };
+
+  assert.equal(await context.DX3rdUniversalHandler.reviveSelf(actor, { hpTo: 5 }), true);
+  assert.deepEqual(toggles, [['dead', false]]);
+  assert.equal(update['system.attributes.hp.value'], 5);
 });
 
 test("a non-attack combo previews its members' own roll bonus, as the runtime applies it", () => {
@@ -2245,7 +2708,7 @@ test('a non-attack combo does not spend its registered weapons on nothing', () =
   // attack-used 만 선증가시켰다 — 게다가 이 자리에는 소진 게이트가 없어(다른 소비 지점은
   // allowExhaustedUse 를 보거나 reportUsageExhausted 로 알린다) max 를 조용히 넘겼다.
   const combo = source('scripts/handlers/combo-handler.js');
-  assert.match(combo, /const skipPreIncrement = !isEnemyAchievementShortcut;/,
+  assert.match(combo, /const skipPreIncrement = !isEnemyAchievementShortcut \|\| options\.skipWeaponAttackSpend === true;/,
     '선증가는 에너미 명중 달성치 경로에서만 — 공격 콤보는 데미지 롤이, 비공격 콤보는 아무도 안 센다');
 
   const roll = source('scripts/handlers/combo-handler.js').replace(/\s+/g, ' ');
@@ -2388,8 +2851,8 @@ test('every activation gate refuses notCheck and a later runTiming', () => {
   // 'notCheck' = "자기 보정 적용 안 함". 어느 한 경로만 게이트를 빠뜨리면 그 경로로 켠 버프는
   // disable 훅이 매칭할 타이밍 문자열이 없어 영원히 안 꺼진다.
   const gates = [
-    ['scripts/handlers/universal-handler.js', /async activateItem[\s\S]{0,900}?\n    },/],
-    ['scripts/handlers/universal-handler.js', /async ensureActivated[\s\S]{0,900}?\n    },/],
+    ['scripts/handlers/universal-handler.js', /async activateItem[\s\S]{0,1300}?\n    },/],
+    ['scripts/handlers/universal-handler.js', /async ensureActivated[\s\S]{0,1300}?\n    },/],
     // 콤보 멤버는 사용 버킷 전용 게이트가 bucketLifecycle 의 disable/runTiming 을 함께 본다.
     ['scripts/handlers/combo-handler.js', /memberSelfModifiersFireAt[\s\S]{0,1000}?lifecycle\.disable === 'notCheck'[\s\S]{0,200}?lifecycle\.runTiming/],
     ['scripts/handlers/universal-handler.js', /const selfPending[\s\S]{0,300}?selfPending && !skipToggle\)\s*\{/]
@@ -2403,7 +2866,7 @@ test('every activation gate refuses notCheck and a later runTiming', () => {
   }
   // ensureActivated 는 runTiming 게이트가 없어 afterSuccess 저작을 캐스팅 시점에 켰다.
   const handlerText = readFileSync(resolve(root, 'scripts/handlers/universal-handler.js'), 'utf8');
-  const ensure = handlerText.match(/async ensureActivated[\s\S]{0,900}?\n    },/);
+  const ensure = handlerText.match(/async ensureActivated[\s\S]{0,1300}?\n    },/);
   assert.match(ensure[0], /runTiming === 'instant'/, 'ensureActivated 도 runTiming 을 봐야 한다');
 });
 
@@ -3844,9 +4307,12 @@ test('the weapon-type modifier label offers every bucket the runtime counts, and
   // 빌더의 행 조립기는 라벨 기본값을 키 이름으로 둔다. 다른 키에서는 런타임이 라벨을 읽지
   // 않아 무해하지만 이 둘만은 뜻이 있는 자리라, 키 이름이 굳으면 드롭다운에 없는 값이
   // 된다(팩 attack 146건 · guard 57건). 이 예외가 사라지면 재빌드가 그 표기를 되살린다.
-  assert.match(source('_source/apply-overrides.mjs'),
-    /\(a\.key === 'attack' \|\| a\.key === 'guard'\) \? '-' : a\.key/,
-    "attrRow 가 두 키의 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 키 이름 라벨을 되살린다");
+  const privateBuilder = resolve(root, '_source/apply-overrides.mjs');
+  if (existsSync(privateBuilder)) {
+    assert.match(readFileSync(privateBuilder, 'utf8'),
+      /\(a\.key === 'attack' \|\| a\.key === 'guard'\) \? '-' : a\.key/,
+      "attrRow 가 두 키의 라벨을 '-' 로 떨어뜨리지 않으면 재빌드가 키 이름 라벨을 되살린다");
+  }
 });
 
 test('a weapon-limited guard bonus is counted only for the weapon actually used to guard', () => {

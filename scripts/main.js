@@ -903,6 +903,19 @@ Hooks.once('ready', async function() {
             return;
         }
         
+        if (data.type === 'cancelAfterDamageRequest') {
+            if (!socketRouter.isResponsibleGM()
+                || !data.payload
+                || !isAuthorizedActorRequest(data, data.payload.targetActorId)) return;
+            const { damageRequestId, targetActorId, itemId } = data.payload;
+            window.DX3rdUniversalHandler?.discardAfterDamageRequest?.(damageRequestId, {
+                targetActorId,
+                itemId,
+                reason: 'cancelled'
+            });
+            return;
+        }
+
         if (data.type === 'registerAfterDamageExtension') {
             // AfterDamage 익스텐드 큐 등록 요청 (GM만 처리)
             if (!socketRouter.isResponsibleGM()
@@ -910,8 +923,8 @@ Hooks.once('ready', async function() {
                 || !isAuthorizedActorRequest(data, data.payload.attackerId)
                 || !Array.isArray(data.payload.targetActorIds)) return;
             
-            const { attackerId, itemId, targetActorIds, extensions, triggerItemName } = data.payload;
-            const queueKey = `${attackerId}_${itemId}`;
+            const { attackerId, itemId, damageRequestId, targetActorIds, targetTokenIds, extensions, triggerItemName } = data.payload;
+            const queueKey = damageRequestId;
             
             if (!window.DX3rdAfterDamageExtensionQueue) {
               window.DX3rdAfterDamageExtensionQueue = {};
@@ -920,12 +933,17 @@ Hooks.once('ready', async function() {
             window.DX3rdAfterDamageExtensionQueue[queueKey] = {
               attackerId: attackerId,
               itemId: itemId,
+              damageRequestId,
               targetActorIds: targetActorIds,
+              targetTokenIds: targetTokenIds,
               damageReports: {},
+              reportActorIds: {},
               reportCount: 0,
               extensions: extensions,
-              triggerItemName: triggerItemName
+              triggerItemName: triggerItemName,
+              createdAt: Date.now()
             };
+            window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
             
             return;
         }
@@ -969,32 +987,26 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            const { attackerId, itemId, targetActorIds, shouldExecuteMacro, shouldActivate, shouldApplyToTargets, needsDialog, comboAfterDamageData } = data.payload;
-            const queueKey = `${attackerId}_${itemId}`;
-            
-            // 같은 키의 앞선 요청이 남아 있으면 **버리는 쪽은 새 요청이 아니라 옛 요청이다.**
-            // 완료된 요청은 큐에서 지워지므로, 남아 있다는 것은 타겟 하나가 끝내 보고하지 않아
-            // 멈춰 선 요청이라는 뜻이다. 예전에는 새 요청을 무시했고(중복 방지 의도), 그러면
-            // 그 아이템은 그 세션 내내 afterDamage 가 한 번도 발현하지 않았다 — 침묵하는 고장이라
-            // 원인을 짚기도 어렵다. 덮어쓰면 다음 공격에서 스스로 회복한다.
-            if (window.DX3rdAfterDamageActivationQueue[queueKey]) {
-                const stale = window.DX3rdAfterDamageActivationQueue[queueKey];
-                console.warn(`DX3rd | afterDamage 활성화 요청이 완료되지 않은 채 남아 있어 새 요청으로 교체합니다 (${queueKey}, 보고 ${Object.keys(stale.damageReports || {}).length}/${stale.targetActorIds?.length ?? 0})`);
-            }
+            const { attackerId, itemId, damageRequestId, targetActorIds, targetTokenIds, shouldExecuteMacro, shouldActivate, shouldApplyToTargets, needsDialog, comboAfterDamageData } = data.payload;
+            const queueKey = damageRequestId;
 
             window.DX3rdAfterDamageActivationQueue[queueKey] = {
                 attackerId: attackerId,
                 itemId: itemId,
+                damageRequestId,
                 targetActorIds: targetActorIds,
+                targetTokenIds: targetTokenIds,
                 damageReports: {},
+                reportActorIds: {},
                 reportCount: 0,
                 shouldExecuteMacro: shouldExecuteMacro,
                 shouldActivate: shouldActivate,
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
                 comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
-                timestamp: Date.now()
+                createdAt: Date.now()
             };
+            window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
             
         } else if (data.type === 'reportDamageForActivation') {
             // GM 전용: 타겟의 HP 변화 보고 수집
@@ -1004,24 +1016,57 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            const { attackerId, itemId, targetActorId, hpChange } = data.payload;
-            const queueKey = `${attackerId}_${itemId}`;
+            const { attackerId, itemId, damageRequestId, targetActorId, targetTokenId, hpChange } = data.payload;
+            const queueKey = damageRequestId;
+            const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[queueKey];
+            const extensionMatches = extensionRequest
+                && extensionRequest.attackerId === attackerId
+                && extensionRequest.itemId === itemId;
+            if (extensionMatches) {
+                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
+                    targetTokenId,
+                    targetActorId,
+                    hpChange
+                });
+                if (report.accepted && report.complete && !extensionRequest.processing) {
+                    extensionRequest.processing = true;
+                    try {
+                        await window.DX3rdUniversalHandler?.processAfterDamageExtensionRequest?.(extensionRequest);
+                    } catch (error) {
+                        console.error('DX3rd | AfterDamage extension request failed:', error);
+                    } finally {
+                        // A partially applied extension request is not safe to retry automatically.
+                        delete window.DX3rdAfterDamageExtensionQueue[queueKey];
+                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
+                    }
+                }
+            }
             const request = window.DX3rdAfterDamageActivationQueue?.[queueKey];
+            const requestMatches = request
+                && request.attackerId === attackerId
+                && request.itemId === itemId;
             
-            if (request) {
-                // 보고 기록
-                request.damageReports[targetActorId] = hpChange;
-                request.reportCount = Object.keys(request.damageReports).length;
+            if (requestMatches) {
+                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+                    targetTokenId,
+                    targetActorId,
+                    hpChange
+                });
 
                 // 모든 타겟이 보고했는지 확인.
                 // **세는 것은 보고 횟수가 아니라 보고한 타겟의 수다.** 같은 타겟이 두 번 보고하면
                 // (재전송·중복 클릭) 카운터만 앞질러 `===` 가 영원히 성립하지 않고, 그 요청은
                 // 큐에 남아 다음 등록까지 막았다.
-                if (request.reportCount >= request.targetActorIds.length) {
+                if (report.accepted && report.complete && !request.processing) {
+                    request.processing = true;
+                    try {
                     // HP 데미지를 받은 타겟 목록
-                    const damagedTargets = Object.entries(request.damageReports)
-                        .filter(([id, hp]) => hp > 0)
-                        .map(([id, hp]) => id);
+                    const damagedReports = Object.entries(request.damageReports)
+                        .filter(([, hp]) => hp > 0);
+                    const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
+                    const damagedTargets = [...new Set(damagedReports
+                        .map(([tokenId]) => request.reportActorIds[tokenId])
+                        .filter(Boolean))];
                     
                     // 최신 아이템 상태로 횟수 체크
                     const attacker = game.actors.get(attackerId);
@@ -1037,9 +1082,16 @@ Hooks.once('ready', async function() {
                     const comboData = request.comboAfterDamageData;
                     if (comboData && damagedTargets.length > 0) {
                         // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
-                        const damagedActors = damagedTargets.map(id => game.actors.get(id)).filter(a => a);
+                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
+                            .filter(Boolean);
+                        for (const actorId of damagedTargets) {
+                            const damagedActor = game.actors.get(actorId);
+                            if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
+                                damagedActors.push(damagedActor);
+                            }
+                        }
                         if (window.DX3rdUniversalHandler) {
-                            await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors);
+                            await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
                         }
                     }
                     
@@ -1095,8 +1147,11 @@ Hooks.once('ready', async function() {
                         }
                     }
                     
-                    // 큐에서 제거
-                    delete window.DX3rdAfterDamageActivationQueue[queueKey];
+                    } finally {
+                        // A partially applied activation request is not safe to retry automatically.
+                        delete window.DX3rdAfterDamageActivationQueue[queueKey];
+                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
+                    }
                 }
             }
         } else if (data.type === 'registerTargetApply') {

@@ -1,20 +1,18 @@
 /**
- * 문서 가져오기 호환 계층
+ * Document-import compatibility layer.
  *
- * Foundry의 Document.fromImport는 JSON의 _stats.coreVersion이 실행 중인 코어보다
- * 높으면 "Documents from a core version newer than the running version cannot be
- * imported" 예외를 던진다. 같은 시스템끼리 v13 <-> v14(또는 빌드 번호가 다른 v14끼리)
- * 액터/아이템을 주고받을 때 이 검사만으로 가져오기가 통째로 막힌다.
+ * Document.fromImport rejects JSON whose _stats.coreVersion is newer than the running Foundry
+ * version. That alone can prevent actor or item exchange between v13 and v14 installations of
+ * this system, or even between different v14 builds.
  *
- * 여기서는 importFromJSON에 들어오는 원본 JSON의 _stats.coreVersion을 현재 코어
- * 버전으로 낮춰(clamp) 검사를 통과시킨다. 스키마 자체는 시스템이 동일하므로
- * DataModel 정제 단계에서 정상 처리된다.
+ * Clamp incoming _stats.coreVersion values to the current core version before import. Because
+ * both ends use this system's schema, normal DataModel cleaning still handles the document data.
  */
 (function() {
     /**
-     * source 트리를 훑어 현재 코어보다 높은 _stats.coreVersion을 현재 값으로 낮춘다.
-     * @param {object} source 파싱된 문서 소스
-     * @returns {boolean} 하나라도 낮췄으면 true
+     * Clamp newer _stats.coreVersion values throughout a source tree.
+     * @param {object} source parsed document source
+     * @returns {boolean} whether any version was clamped
      */
     function clampCoreVersion(source) {
         const current = game.release?.version ?? game.version;
@@ -36,7 +34,7 @@
                     changed = true;
                 }
             }
-            // 내장 문서(items, effects, tokens 등)도 함께 훑는다.
+            // Recurse into embedded documents such as items, effects, and tokens.
             for (const value of Object.values(node)) {
                 if (value && typeof value === "object") walk(value);
             }
@@ -47,9 +45,9 @@
     }
 
     /**
-     * importFromJSON 호출 전에 JSON 문자열을 보정한다.
+     * Sanitize a JSON string before importFromJSON receives it.
      * @param {string} json
-     * @returns {string} 보정된 JSON (실패 시 원본)
+     * @returns {string} sanitized JSON, or the original string on failure
      */
     function sanitizeImportJSON(json) {
         try {

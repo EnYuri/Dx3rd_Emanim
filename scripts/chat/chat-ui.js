@@ -1,13 +1,12 @@
 /**
- * Double Cross 3rd - 채팅 카드 UI
- * main.js 에서 분리. 채팅 메시지의 버튼 위임 처리, 토글 매니저, 카드 핸들러를 담당한다.
- * 반드시 main.js 보다 먼저 로드되어야 한다 — main.js 의 ready 훅이
- * DX3rdChatToggleManager.initialize() 를 호출한다.
+ * Double Cross 3rd chat-card UI.
+ *
+ * Owns delegated chat-button events, the toggle manager, and card handlers. It must load before
+ * main.js, whose ready hook calls DX3rdChatToggleManager.initialize().
  */
 
-// ── jQuery 제거 지원 헬퍼 ────────────────────────────────────────────────
-// jQuery `$(document).off('type.ns').on('type.ns', ...)` 멱등 재등록을 네이티브로 대체.
-// key(구 네임스페이스)별로 이전 리스너를 removeEventListener 후 재등록한다.
+// Native replacement for jQuery's idempotent off('type.ns').on('type.ns', ...) pattern.
+// Each key (formerly an event namespace) replaces its previous listener before registration.
 window.DX3rdGlobalListeners = window.DX3rdGlobalListeners || {};
 function dx3rdRegisterGlobalListener(key, type, handler, options) {
     const reg = window.DX3rdGlobalListeners;
@@ -17,8 +16,8 @@ function dx3rdRegisterGlobalListener(key, type, handler, options) {
     document.addEventListener(type, handler, options);
 }
 
-// jQuery `.data(key)` 자동 변환 호환 리더. 네이티브 dataset은 문자열만 주므로,
-// jQuery가 하던 boolean/null/number/JSON 변환을 재현한다. (data-key → dataset.key 카멜 변환)
+// Compatibility reader for jQuery's automatic .data(key) coercion. Native dataset values are
+// strings, so reproduce its boolean/null/number/JSON conversion and kebab-to-camel key mapping.
 function dx3rdReadData(el, key) {
     if (!el) return undefined;
     const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -31,14 +30,13 @@ function dx3rdReadData(el, key) {
     if (/^-?\d+(?:\.\d+)?$/.test(raw) && String(Number(raw)) === raw) return Number(raw);
     const first = raw[0], last = raw[raw.length - 1];
     if ((first === '{' && last === '}') || (first === '[' && last === ']')) {
-        try { return JSON.parse(raw); } catch (e) { /* 원문 유지 */ }
+        try { return JSON.parse(raw); } catch { /* Keep the raw value. */ }
     }
     return raw;
 }
 
-// URI 인코딩해서 data-*로 실어 나른 수식 전용 리더. dx3rdReadData는 "10" 같은 순수 숫자
-// 수식을 Number로 승격해버려, 고정 공격력이 문자열 검사에서 탈락해 통째로 유실된다.
-// 수식은 항상 원문 문자열로 되읽는다. 속성이 없거나 비면 빈 문자열.
+// Read a URI-encoded formula from data-* without coercion. dx3rdReadData promotes a formula such
+// as "10" to Number, which would fail later string checks and silently drop a fixed attack value.
 function dx3rdReadEncodedFormula(el, key) {
     if (!el?.dataset) return '';
     const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -52,8 +50,53 @@ function dx3rdReadEncodedFormula(el, key) {
     }
 }
 
-// 채팅 버튼 "완료" 텍스트 토글(네이티브). jQuery .data('original-text') 캐시는
-// data-original-text 속성(dataset.originalText)으로 대체한다.
+// A damage result can be rerolled from the same attack card. That reroll repeats the attack's
+// follow-up processing, but it must not spend a registered weapon's attack count again. Persist
+// the spend marker on the ChatMessage because the card HTML is replaced after every damage roll.
+// The in-memory lock also closes the same-client double-click window before setFlag propagates.
+const dx3rdWeaponAttackSpendLocks = new Set();
+async function dx3rdSpendWeaponAttacksOnce(message, actor, weaponIdsRaw) {
+    if (!message || !actor || typeof weaponIdsRaw !== 'string' || weaponIdsRaw.trim() === '') return false;
+    if (message.getFlag('dx3rd-emanim', 'weaponAttackUseSpent') === true) return false;
+
+    const lockKey = message.id;
+    if (dx3rdWeaponAttackSpendLocks.has(lockKey)) return false;
+    dx3rdWeaponAttackSpendLocks.add(lockKey);
+    try {
+        // Another click may have completed while this one was waiting to acquire the local path.
+        if (message.getFlag('dx3rd-emanim', 'weaponAttackUseSpent') === true) return false;
+
+        const weaponIds = [...new Set(weaponIdsRaw.split(',').map(id => id.trim()).filter(Boolean))];
+        const updates = [];
+        for (const weaponId of weaponIds) {
+            const weaponItem = actor.items.get(weaponId);
+            // Vehicles have no attack-used counter.
+            if (!weaponItem || weaponItem.type !== 'weapon') continue;
+            const attackUsed = weaponItem.system['attack-used'] || {};
+            if ((attackUsed.disable || 'notCheck') === 'notCheck') continue;
+            updates.push({
+                _id: weaponItem.id,
+                'system.attack-used.state': (attackUsed.state || 0) + 1
+            });
+        }
+        if (updates.length === 0) return false;
+
+        // Claim the one-time spend before writing the items so a reroll cannot enter this block.
+        await message.setFlag('dx3rd-emanim', 'weaponAttackUseSpent', true);
+        try {
+            await actor.updateEmbeddedDocuments('Item', updates);
+        } catch (error) {
+            // A failed batch spent nothing; release the marker so the player can retry.
+            await message.unsetFlag('dx3rd-emanim', 'weaponAttackUseSpent');
+            throw error;
+        }
+        return true;
+    } finally {
+        dx3rdWeaponAttackSpendLocks.delete(lockKey);
+    }
+}
+
+// Toggle a chat button's completion suffix. dataset.originalText replaces the old jQuery cache.
 function dx3rdApplyCompleteText(button, isCompleted, completeText) {
     if (!button) return;
     if (isCompleted) {
@@ -74,8 +117,7 @@ function dx3rdApplyCompleteText(button, isCompleted, completeText) {
     }
 }
 
-// jQuery slideDown/slideUp(250, 'swing') 대체용 네이티브 높이 애니메이션.
-// 요소에 `collapsed` 클래스 토글과 함께 사용. 진행 중 중복 실행을 막는다.
+// Native height animation replacing jQuery slideDown/slideUp. The dataset guard prevents overlap.
 function dx3rdSlideToggle(el, expand, duration = 250) {
     if (!el) return;
     if (el.dataset.dx3rdAnimating === '1') return;
@@ -112,11 +154,7 @@ function dx3rdSlideToggle(el, expand, duration = 250) {
         }, duration + 20);
     }
 }
-
-
-// Enter 시 인라인 수정 저장 (편집 모드일 때만) - 다른 모듈로 이동됨
-
-// 편집 플래그 변경 시 DOM 반영 (모든 클라이언트)
+// Reflect flag changes in every client's rendered message DOM.
 Hooks.on('updateChatMessage', (message, changes, options, userId) => {
     try {
         const flagChanges = changes?.flags?.['dx3rd-emanim'];
@@ -126,16 +164,15 @@ Hooks.on('updateChatMessage', (message, changes, options, userId) => {
         if (messageElements.length === 0) return;
         const findButtons = (sel) => messageElements.flatMap(me => Array.from(me.querySelectorAll(sel)));
 
-        // 편집 플래그 처리
+        // Editing is a message-wide state.
         if (flagChanges.editingBy !== undefined) {
             const editing = !!message.flags?.['dx3rd-emanim']?.editingBy;
             for (const me of messageElements) me.classList.toggle('dx3rd-editing-message', editing);
         }
 
-        // 완료 플래그 처리 (버튼 텍스트 업데이트)
         const completeText = game.i18n.localize('DX3rd.Complete');
         
-        // 완료 상태 토글 대상 버튼들 (동일 로직을 dx3rdApplyCompleteText로 통일)
+        // Route every message-wide completion flag through the same text updater.
         const completeFlagButtons = [
             { flag: 'successCompleted', sel: '.dx3rd-success-btn' },
             { flag: 'damageRollCompleted', sel: '.damage-roll-btn' },
@@ -154,9 +191,8 @@ Hooks.on('updateChatMessage', (message, changes, options, userId) => {
             }
         }
 
-        // itemUseCompleted 플래그 처리 (아이템별로 관리)
+        // Item-use completion is keyed by item rather than by message.
         if (flagChanges.itemUseCompleted !== undefined) {
-            // 플래그가 undefined로 설정된 경우(삭제된 경우)도 처리
             const itemUseCompleted = message.flags?.['dx3rd-emanim']?.itemUseCompleted || {};
 
             for (const button of findButtons('.use-item-btn')) {
@@ -170,33 +206,32 @@ Hooks.on('updateChatMessage', (message, changes, options, userId) => {
     }
 });
 
-// 채팅 명령어로 Disable Hook 실행
+// Expose lifecycle cleanup through the /disable chat command.
 Hooks.on('chatMessage', (chatLog, message, chatData) => {
-    // /disable 명령어 처리
     const disablePattern = /^\/disable\s+(roll|major|reaction|guard|main|round|scene|session)$/i;
     const match = message.match(disablePattern);
     
     if (match) {
         const timing = match[1].toLowerCase();
         window.DX3rdDisableHooks.executeDisableHook(timing);
-        return false; // 채팅 메시지 전송 차단
+        return false; // Consume the command instead of creating a chat message.
     }
     
-    return true; // 일반 채팅 메시지는 정상 처리
+    return true;
 });
 
-// 채팅 메시지 렌더링 시 완료 상태 복원
+// Restore completion state whenever Foundry renders a chat message.
 Hooks.on('renderChatMessageHTML', (message, html, data) => {
     const completeText = game.i18n.localize('DX3rd.Complete');
 
-    // 저장된 카드 HTML의 상태와 관계없이 현재 월드 설정을 초기 표시 상태로 적용한다.
+    // The current world setting wins over the expansion state stored in historical card HTML.
     const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
     html.querySelectorAll('.dx3rd-item-chat .collapsible-content').forEach(element => {
         element.classList.toggle('collapsed', !expandItemCards);
         element.style.display = expandItemCards ? '' : 'none';
     });
     
-    // message-header에 data-actor-id 속성 추가 (로이스 추가 기능을 위해)
+    // The sender-name → Lois action resolves its target from this header attribute.
     if (message.speaker && message.speaker.actor) {
         const messageHeader = html.querySelector('.message-header');
         if (messageHeader && !messageHeader.getAttribute('data-actor-id')) {
@@ -230,77 +265,68 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
         }
     }
     
-    // damage-roll-btn 완료 상태 복원
+    // Restore per-action completion markers for legacy card HTML.
     const damageRollCompleted = message.getFlag('dx3rd-emanim', 'damageRollCompleted');
     if (damageRollCompleted === true) {
         const button = html.querySelector('.damage-roll-btn');
         if (button && !button.closest('.dx3rd-attack-card')) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
-                // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 로컬라이즈 키에서 가져오기
                 const originalText = currentText || game.i18n.localize('DX3rd.DamageRoll');
                 button.textContent = `${originalText} ${completeText}`;
             }
         }
     }
     
-    // damage-apply-btn 완료 상태 복원
     const damageApplyCompleted = message.getFlag('dx3rd-emanim', 'damageApplyCompleted');
     if (damageApplyCompleted === true) {
         const button = html.querySelector('.damage-apply-btn');
         if (button) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
-                // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 로컬라이즈 키에서 가져오기
                 const originalText = currentText || game.i18n.localize('DX3rd.DamageApply');
                 button.textContent = `${originalText} ${completeText}`;
             }
         }
     }
     
-    // attack-roll-btn 완료 상태 복원
     const attackRollCompleted = message.getFlag('dx3rd-emanim', 'attackRollCompleted');
     if (attackRollCompleted === true) {
         const button = html.querySelector('.attack-roll-btn');
         if (button && !button.closest('.dx3rd-attack-card')) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
-                // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 로컬라이즈 키에서 가져오기
                 const originalText = currentText || game.i18n.localize('DX3rd.AttackRoll');
                 button.textContent = `${originalText} ${completeText}`;
             }
         }
     }
     
-    // dx3rd-success-btn 완료 상태 복원
     const successCompleted = message.getFlag('dx3rd-emanim', 'successCompleted');
     if (successCompleted === true) {
         const button = html.querySelector('.dx3rd-success-btn');
         if (button) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
-                // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거
                 const originalText = currentText || game.i18n.localize('DX3rd.Success');
                 button.textContent = `${originalText} ${completeText}`;
             }
         }
     }
     
-    // dx3rd-win-check-btn 완료 상태 복원
     const winCheckCompleted = message.getFlag('dx3rd-emanim', 'winCheckCompleted');
     if (winCheckCompleted === true) {
         const button = html.querySelector('.dx3rd-win-check-btn');
         if (button) {
             const currentText = button.textContent.trim();
             if (!currentText.includes(completeText)) {
-                // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 현재 텍스트 사용
                 const originalText = currentText || game.i18n.localize('DX3rd.WinCheck');
                 button.textContent = `${originalText} ${completeText}`;
             }
         }
     }
     
-    // use-item-btn 완료 상태 복원 (아이템별로 관리)
+    // Item-use buttons restore their item-scoped completion flags separately.
     const itemUseCompleted = message.getFlag('dx3rd-emanim', 'itemUseCompleted') || {};
     if (Object.keys(itemUseCompleted).length > 0) {
         const allUseButtons = html.querySelectorAll('.use-item-btn');
@@ -312,7 +338,6 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
             if (isCompleted) {
                 const currentText = button.textContent.trim();
                 if (!currentText.includes(completeText)) {
-                    // 원본 텍스트는 버튼의 현재 텍스트에서 완료 텍스트를 제거하거나, 현재 텍스트 사용
                     const originalText = currentText || game.i18n.localize('DX3rd.Use');
                     button.textContent = `${originalText} ${completeText}`;
                 }
@@ -320,7 +345,7 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
         });
     }
 
-    // protect 장비 해제 버튼
+    // Armor cards can unequip their source item directly.
     const unequipBtns = html.querySelectorAll('.protect-unequip-btn');
     unequipBtns.forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -339,13 +364,10 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
 });
 
 /**
- * 플레이어 클라이언트에서 HP 데미지 익스텐션을 GM에게 넘긴다.
- * 조건부 공식이 걸려 있으면 본인 화면에서 먼저 입력을 받아 확정하고, 취소하면 전송하지 않는다.
- * DX3rdChatToggleManager 의 두 경로(afterSuccess / afterDamage)가 같은 절차를 복제하고
- * 있어 여기로 모았다 — 한쪽만 고쳐 어긋나는 것을 막는 것이 목적이다.
+ * Forward an HP-damage extension from a player client to the GM.
  *
- * 원본 두 곳은 handler 유무 검사만 달랐다(`handler.` vs `h?.`). 더 안전한 옵셔널 체이닝
- * 쪽으로 통일했으므로, 핸들러가 없는 비정상 상태에서 예외 대신 그대로 전송된다.
+ * Resolve conditional formulas on the player's client first and send nothing if the prompt is
+ * cancelled. Both afterSuccess and afterDamage use this path so their behavior cannot drift.
  */
 async function _dx3rdEmitDamageRequestAsPlayer(actor, item, damageData) {
     const handler = window.DX3rdUniversalHandler;
@@ -375,7 +397,7 @@ async function _dx3rdEmitDamageRequestAsPlayer(actor, item, damageData) {
     });
 }
 
-// 채팅 토글 매니저
+// Delegated chat-card actions and expansion state.
 window.DX3rdChatToggleManager = {
     initialized: false,
     
@@ -383,19 +405,17 @@ window.DX3rdChatToggleManager = {
         if (this.initialized) return;
         this.initialized = true;
         
-        // 전역 이벤트 위임 등록
+        // One delegated listener owns card expansion and section buttons.
         dx3rdRegisterGlobalListener('dx3rd-global-toggle', 'click', (event) => {
             const target = event.target.closest('.item-name-toggle, .combo-toggle-btn, .book-toggle-btn');
             if (!target) return;
             event.preventDefault();
             event.stopPropagation();
 
-            // Foundry VTT 채팅 메시지 구조 확인
             const messageElement = target.closest('.message');
 
-            // 클릭된 요소에 따라 다른 처리
             if (target.classList.contains('combo-toggle-btn')) {
-                // 콤보 토글 버튼의 경우, 다이얼로그 표시
+                // Combo section buttons open a focused item list instead of expanding the card.
                 const section = target.dataset.comboSection;
                 if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.showComboItemsDialog) {
                     window.DX3rdChatHandlers.showComboItemsDialog(messageElement, section);
@@ -410,19 +430,18 @@ window.DX3rdChatToggleManager = {
                 return;
             }
 
-            // 아이템 이름 토글의 경우, 모든 collapsible-content 토글
+            // An item-name click expands or collapses every detail section in that message.
             const collapsibleElements = messageElement
                 ? Array.from(messageElement.querySelectorAll('.collapsible-content'))
                 : [];
             if (collapsibleElements.length === 0) return;
 
             for (const el of collapsibleElements) {
-                // 애니메이션 중복 방지는 dx3rdSlideToggle 내부에서 처리
                 dx3rdSlideToggle(el, el.classList.contains('collapsed'));
             }
         });
         
-        // 기존 채팅 메시지 초기화
+        // Initialize cards that predate this client session.
         if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.initializeExistingMessages) {
             window.DX3rdChatHandlers.initializeExistingMessages();
         }
@@ -695,7 +714,7 @@ window.DX3rdChatToggleManager = {
             }
         });
         
-        // 데미지 롤 버튼 클릭 리스너 등록
+        // Roll damage from an attack or effect card.
         dx3rdRegisterGlobalListener('dx3rd-damage-roll', 'click', async (event) => {
             const button = event.target.closest('.damage-roll-btn');
             if (!button) return;
@@ -714,12 +733,12 @@ window.DX3rdChatToggleManager = {
             const isCompleted = message.getFlag('dx3rd-emanim', 'damageRollCompleted') === true;
             const isAttackCardButton = !!button.closest('.dx3rd-attack-card');
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent;
             }
 
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action rolls its UI state back.
             if (isCompleted && !isAttackCardButton) {
                 await message.unsetFlag('dx3rd-emanim', 'damageRollCompleted');
                 return;
@@ -729,100 +748,84 @@ window.DX3rdChatToggleManager = {
             const itemId = button.dataset.itemId;
             const rollResult = dx3rdReadData(button, 'roll-result');
 
-            // 콤보 afterSuccess 데이터 확인
+            // Read the state captured when the attack card was created.
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
 
-            // 개별 보존된 값들 읽기
             const preservedActorAttack = dx3rdReadData(button, 'preserved-actor-attack');
             const preservedActorPenetrate = dx3rdReadData(button, 'preserved-actor-penetrate');
             const preservedWeaponAttack = dx3rdReadData(button, 'preserved-weapon-attack');
             const weaponIdsJson = dx3rdReadData(button, 'weapon-ids');
-            // 속성이 없을 때만 null로 남겨 구형 카드의 숫자 보존값(weaponAttack) 폴백을 살린다.
+            // Keep a missing attribute null so legacy cards can fall back to numeric weaponAttack.
             const preservedAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-attack-formula') || null;
             const preservedActorAttackFormula = dx3rdReadEncodedFormula(button, 'preserved-actor-attack-formula');
 
             if (!actorId || !itemId) return;
             
             const actor = game.actors.get(actorId);
-            // 임시 콤보 확인
+            // A temporary combo may no longer exist as an embedded Item.
             let item = null;
             if (itemId) {
-                // 먼저 채팅 메시지에 임시 콤보 데이터가 있는지 확인
+                // Prefer the serializable snapshot retained on the chat message.
                 const tempComboItem = message.getFlag('dx3rd-emanim', 'tempComboItem');
                 if (tempComboItem && tempComboItem.id === itemId) {
                     item = tempComboItem;
-                    // 임시 콤보 객체에 필요한 메서드들 복원
+                    // Rehydrate only the Item-like methods required by follow-up handlers.
                     if (!item.getFlag) {
                         item.getFlag = () => null;
                         item.setFlag = () => {};
                         item.unsetFlag = () => {};
                     }
                 } else {
-                    // 일반 아이템
+                    // Ordinary embedded item.
                     item = actor.items.get(itemId);
                 }
             }
             
             if (!actor || !item) return;
             
-            // 권한 체크
+            // Only an owner or GM may continue this actor's action.
             if (!actor.isOwner && !game.user.isGM) {
                 console.warn('DX3rd | User lacks permission to use this actor\'s actions');
                 return;
             }
             
-            // 액터의 토큰 자동 선택
+            // Keep the acting token selected for the damage workflow.
             const previousToken = canvas.tokens?.controlled?.[0] || null;
             const actorToken = canvas.tokens?.placeables.find(t => t.actor?.id === actor.id);
             if (actorToken) {
                 actorToken.control({ releaseOthers: true });
             }
             
-            // 보존된 값들 객체 생성
+            // Preserve authored and roll-time values for the damage step.
             const preservedValues = {
                 actorAttack: preservedActorAttack || 0,
                 actorAttackFormula: preservedActorAttackFormula,
                 actorPenetrate: preservedActorPenetrate || 0,
-                // 이전 채팅 카드는 숫자 보존값을 계속 지원한다.
+                // Historical cards store only a numeric weaponAttack value.
                 weaponAttack: preservedWeaponAttack || 0,
                 weaponAttackFormula: preservedAttackFormula
             };
             
-            // 사용된 무기들의 attack-used.state 증가 (이펙트/콤보/사이오닉에서 무기 사용한 경우)
-            if (weaponIdsJson && typeof weaponIdsJson === 'string' && weaponIdsJson.trim() !== '') {
-                const weaponIds = weaponIdsJson.split(',').filter(id => id.trim() !== '');
-                if (weaponIds.length > 0) {
-                    for (const weaponId of weaponIds) {
-                        const weaponItem = actor.items.get(weaponId.trim());
-                        // weapon 타입만 attack-used 증가 (vehicle은 attack-used 필드 없음)
-                        if (weaponItem && weaponItem.type === 'weapon') {
-                            const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
-                            if (attackUsedDisable !== 'notCheck') {
-                                const currentState = weaponItem.system['attack-used']?.state || 0;
-                                await weaponItem.update({ 'system.attack-used.state': currentState + 1 });
-                            }
-                        }
-                    }
-                }
-            }
+            // Spend registered weapon attacks once per attack card. Damage rerolls keep running the
+            // rest of this workflow, but the same shot does not consume another attack count.
+            await dx3rdSpendWeaponAttacksOnce(message, actor, weaponIdsJson);
             
-            // 콤보 afterSuccess 처리 확인
+            // A combo owns the merged afterSuccess pipeline.
             if (comboAfterSuccess && window.DX3rdUniversalHandler) {
-                // 콤보의 병합된 afterSuccess 처리
+                // The combo snapshot carries its merged afterSuccess work.
                 await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
             }
             
-            // 단일 아이템 afterSuccess 처리 (콤보가 아닌 경우만)
+            // Non-combo items process their own afterSuccess lifecycle.
             if (!comboAfterSuccess) {
-                // 성공 시(afterSuccess) 매크로 실행 (조건 없이 항상 실행)
+                // afterSuccess macros run once the roll has succeeded.
                 if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
                     await window.DX3rdUniversalHandler.executeMacros(item, 'afterSuccess');
                 }
                 
-                // 성공 시(afterSuccess) 활성화 및 대상 적용 (횟수 체크)
                 const activeDisable = item.system?.active?.disable ?? '-';
                 const shouldActivate = item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck';
-                // 판정 성공 후에 걸 대상 보정이 있는가. 버킷 자기 타이밍을 본다(카드마다 다르다).
+                // Each target bucket owns its timing; do not substitute the channel-wide value.
                 const shouldApplyToTargets = window.DX3rdItemEffectAdapter
                     ? window.DX3rdItemEffectAdapter.targetFiresAt(item, null, 'afterSuccess')
                     : item.system.effect?.runTiming === 'afterSuccess';
@@ -832,11 +835,10 @@ window.DX3rdChatToggleManager = {
                     const usedState = item.system?.used?.state || 0;
                     const usedMax = item.system?.used?.max || 0;
                     
-                    // 무기/비클은 다이얼로그 표시, 나머지는 자동 처리
+                    // Equipment asks before applying; other item types continue automatically.
                     if (item.type === 'weapon' || item.type === 'vehicle') {
-                        // 소진을 차단으로 이을지는 월드 설정이 정한다(allowExhaustedUse, 기본 허용).
-                        // 예전에는 여기만 설정을 보지 않고 **경고도 없이** 조용히 건너뛰었다 —
-                        // 다른 소진 지점은 전부 reportUsageExhausted 로 알림과 채팅 기록을 남긴다.
+                        // Exhaustion blocks only when allowExhaustedUse says so. Always use the
+                        // shared reporter so this path cannot silently skip unlike other gates.
                         const exhausted = usedDisable !== 'notCheck' && usedState >= usedMax;
                         let proceed = true;
                         if (exhausted) {
@@ -847,10 +849,9 @@ window.DX3rdChatToggleManager = {
                             await window.DX3rdChatHandlers.showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets);
                         }
                     } else {
-                        // 무기/비클이 아닌 경우: 활성화 + 대상 적용 (횟수 증가는 사용 시점에 이미 처리됨)
+                        // Usage was already spent; only activation and target application remain.
                         const updates = {};
                         
-                        // 1. 활성화
                         if (shouldActivate) {
                             updates['system.active.state'] = true;
                         }
@@ -859,7 +860,6 @@ window.DX3rdChatToggleManager = {
                             await item.update(updates);
                         }
                         
-                        // 2. 대상 적용
                         if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
                             await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
                         }
@@ -867,18 +867,17 @@ window.DX3rdChatToggleManager = {
                 }
             }
             
-            // comboAfterDamage 데이터 읽기 (데미지 적용 버튼에 전달)
+            // Carry combo afterDamage data into the damage-application button.
             const comboAfterDamageData = message.getFlag('dx3rd-emanim', 'comboAfterDamage');
             
-            // UniversalHandler의 데미지 롤 함수 호출 (롤 결과와 보존된 값들 포함)
+            // The universal handler renders the roll using the preserved attack state.
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleDamageRoll) {
                 await window.DX3rdUniversalHandler.handleDamageRoll(
                     actor, item, rollResult, preservedValues, comboAfterDamageData, message
                 );
             }
             
-            // afterSuccess 타이밍 heal/damage/condition 익스텐션을 GM을 통해 처리
-            // 콤보의 경우 이미 processComboAfterSuccess에서 병합 처리되었으므로 건너뜀
+            // Non-combo afterSuccess extensions run locally for a GM or are delegated by players.
             if (item && !comboAfterSuccess) {
                 const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
                 const selectedTargetIds = Array.from(game.user.targets).map(t => t.id);
@@ -892,7 +891,7 @@ window.DX3rdChatToggleManager = {
                         triggerItemId: item.id
                     };
                     
-                    // GM이면 직접 처리만 (소켓 전송 안 함)
+                    // The GM executes directly; players delegate exactly once.
                     if (game.user.isGM && window.DX3rdUniversalHandler) {
                         await window.DX3rdUniversalHandler.handleHealRequest({
                             actorId: actor.id,
@@ -900,7 +899,6 @@ window.DX3rdChatToggleManager = {
                             itemId: item.id
                         });
                     } else {
-                        // 플레이어면 소켓 전송만
                         window.DX3rdSocketRouter.emit({
                             type: 'healRequest',
                             requestData: {
@@ -921,7 +919,7 @@ window.DX3rdChatToggleManager = {
                         triggerItemId: item.id
                     };
                     
-                    // GM이면 직접 처리만 (소켓 전송 안 함)
+                    // Conditional damage input belongs to the initiating player's client.
                     if (game.user.isGM && window.DX3rdUniversalHandler) {
                         await window.DX3rdUniversalHandler.handleDamageRequest({
                             actorId: actor.id,
@@ -929,12 +927,11 @@ window.DX3rdChatToggleManager = {
                             itemId: item.id
                         });
                     } else {
-                        // 플레이어: 조건부 공식 입력은 본인 클라이언트에서만 → 확정 후 GM 소켓 처리
                         await _dx3rdEmitDamageRequestAsPlayer(actor, item, damageDataWithTargets);
                     }
                 }
                 
-                // condition afterSuccess (conditions 배열 또는 기존 단일 형식)
+                // _getConditionEntries accepts both the current array and the legacy singleton.
                 const condEntries = window.DX3rdUniversalHandler?._getConditionEntries?.(itemExtend.condition || {}) || [];
                 const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess');
                 for (const c of afterSuccessConds) {
@@ -958,24 +955,24 @@ window.DX3rdChatToggleManager = {
                     }, item);
                 }
                 
-                // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
+                // Queue afterMain work only from an afterSuccess activation point.
                 if (item.system.active?.runTiming === 'afterSuccess' && window.DX3rdUniversalHandler) {
                     await window.DX3rdUniversalHandler.registerAfterMainExtensions(actor, item, itemExtend);
                 }
             }
             
-            // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
+            // updateChatMessage propagates this completion marker to every client.
             if (!isAttackCardButton) {
                 await message.setFlag('dx3rd-emanim', 'damageRollCompleted', true);
             }
             
-            // 이전 토큰 복원
+            // Restore the user's previous token selection.
             if (previousToken && canvas.tokens) {
                 previousToken.control({ releaseOthers: true });
             }
         });
         
-        // 성공 버튼 클릭 리스너 등록
+        // Resolve a numeric-difficulty success button.
         dx3rdRegisterGlobalListener('dx3rd-success', 'click', async (event) => {
             const button = event.target.closest('.dx3rd-success-btn');
             if (!button) return;
@@ -993,12 +990,12 @@ window.DX3rdChatToggleManager = {
 
             const isCompleted = message.getFlag('dx3rd-emanim', 'successCompleted') === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent.trim();
             }
 
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action rolls its UI state back.
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'successCompleted');
                 return;
@@ -1010,9 +1007,9 @@ window.DX3rdChatToggleManager = {
             const weaponAttack = parseInt(button.dataset.weaponAttack) || 0;
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
 
-            // 숫자 난이도 성공도 대결 승리/공격 데미지 버튼과 같은 콤보 스냅샷 경로를 탄다.
-            // 임시 콤보 문서는 판정창을 연 뒤 삭제되므로 itemId 재조회만 하면 멤버의
-            // afterSuccess 효과가 전부 사라진다.
+            // Numeric success uses the same combo snapshot as opposed and attack rolls. Temporary
+            // combo documents are deleted after opening the roll dialog, so an itemId lookup alone
+            // would lose every member's afterSuccess data.
             try {
                 if (window.DX3rdUniversalHandler) {
                     if (comboAfterSuccess) {
@@ -1023,17 +1020,16 @@ window.DX3rdChatToggleManager = {
                 }
             } catch (e) {
                 console.error('DX3rd | handleSuccessButton error:', e);
-                // 에러가 발생해도 완료 처리는 진행
+                // Completion remains a UI action even if follow-up processing reports an error.
             }
 
-            // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
             await message.setFlag('dx3rd-emanim', 'successCompleted', true);
 
-            // 버튼 텍스트 즉시 업데이트 (다른 클라이언트는 updateChatMessage 훅에서 처리)
+            // Update locally now; other clients follow through updateChatMessage.
             dx3rdApplyCompleteText(button, true, game.i18n.localize('DX3rd.Complete'));
         });
         
-        // 승리 체크 버튼 클릭 리스너 등록
+        // Resolve an opposed-roll victory button.
         dx3rdRegisterGlobalListener('dx3rd-win-check', 'click', async (event) => {
             const button = event.target.closest('.dx3rd-win-check-btn');
             if (!button) return;
@@ -1051,12 +1047,12 @@ window.DX3rdChatToggleManager = {
 
             const isCompleted = message.getFlag('dx3rd-emanim', 'winCheckCompleted') === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent;
             }
 
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action rolls its UI state back.
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'winCheckCompleted');
                 button.textContent = button.dataset.originalText;
@@ -1067,28 +1063,24 @@ window.DX3rdChatToggleManager = {
             const itemId = button.dataset.itemId;
             const previousTokenId = button.dataset.previousTokenId;
             
-            // 콤보 afterSuccess 데이터 확인
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
             
-            // UniversalHandler로 처리
+            // Combo snapshots own merged follow-up work; ordinary items use the legacy handler.
             if (window.DX3rdUniversalHandler) {
                 if (comboAfterSuccess) {
-                    // 콤보의 병합된 afterSuccess 처리
                     await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
                 } else {
-                    // 단일 아이템 afterSuccess 처리 (기존)
                     await window.DX3rdUniversalHandler.handleSuccessButton(actorId, itemId, previousTokenId);
                 }
             }
             
-            // 플래그 설정 및 버튼 텍스트 변경
             await message.setFlag('dx3rd-emanim', 'winCheckCompleted', true);
 
-            // 버튼 텍스트 즉시 업데이트 (다른 클라이언트는 updateChatMessage 훅에서 처리)
+            // Update locally now; other clients follow through updateChatMessage.
             dx3rdApplyCompleteText(button, true, game.i18n.localize('DX3rd.Complete'));
         });
         
-        // 데미지 적용 버튼 클릭 리스너 등록
+        // Apply a completed damage roll to its targets.
         dx3rdRegisterGlobalListener('dx3rd-damage-apply', 'click', async (event) => {
             const button = event.target.closest('.damage-apply-btn');
             if (!button) return;
@@ -1106,12 +1098,12 @@ window.DX3rdChatToggleManager = {
 
             const isCompleted = message.getFlag('dx3rd-emanim', 'damageApplyCompleted') === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent;
             }
 
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action rolls its UI state back.
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'damageApplyCompleted');
                 return;
@@ -1129,40 +1121,37 @@ window.DX3rdChatToggleManager = {
                 return;
             }
 
-            // 아이템 가져오기 (임시 콤보 확인)
+            // Resolve either a temporary combo snapshot or an embedded item.
             let item = null;
             if (itemId) {
-                // 먼저 채팅 메시지에 임시 콤보 데이터가 있는지 확인
                 const tempComboItem = message.getFlag('dx3rd-emanim', 'tempComboItem');
                 if (tempComboItem && tempComboItem.id === itemId) {
                     item = tempComboItem;
-                    // 임시 콤보 객체에 필요한 메서드들 복원
+                    // Rehydrate only the Item-like methods required by follow-up handlers.
                     if (!item.getFlag) {
                         item.getFlag = () => null;
                         item.setFlag = () => {};
                         item.unsetFlag = () => {};
                     }
                 } else {
-                    // 일반 아이템
                     item = actor.items.get(itemId);
                 }
             }
             
-            // 콤보 afterDamage 데이터 가져오기
             const comboAfterDamageData = message.getFlag('dx3rd-emanim', 'comboAfterDamage');
 
-            // 권한/토큰/타겟/증오 게이트 + 적용은 공용 경로(runDamageApply)에 위임한다 —
-            // 데미지 산출 창 확정 직후의 자동 적용과 동일한 판정을 쓴다.
+            // runDamageApply owns permission, token, target, hatred, and application checks. This
+            // keeps manual card clicks aligned with automatic application after the damage dialog.
             const applied = await window.DX3rdUniversalHandler?.runDamageApply?.({
                 actor, item, damage, penetrate, attackResult, comboAfterDamageData
             });
             if (!applied) return;
 
-            // 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
+            // updateChatMessage propagates this completion marker to every client.
             await message.setFlag('dx3rd-emanim', 'damageApplyCompleted', true);
         });
         
-        // 공격 롤 버튼 클릭 리스너 등록 (무기/비클 전용)
+        // Reopen an attack workflow from a weapon or vehicle card.
         dx3rdRegisterGlobalListener('dx3rd-attack-roll', 'click', async (event) => {
             const button = event.target.closest('.attack-roll-btn');
             if (!button) return;
@@ -1173,7 +1162,6 @@ window.DX3rdChatToggleManager = {
 
             if (!itemId) return;
 
-            // 메시지에서 액터 정보 찾기
             const messageElement = button.closest('.message');
             const messageId = messageElement?.dataset?.messageId;
 
@@ -1190,12 +1178,12 @@ window.DX3rdChatToggleManager = {
             const isCompleted = !isAttackCardButton && !repeatable
                 && message.getFlag('dx3rd-emanim', 'attackRollCompleted') === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent;
             }
             
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action rolls its UI state back.
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'attackRollCompleted');
                 return;
@@ -1207,7 +1195,6 @@ window.DX3rdChatToggleManager = {
             const actor = game.actors.get(actorId);
             if (!actor) return;
             
-            // 권한 체크
             if (!actor.isOwner && !game.user.isGM) {
                 console.warn('DX3rd | User lacks permission to use this actor\'s actions');
                 return;
@@ -1216,7 +1203,7 @@ window.DX3rdChatToggleManager = {
             const item = actor.items.get(itemId);
             if (!item) return;
             
-            // 장비는 명중 워크플로를, 그 밖의 공격 아이템은 해당 아이템의 사용 워크플로를 다시 연다.
+            // Equipment reopens the accuracy workflow; other attack items reopen their use flow.
             let attackRollSuccess = false;
             if (window.DX3rdUniversalHandler) {
                 if (item.type === 'weapon' || item.type === 'vehicle') {
@@ -1226,18 +1213,21 @@ window.DX3rdChatToggleManager = {
                     });
                 } else {
                     attackRollSuccess = await window.DX3rdUniversalHandler.handleItemUse(
-                        actor.id, item.id, item.type
+                        actor.id, item.id, item.type, undefined, undefined, {
+                            reroll: true,
+                            sourceMessage: message
+                        }
                     );
                 }
             }
             
-            // 성공한 경우에만 플래그 설정
+            // Mark completion only after the handler accepts the action.
             if (attackRollSuccess && !isAttackCardButton && !repeatable) {
                 await message.setFlag('dx3rd-emanim', 'attackRollCompleted', true);
             }
         });
         
-        // 이펙트 사용 버튼 클릭 리스너 등록
+        // Use an item directly from its chat card.
         dx3rdRegisterGlobalListener('dx3rd-use-btn', 'click', async (event) => {
             const button = event.target.closest('.use-item-btn');
             if (!button) return;
@@ -1251,7 +1241,6 @@ window.DX3rdChatToggleManager = {
                 return;
             }
 
-            // 메시지에서 액터 정보 찾기
             const messageElement = button.closest('.message');
             const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
@@ -1260,21 +1249,20 @@ window.DX3rdChatToggleManager = {
                 return;
             }
 
-            // 완료 상태 확인 및 롤백 처리
             const itemUseCompleted = message.getFlag('dx3rd-emanim', 'itemUseCompleted') || {};
             const isCompleted = itemUseCompleted[itemId] === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Cache the label once so rolling back can restore it.
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent.trim();
             }
             
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Clicking a completed action clears only this item's completion flag.
             if (isCompleted) {
                 const updatedItemUseCompleted = { ...itemUseCompleted };
                 delete updatedItemUseCompleted[itemId];
                 
-                // 빈 객체가 되면 플래그 제거, 아니면 업데이트
+                // Remove the flag entirely once its per-item map becomes empty.
                 if (Object.keys(updatedItemUseCompleted).length === 0) {
                     await message.unsetFlag('dx3rd-emanim', 'itemUseCompleted');
                 } else {
@@ -1286,24 +1274,22 @@ window.DX3rdChatToggleManager = {
             const speakerElement = messageElement?.querySelector('.message-header .message-sender');
             const actorName = speakerElement?.textContent.trim() || '';
             
-            // 액터 ID 찾기 (speaker 데이터에서)
+            // Prefer the button actor, then fall back to the message speaker.
             let actorId = null;
             try {
                 if (message && message.speaker && message.speaker.actor) {
                     actorId = message.speaker.actor;
                 }
             } catch (e) {
-                // 액터 ID 추출 실패 시 무시
             }
             
-            // 아이템 정보 찾기
+            // Resolve the embedded item from the actor that owns the card.
             let itemType = 'unknown';
             
             try {
                 if (actorId) {
                     const actor = game.actors.get(actorId);
                     
-                    // 권한 체크
                     if (actor && !actor.isOwner && !game.user.isGM) {
                         console.warn('DX3rd | User lacks permission to use this actor\'s actions');
                         return;
@@ -1316,23 +1302,22 @@ window.DX3rdChatToggleManager = {
                     }
                 }
             } catch (e) {
-                // 아이템 정보 추출 실패 시 무시
             }
             
-            // UniversalHandler로 통합 처리 (getTarget은 undefined로 전달하여 아이템에서 읽도록 함)
+            // Leave getTarget undefined so the universal handler reads the item's current value.
             let itemUseSuccess = false;
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.handleItemUse) {
                 itemUseSuccess = await window.DX3rdUniversalHandler.handleItemUse(actorId, itemId, itemType, roisAction, undefined);
             }
             
-            // 성공한 경우에만 플래그 설정 (updateChatMessage 훅에서 버튼 텍스트 업데이트)
+            // Mark completion only after the handler accepts the action.
             if (itemUseSuccess) {
                 const updatedItemUseCompleted = { ...itemUseCompleted, [itemId]: true };
                 await message.setFlag('dx3rd-emanim', 'itemUseCompleted', updatedItemUseCompleted);
             }
         });
         
-        // message-sender 클릭 시 로이스 추가 리스너 등록
+        // Clicking a message sender can create a Lois toward that actor.
         dx3rdRegisterGlobalListener('dx3rd-add-lois', 'click', async (event) => {
             const senderElement = event.target.closest('.message-header[data-actor-id] .message-sender');
             if (!senderElement) return;
@@ -1346,14 +1331,13 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 대상 액터 가져오기
             const targetActor = game.actors.get(targetActorId);
             if (!targetActor) {
                 ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound'));
                 return;
             }
             
-            // 현재 액터 가져오기 (선택된 토큰 또는 할당된 액터)
+            // The source is the controlled token's actor, then the user's assigned actor.
             const controlledToken = canvas?.tokens?.controlled?.[0];
             const currentActor = controlledToken?.actor || game.user?.character;
             
@@ -1362,13 +1346,12 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 권한 체크
             if (!currentActor.isOwner && !game.user.isGM) {
                 ui.notifications.warn(game.i18n.localize('DX3rd.NoPermission'));
                 return;
             }
             
-            // 이미 같은 로이스가 있는지 확인
+            // Do not create a duplicate Lois for the same target actor.
             const existingLois = currentActor.items.find(item => 
                 item.type === 'rois' && item.system?.actor === targetActorId
             );
@@ -1378,12 +1361,12 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // S 타입 로이스가 이미 있는지 확인
+            // An actor may have at most one S-Lois.
             const hasSType = currentActor.items.some(item => 
                 item.type === 'rois' && item.system?.type === 'S'
             );
             
-            // 로이스 추가 다이얼로그 표시
+            // Collect the Lois type and positive/negative emotions.
             const dialogContent = `
                 <div class="dx3rd-add-lois-dialog">
                     <div class="lois-dialog-field">
@@ -1462,7 +1445,7 @@ window.DX3rdChatToggleManager = {
                         }
                     ],
                     render: (event, dialog) => {
-                        // 상호 배타적 체크박스 처리
+                        // Positive and negative main-emotion choices are mutually exclusive.
                         const root = dialog.element;
                         const positiveCheckbox = root.querySelector('#lois-positive-state');
                         const negativeCheckbox = root.querySelector('#lois-negative-state');
@@ -1484,7 +1467,7 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 로이스 아이템 생성
+            // Persist the selected relationship as an embedded item.
             try {
                 const loisItemData = {
                     name: targetActor.name,
@@ -1525,10 +1508,9 @@ window.DX3rdChatToggleManager = {
     }
 };
 
-// Chat handler 객체 생성
+// Chat-card dialog and item-list handlers.
 window.DX3rdChatHandlers = {
     async showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets) {
-        // 커스텀 DOM 다이얼로그 생성
         const dialogDiv = document.createElement("div");
         dialogDiv.className = "after-success-dialog";
         dialogDiv.style.position = "fixed";
@@ -1547,7 +1529,6 @@ window.DX3rdChatHandlers = {
         dialogDiv.style.minWidth = "280px";
         dialogDiv.style.cursor = "move";
         
-        // 제목
         const title = document.createElement("div");
         title.textContent = `${item.name}`;
         title.style.marginBottom = "16px";
@@ -1556,13 +1537,12 @@ window.DX3rdChatHandlers = {
         title.style.cursor = "move";
         dialogDiv.appendChild(title);
         
-        // 버튼 컨테이너
         const buttonContainer = document.createElement("div");
         buttonContainer.style.display = "flex";
         buttonContainer.style.flexDirection = "column";
         buttonContainer.style.gap = "8px";
         
-        // "장비 효과 사용" 버튼
+        // Apply the declared equipment effect and spend its use.
         const useBtn = document.createElement("button");
         const equipText = game.i18n.localize('DX3rd.Equipment');
         const appliedText = game.i18n.localize('DX3rd.Applied');
@@ -1580,11 +1560,10 @@ window.DX3rdChatHandlers = {
         useBtn.onclick = async () => {
             const updates = {};
             
-            // 1. system.used.state 증가
             const currentUsedState = item.system?.used?.state || 0;
             updates['system.used.state'] = currentUsedState + 1;
             
-            // 2. 활성화 (shouldActivate가 true이고 disable이 'notCheck'가 아닌 경우)
+            // notCheck explicitly disables the activation channel.
             if (shouldActivate) {
                 const activeDisable = item.system?.active?.disable ?? '-';
                 if (activeDisable !== 'notCheck') {
@@ -1596,7 +1575,6 @@ window.DX3rdChatHandlers = {
                 await item.update(updates);
             }
             
-            // 3. 대상 적용 (shouldApplyToTargets가 true인 경우)
             if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
                 await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
             }
@@ -1605,7 +1583,7 @@ window.DX3rdChatHandlers = {
         };
         buttonContainer.appendChild(useBtn);
         
-        // "사용 안 함" 버튼
+        // Closing without use must not activate, target, or spend the item.
         const notUseBtn = document.createElement("button");
         notUseBtn.textContent = game.i18n.localize('DX3rd.NotUse');
         notUseBtn.style.width = "100%";
@@ -1618,25 +1596,22 @@ window.DX3rdChatHandlers = {
         notUseBtn.style.fontSize = "0.9em";
         notUseBtn.style.cursor = "pointer";
         notUseBtn.onclick = async () => {
-            // 아무것도 안 함 (활성화 X, 대상 적용 X, state 증가 X)
             if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
         };
         buttonContainer.appendChild(notUseBtn);
         
         dialogDiv.appendChild(buttonContainer);
         
-        // 드래그 기능 추가
+        // Keep the lightweight dialog draggable without depending on an Application class.
         let isDragging = false;
         let offsetX;
         let offsetY;
         
         const onMouseDown = (e) => {
-            // 버튼 클릭은 제외
             if (e.target.tagName === 'BUTTON') return;
             
             isDragging = true;
             
-            // 다이얼로그의 현재 위치 계산
             const rect = dialogDiv.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
             offsetY = e.clientY - rect.top;
@@ -1650,13 +1625,12 @@ window.DX3rdChatHandlers = {
             
             e.preventDefault();
             
-            // 마우스 위치에서 오프셋을 빼서 정확한 위치 계산
             const newLeft = e.clientX - offsetX;
             const newTop = e.clientY - offsetY;
             
             dialogDiv.style.left = newLeft + "px";
             dialogDiv.style.top = newTop + "px";
-            dialogDiv.style.transform = "none";  // transform 제거
+            dialogDiv.style.transform = "none"; // Stop using the initial centering transform after a drag.
         };
         
         const onMouseUp = () => {
@@ -1671,13 +1645,12 @@ window.DX3rdChatHandlers = {
         document.addEventListener("mousemove", onMouseMove);
         document.addEventListener("mouseup", onMouseUp);
         
-        // 다이얼로그 제거 시 이벤트 리스너도 제거
+        // Document-level drag listeners must not outlive the dialog.
         const cleanup = () => {
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
         };
         
-        // 다이얼로그가 제거될 때 cleanup 호출
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.removedNodes.forEach((node) => {
@@ -1696,14 +1669,13 @@ window.DX3rdChatHandlers = {
     
     
     initializeExistingMessages() {
-        // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
-        // v14는 .chat-log, 레거시는 #chat-log 를 사용하므로 둘 다 지원
+        // Foundry v14 uses .chat-log; retain #chat-log for older supported cores.
         const existingMessages = document.querySelectorAll('#chat-log .message, .chat-log .message');
 
         const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
         for (const messageElement of existingMessages) {
             const collapsibleElements = messageElement.querySelectorAll('.dx3rd-item-chat .collapsible-content');
-            // 현재 월드 설정에 따라 초기 표시 상태를 통일한다.
+            // The current world setting wins over state stored in historical card HTML.
             for (const el of collapsibleElements) {
                 el.classList.toggle('collapsed', !expandItemCards);
                 el.style.display = expandItemCards ? '' : 'none';
@@ -1712,7 +1684,7 @@ window.DX3rdChatHandlers = {
     },
     
     showComboItemsDialog(messageElement, section) {
-        // 메시지에서 액터 정보 추출
+        // Resolve the actor through the ChatMessage rather than trusting card data.
         let actorId = null;
         try {
             const messageData = messageElement?.[0] || messageElement;
@@ -1725,7 +1697,7 @@ window.DX3rdChatHandlers = {
                     }
                 }
             }
-        } catch (e) {
+        } catch {
             return;
         }
         
@@ -1738,16 +1710,14 @@ window.DX3rdChatHandlers = {
             return;
         }
         
-        // 콤보 아이템 찾기
         const comboItems = actor.items.filter(item => item.type === 'combo');
         if (comboItems.length === 0) {
             return;
         }
         
-        // 첫 번째 콤보 아이템 사용 (여러 개가 있다면 가장 최근에 생성된 것)
         const comboItem = comboItems[0];
         
-        // 섹션에 따른 아이템 수집
+        // Collect only the requested card section.
         let items = [];
         let sectionName = '';
         
@@ -1764,7 +1734,6 @@ window.DX3rdChatHandlers = {
             return;
         }
         
-        // 다이얼로그 표시
         this.createComboItemsDialog(sectionName, items, comboItem.name, actor);
     },
     
@@ -1885,7 +1854,6 @@ window.DX3rdChatHandlers = {
         content += `</ol>`;
         content += `</div>`;
         
-        // 다이얼로그 생성
         new foundry.applications.api.DialogV2({
             window: { title: `${comboName} - ${sectionName}` },
             content: content,
@@ -2051,21 +2019,17 @@ window.DX3rdChatHandlers = {
     _getSkillDisplay(skillKey, actor) {
         if (!skillKey || skillKey === '-') return '-';
         
-        // 액터의 스킬에서 찾기
+        // Prefer an actor skill entry, including configured custom display names.
         if (actor) {
             const skill = actor.system?.attributes?.skills?.[skillKey];
             if (skill) {
-                // 스킬 이름이 DX3rd.로 시작하면 커스텀 이름 또는 로컬라이징
                 if (skill.name && skill.name.startsWith('DX3rd.')) {
-                    // customSkills 설정 확인
                     const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
                     const customSkill = customSkills[skillKey];
                     
                     if (customSkill) {
-                        // 커스텀 이름이 있으면 우선 사용
                         return typeof customSkill === 'object' ? customSkill.name : customSkill;
                     } else {
-                        // 커스텀 이름이 없으면 기본 로컬라이징
                         return game.i18n.localize(skill.name);
                     }
                 }
@@ -2073,18 +2037,17 @@ window.DX3rdChatHandlers = {
             }
         }
         
-        // 스킬이 없으면 기본 속성 체크
+        // Fall back to base attributes and syndrome keys.
         const attributes = ['body', 'sense', 'mind', 'social'];
         if (attributes.includes(skillKey)) {
             return game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
         }
         
-        // 신드롬 체크
         if (skillKey === 'syndrome') {
             return game.i18n.localize('DX3rd.Syndrome');
         }
         
-        // DX3rd. 접두사가 있는 스킬 키인 경우 로컬라이징 시도
+        // Finally localize an explicit DX3rd.* key even when it is not on the actor.
         if (skillKey.startsWith('DX3rd.')) {
             return game.i18n.localize(skillKey);
         }

@@ -79,7 +79,9 @@
   });
   contract(['registerAfterDamageExtension', 'registerAfterDamageActivation'], {
     validate: data => isObject(data.payload) && isId(data.payload.attackerId)
-      && isId(data.payload.itemId) && isIdArray(data.payload.targetActorIds),
+      && isId(data.payload.itemId) && isId(data.payload.damageRequestId)
+      && isIdArray(data.payload.targetActorIds) && isIdArray(data.payload.targetTokenIds)
+      && data.payload.targetActorIds.length === data.payload.targetTokenIds.length,
     authorize: ownsActor('payload.attackerId')
   });
   contract('registerTargetApply', {
@@ -88,13 +90,22 @@
     authorize: ownsActor('payload.sourceActorId')
   });
   contract(['reportDamageForApply', 'reportDamageForActivation'], {
-    validate: data => isObject(data.payload) && isId(data.payload.targetActorId) && isId(data.payload.itemId),
+    validate: data => isObject(data.payload) && isId(data.payload.targetActorId) && isId(data.payload.itemId)
+      && (data.type === 'reportDamageForApply'
+        || (isId(data.payload.damageRequestId) && isId(data.payload.targetTokenId))),
     authorize: ownsActor('payload.targetActorId')
   });
   contract('showDefenseDialog', {
     validate: data => isObject(data.dialogData) && isId(data.dialogData.attackerId)
-      && isId(data.dialogData.targetActorId),
+      && isId(data.dialogData.targetActorId) && isId(data.dialogData.targetTokenId)
+      && isId(data.dialogData.damageRequestId),
     authorize: ownsActor('dialogData.attackerId')
+  });
+  contract('cancelAfterDamageRequest', {
+    validate: data => isObject(data.payload) && isId(data.payload.damageRequestId)
+      && isId(data.payload.targetActorId) && isId(data.payload.targetTokenId)
+      && isId(data.payload.itemId),
+    authorize: ownsActor('payload.targetActorId')
   });
   contract('applyItemAttributes', {
     validate: data => isObject(data.payload) && isId(data.payload.sourceActorId)

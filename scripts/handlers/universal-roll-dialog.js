@@ -1,5 +1,5 @@
-// Universal handler - 롤 & 판정 다이얼로그 클러스터
-// universal-handler.js 에서 분리. 반드시 그 파일 뒤에 로드되어 동일 객체에 믹스인된다.
+// Universal handler — the roll & check-dialog cluster.
+// Split out of universal-handler.js; it must load after that file and mixes into the same object.
 // (executeAttackRoll / _getSortedSkillOptions / openComboBuilder /
 //  showStatRollConfirmDialog / showStatRollDialog / executeStatRoll)
 (function() {
@@ -10,8 +10,8 @@
 
   Object.assign(window.DX3rdUniversalHandler, {
     /**
-     * Midi-QOL 병합 카드처럼 아이콘/요약 헤더 아래에 판정 결과를 누적하고,
-     * 실행 버튼은 결과와 분리된 좁은 액션 행에 두는 DX3rd 공격 카드.
+     * A DX3rd attack card: like Midi-QOL's merged card, roll results stack under an icon/summary
+     * header, and the action buttons sit in a narrow row kept apart from the results.
      */
     renderAttackChatCard({actor, item, flavorText = '', rollHtml = '', actionContent = ''}) {
       const escapeHTML = value => window.DX3rdRuntimeUtils?.escapeHTML?.(String(value ?? ''))
@@ -61,12 +61,12 @@
     },
 
     /**
-     * 판정 롤에 항으로 실을 다이스식을 검증한다.
-     * 굴리지 않고 문자열째 넘기므로, 잘못된 수식은 판정 롤 전체를 깨뜨린다.
-     * 굴려서 숫자로 접던 시절엔 try/catch 가 흡수하던 자리라 검증을 여기로 옮겼다.
-     * @param {string} formula - 검사할 수식 (빈 값이면 그대로 '')
-     * @param {string} kind - 로그용 필드 이름
-     * @returns {string} 유효하면 원문, 아니면 '' (해당 항을 버린다)
+     * Validate a dice formula before it is carried into a check roll as a term.
+     * It is passed along as a string rather than rolled, so a bad formula breaks the entire roll.
+     * Back when it was rolled into a number a try/catch absorbed that, hence this check.
+     * @param {string} formula - the formula to check (an empty value stays '')
+     * @param {string} kind - field name, for the log line
+     * @returns {string} the formula when valid, otherwise '' (the term is dropped)
      */
     validateRollTerm(formula, kind) {
       if (!formula) return '';
@@ -77,27 +77,27 @@
     },
 
     /**
-     * 공격 롤 실행 (무기/비클/이펙트/콤보/사이오닉 등)
-     * @param {Actor} actor - 공격하는 액터
-     * @param {Item} item - 공격 아이템
-     * @param {string} skillName - 스킬 이름
-     * @param {Token} previousToken - 이전에 선택된 토큰
-     * @param {number} dice - 주사위 개수
-     * @param {number} critical - 크리티컬 값
-     * @param {number} add - 가산치
-     * @param {string} rollType - 'major' | 'reaction' | 'dodge' (판정 타입별 행동 수식 선택용)
+     * Execute an attack roll (weapon / vehicle / effect / combo / psionic …)
+     * @param {Actor} actor - the attacking actor
+     * @param {Item} item - the attacking item
+     * @param {string} skillName - skill name
+     * @param {Token} previousToken - the previously selected token
+     * @param {number} dice - dice count
+     * @param {number} critical - critical value
+     * @param {number} add - flat addition
+     * @param {string} rollType - 'major' | 'reaction' | 'dodge' (selects the per-type action formula)
      */
     async executeAttackRoll(actor, item, skillName, previousToken, dice, critical, add, weaponBonus = null, statRollFormula = null, rollType = 'major', sourceMessage = null) {
       try {
-        // 대상 확인 (다시 가져오기)
+        // Re-read the current targets
         const targets = Array.from(game.user.targets);
 
-        // 참조값은 명중 판정 시점으로 고정하되, 다이스식은 데미지 굴림 확정까지 보류한다.
-        // 이렇게 하면 공격 카드가 아직 공개하지 않은 데미지 결과를 품지 않는다.
+        // Referenced values freeze at accuracy time, but dice formulas are held back until the
+        // damage roll, so the attack card never carries an undisclosed damage result.
         const itemAttackFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
 
-        // 공격 타입/액터 보너스 산출 (데미지 굴림 시점과 동일 경로)
-        // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다(방어 창은 그 숫자만 받는다).
+        // Attack type and actor bonuses (the same path the damage roll takes)
+        // The penetrate dice are rolled now, at accuracy time, so the defense dialog only sees a number.
         const bonuses = await this.resolveAttackBonusesRolled(actor, item);
 
         const preservedValues = {
@@ -108,10 +108,10 @@
         };
 
       
-        // 공포 패널티는 이미 다이얼로그에서 반영되었으므로 여기서는 적용하지 않음
-        // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
-        // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
-        // 행동 시점 판정 수식: prepareData에서 원문만 보존하고, 여기서 정확히 한 번 굴린다.
+        // The fear penalty was already folded in by the dialog, so it is not applied again here.
+        // Rules (rule-section:39-41): a modified pool of 0 or less auto-fails (achievement 0).
+        // At least one die is still rolled for the animation; the result is forced to 0 below.
+        // Action-time roll formulas: prepareData keeps only the source text, and it is rolled exactly once here.
         const actionProfile = actor.system.attributes.actionRollFormula || {};
         const typedProfile = actionProfile[rollType] || {};
         const buildActionFormula = (kind) =>
@@ -128,36 +128,36 @@
             return { total: 0, text: `${kind}: ${formula} → 0` };
           }
         };
-        // 다이스 개수/크리티컬은 판정식을 조립하기 전에 값이 확정돼야 하므로 여기서 굴린다.
-        // 수정치(add)는 굴리지 않는다 — 아래 판정 롤의 항으로 그대로 실어야
-        // 채팅 카드가 "10dx7 + 10d10"처럼 다이스식 그대로 보인다.
+        // Dice count and critical must be settled before the check formula is assembled, so they roll here.
+        // The addition (add) is NOT rolled — it goes into the check roll below as a term of its own,
+        // so the chat card shows the dice formula verbatim, e.g. "10dx7 + 10d10".
         const [formulaDice, formulaCritical] = await Promise.all([
           rollActionFormula('dice'), rollActionFormula('critical')
         ]);
         const addDiceFormula = this.validateRollTerm(buildActionFormula('add'), 'add');
         const rolledDice = dice + formulaDice.total;
         const rolledCritical = critical + formulaCritical.total;
-        // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
-        // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
+        // The chat card shows only the final DX3rd check formula. The expanded auxiliary formulas
+        // are already folded into the pool, so they are not repeated on a line of their own.
         const autoFailByPool = rolledDice <= 0;
         const finalDice = Math.max(1, rolledDice);
 
         const add2 = add;
-        // 무기 명중 수정치의 다이스는 판정 버튼을 누른 지금 한 번만 같은 Roll에 포함한다.
-        // 결과는 사전 다이얼로그가 아니라 명중 롤 카드의 Foundry 항별 결과로 공개된다.
+        // The weapon's accuracy dice join this same Roll exactly once, now that the button was pressed.
+        // The result surfaces in the accuracy card's per-term Foundry breakdown, not in the pre-roll dialog.
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${Math.max(2, rolledCritical)}`, String(add2),
           addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
-        // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
-        // dx 다이스텀이 fumble 플래그를 세우면 기능레벨/수정치(add2)까지 무시하고 0으로 확정한다.
-        // 룰(rule-section:39-41): 판정치 0 이하도 동일하게 달성치 0으로 자동실패.
+        // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.
+        // When the dx dice term raises its fumble flag, skill level and add2 are ignored and the total is 0.
+        // Rules (rule-section:39-41): a pool of 0 or less auto-fails the same way, achievement 0.
         const isFumble = roll.terms.some(t => t?.fumble === true);
         const rollResult = (autoFailByPool || isFumble) ? 0 : roll.total;
 
-        // 공격 굴림 메시지 출력 (루비 텍스트 제거)
+        // Emit the attack-roll message (ruby text stripped)
         const cleanItemName = item.name.split('||')[0].trim();
         let flavorText = `${cleanItemName} - ${skillName} (${game.i18n.localize('DX3rd.AttackRoll')})`;
         if (autoFailByPool) {
@@ -166,7 +166,7 @@
           flavorText += `\n${game.i18n.localize('DX3rd.Fumble')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
         }
 
-        // 대상 정보 추가
+        // Append the target information
         if (targets.length > 0) {
           const targetDisplayNames = [];
 
@@ -175,7 +175,7 @@
             const targetName = targetActor?.name || target.name;
             if (!targetName) continue;
             
-            // 대상이 에너미이고 이베이전이 활성화되어 있는 경우 확인
+            // For an enemy target with evasion enabled, resolve the hit right here
             if (targetActor && targetActor.type === 'enemy') {
               const evasionDisabled = targetActor.system?.attributes?.evasion?.disabled;
               const evasionValue = targetActor.system?.attributes?.evasion?.value;
@@ -200,7 +200,7 @@
           }
         }
         
-        // 데미지 롤 버튼 생성
+        // Build the damage-roll button
         let damageRollButtonContent = `<button class="damage-roll-btn"
                     data-actor-id="${actor.id}"
                     data-item-id="${item.id}"
@@ -209,10 +209,10 @@
                     data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
-        // 아이템 타입별 공격력 데이터 속성 추가
+        // Per-type attack-power data attributes
         if (item.type === 'weapon') {
           damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
-          damageRollButtonContent += `\n                    data-weapon-ids="${item.id}"`; // 무기 자신의 ID 추가
+          damageRollButtonContent += `\n                    data-weapon-ids="${item.id}"`; // the weapon's own id
         } else if (item.type === 'vehicle') {
           damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
         } else {
@@ -223,7 +223,7 @@
                 ${game.i18n.localize('DX3rd.DamageRoll')}
             </button>`;
         
-        // 공격 메시지, 대상 정보, 롤 결과, 데미지 롤 버튼을 하나의 메시지로 묶기 (콤보와 동일하게 rollHtml 명시 포함)
+        // Attack text, targets, roll result, and damage button in one message (rollHtml included, as for combos)
         const attackMessageContent = this.renderAttackChatCard({
           actor,
           item,
@@ -249,18 +249,18 @@
           });
         }
 
-        // 메이저 롤 후 비활성화 훅 실행 (자기 자신에게만)
+        // Run the post-major disable hooks (on this actor only)
         if (window.DX3rdDisableHooks) {
           await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
           await window.DX3rdDisableHooks.executeDisableHook('major', actor);
         }
 
-        // 명중판정 완료 공통 후처리 (증오 자동 회복 + 확장 훅)
+        // Shared post-accuracy work (automatic hatred recovery + extension hooks)
         await this.onAttackRollComplete(actor, item, targets, rollResult, isFumble);
 
         await this.maybeAutoRollDamage?.(attackMessage);
 
-        // 이전 토큰 복원
+        // Restore the previous token
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
@@ -269,7 +269,7 @@
       } catch (e) {
         console.error('DX3rd | Weapon attack roll failed', e);
         ui.notifications.error('공격 굴림 중 오류가 발생했습니다.');
-        // 오류 시에도 토큰 복원
+        // Restore the token on error too
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
@@ -278,20 +278,13 @@
     },
 
     /**
-     * 능력치/스킬 판정 다이얼로그 표시 (Yes/No 다이얼로그)
-     * @param {Actor} actor - 액터
-     * @param {string} targetType - 'ability' 또는 'skill'
-     * @param {string} targetId - 능력치/스킬 ID
-     * @param {Function} openComboBuilderCallback - 콤보 빌더 콜백
-     */
-    /**
-     * 정렬된 스킬 옵션 가져오기 (actor-sheet.js의 _getSortedSkillOptions와 동일)
+     * Get the sorted skill options (identical to _getSortedSkillOptions in actor-sheet.js)
      */
     _getSortedSkillOptions(actor) {
       const skills = actor.system?.attributes?.skills || {};
       const sortedOptions = [];
       
-      // 능력치별 기본 스킬 순서
+      // Default skill order per attribute
       const skillOrder = {
         body: ['melee', 'evade'],
         sense: ['ranged', 'perception'],
@@ -302,14 +295,14 @@
       const attributes = ['body', 'sense', 'mind', 'social'];
       
       for (const attr of attributes) {
-        // 능력치 자체 추가
+        // The attribute itself
         sortedOptions.push({
           value: attr,
           label: game.i18n.localize(`DX3rd.${attr.charAt(0).toUpperCase() + attr.slice(1)}`),
           isAbility: true
         });
         
-        // 해당 능력치의 기본 스킬들
+        // That attribute's default skills
         const defaultSkills = skillOrder[attr] || [];
         for (const skillKey of defaultSkills) {
           const skill = skills[skillKey];
@@ -326,7 +319,7 @@
           }
         }
         
-        // 해당 능력치의 커스텀 스킬들
+        // That attribute's custom skills
         for (const [skillKey, skill] of Object.entries(skills)) {
           if (skill.base === attr && !defaultSkills.includes(skillKey)) {
             let skillName = skill.name;
@@ -346,45 +339,45 @@
     },
     
     /**
-     * 콤보 빌더 열기 (액터 시트 없이도 가능)
-     * @param {Actor} actor - 액터
-     * @param {string} targetType - 'ability' 또는 'skill'
-     * @param {string} targetId - 능력치/스킬 ID
-     * @param {Item} weaponItem - 무기 아이템 (선택적, attackRoll 초기값 설정용)
-     * @param {Object} options - 추가 옵션 (선택사항)
-     *   - {boolean} isBookDecipher: 마도서 해독 콤보 여부
-     *   - {Item} originalItem: 원본 아이템 (예: 마도서)
-     *   - {Object} predefinedDifficulty: 미리 정의된 난이도 데이터
-     *   - {string} rollType: 판정 종류 강제 시드('dodge'/'reaction'). 방어 다이얼로그 등 호출 문맥이
-     *     이미 판정 종류를 알고 있을 때 쓴다. 지정하면 공격 판정은 붙이지 않는다.
-     *   - {boolean} getTarget: 대상 지정 필요 여부(기본 true). 리액션 콤보는 false.
-     *   - {Function} afterRollCallback: 판정 완료 콜백(임시 콤보 문서의 meta로 전달)
-     *   - {Function} afterUseCallback: 사용(발동) 직후 콜백(임시 콤보 문서의 meta로 전달)
+     * Open the combo builder (works without an actor sheet)
+     * @param {Actor} actor - the actor
+     * @param {string} targetType - 'ability' or 'skill'
+     * @param {string} targetId - attribute/skill id
+     * @param {Item} weaponItem - weapon item (optional; seeds the initial attackRoll)
+     * @param {Object} options - extra options (optional)
+     *   - {boolean} isBookDecipher: whether this is a book-decipher combo
+     *   - {Item} originalItem: the originating item (e.g. the book)
+     *   - {Object} predefinedDifficulty: a pre-set difficulty
+     *   - {string} rollType: force the check type ('dodge'/'reaction'). Used when the caller — a
+     *     defense dialog, say — already knows it. When set, no attack roll is attached.
+     *   - {boolean} getTarget: whether a target is required (default true). false for reaction combos.
+     *   - {Function} afterRollCallback: called once the roll completes (passed via the temp combo's meta)
+     *   - {Function} afterUseCallback: called right after use (passed via the temp combo's meta)
      */
-    // 콤보 빌더: 편집 가능한 임시 콤보 문서를 만들고 그 시트를 연다.
-    // 사용/취소 시 문서는 자동 삭제되고, 저장 버튼을 누른 경우에만 영구 콤보로 남는다.
-    // 무기에서 시작하면 공격 콤보로 자동 시드(공격판정=무기 type, 기능=무기 공격기능).
+    // The combo builder creates an editable temporary combo document and opens its sheet.
+    // On use or cancel the document is deleted; only the save button makes it a permanent combo.
+    // Starting from a weapon seeds an attack combo (attack roll = weapon type, skill = its attack skill).
     async openComboBuilder(actor, targetType, targetId, weaponItem = null, options = {}) {
       const comboData = window.DX3rdComboData;
       const abilityKeys = ['body', 'sense', 'mind', 'social'];
 
-      // 이펙트/장비에서 콤보를 시작한 경우 미리 선택할 이펙트 ID 목록
+      // Effect ids to preselect when the combo was started from an effect or a piece of equipment
       const preselectIds = Array.isArray(options.preselectEffectIds)
         ? options.preselectEffectIds.filter(Boolean)
         : [];
 
-      // 판정 종류를 호출 문맥이 지정한 경우(리액션 창의 임시 콤보 등). 방어 판정에는 공격 판정이
-      // 붙을 수 없으므로 무기 시드도 통째로 건너뛴다.
+      // The caller may pin the check type (a reaction dialog's temp combo, say). A defense check
+      // cannot carry an attack roll, so the weapon seeding is skipped entirely.
       const forcedRoll = ['major', 'reaction', 'dodge', '-'].includes(options.rollType)
         ? options.rollType : null;
       const isDefenseSeed = forcedRoll === 'reaction' || forcedRoll === 'dodge';
 
-      // 무기/비클 아이템만 무기 슬롯·공격 콤보 시드로 사용(연출용으로 넘어온 비무기 아이템은 무시)
+      // Only weapons/vehicles seed the weapon slot and attack combo (a non-weapon passed for flavor is ignored)
       const seedWeapon = (!isDefenseSeed && weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle'))
         ? weaponItem : null;
 
-      // ---- 시드 값 계산(조합 우선순위: 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추) ----
-      // 콤보 생성 후 시트에서의 추가/삭제는 DX3rdComboData.deriveComboAttackFields가 같은 우선순위로 재계산한다.
+      // ---- Seed values (precedence: effect's explicit skill > weapon's explicit skill > weapon type) ----
+      // Later additions/removals on the sheet are recomputed with the same precedence by DX3rdComboData.deriveComboAttackFields.
       let skill = (targetType === 'skill' && targetId && targetId !== '-') ? targetId : '-';
       let base = '-';
       let attackRoll = '-';
@@ -394,20 +387,20 @@
       const seedEffects = preselectIds.map(id => actor.items.get(id)).filter(Boolean);
       const seedWeaponType = seedWeapon?.system?.type;
 
-      // 공격판정: 이펙트 attackRoll(melee/ranged) > 무기 type. (방어 시드는 공격 판정 없음)
+      // Attack roll: the effect's attackRoll (melee/ranged) beats the weapon type. (No attack roll for defense seeds.)
       const effAR = isDefenseSeed
         ? null
         : seedEffects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
       if (effAR) attackRoll = effAR.system.attackRoll;
       else if (!isDefenseSeed && (seedWeaponType === 'melee' || seedWeaponType === 'ranged')) attackRoll = seedWeaponType;
 
-      // 기능: 이펙트 지정 기능 > 무기 명시 > 무기 type 유추. (스킬에서 시작한 값은 조합 신호가 있으면 그쪽이 이김)
-      //   이펙트 지정 기능 = 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백. (룰 근거는 combo-data.js 참조)
+      // Skill: the effect's designated skill > the weapon's explicit skill > inferred from the weapon type.
+      //   (A value seeded from a skill loses to any combination signal.) "Designated" prefers comboSkill — the skill swap on combination — falling back to the effect's own skill. (Rule basis: combo-data.js)
       const effComboSkill = seedEffects.find(e => e.system?.comboSkill && e.system.comboSkill !== '-');
-      // skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 순수 수정치 센티넬이므로 기능 소스에서 제외.
+      // skill='syndrome' (Concentrate, Reflex, …) is a pure modifier sentinel, not a check skill — excluded as a skill source.
       const effOwnSkill = seedEffects.find(e => e.system?.skill && e.system.skill !== '-' && e.system.skill !== 'syndrome');
       if (effComboSkill) {
-        skill = effComboSkill.system.comboSkill;  // base는 아래에서 스킬 기준으로 유추
+        skill = effComboSkill.system.comboSkill;  // base is inferred from the skill below
       } else if (effOwnSkill) {
         skill = effOwnSkill.system.skill;
         if (effOwnSkill.system?.base && effOwnSkill.system.base !== '-') base = effOwnSkill.system.base;
@@ -419,16 +412,16 @@
         skill = 'melee';
       }
 
-      // 기능이 정해졌는데 base가 비어있으면 스킬의 base 능력치로 채움
+      // With a skill settled but no base, take the skill's base attribute
       if (base === '-' && skill !== '-') {
         base = abilityKeys.includes(skill) ? skill : (actor.system?.attributes?.skills?.[skill]?.base || '-');
       }
 
-      // 조합시 능력치 변경(comboBase): 기능 유지하고 판정 능력치만 교체(룰 근거는 combo-data.js 참조)
+      // comboBase (attribute swap on combination): keeps the skill, replaces only the check attribute (rule basis: combo-data.js)
       const effComboBase = seedEffects.find(e => abilityKeys.includes(e.system?.comboBase));
       if (effComboBase) base = effComboBase.system.comboBase;
 
-      // 조합 이펙트의 침식치/사거리/대상 합성(가장 제한적인 값).
+      // Combine the member effects' encroachment / range / target (the most restrictive value wins).
       const effectIds = [...preselectIds];
       const encroachValue = comboData?.calculateEncroachment?.(actor, effectIds) ?? '0';
       const RT = window.DX3rdRangeTarget;
@@ -437,9 +430,9 @@
       const rangeValue = rangeCombo?.resolved ? rangeCombo.value : '-';
       const targetValue = targetCombo?.resolved ? targetCombo.value : '-';
 
-      // 공격판정이 있는데 무기가 고정되지 않았으면 사용 시 무기 선택 다이얼로그를 띄운다.
+      // With an attack roll but no fixed weapon, a weapon picker opens at use time.
       const weaponSelect = attackRoll !== '-' && weaponSetting.length === 0;
-      // 무기가 고정된 경우 공격력 선계산.
+      // With a fixed weapon, precompute the attack power.
       const attackValue = attackRoll !== '-'
         ? (comboData?.calculateSubmittedAttack?.(actor, attackRoll, weaponSetting) ?? 0)
         : 0;
@@ -451,8 +444,8 @@
         system: {
           skill,
           base,
-          // 기능 또는 공격판정이 있으면 명중/판정을 위해 메이저로 시작.
-          // 호출 문맥이 판정 종류를 지정했으면(리액션/닷지) 그 값이 이긴다.
+          // A skill or an attack roll means it starts as a major action, for the check.
+          // A check type pinned by the caller (reaction/dodge) wins over that.
           roll: forcedRoll || ((skill !== '-' || attackRoll !== '-') ? 'major' : '-'),
           attackRoll,
           effectIds,
@@ -469,8 +462,8 @@
 
       try {
         const [created] = await actor.createEmbeddedDocuments('Item', [comboItemData]);
-        // 마도서/방어 다이얼로그 등 호출 문맥이 제공한 일회성 판정 문맥은 임시 콤보가 살아 있는
-        // 동안 보존한다(문서에 직접 붙는 메모리 전용 필드 — 저장되지 않는다).
+        // One-shot check context supplied by the caller (a book, a defense dialog) lives as long as
+        // the temporary combo — an in-memory field hung on the document, never persisted.
         const hasMeta = options.originalItem || options.predefinedDifficulty || options.isBookDecipher
           || options.afterRollCallback || options.afterUseCallback;
         if (created && hasMeta) {
@@ -482,11 +475,11 @@
             afterUseCallback: typeof options.afterUseCallback === 'function' ? options.afterUseCallback : null
           };
         }
-        // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
+        // Warn when a self-targeting effect is mixed with non-self ones (but let it proceed).
         if (targetCombo?.selfConflict) {
           ui.notifications.warn(game.i18n.localize('DX3rd.SelfCombineWarning'));
         }
-        // 이름/세부 조정과 즉석 사용을 위해 방금 만든 콤보 시트를 연다.
+        // Open the new combo's sheet for naming, tweaking, and immediate use.
         created?.sheet?.render(true);
         return created;
       } catch (e) {
@@ -496,8 +489,15 @@
       }
     },
     
+    /**
+     * Ask whether to roll directly or open the combo builder, then do it.
+     * @param {Actor} actor - the actor
+     * @param {string} targetType - 'ability' or 'skill'
+     * @param {string} targetId - attribute/skill id
+     * @param {Function} openComboBuilderCallback - combo-builder callback
+     */
     async showStatRollConfirmDialog(actor, targetType, targetId, openComboBuilderCallback, specificRollType = null, menuAnchor = null) {
-      // 권한 체크
+      // Permission check
       if (!actor.isOwner && !game.user.isGM) {
         ui.notifications.warn('이 액터에 대한 권한이 없습니다.');
         return;
@@ -521,7 +521,7 @@
         if (openComboBuilderCallback) {
           return openComboBuilderCallback(targetType, targetId);
         }
-        // 콜백이 없으면 직접 openComboBuilder 호출
+        // Without a callback, call openComboBuilder directly
         return this.openComboBuilder(actor, targetType, targetId);
       };
       const rollDirectly = () => this.showStatRollDialog(actor, stat, label, specificRollType);
@@ -537,33 +537,33 @@
     },
 
     /**
-     * 능력치/스킬 판정 다이얼로그 표시 (Major/Reaction/Dodge 선택)
-     * @param {Actor} actor - 액터
-     * @param {Object} stat - 능력치/스킬 데이터
-     * @param {string} label - 표시할 레이블
-     * @param {string} specificRollType - 특정 롤 타입만 표시 (선택사항: 'major'|'reaction'|'dodge')
-     * @param {Item} item - 아이템 (선택사항)
-     * @param {Token} previousToken - 이전에 선택된 토큰 (무기 공격용, 선택사항)
-     * @param {Object} weaponBonus - 무기 보너스 (선택사항)
-     * @param {Object} comboAfterSuccessData - 콤보 afterSuccess 데이터 (선택사항)
-     * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택사항)
-     * @param {Object} predefinedDifficulty - 미리 정의된 난이도 (선택사항, Book 등에서 사용)
+     * Show the attribute/skill check dialog (Major / Reaction / Dodge)
+     * @param {Actor} actor - the actor
+     * @param {Object} stat - attribute/skill data
+     * @param {string} label - the label to display
+     * @param {string} specificRollType - show only this roll type (optional: 'major'|'reaction'|'dodge')
+     * @param {Item} item - the item (optional)
+     * @param {Token} previousToken - the previously selected token (weapon attacks; optional)
+     * @param {Object} weaponBonus - weapon bonus (optional)
+     * @param {Object} comboAfterSuccessData - combo afterSuccess payload (optional)
+     * @param {Object} comboAfterDamageData - combo afterDamage payload (optional)
+     * @param {Object} predefinedDifficulty - a pre-set difficulty (optional; used by books etc.)
      */
     async showStatRollDialog(actor, stat, label, specificRollType = null, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, predefinedDifficulty = null, requireDifficulty = false, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, sourceMessage = null) {
       const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
       
-      // stat은 얕은 복사 시 major/reaction/dodge가 원본과 공유되어 패널티 누적 발생 → deepClone 사용
+      // A shallow copy would share major/reaction/dodge with the original and accumulate penalties → deepClone
       let effectiveStat = foundry.utils.deepClone(stat);
       
-      // 공포 판정인 경우 주사위 값을 encroachment.dice만큼 빼기
-      // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 자동실패. 여기서 하한을 두지 않고
-      // 원값(음수 가능)을 그대로 전파해 롤 실행부에서 0 이하 자동실패를 판정한다.
+      // For a fear check, subtract encroachment.dice from the dice pool
+      // Rules (rule-section:39-41): a modified pool of 0 or less auto-fails. No floor is applied here;
+      // the raw value (possibly negative) propagates so the roll executor decides the auto-fail.
       if (isPanicTest) {
         const encroachmentDice = Number(actor.system?.attributes?.encroachment?.dice) || 0;
         if (effectiveStat.dice !== undefined) {
           effectiveStat.dice = (effectiveStat.dice || 0) - encroachmentDice;
         }
-        // major, reaction, dodge 각각에도 적용
+        // Apply to major, reaction and dodge as well
         if (effectiveStat.major && effectiveStat.major.dice !== undefined) {
           effectiveStat.major.dice = (effectiveStat.major.dice || 0) - encroachmentDice;
         }
@@ -575,16 +575,16 @@
         }
       }
       
-      // 공포 효과 의존 패널티 적용 (dice -4, 최소값 1 보장)
+      // Fear "dependency" penalty (dice -4; no floor — see the rule note below)
       const panic8Applied = window.DX3rdAppliedEffects?.getEffect(actor, 'Panic8') || actor.system?.attributes?.applied?.Panic8;
       if (panic8Applied) {
-        // 액터의 토큰 찾기
+        // Find the actor's token
         const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
         if (actorToken) {
-          // 로이스 아이템 이름 목록 가져오기
+          // Collect the Lois item names
           const roisItems = actor.items.filter(item => item.type === 'rois');
           const roisNames = roisItems.map(item => {
-            // 아이템 이름에서 ||RubyText 제거
+            // Strip ||RubyText from the item name
             let itemName = item.name;
             const rubyPattern = /^(.+)\|\|(.+)$/;
             const match = itemName.match(rubyPattern);
@@ -592,23 +592,23 @@
               itemName = match[1];
             }
             return itemName.trim();
-          }).filter(name => name); // 빈 문자열 제거
+          }).filter(name => name); // drop empty strings
           
           if (roisNames.length > 0) {
-            // 인게이지 범위 계산 (토큰 크기의 절반 올림)
+            // Engage range = half the token size, rounded up
             const tokenSize = Math.max(actorToken.document.width, actorToken.document.height);
             const engageRange = Math.ceil(tokenSize / 2);
             
-            // 인게이지 범위 내 그리드 가져오기
+            // Grids within engage range
             const engageGrids = this.getGridsInRange(actorToken, engageRange);
             
-            // 인게이지 범위 내에 로이스 아이템 이름과 일치하는 토큰 액터가 있는지 확인
+            // Is there a token actor in engage range whose name matches a Lois item?
             let hasMatchingRoisToken = false;
             for (const grid of engageGrids) {
               const tokenAtGrid = this.getTokenAtGrid(grid, actorToken);
               if (tokenAtGrid && tokenAtGrid.actor) {
                 const tokenActorName = tokenAtGrid.actor.name || '';
-                // 로이스 아이템 이름과 일치하는지 확인
+                // Match against the Lois item names
                 if (roisNames.some(roisName => tokenActorName === roisName)) {
                   hasMatchingRoisToken = true;
                   break;
@@ -616,8 +616,8 @@
               }
             }
             
-            // 일치하는 토큰이 없으면 dice 패널티 -4 적용
-            // 룰(rule-section:39-41): 하한을 두지 않고 원값(음수 가능)을 전파 → 롤 실행부에서 0 이하 자동실패 판정
+            // No matching token → apply the -4 dice penalty
+            // Rules (rule-section:39-41): no floor — the raw value (possibly negative) propagates, and the roll executor auto-fails at 0 or less
             if (!hasMatchingRoisToken) {
               if (effectiveStat.dice !== undefined) {
                 effectiveStat.dice = (effectiveStat.dice || 0) - 4;
@@ -636,7 +636,7 @@
         }
       }
       
-      // Madness 2 (편집증): 인접한 그리드에 로이스와 일치하지 않는 다른 토큰이 있으면 메이저 다이스 -2
+      // Madness 2 (Paranoia): -2 major dice when an adjacent grid holds a token that is not a Lois
       const madnessTypePrefix = game.i18n.localize('DX3rd.MadnessType');
       const madness2Name = madnessTypePrefix + ': ' + game.i18n.localize('DX3rd.Madness2');
       const hasMadness2 = actor.items.some(item => 
@@ -684,10 +684,10 @@
       }
       
       if (weaponBonus) {
-        // 기본 add 값에 무기 보너스 적용
+        // Apply the weapon bonus to the base add
         effectiveStat.add = (stat.add || 0) + (weaponBonus.add || 0);
         
-        // major, reaction, dodge 각각에도 무기 보너스 적용
+        // And to major, reaction and dodge
         if (effectiveStat.major) {
           effectiveStat.major.add = (effectiveStat.major.add || 0) + (weaponBonus.add || 0);
         }
@@ -711,10 +711,10 @@
       const buildBtn = (id, text) => `
         <button class="roll-type-btn" data-roll-type="${id}">${text}</button>`;
       
-      // 미리 정의된 난이도가 있으면 사용, 없으면 아이템의 난이도 가져오기
+      // Use the pre-set difficulty when one was given, otherwise the item's own
       let itemDifficulty = '';
       if (predefinedDifficulty) {
-        // Book 등에서 전달된 미리 정의된 난이도 사용
+        // A pre-set difficulty passed in by a book etc.
         if (predefinedDifficulty.type === 'number') {
           itemDifficulty = String(predefinedDifficulty.value);
         } else {
@@ -724,23 +724,23 @@
         itemDifficulty = item?.system?.difficulty || '';
       }
       
-      // 무기/비클 공격인지 확인 (previousToken이 있으면 무기 공격)
+      // Weapon/vehicle attack? (a previousToken means a weapon attack)
       const isWeaponAttack = item && (item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null;
       
-      // 공격 명중 판정인지 확인 (무기/비클, 콤보, 이펙트, 사이오닉 포함 - 공포 패널티 적용 대상)
+      // Is this an accuracy roll? (weapon/vehicle, combo, effect, psionic — the fear penalty targets these)
       const isAttackRoll = item && (
         (item.type === 'weapon' || item.type === 'vehicle') ||
         (item.system?.attackRoll && item.system.attackRoll !== '-' &&
          (item.system.attackRoll === 'melee' || item.system.attackRoll === 'ranged'))
       );
       
-      // 폭주 타입 체크 (reaction/dodge 버튼 비활성화용)
+      // Berserk type check (disables the reaction/dodge buttons)
       //
-      // 이것은 [폭주] 게이트의 **두 번째 자리**다 — 진짜 차단은 universal-handler 의
-      // processItemUsageCost 가 하고, 여기서는 버튼을 죽여 애초에 못 누르게 한다. 그래서
-      // 게이트 설정(`allowBerserkViolation`)과 아이템별 예외 저작을 **여기서도 똑같이**
-      // 봐야 한다. 보지 않으면 설정을 켜도 버튼이 비활성인 채라 「설정이 안 먹는다」가 된다
-      // (actor-chat 의 버튼 미렌더·chat-ui 의 조용한 건너뜀과 같은 부류의 결함이었다).
+      // This is the **second** site of the [Berserk] gate — the real block lives in
+      // universal-handler's processItemUsageCost; here the button is merely disabled. So the gate
+      // setting (`allowBerserkViolation`) and the per-item exemption must be honored **here too**.
+      // Otherwise the button stays dead even with the setting on, and it reads as "the setting does
+      // not work" (the same class of defect as actor-chat not rendering, and chat-ui skipping silently).
       const berserkActive = actor.system?.conditions?.berserk?.active || false;
       const berserkType = actor.system?.conditions?.berserk?.type || '';
       const berserkTypesToBlock = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
@@ -748,13 +748,13 @@
         && berserkTypesToBlock.includes(berserkType)
         && window.DX3rdUsageGates?.allows?.('berserk') === false;
 
-      // 예외 아이템 확인. 판정은 DX3rdUsageGates.conditionExempt 한 곳이다 — 아이템 저작
-      // (`system.conditionExempt.berserk`)과 구 이름 목록 설정을 함께 본다.
+      // Exempt item? The decision lives solely in DX3rdUsageGates.conditionExempt, which reads both
+      // the item authoring (`system.conditionExempt.berserk`) and the legacy name-list setting.
       const isExceptionItem = isReactionDodgeBlocked && item
         ? window.DX3rdUsageGates?.conditionExempt?.(item, 'berserk') === true
         : false;
 
-      // 공포 패널티 확인 (공격 명중 판정인 경우: 무기/비클, 콤보, 이펙트, 사이오닉)
+      // Fear penalty (accuracy rolls only: weapon/vehicle, combo, effect, psionic)
       let fearPenalty = 0;
       let fearTargetName = '';
       if (isAttackRoll) {
@@ -762,7 +762,7 @@
         const fearTarget = actor.system?.conditions?.fear?.target || '';
         
         if (fearActive && fearTarget) {
-          // 현재 타겟 중에 공포 대상이 있는지 확인
+          // Is the fear target among the current targets?
           const targets = Array.from(game.user.targets);
           const hasFearTarget = targets.some(t => {
             const targetName = t.actor?.name || t.name;
@@ -780,30 +780,30 @@
         }
       }
       
-      // 폭주 distaste 패널티 확인 (모든 판정에 적용)
+      // Berserk "distaste" penalty (applies to every roll)
       let distastePenalty = 0;
       let distasteTargetNames = [];
       
-      // 폭주 distaste 타입 확인 (이미 위에서 선언된 berserkActive, berserkType 사용)
+      // Reuses berserkActive / berserkType, declared above
       const berserkDistaste = berserkActive && berserkType === 'distaste';
       
       if (berserkDistaste) {
-        // 액터의 토큰 찾기
+        // Find the actor's token
         const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
         if (actorToken) {
-          // 인접 그리드 가져오기
+          // Adjacent grids
           const adjacentGrids = this.getAdjacentGrids(actorToken);
           
-          // 인접 칸에 다른 토큰이 있는지 확인
+          // Any other token on an adjacent square?
           for (const grid of adjacentGrids) {
             const tokenAtGrid = this.getTokenAtGrid(grid, actorToken);
             if (tokenAtGrid) {
               const adjacentTokenName = tokenAtGrid.actor?.name || tokenAtGrid.name;
               
-              // 폭주 distaste 타입인 경우 (인접 칸에 아무 토큰이나 있으면 패널티)
+              // distaste: any adjacent token at all incurs the penalty
               distastePenalty = -10;
               
-              // 중복 체크 후 추가
+              // Append, avoiding duplicates
               if (!distasteTargetNames.includes(adjacentTokenName)) {
                 distasteTargetNames.push(adjacentTokenName);
               }
@@ -814,20 +814,20 @@
         }
       }
       
-      // 토큰 이름들을 쉼표로 구분된 문자열로 변환
+      // Join the token names into a comma-separated string
       const distasteTargetName = distasteTargetNames.join(', ');
       
-      // 공포 효과 의존 패널티 확인 (모든 판정에 적용, dice -4) - 다이얼로그 표시용
+      // The same dependency penalty (dice -4), recomputed here purely for the dialog display
       let dependencyPenalty = 0;
       
       if (panic8Applied) {
-        // 액터의 토큰 찾기
+        // Find the actor's token
         const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
         if (actorToken) {
-          // 로이스 아이템 이름 목록 가져오기
+          // Collect the Lois item names
           const roisItems = actor.items.filter(item => item.type === 'rois');
           const roisNames = roisItems.map(item => {
-            // 아이템 이름에서 ||RubyText 제거
+            // Strip ||RubyText from the item name
             let itemName = item.name;
             const rubyPattern = /^(.+)\|\|(.+)$/;
             const match = itemName.match(rubyPattern);
@@ -835,23 +835,23 @@
               itemName = match[1];
             }
             return itemName.trim();
-          }).filter(name => name); // 빈 문자열 제거
+          }).filter(name => name); // drop empty strings
           
           if (roisNames.length > 0) {
-            // 인게이지 범위 계산 (토큰 크기의 절반 올림)
+            // Engage range = half the token size, rounded up
             const tokenSize = Math.max(actorToken.document.width, actorToken.document.height);
             const engageRange = Math.ceil(tokenSize / 2);
             
-            // 인게이지 범위 내 그리드 가져오기
+            // Grids within engage range
             const engageGrids = this.getGridsInRange(actorToken, engageRange);
             
-            // 인게이지 범위 내에 로이스 아이템 이름과 일치하는 토큰 액터가 있는지 확인
+            // Is there a token actor in engage range whose name matches a Lois item?
             let hasMatchingRoisToken = false;
             for (const grid of engageGrids) {
               const tokenAtGrid = this.getTokenAtGrid(grid, actorToken);
               if (tokenAtGrid && tokenAtGrid.actor) {
                 const tokenActorName = tokenAtGrid.actor.name || '';
-                // 로이스 아이템 이름과 일치하는지 확인
+                // Match against the Lois item names
                 if (roisNames.some(roisName => tokenActorName === roisName)) {
                   hasMatchingRoisToken = true;
                   break;
@@ -859,7 +859,7 @@
               }
             }
             
-            // 일치하는 토큰이 없으면 dice 패널티 -4 표시
+            // No matching token → show the -4 dice penalty
             if (!hasMatchingRoisToken) {
               dependencyPenalty = -4;
               window.DX3rdDebug.log(`DX3rd | Panic 8 (Dependency) penalty: No matching Rois token in engage range (-4 dice)`);
@@ -868,7 +868,7 @@
         }
       }
       
-      // 난이도 표시: "참조"이면 placeholder로 DX3rd.ReferenceText 사용, 충동 판정이면 DX3rd.UrgeDifficulty 사용
+      // Difficulty display: "reference" uses DX3rd.ReferenceText as the placeholder; urge checks use DX3rd.UrgeDifficulty
       const referenceText = game.i18n.localize('DX3rd.Reference');
       const referenceDisplayText = game.i18n.localize('DX3rd.ReferenceText');
       const isReference = itemDifficulty === referenceText;
@@ -882,15 +882,15 @@
         difficultyPlaceholder = game.i18n.localize('DX3rd.Competition');
       }
       
-      // 버튼 생성: specificRollType이 있으면 해당 버튼만, 없으면 모두
+      // Buttons: only the named one when specificRollType is set, otherwise all of them
       let buttonHtml = '';
       if (specificRollType) {
-        // 특정 타입만 표시
+        // Just the one type
         const typeLabel = game.i18n.localize(`DX3rd.${specificRollType === 'major' ? 'Major' : specificRollType === 'reaction' ? 'Reaction' : 'DodgeRoll'}`);
         buttonHtml = buildBtn(specificRollType, typeLabel);
       } else {
-        // 모든 타입 표시
-        // reaction/dodge 버튼 비활성화 체크
+        // All types
+        // Should the reaction/dodge buttons be disabled?
         const reactionDisabled = isReactionDodgeBlocked && !isExceptionItem;
         const dodgeDisabled = isReactionDodgeBlocked && !isExceptionItem;
         
@@ -912,13 +912,13 @@
       const hasWeaponOrPenalty = weaponBonus || fearPenalty !== 0 || distastePenalty !== 0 || dependencyPenalty !== 0 || paranoiaPenalty !== 0;
       const attackSourceLabel = weaponBonus?.sourceLabel || game.i18n.localize('DX3rd.Weapon');
 
-      // 안내 줄은 **이번 판정이 실제로 쓰는 값만** 보인다.
-      //  · 공격력은 데미지 굴림에서만 소비된다 — preservedValues 는 executeStatRoll 의
-      //    `if (isAttackRoll)` 안에서만 만들어지고, 비공격 판정에는 데미지 버튼 자체가 없다.
-      //    그 숫자를 판정치 옆에 두면 이번 굴림에 적용되는 것처럼 읽힌다(조합 수치는 그 이펙트가
-      //    공격에 조합됐을 때 발현한다).
-      //  · 고정치와 다이스식을 함께 보인다. 예전에는 고정치만 찍어서 공격력이 '2d10' 인 무기가
-      //    "공격 +0" 으로 보였다 — 값이 없는 것과 구분되지 않았다.
+      // The info line shows **only what this roll actually uses**.
+      //  · Attack power is consumed by the damage roll alone — preservedValues is built inside
+      //    executeStatRoll's `if (isAttackRoll)`, and a non-attack roll has no damage button at all.
+      //    Printing that number beside the pool would read as if it applied to this roll (a combined
+      //    value only fires once the effect is combined into an attack).
+      //  · Fixed and dice terms are shown together. Printing only the fixed part made a weapon whose
+      //    attack is '2d10' read as "attack +0" — indistinguishable from having no value at all.
       const signed = text => (!text || text === '0') ? '+0' : (text.startsWith('-') ? text : `+${text}`);
       const bonusTerms = [];
       if (weaponBonus) {
@@ -928,19 +928,19 @@
         bonusTerms.push(`${game.i18n.localize('DX3rd.Add')} ${signed(this.joinFormulaTerms(weaponBonus.add, weaponBonus.addFormula))}`);
       }
       
-      // 상단 칸은 최종 판정치이며 직접 수정할 수 있다(자동 계산 덮어쓰기).
-      // 하단 칸은 자동 계산에 더하는 수정치이고, 그쪽을 만지면 덮어쓰기가 풀린다.
-      // 다이스/크리티컬은 판정식 조립에 쓰는 정수라 type=number로 두어 "1d10" 같은 입력을
-      // 브라우저 단계에서 막는다(정수로 잘려 조용히 1이 되는 사고 방지).
-      // 수정치는 판정 롤의 항으로 그대로 실리므로 다이스식을 받는다.
+      // The upper field is the final pool and can be edited directly, overriding the computation.
+      // The lower field is a modifier added to that computation; touching it clears the override.
+      // Dice and critical are integers used to assemble the check formula, so type=number rejects
+      // input like "1d10" in the browser (it would otherwise truncate silently to 1).
+      // The addition rides into the check roll as a term, so it does accept a dice formula.
       const overrideHint = game.i18n.localize('DX3rd.RollFieldOverrideHint');
       const addHint = game.i18n.localize('DX3rd.RollAddOverrideHint');
 
-      // 「명중판정을 실행하기 직전에 선언할 것」류 장비를 이 창에서 토글로 고른다.
-      // 시트로 돌아가 이름 클릭 → 「사용」을 누르게 하면 콤보 공격 흐름에서 완전히 벗어난다.
-      // 명중판정이면 공격력·장갑무시 계열까지 함께 낸다 — 룰상 그 선언 시점이 바로 여기이고,
-      // 여기서 선언해 두면 데미지 산출이 액터에서 읽어 갈 때 이미 반영돼 있다.
-      // 실제 사용은 굴림 버튼을 누를 때(commit) 일어난다 — 굴리지 않고 닫으면 아무것도 소모되지 않는다.
+      // Equipment of the "declare right before making the accuracy roll" kind is toggled here.
+      // Sending the player back to the sheet to click name → "use" would leave the combo attack flow entirely.
+      // On an accuracy roll it also offers the attack-power / armor-ignoring kinds — that is exactly
+      // when the rules say to declare them, and declaring here means the damage step already sees them.
+      // The actual use happens on commit, when the roll button is pressed — closing without rolling spends nothing.
       const declarable = window.DX3rdDeclaredEquipment?.collect(actor, isAttackRoll ? 'attack' : 'roll') || [];
       const declareSectionHtml = window.DX3rdDeclaredEquipment?.sectionHtml(declarable) || '';
 
@@ -995,7 +995,7 @@
           </div>
         </div>`;
 
-      // 충동 판정 또는 공포 판정인 경우 제목 변경
+      // Urge and panic checks get their own title
       const dialogTitle = isUrgeTest ? game.i18n.localize('DX3rd.UrgeTest') : (isPanicTest ? game.i18n.localize('DX3rd.PanicTest') : label);
       
       const DialogV2 = foundry.applications?.api?.DialogV2;
@@ -1026,28 +1026,28 @@
       const addDisplay = root.querySelector('.dx-add-display');
       const addInput = root.querySelector('.dx-add-input');
 
-      // 직접 수정(덮어쓰기) 상태. 표시 칸은 "최종 판정치"이므로 사용자가 손으로 고치면
-      // 그 값이 자동 계산(기본값 + 수정치 + 패널티)을 대신한다.
-      // 판정 타입이 바뀌면 기준값 자체가 달라지므로 덮어쓰기는 무효로 본다.
+      // Manual-override state. The display field is the "final pool", so a hand edit replaces the
+      // computation (base + modifier + penalties).
+      // Switching roll type changes the baseline itself, so the override is discarded.
       const overrides = { dice: null, critical: null, add: null };
       let overrideRollType = null;
-      // 마지막으로 표시에 반영한 판정 타입. 호버 아웃 시 .selected 가 지워져도
-      // 수정치 입력이 어느 타입 기준으로 계산되는지 잃지 않게 따로 들고 있는다.
+      // The roll type last reflected in the display. Kept separately so that when .selected is
+      // cleared on hover-out, we still know which type the modifier input is computed against.
       let currentRollType = specificRollType || null;
 
       const applyDisplay = (el, value, overridden) => {
         if (!el) return;
-        // 사용자가 지금 타이핑 중인 칸은 덮어쓰지 않는다(커서·중간 입력 보존).
+        // Never overwrite the field being typed in (preserves the caret and partial input).
         if (document.activeElement !== el) el.value = value;
         el.classList.toggle('dx3rd-overridden', overridden);
       };
 
-      // 현재 선택된 타입의 기본값 업데이트 함수
+      // Refresh the displayed values for the selected type
       const updateDisplayValues = (t) => {
         const data = effectiveStat[t] || { dice: effectiveStat.dice||0, critical: effectiveStat.critical||defaultCritical, add: effectiveStat.add||0 };
         const baseDice = data.dice || 0;
         const baseCrit = data.critical || defaultCritical;
-        const baseAdd = data.add || 0; // effectiveStat.add가 이미 무기 보너스가 적용된 값
+        const baseAdd = data.add || 0; // effectiveStat.add already includes the weapon bonus
 
         if (overrideRollType && overrideRollType !== t) {
           overrides.dice = overrides.critical = overrides.add = null;
@@ -1055,13 +1055,13 @@
         }
         currentRollType = t;
 
-        // 사용자 입력값 가져오기
+        // Read the user's modifier inputs
         const diceModifier = parseInt(diceInput?.value) || 0;
         const critModifier = parseInt(critInput?.value) || 0;
         const addModifier = parseInt(addInput?.value) || 0;
 
-        // 기본값 + 입력값 + 공포 패널티 표시 (의존 패널티는 이미 effectiveStat.dice에 적용됨)
-        // 룰(rule-section:39-41): 실제 판정치를 그대로 표시(0 이하면 자동실패 예고). 하한 클램프 없음.
+        // base + input + fear penalty (the dependency penalty is already inside effectiveStat.dice)
+        // Rules (rule-section:39-41): show the real pool as-is (0 or less foreshadows the auto-fail). No clamping.
         const finalDice = overrides.dice ?? (baseDice + diceModifier + fearPenalty);
         const finalCrit = overrides.critical ?? (baseCrit + critModifier);
         const finalAdd = overrides.add ?? (baseAdd + addModifier + distastePenalty);
@@ -1073,12 +1073,12 @@
         return { finalDice, finalCrit, finalAdd };
       };
 
-      // 입력 필드 변경 시 디스플레이 업데이트
+      // Refresh the display whenever an input changes
       const updateSelectedDisplay = () => {
         const t = root.querySelector('.roll-type-btn.selected')?.dataset.rollType || currentRollType;
         if (t) updateDisplayValues(t);
       };
-      // 수정치 칸을 만지면 "자동 계산으로 돌아가겠다"는 뜻이므로 해당 항목의 덮어쓰기를 해제한다.
+      // Touching a modifier field means "go back to the computed value", so its override is cleared.
       const bindModifier = (el, key) => el?.addEventListener('input', () => {
         overrides[key] = null;
         updateSelectedDisplay();
@@ -1087,13 +1087,13 @@
       bindModifier(critInput, 'critical');
       bindModifier(addInput, 'add');
 
-      // 장비를 선언하면 액터에 자기 보정 AE 가 붙지만, effectiveStat 은 창을 열 때의 스냅샷이라
-      // 저절로 갱신되지 않는다(침식·공포·폭주 패널티가 140여 줄에 걸쳐 인라인으로 깎여 들어가
-      // 통째로 재도출할 수 없다). 그래서 선언 전 판정치와 선언 후 판정치의 **차이만** 얹는다.
-      // 원본 stat 을 어디서 읽었는지는 두 가지로 되찾는다.
-      //   ① 참조 동일성 — 대부분의 호출부는 actor.system.attributes[...] 를 그대로 넘긴다.
-      //      prepareData 가 돌면 객체가 갈리므로, 경로는 반드시 갱신 **전에** 찾아 둬야 한다.
-      //   ② resolveComboStat — 커스텀 base 처럼 새 객체를 조립해 넘기는 경우의 폴백.
+      // Declaring equipment attaches a self-modifier AE to the actor, but effectiveStat is a snapshot
+      // from when the dialog opened and does not follow along (the encroachment/fear/berserk penalties
+      // are subtracted inline across some 140 lines, so it cannot simply be rederived). Hence only the
+      // **difference** before and after the declaration is layered on. The original stat's source is
+      // recovered two ways: ① reference identity — most callers pass actor.system.attributes[...]
+      //   straight through, and prepareData replaces the object, so the path must be found **beforehand**.
+      //   ② resolveComboStat — the fallback for callers that assemble a new object (a custom base).
       const statPath = (() => {
         const attrs = actor?.system?.attributes || {};
         for (const [key, value] of Object.entries(attrs)) {
@@ -1115,7 +1115,7 @@
           return null;
         }
       };
-      // 확정 직전의 원본 판정치. 매번 여기서부터의 차이를 재므로 여러 번 확정해도 누적된다.
+      // The pool as of just before committing. Every delta is measured from here, so repeated commits accumulate.
       const statBeforeDeclare = foundry.utils.deepClone(stat);
       const applyDeclaredDelta = () => {
         const fresh = rereadStat();
@@ -1134,15 +1134,15 @@
         for (const rollKey of ['major', 'reaction', 'dodge']) {
           bump(effectiveStat[rollKey], fresh[rollKey], statBeforeDeclare[rollKey]);
         }
-        // 차이를 다시 재지 않도록 기준을 옮긴다(두 번째 선언이 첫 번째 몫까지 또 더하는 것 방지).
+        // Move the baseline forward, so a second declaration does not re-add the first one's share.
         foundry.utils.mergeObject(statBeforeDeclare, foundry.utils.deepClone(fresh), {inplace: true});
         updateSelectedDisplay();
       };
       const declareControl = window.DX3rdDeclaredEquipment?.bind(root, actor);
 
       /**
-       * 토글해 둔 장비를 실제로 사용하고, 그 보정을 표시·굴림에 반영한다.
-       * 굴림 버튼이 값을 읽기 **전에** 불러야 한다 — 그래야 이번 판정에 보정이 실린다.
+       * Actually use the toggled equipment and fold its bonuses into the display and the roll.
+       * Must run **before** the roll button reads the values, or the bonus misses this check.
        */
       const commitDeclarations = async () => {
         if (!declareControl?.hasPending?.()) return;
@@ -1150,9 +1150,9 @@
         if (applied.length) applyDeclaredDelta();
       };
 
-      // 표시 칸 직접 수정 → 최종 판정치 덮어쓰기 (비우면 자동 계산 복귀)
-      // allowFormula: 수정치는 정수가 아니면 다이스식으로 보고 문자열째 보관한다.
-      //   (판정 롤의 항으로 실리므로 "3+1d10"처럼 기존 값에 이어 붙일 수 있다.)
+      // Editing a display field overrides the final pool (clearing it returns to the computed value).
+      // allowFormula: a non-integer addition is treated as a dice formula and kept as a string
+      //   (it rides into the check roll as a term, so "3+1d10" can extend the existing value).
       const bindOverride = (el, key, allowFormula = false) => {
         if (!el) return;
         el.addEventListener('input', () => {
@@ -1163,15 +1163,15 @@
             overrides[key] = Number(raw);
             overrideRollType = currentRollType;
           } else if (allowFormula) {
-            overrides[key] = raw; // 유효성은 blur/굴림 시점에 확인(타이핑 중엔 경고하지 않는다)
+            overrides[key] = raw; // validated on blur / at roll time (never warn mid-typing)
             overrideRollType = currentRollType;
           } else {
-            return; // '-'만 찍은 중간 상태 등은 무시
+            return; // ignore intermediate states, e.g. a lone '-'
           }
           updateSelectedDisplay();
         });
-        // 포커스를 잃으면 표시를 실제 적용값으로 정규화한다. 그러지 않으면 칸에는 '-'가,
-        // 판정에는 자동 계산값이 쓰이는 불일치가 눈에 보이지 않는다.
+        // On blur, normalize the display to the value actually in effect. Otherwise the field can
+        // show '-' while the roll uses the computed value, and the mismatch stays invisible.
         el.addEventListener('blur', () => {
           if (typeof overrides[key] === 'string' && !Roll.validate(overrides[key])) {
             ui.notifications.warn(`${game.i18n.localize('DX3rd.RollAddFormulaInvalid')}: ${overrides[key]}`);
@@ -1186,8 +1186,8 @@
 
       const btns = Array.from(root.querySelectorAll('.roll-type-btn'));
 
-      // 입력칸에서 Enter를 누르면 DialogV2의 기본 버튼(닫기)이 눌려 판정이 날아간다.
-      // 칸을 편집할 수 있게 된 이상 Enter는 "지금 표시 중인 타입으로 굴린다"로 받는다.
+      // Enter in an input would press DialogV2's default button (close) and throw the roll away.
+      // Now that the fields are editable, Enter means "roll with the type currently displayed".
       for (const el of [diceDisplay, diceInput, critDisplay, critInput, addDisplay, addInput,
                         root.querySelector('.dx-difficulty')]) {
         el?.addEventListener('keydown', ev => {
@@ -1198,12 +1198,12 @@
         });
       }
 
-      // 특정 타입만 있는 경우 자동으로 선택 및 표시
+      // With only one type available, select and display it automatically
       if (specificRollType && btns.length === 1) {
         btns[0].classList.add('selected');
         updateDisplayValues(specificRollType);
       } else {
-        // 다이얼로그가 열릴 때 첫 번째 버튼의 기본값으로 초기화
+        // On open, initialize from the first button's defaults
         const firstBtn = btns[0];
         if (firstBtn) {
           firstBtn.classList.add('selected');
@@ -1219,7 +1219,7 @@
       };
       const hoverOut = () => {
         btns.forEach(btn => btn.classList.remove('selected'));
-        // 호버 아웃 시에도 마지막 선택된 타입 유지 (초기화하지 않음)
+        // Keep the last selected type on hover-out (do not reset it)
       };
       btns.forEach(btn => {
         btn.addEventListener('mouseenter', hoverIn);
@@ -1227,19 +1227,19 @@
         btn.addEventListener('click', async ev => {
             const t = ev.currentTarget.dataset.rollType;
 
-            // 토글해 둔 선언형 장비를 여기서 실제로 사용한다. 값을 읽기 전에 끝내야
-            // 그 보정이 이번 판정에 실린다(닫기만 하면 여기까지 오지 않아 소모도 없다).
+            // The toggled declaration equipment is actually used here. It has to finish before the
+            // values are read, or its bonus misses this roll. Just closing never reaches here, so nothing is spent.
             await commitDeclarations();
 
-            // 표시값 = 최종 판정치. 수정치·패널티·직접 수정(덮어쓰기)이 모두 반영된 값이다.
-            // 룰(rule-section:39-41): 하한 없이 원 판정치를 전달 → 롤 실행부가 0 이하면 자동실패 처리
+            // The displayed value IS the final pool: modifiers, penalties and manual overrides are all in it.
+            // Rules (rule-section:39-41): pass the raw pool through unclamped — the roll executor auto-fails at 0 or less
             const values = updateDisplayValues(t);
             const finalDice = values.finalDice;
             const finalCrit = Math.max(2, values.finalCrit);
             const finalAdd = values.finalAdd;
 
-            // 수정치에 다이스식을 넣고 blur 없이 바로 굴린 경우(Enter 등). 깨진 식을 그대로
-            // 판정 롤에 실으면 롤 전체가 실패하므로, 조용히 다른 값으로 굴리지 않고 여기서 멈춘다.
+            // A dice formula typed into the addition and rolled without blurring (via Enter, say).
+            // A broken formula fails the whole roll, so stop here rather than silently rolling something else.
             if (typeof finalAdd === 'string' && !Roll.validate(finalAdd)) {
               ui.notifications.warn(`${game.i18n.localize('DX3rd.RollAddFormulaInvalid')}: ${finalAdd}`);
               return;
@@ -1254,7 +1254,7 @@
               fearPenalty
             });
             
-            // 공격 판정인지 확인 (무기/비클 타입이거나 attackRoll이 melee/ranged인 경우)
+            // Is this an attack roll? (a weapon/vehicle type, or attackRoll of melee/ranged)
             const isAttackRoll = item && (
               ((item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null) ||
               (item.system?.attackRoll && 
@@ -1262,16 +1262,16 @@
                (item.system.attackRoll === 'melee' || item.system.attackRoll === 'ranged'))
             );
             
-            // 무기/비클 공격인 경우 별도 처리 (난이도 없음)
+            // Weapon/vehicle attacks take their own path (no difficulty)
             if (item && (item.type === 'weapon' || item.type === 'vehicle') && previousToken !== null) {
               await this.executeAttackRoll(actor, item, label, previousToken, finalDice, finalCrit, finalAdd, weaponBonus, effectiveStat.rollFormula, t, sourceMessage);
             } else if (isAttackRoll) {
-              // attackRoll이 melee/ranged인 경우 공격 판정으로 처리 (난이도 없음)
-              // 무기 아이템에서 시작한 임시 콤보인지 확인
+              // attackRoll of melee/ranged is handled as an attack roll (no difficulty)
+              // Is this a temporary combo started from a weapon item?
               const originalWeaponItem = item._originalWeaponItem || null;
               
               if (originalWeaponItem && previousToken === null) {
-                // 원본 무기 아이템이 있고 previousToken이 없으면 원본 무기 아이템으로 executeAttackRoll 호출
+                // With an original weapon and no previousToken, run executeAttackRoll on that weapon
                 const weaponToken = canvas.tokens?.placeables.find(t => t.actor?.id === actor.id);
                 if (weaponToken) {
                   weaponToken.control({ releaseOthers: true });
@@ -1281,35 +1281,35 @@
                 }
               }
               
-              // 공격 판정이지만 executeAttackRoll로 가지 않는 경우 (콤보/이펙트 등)
-              // 난이도 없이 executeStatRoll 호출
+              // An attack roll that does not go through executeAttackRoll (combos, effects, …):
+              // call executeStatRoll with no difficulty
               const difficultyData = { type: 'none', value: 0 };
               await this.executeStatRoll(actor, finalDice, finalCrit, finalAdd, label, t, difficultyData, item, previousToken, weaponBonus, comboAfterSuccessData, comboAfterDamageData, false, null, false, effectiveStat.rollFormula, sourceMessage);
             } else {
-              // 일반 판정: 난이도 처리
+              // Ordinary check: resolve the difficulty
               const difficultyInput = root.querySelector('.dx-difficulty')?.value.trim() || '';
               
-              // 난이도 필수 입력 체크
+              // Difficulty is mandatory here
               if (requireDifficulty && !difficultyInput) {
                 ui.notifications.warn('목표 난이도를 입력해주세요.');
                 return;
               }
               
-              let difficultyData = { type: 'competition', value: 0 }; // 기본값: 대결
+              let difficultyData = { type: 'competition', value: 0 }; // default: a contest
               
               if (difficultyInput) {
-                // 숫자인지 확인
+                // Numeric?
                 const numValue = parseInt(difficultyInput);
                 if (!isNaN(numValue) && numValue > 0) {
-                  // 숫자 난이도
+                  // Numeric difficulty
                   difficultyData = { type: 'number', value: numValue };
                 } else {
-                  // 그 외(빈값 포함, "대결" 입력): 대결 판정
+                  // Anything else (including empty, or the word for "contest"): a contest
                   difficultyData = { type: 'competition', value: 0 };
                 }
               }
               
-              // 난이도 필수인 경우 숫자 난이도만 허용
+              // When a difficulty is mandatory, only a number is accepted
               if (requireDifficulty && difficultyData.type !== 'number') {
                 ui.notifications.warn('목표 난이도는 숫자로 입력해주세요.');
                 return;
@@ -1323,17 +1323,17 @@
     },
 
     /**
-     * 능력치/스킬 판정 실행
-     * @param {Actor} actor - 액터
-     * @param {number} dice - 주사위 개수
-     * @param {number} critical - 크리티컬 값
-     * @param {number} add - 가산치
-     * @param {string} label - 표시할 레이블
+     * Execute an attribute/skill check
+     * @param {Actor} actor - the actor
+     * @param {number} dice - dice count
+     * @param {number} critical - critical value
+     * @param {number} add - flat addition
+     * @param {string} label - the label to display
      * @param {string} rollType - 'major', 'reaction', 'dodge'
-     * @param {Object} difficultyData - 난이도 데이터 { type: 'none'|'number'|'competition', value: number }
-     * @param {Item} item - 아이템 (선택사항)
-     * @param {Token} previousToken - 이전에 선택된 토큰 (선택사항)
-     * @param {Object} comboAfterSuccessData - 콤보의 afterSuccess 데이터 (선택사항)
+     * @param {Object} difficultyData - { type: 'none'|'number'|'competition', value: number }
+     * @param {Item} item - the item (optional)
+     * @param {Token} previousToken - the previously selected token (optional)
+     * @param {Object} comboAfterSuccessData - the combo's afterSuccess payload (optional)
      */
     async executeStatRoll(actor, dice, critical, add, label, rollType, difficultyData = { type: 'none', value: 0 }, item = null, previousToken = null, weaponBonus = null, comboAfterSuccessData = null, comboAfterDamageData = null, isUrgeTest = false, afterRollCallback = null, isPanicTest = false, statRollFormula = null, sourceMessage = null) {
       const typeLabelMap = {
@@ -1345,44 +1345,44 @@
       let flavorText = '';
       const isEquipmentAttack = !!item && ['weapon', 'vehicle'].includes(item.type);
       
-      // 충동 판정인 경우
+      // Urge check
       if (isUrgeTest) {
         flavorText = `${game.i18n.localize('DX3rd.UrgeTest')} - ${label}${typeText ? `(${typeText})` : ''}`;
       } else if (isPanicTest) {
-        // 공포 판정인 경우
+        // Panic check
         flavorText = `${game.i18n.localize('DX3rd.PanicTest')} - ${label}${typeText ? `(${typeText})` : ''}`;
       } else if (item) {
-        // 아이템이 있는 경우: 기능(타이밍) 표시 (아이템 사용 메시지는 이미 출력됨).
-        // 공격 이펙트(attackRoll 설정)는 어떤 이펙트로 공격했는지 이름도 함께 표시한다.
+        // With an item: show the skill (and timing); the item-use message already went out.
+        // Attack effects (those with attackRoll set) also name which effect made the attack.
         const isAtkRoll = isEquipmentAttack || (item.system?.attackRoll && item.system.attackRoll !== '-');
         const namePrefix = isAtkRoll && item.name ? `${item.name} — ` : '';
         flavorText = `${namePrefix}${label}${typeText ? `(${typeText})` : ''}`;
       } else {
-        // 일반 능력치/스킬 판정
+        // Plain attribute/skill check
         flavorText = `${label}${typeText ? `(${typeText})` : ''}`;
       }
       
-      // 난이도 타입에 따라 flavor 추가
+      // Append the difficulty to the flavor line
       if (difficultyData.type === 'number') {
         flavorText += ` / ${game.i18n.localize('DX3rd.Difficulty')}: ${difficultyData.value}`;
       } else if (difficultyData.type === 'competition') {
         flavorText += ` / ${game.i18n.localize('DX3rd.Difficulty')}: ${game.i18n.localize('DX3rd.Competition')}`;
       }
       
-      // 무기 보너스 정보 추가 (줄바꿈으로 구분)
+      // Append the weapon bonus on its own line
       if (weaponBonus) {
         flavorText += `<br>${weaponBonus.sourceLabel || game.i18n.localize('DX3rd.Weapon')}: ${weaponBonus.weaponName}`;
       }
       
       try {
-        // 무기 보너스 처리 (null이면 0으로 간주)
+        // Weapon bonus (null counts as zero)
         const effectiveWeaponBonus = weaponBonus || { attack: 0, add: 0 };
         
-        // 공격 판정인 경우 현재 시점의 값들 보존
+        // For an attack roll, freeze the values as of now
         let preservedValues = null;
-        // 무기/비클의 직접 공격은 system.attackRoll 필드를 쓰지 않고 system.skill로
-        // showStatRollDialog에 들어온다. attackRoll만 검사하면 실제 장비 공격이 일반
-        // 메이저 판정 카드로 빠지고 데미지 버튼도 사라진다.
+        // A direct weapon/vehicle attack does not use the system.attackRoll field — it arrives at
+        // showStatRollDialog through system.skill. Testing attackRoll alone would route a real
+        // equipment attack to a plain major-check card, losing the damage button with it.
         const authoredAttackRoll = item?.system?.attackRoll;
         const isAttackRoll = !!item && (
           isEquipmentAttack
@@ -1390,8 +1390,8 @@
         );
         
         if (isAttackRoll) {
-          // 맨손 보너스는 weapon-for-attack으로 고른 무기 이름 기준으로 판정한다.
-          // 관통 다이스식은 명중 판정인 지금 굴려 숫자로 굳힌다.
+          // The fist bonus is decided from the weapon name chosen via weapon-for-attack.
+          // The penetrate dice are rolled now, at accuracy time, and frozen into a number.
           const bonuses = await this.resolveAttackBonusesRolled(actor, item, {
             attackType: isEquipmentAttack
               ? (item.type === 'weapon' ? item.system?.type : 'vehicle')
@@ -1403,17 +1403,17 @@
             actorAttack: bonuses.actorAttack,
             actorAttackFormula: bonuses.actorAttackFormula,
             actorPenetrate: bonuses.actorPenetrate,
-            // 무기 공격력 다이스식은 데미지 확정 시점까지 보존한다.
-            // 고정치(attack)와 다이스식(attackFormula)은 mergeAttackBonuses 가 **따로** 담는
-            // 서로 다른 성분이다. 둘 중 하나만 고르면(옛 `attackFormula || attack`) 「고정
-            // 공격력 이펙트 + 다이스 공격력 무기」를 조합했을 때 고정분이 통째로 사라졌다.
-            // 수정치(add)는 이미 고정=effectiveStat.add / 다이스=판정 롤의 항으로 둘 다 싣는다.
+            // The weapon's attack dice formula is preserved until damage is settled.
+            // The fixed value (attack) and the dice formula (attackFormula) are **separate**
+            // components in mergeAttackBonuses. Taking only one (the old `attackFormula || attack`)
+            // dropped the fixed part entirely when a fixed-attack effect met a dice-attack weapon.
+            // The addition already carries both: fixed via effectiveStat.add, dice as a check-roll term.
             weaponAttackFormula: this.joinFormulaTerms(effectiveWeaponBonus.attack, effectiveWeaponBonus.attackFormula)
           };
         }
         
-        // 수치 파생 단계에서는 보류한 다이스식을 실제 판정 버튼을 누른 지금 한 번만 굴린다.
-        // [육체]/[백병]/[레벨] 참조는 prepareData 단계에서 이미 현재 액터 값으로 치환되어 있다.
+        // Dice formulas deferred during derivation are rolled exactly once, now that the button was pressed.
+        // References like [body]/[melee]/[level] were substituted with the actor's values back in prepareData.
         const actionProfile = actor.system.attributes.actionRollFormula || {};
         const typedProfile = actionProfile[rollType] || {};
         const buildActionFormula = (kind) =>
@@ -1430,33 +1430,33 @@
             return { total: 0, text: `${kind}: ${formula} → 0` };
           }
         };
-        // 다이스 개수/크리티컬만 미리 굴린다(판정식 조립에 값이 필요). 수정치(add) 다이스식은
-        // 굴리지 않고 아래 판정 롤의 항으로 실어 카드에 "10dx7 + 10d10"으로 노출한다.
+        // Only dice count and critical are pre-rolled (the check formula needs their values). The
+        // addition's dice formula is not rolled; it rides below as a term, so the card shows "10dx7 + 10d10".
         const [formulaDice, formulaCritical] = await Promise.all([
           rollActionFormula('dice'), rollActionFormula('critical')
         ]);
         const addDiceFormula = this.validateRollTerm(buildActionFormula('add'), 'add');
         dice += formulaDice.total;
         critical = Math.max(2, critical + formulaCritical.total);
-        // 채팅 카드에는 최종 DX3rd 판정식만 표시한다. 보조 수식의 전개값은
-        // 판정 풀에 이미 반영되므로 별도 줄로 중복 표기하지 않는다.
+        // The chat card shows only the final DX3rd check formula. The expanded auxiliary formulas
+        // are already folded into the pool, so they are not repeated on a line of their own.
 
-        // 주사위 굴림 (침식률 증가는 이미 EffectHandler에서 처리됨)
-        // 룰(rule-section:39-41): 수정 결과 판정치가 0 이하면 판정은 자동실패(달성치 0).
-        // 실제 애니메이션을 위해 최소 1다이스는 굴리되, 결과는 아래에서 0으로 확정한다.
+        // Roll the dice (the encroachment rise was already handled by EffectHandler)
+        // Rules (rule-section:39-41): a modified pool of 0 or less auto-fails (achievement 0).
+        // At least one die is still rolled for the animation; the result is forced to 0 below.
         const autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
         const add2 = add;
-        // 콤보/이펙트 공격도 무기에서 넘겨 받은 다이스 명중 수정치를 동일한 판정 롤에 보존한다.
+        // Combo/effect attacks keep the weapon's accuracy dice inside this same check roll.
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${critical}`, String(add2),
           addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
         const roll = await (new Roll(rollFormula)).roll();
         const rollHtml = await roll.render();
 
-        // 룰: 판정 다이스가 전부 1이면 펌블 → 자동실패, 달성치 0.
-        // dx 다이스텀이 fumble 플래그를 세우면 기능레벨/수정치(add2)까지 무시하고 0으로 확정한다.
-        // 룰(rule-section:39-41): 판정치 0 이하도 동일하게 달성치 0으로 자동실패.
+        // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.
+        // When the dx dice term raises its fumble flag, skill level and add2 are ignored and the total is 0.
+        // Rules (rule-section:39-41): a pool of 0 or less auto-fails the same way, achievement 0.
         const isFumble = roll.terms.some(t => t?.fumble === true);
         const rollResult = (autoFailByPool || isFumble) ? 0 : roll.total;
         if (autoFailByPool) {
@@ -1465,7 +1465,7 @@
           flavorText += `<br>${game.i18n.localize('DX3rd.Fumble')} — ${game.i18n.localize('DX3rd.TestFailure')}`;
         }
 
-        // 공격 판정인 경우 대상이 에너미이면 이베이전 확인 (롤 결과를 알 수 있으므로 여기서 처리)
+        // On an attack roll, resolve enemy evasion here — the roll result is known by this point
         if (isAttackRoll) {
           const targets = Array.from(game.user.targets);
           if (targets.length > 0) {
@@ -1477,7 +1477,7 @@
               const targetName = targetActor?.name || target.name;
               if (!targetName) continue;
               
-              // 대상이 에너미이고 이베이전이 활성화되어 있는 경우 확인
+              // For an enemy target with evasion enabled
               if (targetActor && targetActor.type === 'enemy') {
                 const evasionDisabled = targetActor.system?.attributes?.evasion?.disabled;
                 const evasionValue = targetActor.system?.attributes?.evasion?.value;
@@ -1504,11 +1504,11 @@
           }
         }
         
-        // 결과 텍스트 및 버튼
+        // Result text and buttons
         let resultContent = '';
         
         if (isAttackRoll) {
-          // 공격 판정: 명중과 데미지 버튼을 함께 유지해 어느 단계에서도 재굴림할 수 있게 한다.
+          // Attack roll: keep both the accuracy and damage buttons, so either step can be re-rolled.
           const weaponIdsStr = weaponBonus?.weaponIds ? weaponBonus.weaponIds.join(',') : '';
           resultContent = `
             ${this.renderAttackRollButton(actor, item, {repeatable: true})}
@@ -1525,7 +1525,7 @@
             </button>
           `;
         } else if (difficultyData.type === 'number') {
-          // 숫자 난이도: 성공/실패 판정 + 버튼 (펌블이면 rollResult=0이라 자동 실패)
+          // Numeric difficulty: success/failure plus a button (a fumble makes rollResult 0, so it auto-fails)
           const isSuccess = rollResult >= difficultyData.value;
           
           if (isSuccess) {
@@ -1533,21 +1533,21 @@
             const isBook = item && item.type === 'book';
             const isConnection = item && item.type === 'connection';
             
-            // Book 아이템인 경우: 성공 메시지만 표시하고 바로 spell 선택 다이얼로그 호출
+            // Book: show the success message and open the spell picker straight away
             if (isBook) {
               resultContent = `<div class="dx3rd-result-success dx3rd-mt-8">${game.i18n.localize('DX3rd.TestSuccess')}</div>`;
               
-              // spell 선택 다이얼로그 자동 호출
+              // Auto-open the spell picker
               setTimeout(async () => {
                 if (window.DX3rdBookHandler && window.DX3rdBookHandler.showSpellSelectionDialog) {
                   await window.DX3rdBookHandler.showSpellSelectionDialog(actor, item);
                 }
               }, 100);
             } else if (isConnection) {
-              // Connection 아이템인 경우: 성공 메시지만 표시
+              // Connection: just the success message
               resultContent = `<div class="dx3rd-result-success dx3rd-mt-8">${game.i18n.localize('DX3rd.TestSuccess')}</div>`;
             } else {
-              // 일반 아이템: 발동 버튼 표시
+              // Ordinary item: show the activation button
               const buttonText = item ? `${itemName} ${game.i18n.localize('DX3rd.Invoking')}` : game.i18n.localize('DX3rd.Success');
               resultContent = `
                 <div class="item-actions dx3rd-mt-8">
@@ -1569,7 +1569,7 @@
             resultContent = `<div class="dx3rd-result-failure">${game.i18n.localize('DX3rd.TestFailure')}</div>`;
           }
         } else if (difficultyData.type === 'competition') {
-          // 대결 판정: 승리 체크 버튼
+          // Contest: a win-check button
           const itemName = item ? item.name.split('||')[0].replace(/\[DX3rd\.\w+\]/g, '').trim() : '';
           const buttonText = item ? `${itemName} ${game.i18n.localize('DX3rd.Invoking')}` : game.i18n.localize('DX3rd.WinCheck');
           resultContent = `
@@ -1588,7 +1588,7 @@
           `;
         }
         
-        // flavor를 content에 직접 포함
+        // The flavor line goes straight into the content
         const content = isAttackRoll
           ? this.renderAttackChatCard({
               actor,
@@ -1605,7 +1605,7 @@
             </div>
           `;
         
-        // 채팅 메시지 생성 (콤보 afterSuccess 데이터 플래그에 저장)
+        // Create the chat message (the combo afterSuccess payload rides in the flags)
         const messageData = {
           speaker: {
             actor: actor.id,
@@ -1614,13 +1614,13 @@
           content: content
         };
         
-        // 콤보 afterSuccess, afterDamage 데이터나 임시 콤보가 있는 경우에만 flags 초기화
+        // Only initialize flags when there is combo afterSuccess/afterDamage data, or a temp combo
         if (comboAfterSuccessData || comboAfterDamageData || window.DX3rdIsInstantCombo?.(item)) {
           messageData.flags = {
             'dx3rd-emanim': {}
         };
         
-        // 콤보 afterSuccess와 afterDamage 데이터가 있으면 플래그에 저장
+        // Store the combo afterSuccess / afterDamage payloads in the flags
           if (comboAfterSuccessData) {
             messageData.flags['dx3rd-emanim'].comboAfterSuccess = {
               actorId: actor.id,
@@ -1637,7 +1637,7 @@
             };
           }
           
-          // 임시 콤보인 경우 아이템 데이터 저장
+          // For a temporary combo, stash the item data
           if (window.DX3rdIsInstantCombo?.(item)) {
             messageData.flags['dx3rd-emanim'].tempComboItem = window.DX3rdSerializeInstantCombo(item);
           }
@@ -1663,24 +1663,24 @@
         }
         if (isAttackRoll) await this.maybeAutoRollDamage?.(attackMessage);
         
-        // 충동 판정 실패 시 폭주 상태이상 적용 (메시지 출력 후)
+        // A failed urge check applies [Berserk] (after the message goes out)
         if (isUrgeTest && difficultyData.type === 'number') {
-          // 룰: 펌블=자동실패. 펌블이면 기능레벨/수정이 잔존한 roll.total과 무관하게 실패 처리.
-          // 룰(rule-section:39-41): 판정치 0 이하도 자동실패 → 충동판정 실패로 [폭주] 부여.
+          // Rules: a fumble is an auto-fail, regardless of the roll.total that still carries skill level and modifiers.
+          // Rules (rule-section:39-41): a pool of 0 or less auto-fails too → the urge check fails and grants [Berserk].
           const isSuccess = !autoFailByPool && !isFumble && roll.total >= difficultyData.value;
           if (!isSuccess) {
-            // 폭주 상태이상 적용을 위한 데이터 설정 (specialTarget을 null로 설정하여 다이얼로그 표시)
+            // Set up the berserk application (specialTarget null makes the dialog appear)
             if (!window.DX3rdConditionTriggerMap) {
               window.DX3rdConditionTriggerMap = new Map();
             }
             const key = `${actor.id}:berserk`;
             window.DX3rdConditionTriggerMap.set(key, {
               trigger: game.i18n.localize('DX3rd.UrgeTest'),
-              specialTarget: null, // null로 설정하여 다이얼로그 표시
+              specialTarget: null, // null makes the dialog appear
               suppressMessage: false
             });
             
-            // 토큰 찾기
+            // Find the token
             let actorToken = actor.token;
             if (!actorToken && canvas.scene) {
               const tokenDoc = canvas.scene.tokens.find(t => t.actorId === actor.id);
@@ -1689,20 +1689,20 @@
               }
             }
             
-            // 폭주 상태이상 적용 (다이얼로그가 표시됨)
+            // Apply [Berserk] (the dialog is shown)
             if (actorToken) {
               await actorToken.actor.toggleStatusEffect("berserk", { active: true });
             } else if (actor) {
-              // 토큰이 없어도 액터에 직접 적용
+              // No token: apply straight to the actor
               await actor.toggleStatusEffect("berserk", { active: true });
             }
             
-            // 맵에서 데이터 제거
+            // Clear the map entry
             window.DX3rdConditionTriggerMap.delete(key);
           }
         }
         
-        // 공포 효과 처리 함수
+        // Panic-effect handler
         const applyPanicEffect = async (panicNumber, { messageKey, rolls = [] } = {}) => {
           if (messageKey) {
             const panicEffectSpeaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
@@ -1725,7 +1725,7 @@
               });
             }
           }
-          // 토큰 찾기 (충동 판정 실패와 동일한 방식)
+          // Find the token (same way as the failed urge check)
           let actorToken = actor.token;
           if (!actorToken && canvas.scene) {
             const tokenDoc = canvas.scene.tokens.find(t => t.actorId === actor.id);
@@ -1746,20 +1746,20 @@
           
           switch (panicNumber) {
             case 1:
-              // 패닉 1: 경직 + 중압
+              // Panic 1: Rigor + Pressure
               await applyConditionViaMap("rigor", { trigger: panicTrigger, specialTarget: null });
               await applyConditionViaMap("pressure", { trigger: panicTrigger, specialTarget: null });
               break;
             case 3:
-              // 패닉 3: 경직
+              // Panic 3: Rigor
               await applyConditionViaMap("rigor", { trigger: panicTrigger, specialTarget: null });
               break;
             case 4:
-              // 패닉 4: 중압
+              // Panic 4: Pressure
               await applyConditionViaMap("pressure", { trigger: panicTrigger, specialTarget: null });
               break;
             case 2:
-              // 패닉 2: 도주 - applied 효과 적용 (dice -2)
+              // Panic 2: Flight — an applied effect (dice -2)
               await window.DX3rdAppliedEffects.set(actor, 'Panic2', {
                 name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic2'),
                 description: game.i18n.localize('DX3rd.PanicText2'),
@@ -1768,7 +1768,7 @@
               });
               break;
             case 7:
-              // 패닉 7: 환각 - applied 효과 적용 (dice -2)
+              // Panic 7: Hallucination — an applied effect (dice -2)
               await window.DX3rdAppliedEffects.set(actor, 'Panic7', {
                 name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic7'),
                 description: game.i18n.localize('DX3rd.PanicText7'),
@@ -1777,7 +1777,7 @@
               });
               break;
             case 8:
-              // 패닉 8: 의존 - applied 효과만 적용
+              // Panic 8: Dependency — an applied effect only
               await window.DX3rdAppliedEffects.set(actor, 'Panic8', {
                 name: game.i18n.localize('DX3rd.PanicType') + ': ' + game.i18n.localize('DX3rd.Panic8'),
                 description: game.i18n.localize('DX3rd.PanicText8'),
@@ -1786,43 +1786,43 @@
               });
               break;
             case 5:
-              // 패닉 5: 폭주 + 공포
+              // Panic 5: Berserk + Fear
               await applyConditionViaMap("berserk", { trigger: panicTrigger, specialTarget: null });
               await applyConditionViaMap("fear", { trigger: panicTrigger, specialTarget: null });
               break;
             case 6:
-              // 패닉 6: 사독(랭크 2)
+              // Panic 6: Poisoned (rank 2)
               await applyConditionViaMap("poisoned", { trigger: panicTrigger, poisonedRank: 2, specialTarget: null });
               break;
             case 9:
-              // 패닉 9: 공포
+              // Panic 9: Fear
               await applyConditionViaMap("fear", { trigger: panicTrigger, specialTarget: null });
               break;
             case 10:
-              // 패닉 10: 폭주
+              // Panic 10: Berserk
               await applyConditionViaMap("berserk", { trigger: panicTrigger, specialTarget: null });
               break;
           }
         };
         
-        // 공포 판정 실패 시 공포 효과 또는 광기 효과 지정/굴림 다이얼로그 표시 (메시지 출력 후)
+        // A failed panic check opens the panic/madness pick-or-roll dialog (after the message goes out)
         if (isPanicTest && difficultyData.type === 'number') {
-          // 룰: 펌블=자동실패. 펌블이면 기능레벨/수정이 잔존한 roll.total과 무관하게 실패 처리.
-          // 룰(rule-section:39-41): 판정치 0 이하도 자동실패 → 공포판정 실패효과/광기 적용.
+          // Rules: a fumble is an auto-fail, regardless of the roll.total that still carries skill level and modifiers.
+          // Rules (rule-section:39-41): a pool of 0 or less auto-fails too → the panic failure effect / madness applies.
           const isSuccess = !autoFailByPool && !isFumble && roll.total >= difficultyData.value;
           if (!isSuccess) {
-            // 침식률 확인
+            // Check the encroachment rate
             const encroachmentValue = Number(actor.system?.attributes?.encroachment?.value) || 0;
             const isMadness = encroachmentValue >= 80;
             
             if (isMadness) {
-              // 침식률 80 이상: 광기 효과 적용
+              // Encroachment 80 or above: apply a madness effect
               const madnessChoice = await new Promise((resolve) => {
                 const dialog = document.createElement("div");
                 dialog.id = "dx3rd-madness-effect-dialog";
                 dialog.className = "dx3rd-urge-dialog";
                 
-                // 키보드 이벤트 핸들러 (Enter/Escape 키 처리)
+                // Keyboard handling (Enter / Escape)
                 const keyHandler = (ev) => {
                   if (ev.key === "Escape") {
                     ev.preventDefault();
@@ -1866,7 +1866,7 @@
                 dialog.querySelector("#dx3rd-madness-cancel-button").addEventListener("click", () => onSelect(null));
               });
               
-              /** 광기 효과 적용 공통 처리 (지정/굴림 공통) */
+              /** Shared madness application (used by both the pick and the roll paths). */
               const applyMadnessEffect = async (actor, madnessNumber, { messageKey, rolls = [] }) => {
                 const madnessEffectSpeaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
                 const madnessLabel = game.i18n.localize(`DX3rd.Madness${madnessNumber}`);
@@ -1959,7 +1959,7 @@
               };
               
               if (madnessChoice === "select") {
-                // 광기 효과 지정: 셀렉트 다이얼로그 표시
+                // Pick a madness effect: show the select dialog
                 const madnessOptions = [];
                 for (let i = 1; i <= 17; i++) {
                   madnessOptions.push({
@@ -1980,7 +1980,7 @@
                   selectDialog.id = "dx3rd-madness-select-dialog";
                   selectDialog.className = "dx3rd-urge-dialog";
                   
-                  // 키보드 이벤트 핸들러 (Enter/Escape 키 처리)
+                  // Keyboard handling (Enter / Escape)
                   const keyHandler = (ev) => {
                     if (ev.key === "Enter") {
                       ev.preventDefault();
@@ -2059,14 +2059,14 @@
                 });
               }
             } else {
-              // 침식률 80 미만: 기존 패닉 효과 적용
-              // 공포 효과 선택 다이얼로그 표시
+              // Below encroachment 80: the ordinary panic effects
+              // Show the panic-effect choice dialog
               const panicChoice = await new Promise((resolve) => {
               const dialog = document.createElement("div");
               dialog.id = "dx3rd-panic-effect-dialog";
               dialog.className = "dx3rd-urge-dialog";
               
-              // 키보드 이벤트 핸들러 (Enter/Escape 키 처리)
+              // Keyboard handling (Enter / Escape)
               const keyHandler = (ev) => {
                 if (ev.key === "Escape") {
                   ev.preventDefault();
@@ -2111,7 +2111,7 @@
             });
             
             if (panicChoice === "select") {
-              // 공포 효과 지정: 셀렉트 다이얼로그 표시
+              // Pick a panic effect: show the select dialog
               const panicOptions = [];
               for (let i = 1; i <= 10; i++) {
                 panicOptions.push({
@@ -2132,7 +2132,7 @@
                 selectDialog.id = "dx3rd-panic-select-dialog";
                 selectDialog.className = "dx3rd-urge-dialog";
                 
-                // 키보드 이벤트 핸들러 (Enter/Escape 키 처리)
+                // Keyboard handling (Enter / Escape)
                 const keyHandler = (ev) => {
                   if (ev.key === "Enter") {
                     ev.preventDefault();
@@ -2197,14 +2197,14 @@
           }
         }
         
-        // 충동 판정 완료 후 콜백 실행
+        // Run the post-roll callback
         if (afterRollCallback && typeof afterRollCallback === 'function') {
           await afterRollCallback({
             actor,
             item,
             roll,
-            // 펌블이면 기능레벨/수정치가 잔존한 roll.total 대신 0으로 확정한 값을 넘긴다.
-            // (방어/리액션 닷지 성공 판정이 펌블을 자동실패로 처리하도록 함)
+            // On a fumble, hand over the value forced to 0 rather than the roll.total that still
+            // carries skill level and modifiers (so a defense/reaction dodge treats it as an auto-fail).
             total: rollResult,
             fumble: isFumble,
             rollType,
@@ -2213,28 +2213,28 @@
           });
         }
         
-        // 롤 타입에 따른 비활성화 훅 실행 (무기 보너스와 무관)
+        // Disable hooks for this roll type (independent of any weapon bonus)
         if (rollType === 'major') {
-          // 메이저 롤: roll과 major 비활성화 훅 실행
+          // Major roll: run the 'roll' and 'major' disable hooks
           if (window.DX3rdDisableHooks) {
             await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
             await window.DX3rdDisableHooks.executeDisableHook('major', actor);
           }
         } else if (rollType === 'reaction' || rollType === 'dodge') {
-          // 리액션/닷지 롤: roll과 reaction 비활성화 훅 실행
+          // Reaction/dodge roll: run the 'roll' and 'reaction' disable hooks
           if (window.DX3rdDisableHooks) {
             await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
             await window.DX3rdDisableHooks.executeDisableHook('reaction', actor);
           }
         }
 
-        // 명중판정 완료 공통 후처리 (콤보/이펙트 공격 분기): 증오 자동 회복 + 확장 훅
+        // Shared post-accuracy work on the combo/effect attack path: hatred recovery + extension hooks
         if (isAttackRoll) {
           await this.onAttackRollComplete(actor, item, Array.from(game.user.targets), rollResult, isFumble);
         }
       } catch (e) {
         window.DX3rdDebug.log('DX3rd | Roll failed', e);
-        // 에러 시 메시지 미생성: 정상 메시지가 이미 나간 뒤 예외면 GM으로 중복 메시지가 나가는 것 방지
+        // No message on error: if the normal message already went out, another would duplicate it for the GM
       }
     },
   });

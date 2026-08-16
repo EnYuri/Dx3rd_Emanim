@@ -116,9 +116,13 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     return;
   }
   
+  // Merged combo buckets are serialized without Document instances. A single-source conditional
+  // bucket keeps the source id so [level] and other item-relative tokens still use that item.
+  if (!item && damageData?.sourceItemId) item = actor.items?.get(damageData.sourceItemId) || null;
+
   window.DX3rdDebug.log('DX3rd | executeDamageExtensionNow called', { actor: actor.name, actorId: actor.id, damageData, item: item?.name, options });
   
-  let { formulaDice, formulaAdd, target, ignoreReduce, selectedTargetIds, triggerItemName, conditionalFormula } = damageData;
+  let { formulaDice, formulaAdd, target, ignoreReduce, selectedTargetIds, targetsFrozen = false, triggerItemName, conditionalFormula } = damageData;
   const { skipDialog = false } = options;
   
   // conditionalFormula가 체크되어 있으면 공식 입력 다이얼로그 표시 (호출한 클라이언트에만)
@@ -144,9 +148,9 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
   }
   
   if (target === 'targetToken' || target === 'targetAll') {
-    if (selectedTargetIds && selectedTargetIds.length > 0) {
+    if (targetsFrozen || (selectedTargetIds && selectedTargetIds.length > 0)) {
       window.DX3rdDebug.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
-      selectedTargetIds.forEach(tokenId => {
+      (selectedTargetIds || []).forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
         if (token && token.actor && !targets.find(a => a.id === token.actor.id)) {
           targets.push(token.actor);

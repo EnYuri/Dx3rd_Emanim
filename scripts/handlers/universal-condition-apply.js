@@ -107,7 +107,7 @@ window.DX3rdUniversalHandler.executeConditionExtension = async function(actor, c
 window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor, conditionData, item = null) {
   window.DX3rdDebug.log('DX3rd | executeConditionExtensionNow called', { actor: actor.name, conditionData, item: item?.name });
   
-  const { target, selectedTargetIds, triggerItemName, poisonedRank } = conditionData;
+  const { target, selectedTargetIds, targetsFrozen = false, triggerItemName, poisonedRank } = conditionData;
   
   // conditionTypes 배열이 있으면 복수 상태이상 → executeConditionExtensionsNowBulk 호출
   const conditionTypes = conditionData.conditionTypes;
@@ -116,6 +116,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
       conditionTypes,
       target,
       selectedTargetIds: selectedTargetIds || [],
+      targetsFrozen,
       triggerItemName: triggerItemName || item?.name || null,
       poisonedRank: poisonedRank || null,
       itemId: item?.id || null,
@@ -142,6 +143,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
     conditionTypes: [conditionType],
     target,
     selectedTargetIds: selectedTargetIds || [],
+    targetsFrozen,
     triggerItemName: triggerItemName || item?.name || null,
     poisonedRank: poisonedRank || null,
     itemId: item?.id || null,
@@ -156,14 +158,14 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
  * @param {Object} bulkData - { conditionTypes: string[], target, selectedTargetIds, triggerItemName, poisonedRank }
  */
 window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(actor, bulkData) {
-  const { conditionTypes = [], target, selectedTargetIds, triggerItemName, poisonedRank, itemId, duration, sourceActorId } = bulkData || {};
+  const { conditionTypes = [], target, selectedTargetIds, targetsFrozen = false, triggerItemName, poisonedRank, itemId, duration, sourceActorId } = bulkData || {};
   if (!Array.isArray(conditionTypes) || conditionTypes.length === 0) return;
   // 대상 수집(단 한 번)
   const targets = [];
   if (target === 'self' || target === 'targetAll') targets.push(actor);
   if (target === 'targetToken' || target === 'targetAll') {
-    if (selectedTargetIds && selectedTargetIds.length > 0) {
-      selectedTargetIds.forEach(tokenId => {
+    if (targetsFrozen || (selectedTargetIds && selectedTargetIds.length > 0)) {
+      (selectedTargetIds || []).forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
         if (token?.actor && !targets.find(a => a.id === token.actor.id)) targets.push(token.actor);
       });

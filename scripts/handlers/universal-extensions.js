@@ -236,6 +236,31 @@
       return results;
     },
 
+    damageDataFromExtensionBucket(bucket, {
+      target = null,
+      selectedTargetIds = null,
+      triggerItemName = null
+    } = {}) {
+      if (!bucket || bucket.type !== 'damage') return null;
+      const sources = bucket.sources || [];
+      const firstSource = sources[0]?.raw || {};
+      // A custom bucket is deliberately not formula-merged. It represents one runtime formula
+      // prompt for the whole same-timing/same-target bucket.
+      const conditionalFormula = Boolean(bucket.custom);
+      return {
+        formulaDice: bucket.custom ? (firstSource.dice ?? 0) : (bucket.merged?.dice ?? 0),
+        formulaAdd: bucket.custom ? (firstSource.add ?? 0) : (bucket.merged?.add ?? 0),
+        target: target ?? bucket.target,
+        selectedTargetIds: selectedTargetIds ?? bucket.selectedTargetIds ?? [],
+        ignoreReduce: bucket.custom
+          ? sources.some(source => Boolean(source.raw?.options?.ignoreReduce))
+          : Boolean(bucket.ignoreReduce),
+        conditionalFormula,
+        sourceItemId: sources.length === 1 ? (sources[0].itemId || null) : null,
+        triggerItemName
+      };
+    },
+
     /**
      * Process item extension effects when item is used
      * @param {Actor} actor

@@ -3,46 +3,46 @@
 
   window.DX3rdUniversalHandler = {
     /**
-     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만).
-     * effect/psionic 이 공유한다 — 두 곳에 같은 52줄이 복제돼 있어, 무기 소진 규칙을
-     * 고칠 때 한쪽만 고치는 사고를 막으려고 여기로 올렸다.
+     * Sum the bonuses of the weapons registered on the weapon tab (only those with attacks left).
+     * Shared by effect/psionic — the same 52 lines were duplicated in both, so a change to the
+     * weapon-exhaustion rule risked being applied to only one copy. Hoisted here.
      *
-     * ComboHandler.calculateRegisteredWeaponBonus 는 이것과 다른 함수다. 복수무기(multiWeapon)
-     * 규칙이 얹혀 있으므로 여기로 합치지 말 것.
+     * ComboHandler.calculateRegisteredWeaponBonus is a DIFFERENT function. It layers the
+     * multiWeapon rule on top — do not merge it into this one.
      */
     calculateRegisteredWeaponBonus(actor, item) {
       const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
 
-      // 무기 탭에 등록된 무기들 가져오기
+      // Weapons registered on the weapon tab
       const registeredWeapons = item.system?.weapon || [];
 
-      // 각 등록된 무기의 보너스 합산 (공격 횟수가 남은 무기만)
+      // Sum each registered weapon's bonus (only those with attacks left)
       for (const weaponId of registeredWeapons) {
         if (weaponId && weaponId !== '-') {
-          // 액터의 아이템에서 직접 무기 데이터 가져오기
+          // Resolve the weapon document straight off the actor
           const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-          // 비클도 무기 슬롯의 정당한 등재 대상이다 — 슬롯 드롭다운(helpers.js)과 공격 무기
-          // 선택 창(weapon-for-attack-dialog)이 둘 다 비클을 싣는데 여기서만 걸러 냈고, 그러면
-          // 비클만 등록한 콤보는 weaponIds 가 비어 hasAvailableWeapons 가 false 가 되어
-          // 무기 경로 전체가 통째로 건너뛰어졌다(공격력이 판정에도 데미지 버튼에도 안 실림).
-          // 비클은 공격력만 쓰고 add·attack-used 는 없다 — 선택 창의 분기와 같은 규칙이다.
+          // Vehicles are legitimate weapon-slot entries too — the slot dropdown (helpers.js) and the
+          // attack-weapon picker (weapon-for-attack-dialog) both list them, but only this spot filtered
+          // them out. A combo registering only vehicles then got an empty weaponIds, hasAvailableWeapons
+          // went false, and the whole weapon path was skipped (attack power reached neither the roll
+          // nor the damage button). Vehicles carry attack only — no add, no attack-used, as in the picker.
           if (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle')) {
             const isVehicle = weaponItem.type === 'vehicle';
 
             if (!isVehicle) {
-              // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
+              // Attack-count check (weapon only; vehicles have no attack-used)
               const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
               const attackUsedState = weaponItem.system['attack-used']?.state || 0;
               const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
               const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
 
-              // 공격 횟수가 소진된 무기는 제외 — 다만 소진을 차단으로 이을지는 월드 설정이 정한다.
+              // Weapons out of attacks are dropped — but whether exhaustion blocks is a world setting.
               if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
                 continue;
               }
             }
 
-            // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
+            // Fixed bonuses are summed now; dice formulas are kept until attack/damage is resolved.
             const formula = window.DX3rdFormulaEvaluator;
             const addFormulaTerm = (target, raw) => {
               const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
@@ -52,17 +52,17 @@
             addFormulaTerm('attackFormula', weaponItem.system?.attack);
             if (!isVehicle) addFormulaTerm('addFormula', weaponItem.system?.add);
 
-            // 무기 이름 추가
+            // Append the weapon name
             if (!weaponBonus.weaponName) {
               weaponBonus.weaponName = weaponItem.name;
             } else {
               weaponBonus.weaponName += `, ${weaponItem.name}`;
             }
 
-            // 무기 ID 추가
+            // Append the weapon id
             weaponBonus.weaponIds.push(weaponId);
           }
-          // 무기·비클이 아니거나 찾을 수 없는 경우는 건너뛴다.
+          // Anything that is not a weapon/vehicle, or cannot be resolved, is skipped.
         }
       }
 
@@ -70,10 +70,10 @@
     },
 
     /**
-     * 아이템의 system.skill 로부터 판정용 stat 과 표시 라벨을 해석한다.
-     * 능력치(body/sense/mind/social), 신드롬(syndrome), 일반/커스텀 스킬을 모두 지원한다.
-     * effect/psionic 이 공유한다 — psionic 쪽에 낡은 인라인 복제본 두 개가 있었고,
-     * 커스텀 스킬 개명과 미보유 기능치 폴백이 빠져 있어 여기로 합쳤다.
+     * Resolve the roll stat and its display label from the item's system.skill.
+     * Handles attributes (body/sense/mind/social), syndrome, and normal/custom skills.
+     * Shared by effect/psionic — psionic held two stale inline copies that were missing
+     * custom-skill renames and the unowned-skill fallback, so they were merged here.
      * @returns {{stat: object|null, label: string}}
      */
     resolveStatAndLabel(actor, item) {
@@ -94,14 +94,14 @@
         return { stat, label };
       }
 
-      // 일반/커스텀 스킬
+      // Normal / custom skill
       const stat = actor.system.attributes.skills?.[skillKey];
       if (stat) return { stat, label: window.DX3rdSkillManager.getSkillDisplayName(skillKey, stat) };
 
-      // 폴백: 액터가 보유하지 않은 (계통) 기능치를 참조하면 연결 능력치로 판정한다.
-      // (미습득 기능 = 능력치 판정, DX3 규칙과 일치. 계통 기능치를 새 캐릭터에 자동 시드하지
-      //  않으므로, 홈브루 아이템이나 다른 액터에서 드래그해 온 아이템이 그런 기능치를
-      //  참조해도 판정이 중단되지 않게 한다.)
+      // Fallback: a (category) skill the actor does not own rolls against its linked attribute.
+      // (Unlearned skill = attribute roll, per the DX3 rules. Category skills are not auto-seeded
+      //  onto new characters, so a homebrew item — or one dragged in from another actor — that
+      //  references such a skill must not abort the roll.)
       const base = this._resolveSkillBase(skillKey);
       if (base && actor.system.attributes[base]) {
         const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
@@ -116,8 +116,8 @@
     },
 
     /**
-     * 액터에 없는 기능치 키의 연결 능력치를 추정한다.
-     * customSkills 설정의 base 를 우선 사용하고, 없으면 계통 키 접두사로 추론한다.
+     * Guess the linked attribute for a skill key the actor does not have.
+     * Prefers the customSkills setting's base, then falls back to the category key prefix.
      */
     _resolveSkillBase(skillKey) {
       if (!skillKey) return null;
@@ -132,19 +132,19 @@
     },
 
     /**
-     * 사용 횟수 소진을 알린다. 소진 판정은 부르는 쪽이 하고, 여기서는 그것을
-     * **차단으로 이을지**만 정한다(월드 설정 allowExhaustedUse).
+     * Report an exhausted usage count. The caller decides whether the item IS exhausted;
+     * this only decides whether that **blocks** (world setting allowExhaustedUse).
      *
-     * 기본값(허용)에서는 막지 않고 경고만 남긴다 — 자동화가 아직 다듬어지는 중이라,
-     * 횟수 데이터 하나가 틀렸다는 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다.
-     * 그래도 알림과 채팅 기록은 남겨 GM 이 「원래는 못 쓰는 것을 썼다」를 놓치지 않게 하고,
-     * 시트의 소진 표시(isItemExhausted)는 설정과 무관하게 그대로 둔다.
+     * At the default (allow) it warns instead of blocking — the automation is still being
+     * tuned, and halting a session because one usage-count field is wrong is the worse failure.
+     * The notification and chat record still go out so the GM sees "that should not have been
+     * usable", and the sheet's exhausted marker (isItemExhausted) stays regardless of the setting.
      *
-     * 콤보 멤버 소진과 아이템 자신의 소진이 같은 문구·같은 경로를 쓰도록 한 곳에 둔다.
+     * Kept in one place so combo-member and own-item exhaustion share wording and path.
      * @param {Actor} actor
      * @param {Item} item
-     * @param {string} detail  "사용 횟수 소진 (2/2)" 처럼 이미 조립된 사유
-     * @returns {Promise<boolean>} 계속 진행해도 되는가
+     * @param {string} detail  pre-composed reason, e.g. "usage count exhausted (2/2)"
+     * @returns {Promise<boolean>} whether the caller may proceed
      */
     async reportUsageExhausted(actor, item, detail) {
       const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
@@ -172,19 +172,19 @@
     },
 
     /**
-     * 사용 조건 위반을 알린다. 위반 **판정**은 부르는 쪽이 하고, 여기서는 그것을
-     * **차단으로 이을지**만 정한다(월드 설정, 기본은 막지 않음).
+     * Report a usage-condition violation. The caller **detects** the violation; this only
+     * decides whether it **blocks** (world setting, default is not to block).
      *
-     * reportUsageExhausted 와 같은 구조·같은 문구 체계를 쓴다. 게이트마다 알림 방식이
-     * 갈리면 「어떤 것은 조용히 막히고 어떤 것은 경고만 나온다」가 되어, 사용자가 무엇에
-     * 막혔는지 알 수 없게 된다 — 소진 게이트에서 실제로 그랬다(chat-ui 의 무기 활성화가
-     * 경고조차 없이 건너뛰던 것).
+     * Same shape and wording scheme as reportUsageExhausted. If each gate reported differently,
+     * some would block silently and others only warn, and the user could not tell what stopped
+     * them — which is exactly what happened with the exhaustion gate (chat-ui's weapon activation
+     * skipped without even a warning).
      *
      * @param {Actor} actor
      * @param {Item} item
-     * @param {string} gate   DX3rdUsageGates.SETTINGS 의 키
-     * @param {string} detail 이미 조립된 사유("침식률 제한: 60% 이상에서만 …")
-     * @returns {Promise<boolean>} 계속 진행해도 되는가
+     * @param {string} gate   a key in DX3rdUsageGates.SETTINGS
+     * @param {string} detail pre-composed reason ("encroachment limit: only at 60% or above …")
+     * @returns {Promise<boolean>} whether the caller may proceed
      */
     async reportUsageGate(actor, item, gate, detail) {
       const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
@@ -227,25 +227,25 @@
         ? (window.DX3rdComboHandler?.comboMemberEntries?.(actor, item) || [])
         : [];
       try {
-        // 컴펜디움 자동화 항목의 명시적 사용 제한. 플래그가 없는 기존 아이템에는 영향을 주지 않는다.
+        // Explicit usage limits from compendium automation. Items without the flag are unaffected.
         const automationExtend = item.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
-        // 통합 컴펜디움 오버라이드는 기존 확장 데이터 안에 자동화 제약을 보관한다.
-        // 과거에 직접 주입된 별도 플래그도 읽어 기존 월드 데이터와 호환한다.
+        // Unified compendium overrides keep automation constraints inside the existing extend data.
+        // The older separately-injected flag is still read, for compatibility with existing worlds.
         const automation = automationExtend.automation || item.getFlag?.('dx3rd-emanim', 'automation') || {};
         const maxEncroachmentExclusive = Number(automation.maxEncroachmentExclusive);
         if (Number.isFinite(maxEncroachmentExclusive) && maxEncroachmentExclusive > 0) {
           const encroachment = Number(actor.system?.attributes?.encroachment?.value) || 0;
           if (encroachment >= maxEncroachmentExclusive) {
-            // 침식률 때문에 못 쓰는 것은 system.limit 과 같은 종류의 제한이므로 같은 설정이
-            // 관장한다. 여기만 설정 밖에 두면 「침식률 제한을 껐는데 여전히 막힌다」가 된다.
+            // Being blocked by encroachment is the same kind of limit as system.limit, so the same
+            // setting governs it. Leaving this one out would mean "I disabled the limit and it still blocks".
             const detail = game.i18n.format('DX3rd.AutomationMaxEncroachment', { limit: maxEncroachmentExclusive });
             if (!await this.reportUsageGate(actor, item, 'encroachLimit', detail)) return false;
           }
         }
 
-        // 0. [중압] 상태이상 체크 (오토 타이밍 아이템 사용 차단)
-        //    예외 판정(아이템 저작 + 월드 이름 목록)은 DX3rdUsageGates.conditionExempt 한 곳이고,
-        //    차단 여부는 월드 설정이 정한다 — 예외로 저작된 아이템은 설정과 무관하게 통과한다.
+        // 0. [Pressure] check (blocks items with auto timing)
+        //    Exemption (item authoring + world name list) lives solely in DX3rdUsageGates.conditionExempt;
+        //    whether it blocks is a world setting — items authored as exempt pass regardless.
         const pressureActive = actor.system?.conditions?.pressure?.active || false;
         if (pressureActive && (item.system?.timing || '-') === 'auto') {
           if (!window.DX3rdUsageGates?.conditionExempt?.(item, 'pressure')) {
@@ -254,7 +254,7 @@
           }
         }
 
-        // 0.1. [폭주] 타입 체크 (reaction/dodge 타이밍 아이템 사용 차단)
+        // 0.1. [Berserk] type check (blocks items with reaction/dodge timing)
         const berserkActive = actor.system?.conditions?.berserk?.active || false;
         const berserkType = actor.system?.conditions?.berserk?.type || '';
         const berserkTypesToBlock = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
@@ -269,10 +269,10 @@
           }
         }
 
-        // 1. 콤보는 포함된 구성 멤버들의 사용 횟수 체크.
-        // 멤버 목록은 comboMemberItems 한 곳에서 온다 — 이 검사와 combo-handler 의 횟수 증가·
-        // 멤버 실행이 서로 다른 기준으로 멤버를 고르면, 검사는 건너뛰는데 횟수는 올라가는
-        // 비대칭이 난다(isComboMemberItem 주석 참조).
+        // 1. A combo checks the usage counts of its member items.
+        // The member list comes from comboMemberItems alone — if this check, combo-handler's count
+        // increment, and member execution picked members by different rules, you would get the
+        // asymmetry of "the check is skipped but the count still rises" (see isComboMemberItem).
         if (item.type === 'combo') {
           for (const effect of this.comboMemberItems(actor, item)) {
             const effectExtend = effect.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
@@ -288,8 +288,8 @@
             const effectUsedMax = effect.system.used?.max || 0;
             const effectUsedLevel = effect.system.used?.level || false;
 
-            // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가).
-            // 레벨 가산은 이펙트 전용이다 — DX3rdEffectLevel.value 가 effect 가 아니면 0을 준다.
+            // Compute displayMax (add the level when used.level is checked).
+            // The level term is effect-only — DX3rdEffectLevel.value returns 0 for non-effects.
             let effectDisplayMax = Number(effectUsedMax) || 0;
             if (effectUsedLevel && effect.type === 'effect') {
               const finalLevel = window.DX3rdEffectLevel
@@ -305,17 +305,17 @@
           }
         }
         
-        // 2. 일반 아이템 사용 횟수 제한 체크
+        // 2. Plain item usage-count limit
         const usedDisable = item.system?.used?.disable || 'notCheck';
         if (usedDisable !== 'notCheck') {
           const usedState = item.system?.used?.state || 0;
           const usedMax = item.system?.used?.max || 0;
           const usedLevel = item.system?.used?.level || false;
           
-          // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
+          // Compute displayMax (add the level when used.level is checked)
           let displayMax = Number(usedMax) || 0;
-          // 일회용은 보유 수량 자체가 이번 시나리오의 사용 가능 횟수다.
-          // 시트에서 수량 변경 직후 max 동기화가 누락된 오래된 월드 문서도 올바르게 판정한다.
+          // For a consumable the quantity on hand IS this scenario's usable count.
+          // This also judges old world documents whose max was never synced after a quantity change.
           if (item.type === 'once') {
             displayMax = Number(item.system?.quantity) || 1;
           } else if (usedLevel && item.type === 'effect') {
@@ -324,19 +324,19 @@
               : Number(item.system?.level?.init) || 0;
             displayMax += finalLevel;
           } else if (usedLevel && item.type === 'psionic') {
-            // 사이오닉은 침식률 보정 없이 init만 더함
+            // Psionics add init only, with no encroachment adjustment
             const baseLevel = Number(item.system?.level?.init) || 0;
             displayMax += baseLevel;
           }
           
-          // displayMax가 0이거나 usedState가 displayMax 이상이면 소진
+          // Exhausted when displayMax is 0, or usedState has reached it
           if (displayMax <= 0 || usedState >= displayMax) {
             const detail = `${game.i18n.localize('DX3rd.ExhaustedUsageCount')} (${usedState}/${displayMax})`;
             if (!await this.reportUsageExhausted(actor, item, detail)) return false;
           }
         }
         
-        // 2. 리저렉트 체크 - HP가 0보다 많으면 사용 불가, 침식률이 100 이상이면 사용 불가
+        // 2. Resurrect check — unusable while HP > 0, and unusable at encroachment >= 100
         const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
         const itemExtensionEntries = window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [];
         const hasResurrect = itemExtensionEntries.some(entry => entry.type === 'heal' && entry.data?.resurrect
@@ -345,28 +345,28 @@
           const currentHP = Number(actor.system?.attributes?.hp?.value ?? 0);
           const currentEncroachment = Number(actor.system?.attributes?.encroachment?.value ?? 0);
 
-          // HP가 0보다 많으면 사용 불가
+          // Unusable while HP > 0
           if (currentHP > 0) {
             const detail = `${game.i18n.localize('DX3rd.ResurrectRequiresZeroHP')} (${game.i18n.localize('DX3rd.Current')} HP: ${currentHP})`;
             if (!await this.reportUsageGate(actor, item, 'resurrect', detail)) return false;
           }
 
-          // 침식률이 100 이상이면 사용 불가
+          // Unusable at encroachment >= 100
           if (currentEncroachment >= 100) {
             const detail = `${game.i18n.localize('DX3rd.ResurrectRequiresEncroachUnder100')} (${game.i18n.localize('DX3rd.Current')} ${game.i18n.localize('DX3rd.Encroachment')}: ${currentEncroachment}%)`;
             if (!await this.reportUsageGate(actor, item, 'resurrect', detail)) return false;
           }
         }
         
-        // 3. system.limit 체크 - 침식률 제한 조건 확인
+        // 3. system.limit — the encroachment threshold
         //
-        // 리저렉트 아이템은 「제한」란의 침식률 하한을 적용하지 않는다(자기 조건은 위 2번에서
-        // 이미 판정했다). 예전에는 여기 안에 침식률 100 검사가 한 벌 더 있었는데, 2번이 먼저
-        // 반환하므로 도달할 수 없는 죽은 가지였다 — 게이트 설정이 생긴 지금은 도달했다면
-        // 설정을 무시하고 다시 막았을 자리라 함께 걷어냈다. 되살리지 말 것.
+        // Resurrect items are exempt from the "limit" field's encroachment floor (their own
+        // condition was judged in 2 above). There used to be a second encroachment-100 check
+        // inside here, unreachable because 2 returns first — and now that the gate setting exists
+        // it would have ignored that setting and blocked anyway. Removed. Do not reinstate.
         const itemLimit = String(item.system?.limit ?? '').trim();
         if (!hasResurrect && itemLimit !== '') {
-          // 숫자만 추출하여 비교 (해당 값 이상일 때 사용 가능)
+          // Compare on the extracted number (usable at that value or above)
           const numberMatch = itemLimit.match(/(\d+)/);
           if (numberMatch) {
             const limitValue = Number(numberMatch[1]);
@@ -382,11 +382,11 @@
           }
         }
         
-        // 0.5. 변동형 런타임 입력 (사용 시 수치 입력 → [소비HP]/[입력] 토큰 공급)
-        //   itemExtend.damage.runtimePrompt가 켜져 있으면 사용자에게 수치를 물어보고
-        //   actor._dx3rdRuntimeInput에 걸어둔다(FormulaEvaluator가 읽어 damage/weapon/protect 값에 반영).
-        //   runtimeConsumeHP면 입력값만큼 HP를 소모한다(아래 hpCostList에 합류하여 부족검사·차감·채팅 재사용).
-        //   콤보는 자신에게 설정이 없으면 포함 이펙트 중 첫 설정을 사용(단일 입력).
+        // 0.5. Variable runtime input (prompt for a number on use → supplies the [소비HP]/[입력] tokens)
+        //   When itemExtend.damage.runtimePrompt is on, ask the user for a number and park it on
+        //   actor._dx3rdRuntimeInput (FormulaEvaluator reads it into damage/weapon/protect values).
+        //   With runtimeConsumeHP the input costs that much HP (it joins hpCostList below and reuses its deduction/chat path).
+        //   A combo with no config of its own uses the first member effect's config (a single prompt).
         actor._dx3rdRuntimeInput = 0;
         let runtimeConsumeAmount = 0;
         {
@@ -430,10 +430,10 @@
               defaultValue: Number(runtimeCfg.runtimeDefault) || 0,
               maxValue
             });
-            // 0 이 유효값이라 falsy 검사를 쓸 수 없고, 취소는 숫자가 아닌 값으로 온다.
+            // 0 is a valid value, so a falsy check will not do; cancel arrives as a non-number.
             if (!Number.isFinite(entered)) {
               window.DX3rdDebug.log('DX3rd | Item use canceled at runtime input prompt');
-              return false; // 취소 → 사용 중단(코스트 미차감)
+              return false; // canceled → abort the use (no cost deducted)
             }
             actor._dx3rdRuntimeInput = entered;
             if (runtimeCfg.runtimeConsumeHP) runtimeConsumeAmount = entered;
@@ -442,22 +442,22 @@
 
         let costMessages = [];
 
-        // 비용 차감(HP·침식률)은 한 번의 actor.update로 모아서 쓴다.
-        // update 1회마다 서버 왕복 + prepareData 전량 재계산 + updateActor 훅 전체가 도므로,
-        // 아이템을 쓸 때마다 이 비용을 두 번 낼 이유가 없다. reviveSelf(같은 파일)와 동일한 패턴.
-        // 순서 의존은 없다: HP 코스트 수식은 아래 1-E에서 어떤 쓰기보다 먼저 전부 평가되고,
-        // 침식률은 item.system.encroach.value 원시값만 읽으므로 HP 반영 여부와 무관하다.
+        // Cost deduction (HP + encroachment) is written in a single actor.update.
+        // Each update costs a server round-trip, a full prepareData, and every updateActor hook,
+        // and there is no reason to pay that twice per item use. Same pattern as reviveSelf below.
+        // No ordering dependency: HP cost formulas are all evaluated in 1-E before any write, and
+        // encroachment reads only the raw item.system.encroach.value, independent of the HP write.
         const costUpdate = {};
 
-        // 1. HP 비용 처리 (아이템 + 익스텐드 통합)
+        // 1. HP cost (item + extends combined)
         let totalHpCost = 0;
         let hpCostRolls = [];
         
-        // 1-A. 아이템 자체의 HP 코스트
+        // 1-A. The item's own HP cost
         const itemHpCostRaw = String(item.system?.hp?.value ?? '0').trim();
         
-        // 1-B. 익스텐드 HP 코스트 (itemExtend는 위에서 이미 선언됨)
-        // 1-C. HP 코스트 목록
+        // 1-B. Extend HP costs (itemExtend was declared above)
+        // 1-C. HP cost list
         const hpCostList = [
           { raw: itemHpCostRaw, source: 'item' }
         ];
@@ -468,18 +468,18 @@
           }
         }
 
-        // 1-C-2. 변동형 런타임 입력이 HP 소모형이면 입력값을 코스트에 합류
+        // 1-C-2. If the runtime input is the HP-consuming kind, fold its value into the cost list
         if (runtimeConsumeAmount > 0) {
           hpCostList.push({ raw: String(runtimeConsumeAmount), source: 'runtime' });
         }
 
-        // 1-D. 콤보인 경우, 전체 구성 아이템의 자체/익스텐션 HP 비용도 역할 액션으로 수집
+        // 1-D. For a combo, also collect every member's own/extend HP cost under its role action
         if (item.type === 'combo') {
           for (const {item: memberItem} of comboMemberEntries) {
             const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, requestedAction);
 
-            // 콤보는 멤버 이펙트를 개별 handleItemUse로 통과시키지 않으므로,
-            // 이펙트 자체의 system.hp 비용도 여기서 명시적으로 합산한다.
+            // A combo never runs its member effects through handleItemUse individually, so the
+            // effect's own system.hp cost has to be summed explicitly here.
             const memberHpCost = String(memberItem.system?.hp?.value ?? '0').trim();
             if (memberHpCost !== '0' && memberHpCost !== '' && memberHpCost !== '-') {
               hpCostList.push({ raw: memberHpCost, source: `member:${memberItem.name}:system.hp` });
@@ -496,11 +496,11 @@
           }
         }
         
-        // 필터: 0이 아닌 것만
+        // Keep the non-zero entries only
         const filteredHpCostList = hpCostList.filter(c => c.raw !== '0' && c.raw !== '');
         
         
-        // 1-E. 각 HP 코스트 처리
+        // 1-E. Resolve each HP cost
         for (const { raw, source } of filteredHpCostList) {
           const dicePattern = /(\d+)\s*d(\d*)/i;
           const isDiceFormula = dicePattern.test(raw) || /[dD]/.test(raw);
@@ -510,7 +510,7 @@
           let roll = null;
           
           if (isDiceFormula) {
-            // 주사위 공식 처리
+            // Dice formula
             let normalizedFormula = raw.replace(/(\d+)\s*[dD]\s*(?!\d)/g, '$1d10');
             normalizedFormula = normalizedFormula.replace(/D/g, 'd');
             
@@ -526,36 +526,36 @@
           totalHpCost += hpCost;
         }
         
-        // 1-F. HP 코스트 적용
-        // HP 부족은 사용을 막지 않는다. 룰상 코스트는 지불 가능 여부와 무관하게 지불하며,
-        // 결과로 HP가 0 이하가 되는 것(전투불능)은 정상적인 귀결이다.
+        // 1-F. Apply the HP cost
+        // Insufficient HP does not block the use. By the rules the cost is paid regardless of
+        // whether it can be afforded, and dropping to 0 or below (defeated) is a normal outcome.
         if (totalHpCost > 0) {
           const currentHP = Number(actor.system?.attributes?.hp?.value ?? 0);
 
-          // HP 감소 적용 (실제 쓰기는 침식률까지 모아 아래에서 한 번에)
+          // Apply the HP loss (the actual write happens below, batched with encroachment)
           const afterHP = currentHP - totalHpCost;
           costUpdate['system.attributes.hp.value'] = afterHP;
           
-          // 채팅 메시지에 HP 코스트 추가
+          // Add the HP cost to the chat message
           if (hpCostRolls.length > 0) {
-            // 주사위 공식이 있는 경우
+            // With a dice formula
             for (const { roll, formula } of hpCostRolls) {
               costMessages.push(`HP -${roll.total} (${formula})`);
               const diceHTML = await roll.render();
               costMessages.push(`<div class="dx3rd-mt-4">${diceHTML}</div>`);
             }
           } else {
-            // 고정 값만 있는 경우
+            // Fixed value only
             costMessages.push(`HP -${totalHpCost}`);
           }
           
         }
         
-        // 2. 침식률 처리 (모든 아이템)
+        // 2. Encroachment (all item types)
         const encAddRaw = String(item.system?.encroach?.value ?? '0').trim();
         const hasEncroachmentCost = encAddRaw !== '0' && encAddRaw !== '' && encAddRaw !== '-';
-        // "침식률(없음)" 타입: 이 액터는 침식률이 오르지 않는다(_preUpdate 가드와 동일).
-        // 주 경로에서는 굴림·가산·메시지를 건너뛰고 미상승만 표기한다.
+        // Encroachment type "none": this actor's encroachment never rises (same as the _preUpdate guard).
+        // The main path skips the roll, the addition, and the message, and just notes the non-rise.
         const noEncroach = actor.system?.attributes?.encroachment?.type === 'none';
 
         if (noEncroach && hasEncroachmentCost) {
@@ -569,7 +569,7 @@
           let roll = null;
           
           if (isDiceFormula) {
-            // 주사위 공식 처리
+            // Dice formula
             let normalizedFormula = encAddRaw.replace(/(\d+)\s*[dD]\s*(?!\d)/g, '$1d10');
             normalizedFormula = normalizedFormula.replace(/D/g, 'd');
             
@@ -597,57 +597,57 @@
           }
         }
         
-        // 2-B. 모아둔 비용을 한 번에 반영.
-        // 침식률(없음) 가드(_preUpdate)와 HP 0 감지(condtions.js)는 둘 다 이 병합 페이로드에서
-        // 각자의 키를 그대로 찾아내므로, 분리해서 쓸 때와 동작이 동일하다.
+        // 2-B. Write the collected costs in one go.
+        // The no-encroachment guard (_preUpdate) and the HP-zero detector (condtions.js) both find
+        // their own key in this merged payload, so behavior matches writing them separately.
         if (Object.keys(costUpdate).length) await actor.update(costUpdate);
 
-        // 3. 통합 채팅 메시지 생성
-        // 로이스 아이템 타입이 '-' 또는 'S'인 경우 사용 메시지를 출력하지 않음
+        // 3. Build the unified chat message
+        // Lois items of type '-' or 'S' emit no usage message
         const isRoisWithNoMessage = item.type === 'rois' && 
                                     (item.system?.type === '-' || item.system?.type === 'S');
         
-        // 아이템 이름에서 || 패턴 제거
+        // Strip the || ruby pattern from the item name
         let itemName = item.name;
         const rubyPattern = /^(.+)\|\|(.+)$/;
         const match = itemName.match(rubyPattern);
         if (match) {
-          itemName = match[1]; // 메인 이름만 사용
+          itemName = match[1]; // main name only
         }
         
         let msg = '';
         
         if (costMessages.length === 0) {
-          // 비용이 없는 경우
+          // No cost
           msg = `<div><strong>${itemName} ${game.i18n.localize('DX3rd.Use')}</strong></div>`;
         } else {
-          // 비용이 있는 경우 각각 분리하여 표시
-          // 다이스 롤 HTML은 별도 메시지가 아니라 같은 메시지에 포함
+          // With costs, show each one separately
+          // Dice-roll HTML belongs to the same message, not a separate one
           let currentCostMsg = '';
           for (const costMsg of costMessages) {
             if (costMsg.startsWith('<div class="dx3rd-mt-4">')) {
-              // 다이스 롤 HTML인 경우 현재 메시지에 추가
+              // Dice-roll HTML: append to the message being built
               currentCostMsg += costMsg;
             } else {
-              // 새로운 비용 메시지인 경우 이전 메시지 완성하고 새로 시작
+              // A new cost line: finish the previous message and start a fresh one
               if (currentCostMsg) {
                 msg += `<div><strong>${itemName} ${game.i18n.localize('DX3rd.Use')}</strong>: ${currentCostMsg}</div>`;
               }
               currentCostMsg = costMsg;
             }
           }
-          // 마지막 메시지 처리
+          // Flush the last message
           if (currentCostMsg) {
             msg += `<div><strong>${itemName} ${game.i18n.localize('DX3rd.Use')}</strong>: ${currentCostMsg}</div>`;
           }
         }
 
-        // 사용 카드에는 그 아이템의 해설을 작은 보조문으로 붙인다. 예전에는 이펙트와
-        // 맨손만 대상이어서 무기·마도서·커넥션·once 처럼 해설이 곧 효과인 아이템은
-        // “○○ 사용” 한 줄만 남았다 — 같은 사용 메시지인데 타입에 따라 나왔다 말았다 하는
-        // 것이 바로 그 "특정 상황"이므로 타입 게이트를 없앤다.
-        // 판단 기준은 타입이 아니라 "해설에 실제로 읽을 글자가 있는가"다. 빈 <p></p> 나
-        // &nbsp; 만 저장된 문서가 적지 않아 문자열 길이로 재면 빈 상자가 생긴다.
+        // The usage card carries the item's description as a small sub-line. This used to cover
+        // only effects and the fist, so items whose description IS the effect — weapons, books,
+        // connections, once — showed just "used ○○". A usage message that appears or not depending
+        // on the type is exactly that inconsistency, so the type gate is gone.
+        // The test is not the type but "does the description hold readable text". Plenty of
+        // documents store only an empty <p></p> or &nbsp;, so measuring length yields an empty box.
         const usageDescription = String(item.system?.description || '').trim();
         const hasDescriptionText = /\S/.test(
           usageDescription.replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
@@ -664,7 +664,7 @@
           msg += `<div class="item-description dx3rd-usage-description"><div class="description-content">${enrichedDescription}</div></div>`;
         }
         
-        // 콤보인 경우 구성한 이펙트들의 이름을 기본 표시 (해설)
+        // For a combo, list the member effect names by default
         if (item.type === 'combo') {
           const comboEffectNames = this.comboMemberItems(actor, item)
             .map(eff => eff.name.split('||')[0].trim());
@@ -673,7 +673,7 @@
           }
         }
 
-        // getTarget이 있고 타겟이 있으면 타겟 목록 추가
+        // With getTarget set and targets picked, append the target list
         if (item.system?.getTarget) {
           const targets = Array.from(game.user.targets);
           if (targets.length > 0) {
@@ -684,7 +684,7 @@
           }
         }
         
-        // skipMessage 옵션이 true이거나 로이스 타입이 '-' 또는 'S'인 경우 메시지 생성하지 않음
+        // No message when skipMessage is set, or for Lois types '-' / 'S'
         if (!skipMessage && !isRoisWithNoMessage) {
           ChatMessage.create({ 
             content: `<div class="dx3rd-item-chat">${msg}</div>`, 
@@ -694,10 +694,10 @@
             }
           });
         }
-        return true; // 아이템 사용 허용
+        return true; // item use allowed
       } catch (e) {
         console.error('DX3rd | UniversalHandler.processItemUsageCost failed', e);
-        return false; // 에러 시 사용 중단
+        return false; // abort the use on error
       }
     },
 
@@ -711,11 +711,11 @@
     async ensureActivated(item, actor) {
       try {
         const activeDisable = item?.system?.active?.disable ?? '-';
-        // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
+        // Instant-resolve consumables (disable='-') leave no lingering toggle (see activateItem).
         const skipToggle = item?.type === 'once' && activeDisable === '-';
-        // runTiming 게이트가 여기만 빠져 있었다. 자기 보정을 afterSuccess/afterDamage 로 저작한
-        // 마술을 캐스팅 시점에 미리 켜 버리고(각 타이밍의 활성화 지점 — chat-ui 발동 버튼,
-        // processCombo*, handleSuccessButton — 이 따로 있다) 저작한 순서가 무너진다.
+        // The runTiming gate was missing only here, so a spell whose self-modifiers are authored
+        // afterSuccess/afterDamage got switched on at cast time. Each timing has its own activation
+        // point (chat-ui's fire button, processCombo*, handleSuccessButton).
         const runTiming = item?.system?.active?.runTiming ?? 'instant';
         if (runTiming === 'instant' && activeDisable !== 'notCheck' && !skipToggle) {
           await item.update({ 'system.active.state': true });
@@ -730,15 +730,15 @@
      * Execute macros from item.system.macro field in sequence.
      * Macros should be formatted as [매크로1][매크로2]...
      * @param {Item} item
-     * @param {string} timing - 실행 타이밍 ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
+     * @param {string} timing - execution timing ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
      */
     async executeMacros(item, timing = 'instant', action = null) {
       try {
         const macroField = item.system?.macro;
         const macroMatches = (macroField && typeof macroField === 'string') ? (macroField.match(/\[([^\]]+)\]/g) || []) : [];
-        // 임베드 매크로: system.macros = [{ timing, kind, command, macroName, disabled? }, ...]
-        //  - kind:'code'(기본): command 를 인라인 실행(컴펜디움 자체완결, 이름참조 불필요)
-        //  - kind:'macro': macroName 으로 월드 매크로를 이름참조 실행(구 system.macro 필드 통합분)
+        // Embedded macros: system.macros = [{ timing, kind, command, macroName, disabled? }, ...]
+        //  - kind:'code' (default): run command inline (self-contained in the compendium, no name lookup)
+        //  - kind:'macro': run a world macro by macroName (the folded-in legacy system.macro field)
         const embedded = Array.isArray(item.system?.macros) ? item.system.macros : [];
         const embeddedHits = embedded.filter(m => {
           if (!m || m.disabled) return false;
@@ -751,31 +751,31 @@
         });
         if (macroMatches.length === 0 && embeddedHits.length === 0) return;
 
-        // 아이템의 소유자 액터를 토큰으로 선택
+        // Select the owning actor's token
         const ownerActor = item.actor;
         let previousToken = null;
         let ownerToken = null;
 
         if (ownerActor) {
-          // 현재 선택된 토큰 저장 (복원용)
+          // Remember the currently selected token so it can be restored
           previousToken = canvas.tokens?.controlled?.[0] || null;
 
-          // 액터의 토큰 찾기
+          // Find the actor's token
           ownerToken = canvas.tokens?.placeables.find(t => t.actor?.id === ownerActor.id) || null;
           if (ownerToken) {
             ownerToken.control({ releaseOthers: true });
           }
         }
 
-        // (1) 이름참조 월드 매크로 (기존 동작)
+        // (1) World macros referenced by name (legacy behavior)
         for (const match of macroMatches) {
-          const macroName = match.slice(1, -1); // [매크로명] -> 매크로명
+          const macroName = match.slice(1, -1); // [name] -> name
           const macro = game.macros?.getName(macroName);
           if (macro) {
-            // 매크로의 실행 타이밍 확인 (flags에서 가져오기)
+            // Read the macro's execution timing from its flags
             const macroTiming = macro.getFlag('dx3rd-emanim', 'runTiming') || 'instant';
 
-            // 타이밍이 일치하는 경우에만 실행
+            // Run only when the timing matches
             if (macroTiming === timing) {
               try {
                 await macro.execute();
@@ -789,12 +789,12 @@
           }
         }
 
-        // (2) 임베드 매크로 (아이템에 코드가 박혀 있어 컴펜디움 드래그 시 그대로 작동)
-        // 컨텍스트: actor(소유자), item(이 아이템), token(소유자 토큰), scope(타이밍 등)
+        // (2) Embedded macros (the code lives on the item, so a compendium drag keeps working)
+        // Context: actor (owner), item (this item), token (owner's token), scope (timing, …)
         for (const em of embeddedHits) {
           try {
             if (em.kind === 'macro') {
-              // 이름참조: 월드 매크로 실행. 타이밍은 이 임베드 행이 관장한다(월드 매크로의 runTiming 플래그는 무시).
+              // By name: run the world macro. This embedded row owns the timing (the world macro's runTiming flag is ignored).
               const wm = game.macros?.getName(em.macroName);
               if (wm) await wm.execute({ actor: ownerActor, token: ownerToken });
               else console.warn(`DX3rd | UniversalHandler embedded world-macro not found: ${em.macroName}`);
@@ -808,7 +808,7 @@
           }
         }
 
-        // 이전에 선택된 토큰으로 복원
+        // Restore the previously selected token
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
@@ -818,13 +818,13 @@
     },
 
     /**
-     * 배드 스테이터스(상태이상) 소거 헬퍼. 임베드 매크로에서 한 줄로 호출.
-     * @param {Actor} actor - 대상 액터
+     * Bad-status removal helper. Callable as a one-liner from an embedded macro.
+     * @param {Actor} actor - target actor
      * @param {object} opts
-     * @param {number} [opts.count=Infinity] - 최대 소거 개수("N개까지" 표현)
-     * @param {string[]} [opts.exclude=['berserk']] - 소거 제외 상태("[폭주] 이외" 표현; 폭주 포함 소거면 [] 전달)
-     * @param {boolean} [opts.prompt=true] - 보유 상태가 count보다 많으면 선택 다이얼로그 표시
-     * @returns {Promise<number>} 실제 소거한 개수
+     * @param {number} [opts.count=Infinity] - max number to remove (the "up to N" wording)
+     * @param {string[]} [opts.exclude=['berserk']] - statuses to keep (the "other than [Berserk]" wording; pass [] to include it)
+     * @param {boolean} [opts.prompt=true] - show a picker when more statuses are held than count
+     * @returns {Promise<number>} how many were actually removed
      */
     async removeBadStatuses(actor, { count = Infinity, exclude = ['berserk'], prompt = true } = {}) {
       try {
@@ -836,7 +836,7 @@
         let chosen = pool;
         if (pool.length > count) {
           chosen = prompt ? await this._promptBadStatusChoice(pool, count) : pool.slice(0, count);
-          if (!chosen || chosen.length === 0) return 0; // 취소
+          if (!chosen || chosen.length === 0) return 0; // canceled
         }
         for (const s of chosen) await actor.toggleStatusEffect(s, { active: false });
         return chosen.length;
@@ -846,7 +846,7 @@
       }
     },
 
-    /** 소거할 배드 스테이터스를 플레이어가 고르는 다이얼로그(최대 count개). */
+    /** Dialog letting the player pick which bad statuses to remove (up to count). */
     async _promptBadStatusChoice(pool, count) {
       const DialogV2 = foundry.applications?.api?.DialogV2;
       if (!DialogV2?.wait) {
@@ -883,11 +883,11 @@
     },
 
     /**
-     * 현재 지정된 타겟(game.user.targets)들의 배드 스테이터스를 소거. 임베드 매크로에서 한 줄로 호출.
-     * 타겟 액터를 직접 수정할 권한이 있으면 즉시 소거하고, 없으면 GM에게 socket으로 위임한다.
-     * (대상측 토큰 변경은 GM 권한이 필요 — conditionRequest와 동일한 패턴)
-     * @param {object} opts removeBadStatuses와 동일(count/exclude). prompt는 권한 보유측에서 처리.
-     * @returns {Promise<number>} 직접 소거한 개수(socket 위임분은 미포함)
+     * Remove bad statuses from the current targets (game.user.targets). One-liner for embedded macros.
+     * Removes directly when the user owns the target actor, otherwise delegates to the GM over the socket.
+     * (Changing the other side's token needs GM rights — same pattern as conditionRequest.)
+     * @param {object} opts same as removeBadStatuses (count/exclude). prompt is handled by the owning side.
+     * @returns {Promise<number>} how many were removed directly (socket-delegated ones excluded)
      */
     async removeBadStatusesOnTargets({ count = Infinity, exclude = ['berserk'] } = {}) {
       try {
@@ -897,7 +897,7 @@
           return 0;
         }
         let removed = 0;
-        const serialCount = Number.isFinite(count) ? count : null; // Infinity는 직렬화 불가 → null
+        const serialCount = Number.isFinite(count) ? count : null; // Infinity is not serializable → null
         const sourceActor = game.user?.character
           || canvas.tokens?.controlled?.find(token => token.actor?.isOwner)?.actor
           || null;
@@ -931,19 +931,19 @@
     },
 
     /**
-     * 자기 부활 헬퍼: [전투불능](defeated) 소거 + HP를 hpTo점까지 회복(+선택적 침식 상승). 임베드 매크로용.
-     * "HP를 N점까지 회복"은 현재 HP가 N보다 낮을 때만 N으로 올린다(상한은 max).
+     * Self-revive helper: clear [defeated] and heal HP up to hpTo (+ optional encroachment rise). For embedded macros.
+     * "Heal HP up to N" raises HP to N only when it is currently below N (capped at max).
      * @param {Actor} actor
      * @param {object} opts
-     * @param {number} [opts.hpTo=1] - 회복 목표 HP("[LV×10]점까지" 등; 매크로에서 평가해 숫자로 전달)
-     * @param {number} [opts.encroach=0] - 부작용 침식률 상승치
+     * @param {number} [opts.hpTo=1] - target HP ("up to [LV×10]" etc.; evaluate in the macro and pass a number)
+     * @param {number} [opts.encroach=0] - side-effect encroachment rise
      * @returns {Promise<boolean>}
      */
     async reviveSelf(actor, { hpTo = 1, encroach = 0 } = {}) {
       try {
         if (!actor) return false;
-        const defeated = actor.effects.find(e => e.statuses?.has('defeated'));
-        if (defeated) await actor.toggleStatusEffect('defeated', { active: false });
+        const defeated = actor.effects.find(e => e.statuses?.has('dead'));
+        if (defeated) await actor.toggleStatusEffect('dead', { active: false });
         const hp = actor.system.attributes?.hp ?? { value: 0, max: 0 };
         const target = Math.min(Number(hpTo) || 1, hp.max);
         const update = {};
@@ -961,17 +961,17 @@
     },
 
     /**
-     * D로이스 발동 헬퍼(티투스화 시점): 침식률 상승 + 판정보정 applied 버프. 임베드 매크로용.
+     * D-Lois activation helper (at Titus time): encroachment rise + an applied roll buff. For embedded macros.
      * @param {Actor} actor
      * @param {object} opts
-     * @param {number|string} [opts.encroach] - 침식률 상승치(숫자 또는 "1d10" 등 다이스식; 다이스면 굴려서 채팅)
-     * @param {object} [opts.applied] - applied 버프 {key, name, disable, img, attributes}. attributes는 이펙트 applied와 동일(critical/major_critical/add/dice/critical_min/stat_bonus_* 등).
+     * @param {number|string} [opts.encroach] - encroachment rise (a number, or a dice formula like "1d10"; dice are rolled to chat)
+     * @param {object} [opts.applied] - applied buff {key, name, disable, img, attributes}. attributes match effect applied (critical/major_critical/add/dice/critical_min/stat_bonus_*, …).
      * @returns {Promise<void>}
      */
     async roisActivate(actor, { encroach = null, applied = null } = {}) {
       try {
         if (!actor) return;
-        // 1) 침식률 상승(숫자 또는 다이스식)
+        // 1) Encroachment rise (number or dice formula)
         if (encroach !== null && encroach !== undefined && `${encroach}`.trim() !== '' && `${encroach}`.trim() !== '-') {
           const raw = `${encroach}`.trim();
           let amt = 0;
@@ -986,7 +986,7 @@
             await actor.update({ 'system.attributes.encroachment.value': cur + amt });
           }
         }
-        // 2) 판정보정 applied 버프
+        // 2) Applied roll-modifier buff
         if (applied && applied.attributes && Object.keys(applied.attributes).length) {
           const key = `rois_${applied.key || Date.now()}`;
           await window.DX3rdAppliedEffects.set(actor, key, {
@@ -1000,12 +1000,12 @@
       }
     },
 
-    /** GM측: 대상 액터의 배드 스테이터스 소거 요청 처리(권한 없는 플레이어가 socket으로 위임). */
+    /** GM side: handle a bad-status removal request delegated over the socket by an unprivileged player. */
     async handleRemoveConditionRequest(data) {
       if (!game.user.isGM) return;
       try {
         const actor = await fromUuid(data.targetUuid);
-        const targetActor = actor?.actor ?? actor; // TokenDocument면 .actor
+        const targetActor = actor?.actor ?? actor; // .actor when it is a TokenDocument
         if (!targetActor) {
           console.warn('DX3rd | handleRemoveConditionRequest: target not found', data.targetUuid);
           return;
@@ -1020,7 +1020,7 @@
     /**
      * Execute macros from a macro field string.
      * @param {string} macroField
-     * @param {string} timing - 실행 타이밍 ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
+     * @param {string} timing - execution timing ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
      */
     async executeMacrosByField(macroField, timing = 'instant') {
       try {
@@ -1033,10 +1033,10 @@
           const macroName = match.slice(1, -1);
           const macro = game.macros?.getName(macroName);
           if (macro) {
-            // 매크로의 실행 타이밍 확인 (flags에서 가져오기)
+            // Read the macro's execution timing from its flags
             const macroTiming = macro.getFlag('dx3rd-emanim', 'runTiming') || 'instant';
             
-            // 타이밍이 일치하는 경우에만 실행
+            // Run only when the timing matches
             if (macroTiming === timing) {
               try {
                 await macro.execute();
@@ -1055,7 +1055,7 @@
     },
 
     /**
-     * 콤보의 병합된 afterSuccess 처리
+     * Handle a combo's merged afterSuccess payload
      * @param {Object} comboData - { actorId, comboItemId, activations, macros, applies, extensions }
      */
     async processComboAfterSuccess(comboData) {
@@ -1064,8 +1064,8 @@
       const actor = game.actors.get(actorId);
       if (!actor) return;
       
-      // 1. 자기 지속 보정 처리. 새 콤보 데이터는 액션을 함께 저장하여 구성 멤버의
-      // 「사용」 버킷만 발현한다. action 없는 기존 채팅 카드는 종전 활성화로 호환한다.
+      // 1. Self modifiers. New combo data stores the action, so only the member's "use"
+      // bucket fires. Older chat cards without an action fall back to the legacy activation.
       for (const { itemId, itemName, action = null } of activations) {
         const item = actor.items.get(itemId);
         if (!item) continue;
@@ -1076,7 +1076,7 @@
         }
       }
       
-      // 2. 매크로 실행
+      // 2. Macros
       for (const { itemId, itemName, macroName, timing, action = null } of macros) {
         const item = actor.items.get(itemId);
         if (item) {
@@ -1084,7 +1084,7 @@
         }
       }
       
-      // 3. 어플라이드 적용
+      // 3. Applied effects
       for (const { itemId, itemName, action = null } of applies) {
         const item = actor.items.get(itemId);
         if (item) {
@@ -1092,7 +1092,7 @@
         }
       }
       
-      // 4. 병합된 익스텐션 실행
+      // 4. Merged extensions
       for (const bucket of extensions) {
         if (bucket.type === 'heal' && !bucket.custom) {
           const healData = {
@@ -1105,15 +1105,10 @@
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
           await this.executeHealExtensionNow(actor, healData, null);
-        } else if (bucket.type === 'damage' && !bucket.custom) {
-          const damageData = {
-            formulaDice: bucket.merged?.dice || 0,
-            formulaAdd: bucket.merged?.add || 0,
-            target: bucket.target,
-            selectedTargetIds: bucket.selectedTargetIds || [],
-            ignoreReduce: bucket.ignoreReduce || false,
+        } else if (bucket.type === 'damage') {
+          const damageData = this.damageDataFromExtensionBucket(bucket, {
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
-          };
+          });
           await this.executeDamageExtensionNow(actor, damageData, null);
         } else if (bucket.type === 'condition' && !bucket.custom) {
           const conditionTypes = bucket.merged?.conditions || [];
@@ -1138,11 +1133,11 @@
             }, sourceItem || null);
           }
         } else if (bucket.type === 'weapon' || bucket.type === 'protect' || bucket.type === 'vehicle') {
-          // 아이템 생성은 afterSuccess에서 하지 않음 (instant만)
+          // Item creation never runs at afterSuccess (instant only)
         }
       }
       
-      // 5. afterMain 익스텐션을 큐에 등록 (runTiming이 afterSuccess인 경우)
+      // 5. Queue the afterMain extensions (when runTiming is afterSuccess)
       for (const bucket of afterMainExtensions) {
         if (bucket.type === 'heal') {
           const healData = {
@@ -1156,14 +1151,9 @@
           };
           await this.addToAfterMainQueue(actor, healData, null, 'heal');
         } else if (bucket.type === 'damage') {
-          const damageData = {
-            formulaDice: bucket.merged?.dice || 0,
-            formulaAdd: bucket.merged?.add || 0,
-            target: bucket.target,
-            selectedTargetIds: bucket.selectedTargetIds || [],
-            ignoreReduce: bucket.ignoreReduce || false,
+          const damageData = this.damageDataFromExtensionBucket(bucket, {
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
-          };
+          });
           await this.addToAfterMainQueue(actor, damageData, null, 'damage');
         } else if (bucket.type === 'condition') {
           const conditionData = {
@@ -1193,28 +1183,36 @@
     },
 
     /**
-     * 콤보의 병합된 afterDamage 처리
+     * Handle a combo's merged afterDamage payload
      * @param {Object} comboData - { actorId, comboItemId, activations, macros, applies, extensions }
-     * @param {Array} damagedActors - HP 데미지를 받은 액터 배열 (선택적)
+     * @param {Array} damagedActors - actors that took HP damage (optional)
+     * @param {string[]} frozenDamagedTokenIds - token ids captured by the damage request (optional)
      */
-    async processComboAfterDamage(comboData, damagedActors = null) {
+    async processComboAfterDamage(comboData, damagedActors = null, frozenDamagedTokenIds = null) {
       
       const { actorId, comboItemId, activations = [], macros = [], applies = [], extensions = [], afterMainExtensions = [] } = comboData;
       const actor = game.actors.get(actorId);
       if (!actor) return;
-      const damagedTokenIds = (damagedActors || []).map(damagedActor => {
-        const token = canvas.tokens.placeables.find(t => t.actor?.id === damagedActor.id);
-        return token?.id;
-      }).filter(Boolean);
+      const damagedTokenIds = Array.isArray(frozenDamagedTokenIds)
+        ? [...new Set(frozenDamagedTokenIds.filter(Boolean))]
+        : (damagedActors || []).map(damagedActor => {
+          const token = canvas.tokens.placeables.find(t => t.actor?.id === damagedActor.id);
+          return token?.id;
+        }).filter(Boolean);
+      const afterDamageTarget = bucket => window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
+        bucket?.target,
+        damagedTokenIds,
+        bucket?.selectedTargetIds || []
+      );
       
-      // 1. 자기 지속 보정 처리. 구성 멤버는 직렬화된 「사용」 액션만 발현한다.
+      // 1. Self modifiers. A member only fires the serialized "use" action.
       for (const { itemId, itemName, action = null } of activations) {
         const item = actor.items.get(itemId);
         if (!item) continue;
         if (action) {
           await this.applySelfModifiers(actor, item, { action });
         } else {
-          // action 없는 기존 채팅 카드 호환
+          // Compatibility with older chat cards that carry no action
           const activeDisable = item.system?.active?.disable ?? '-';
           if (item.system?.active?.runTiming === 'afterDamage' && !item.system?.active?.state && activeDisable !== 'notCheck') {
             await item.update({ 'system.active.state': true });
@@ -1222,7 +1220,7 @@
         }
       }
       
-      // 2. 매크로 실행
+      // 2. Macros
       for (const { itemId, itemName, macroName, timing, action = null } of macros) {
         const item = actor.items.get(itemId);
         if (item) {
@@ -1234,74 +1232,41 @@
         }
       }
       
-      // 3. 어플라이드 처리
+      // 3. Applied effects
       for (const { itemId, itemName, action = 'attack' } of applies) {
         const item = actor.items.get(itemId);
         if (item) {
-          // damagedActors를 forcedTargets로 전달
+          // Pass damagedActors through as forcedTargets
           await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action);
         }
       }
       
-      // 4. 병합된 익스텐션 실행
+      // 4. Merged extensions
       for (const bucket of extensions) {
         if (bucket.type === 'heal' && !bucket.custom) {
-          // damagedActors가 있으면 해당 액터들의 토큰 ID로 변환
-          let targetTokenIds = bucket.selectedTargetIds || [];
-          if (damagedActors && damagedActors.length > 0) {
-            targetTokenIds = damagedActors.map(actor => {
-              const token = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
-              return token?.id;
-            }).filter(id => id);
-          }
-          
+          const targetData = afterDamageTarget(bucket);
           const healData = {
             formulaDice: bucket.merged?.dice || 0,
             formulaAdd: bucket.merged?.add || 0,
-            // damagedActors가 있으면 targetToken으로, 없으면 원래 target 유지
-            target: (damagedActors && damagedActors.length > 0) ? 'targetToken' : bucket.target,
-            selectedTargetIds: targetTokenIds,
+            ...targetData,
             resurrect: bucket.resurrect || false,
             rivival: bucket.rivival || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
           await this.executeHealExtensionNow(actor, healData, null);
-        } else if (bucket.type === 'damage' && !bucket.custom) {
-          // damagedActors가 있으면 해당 액터들의 토큰 ID로 변환
-          let targetTokenIds = bucket.selectedTargetIds || [];
-          if (damagedActors && damagedActors.length > 0) {
-            targetTokenIds = damagedActors.map(actor => {
-              const token = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
-              return token?.id;
-            }).filter(id => id);
-          }
-          
-          const damageData = {
-            formulaDice: bucket.merged?.dice || 0,
-            formulaAdd: bucket.merged?.add || 0,
-            // damagedActors가 있으면 targetToken으로, 없으면 원래 target 유지
-            target: (damagedActors && damagedActors.length > 0) ? 'targetToken' : bucket.target,
-            selectedTargetIds: targetTokenIds,
-            ignoreReduce: bucket.ignoreReduce || false,
+        } else if (bucket.type === 'damage') {
+          const targetData = afterDamageTarget(bucket);
+          const damageData = this.damageDataFromExtensionBucket(bucket, {
+            ...targetData,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
-          };
+          });
           await this.executeDamageExtensionNow(actor, damageData, null);
         } else if (bucket.type === 'condition' && !bucket.custom) {
-          // damagedActors가 있으면 해당 액터들의 토큰 ID로 변환
-          let targetTokenIds = bucket.selectedTargetIds || [];
-          if (damagedActors && damagedActors.length > 0) {
-            targetTokenIds = damagedActors.map(actor => {
-              const token = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
-              return token?.id;
-            }).filter(id => id);
-          }
-          
+          const targetData = afterDamageTarget(bucket);
           const conditionTypes = bucket.merged?.conditions || [];
           await this.executeConditionExtensionsNowBulk(actor, {
             conditionTypes,
-            // damagedActors가 있으면 targetToken으로, 없으면 원래 target 유지
-            target: (damagedActors && damagedActors.length > 0) ? 'targetToken' : bucket.target,
-            selectedTargetIds: targetTokenIds,
+            ...targetData,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
             poisonedRank: bucket.poisonedRank || null,
             itemId: bucket.sourceItemId || null,
@@ -1312,49 +1277,47 @@
           for (const source of bucket.sources || []) {
             const sourceItem = actor.items.get(source.itemId);
             const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
+            const targetData = window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
+              originalTarget, damagedTokenIds, bucket.selectedTargetIds || []);
             await this.executeStatusClearExtension(actor, {
               ...(source.raw?.extensionData || {}),
-              target: originalTarget === 'self' ? 'self' : (damagedTokenIds.length ? 'targetToken' : originalTarget),
-              selectedTargetIds: damagedTokenIds.length ? damagedTokenIds : (bucket.selectedTargetIds || []),
+              ...targetData,
               triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
             }, sourceItem || null);
           }
         } else if (bucket.type === 'weapon' || bucket.type === 'protect' || bucket.type === 'vehicle') {
-          // 아이템 생성은 afterDamage에서 하지 않음 (instant만)
+          // Item creation never runs at afterDamage (instant only)
           window.DX3rdDebug.log(`DX3rd | Combo afterDamage - Skipping item creation (${bucket.type})`);
         }
       }
       
-      // 5. afterMain 익스텐션을 큐에 등록 (runTiming이 afterDamage인 경우)
+      // 5. Queue the afterMain extensions (when runTiming is afterDamage)
       window.DX3rdDebug.log('DX3rd | processComboAfterDamage - Registering afterMain extensions:', afterMainExtensions.length);
       for (const bucket of afterMainExtensions) {
         window.DX3rdDebug.log('DX3rd | processComboAfterDamage - Registering afterMain:', bucket.type, 'merged:', bucket.merged);
         if (bucket.type === 'heal') {
+          const targetData = afterDamageTarget(bucket);
           const healData = {
             formulaDice: bucket.merged?.dice || 0,
             formulaAdd: bucket.merged?.add || 0,
-            target: bucket.target,
-            selectedTargetIds: bucket.selectedTargetIds || [],
+            ...targetData,
             resurrect: bucket.resurrect || false,
             rivival: bucket.rivival || false,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
           };
           await this.addToAfterMainQueue(actor, healData, null, 'heal');
         } else if (bucket.type === 'damage') {
-          const damageData = {
-            formulaDice: bucket.merged?.dice || 0,
-            formulaAdd: bucket.merged?.add || 0,
-            target: bucket.target,
-            selectedTargetIds: bucket.selectedTargetIds || [],
-            ignoreReduce: bucket.ignoreReduce || false,
+          const targetData = afterDamageTarget(bucket);
+          const damageData = this.damageDataFromExtensionBucket(bucket, {
+            ...targetData,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
-          };
+          });
           await this.addToAfterMainQueue(actor, damageData, null, 'damage');
         } else if (bucket.type === 'condition') {
+          const targetData = afterDamageTarget(bucket);
           const conditionData = {
             conditionTypes: bucket.merged?.conditions || [],
-            target: bucket.target,
-            selectedTargetIds: bucket.selectedTargetIds || [],
+            ...targetData,
             triggerItemName: actor.items.get(comboItemId)?.name || '콤보',
             poisonedRank: bucket.poisonedRank || null,
             itemId: bucket.sourceItemId || null,
@@ -1366,10 +1329,11 @@
           for (const source of bucket.sources || []) {
             const sourceItem = actor.items.get(source.itemId);
             const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
+            const targetData = window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
+              originalTarget, damagedTokenIds, bucket.selectedTargetIds || []);
             await this.addToAfterMainQueue(actor, {
               ...(source.raw?.extensionData || {}),
-              target: originalTarget === 'self' ? 'self' : (damagedTokenIds.length ? 'targetToken' : originalTarget),
-              selectedTargetIds: damagedTokenIds.length ? damagedTokenIds : (bucket.selectedTargetIds || []),
+              ...targetData,
               triggerItemName: actor.items.get(comboItemId)?.name || '콤보'
             }, sourceItem || null, 'statusClear');
           }
@@ -1379,10 +1343,10 @@
     },
 
     /**
-     * 성공 버튼 클릭 처리
-     * @param {string} actorId - 액터 ID
-     * @param {string} itemId - 아이템 ID
-     * @param {string} previousTokenId - 이전에 선택된 토큰 ID
+     * Handle a click on the success button
+     * @param {string} actorId - actor id
+     * @param {string} itemId - item id
+     * @param {string} previousTokenId - id of the previously selected token
      */
     async handleSuccessButton(actorId, itemId, previousTokenId = null, weaponAttack = 0) {
       try {
@@ -1391,27 +1355,27 @@
         const actor = game.actors.get(actorId);
         if (!actor) return;
         
-        // 권한 체크
+        // Permission check
         if (!actor.isOwner && !game.user.isGM) {
           console.warn('DX3rd | User lacks permission to use this actor\'s actions');
           return;
         }
         
-        // 토큰 자동 선택 (있는 경우)
+        // Auto-select the actor's token, if any
         let restoredToken = null;
         if (actor && canvas.tokens) {
-          // 현재 선택된 토큰 저장
+          // Remember the currently selected token
           const currentToken = canvas.tokens.controlled?.[0] || null;
           
-          // 액터의 토큰 찾기
+          // Find the actor's token
           const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
           if (actorToken) {
             actorToken.control({ releaseOthers: true });
-            restoredToken = currentToken; // 나중에 복원할 토큰
+            restoredToken = currentToken; // restored afterwards
           }
         }
         
-        // 아이템이 있으면 success 타이밍 처리
+        // With an item, run the success timing
         if (itemId) {
           const item = actor.items.get(itemId);
           if (item) {
@@ -1419,19 +1383,19 @@
               || (item.system?.attackRoll && item.system.attackRoll !== '-' ? 'attack' : 'use');
             const actionMatches = (kind, data) => !window.DX3rdItemEffectAdapter
               || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, successAction, 'afterSuccess');
-            // 0. 'afterSuccess' 매크로 실행
+            // 0. Run 'afterSuccess' macros
             await this.executeMacros(item, 'afterSuccess', successAction);
             
-            // 1. active.runTiming이 'afterSuccess'인 경우 활성화 (disable이 'notCheck'가 아닌 경우에만)
+            // 1. Activate when active.runTiming is 'afterSuccess' (and disable is not 'notCheck')
             const activeDisable = item.system?.active?.disable ?? '-';
             if (actionMatches('selfModifiers', item.system?.active || {}) && item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck') {
               await item.update({ 'system.active.state': true });
             }
             
-            // 2. 'afterSuccess' 타겟 효과 적용 (effect.runTiming === 'afterSuccess')
+            // 2. Apply target effects for 'afterSuccess' (effect.runTiming === 'afterSuccess')
             await this.applyToTargets(actor, item, 'afterSuccess', null, successAction);
             
-            // 3. afterSuccess 타이밍 heal/damage/condition 익스텐션을 GM을 통해 처리
+            // 3. Route afterSuccess heal/damage/condition extensions through the GM
             const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
             const selectedTargetIds = Array.from(game.user.targets).map(t => t.id);
             
@@ -1445,7 +1409,7 @@
                 triggerItemId: item.id
               };
               
-              // GM이면 직접 처리만 (소켓 전송 안 함)
+              // The GM handles it directly (no socket emit)
               if (game.user.isGM) {
                 await this.handleHealRequest({
                   actorId: actor.id,
@@ -1453,7 +1417,7 @@
                   itemId: item.id
                 });
               } else {
-                // 플레이어면 소켓 전송만
+                // A player only emits over the socket
                 window.DX3rdSocketRouter.emit({
                   type: 'healRequest',
                   requestData: {
@@ -1475,7 +1439,7 @@
                 triggerItemId: item.id
               };
               
-              // GM이면 직접 처리만 (소켓 전송 안 함)
+              // The GM handles it directly (no socket emit)
               if (game.user.isGM) {
                 await this.handleDamageRequest({
                   actorId: actor.id,
@@ -1483,7 +1447,7 @@
                   itemId: item.id
                 });
               } else {
-                // 플레이어: 조건부 공식 입력은 본인 클라이언트에서만 → 확정 후 GM 소켓 처리
+                // Player: the conditional-formula prompt is local; only the confirmed value goes to the GM
                 if (damageDataWithTargets.conditionalFormula) {
                   const customFormula = await this.promptConditionalDamageFormula();
                   if (!customFormula) {
@@ -1517,7 +1481,7 @@
               }
             }
             
-            // condition afterSuccess (conditions 배열 또는 기존 단일 형식)
+            // condition afterSuccess (conditions array, or the older single-entry shape)
             const condEntries = this._getConditionEntries(itemExtend.condition || {});
             const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess' && actionMatches('condition', c));
             for (const c of afterSuccessConds) {
@@ -1531,7 +1495,7 @@
               await this.executeConditionExtensionNow(actor, conditionDataWithTargets, item);
             }
 
-            // 상태이상 해제 afterSuccess
+            // status clear, afterSuccess
             if (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterSuccess' && actionMatches('statusClear', itemExtend.statusClear)) {
               await this.executeStatusClearExtension(actor, {
                 ...itemExtend.statusClear,
@@ -1550,21 +1514,21 @@
               }, item);
             }
             
-            // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
+            // When runTiming is afterSuccess, queue the afterMain extensions
             if (item.system.active?.runTiming === 'afterSuccess') {
               await this.registerAfterMainExtensions(actor, item, itemExtend, successAction);
             }
           }
         }
         
-        // 이전 토큰 복원 (previousTokenId가 있는 경우)
+        // Restore the previous token (when previousTokenId was given)
         if (previousTokenId && canvas.tokens) {
           const tokenToRestore = canvas.tokens.placeables.find(t => t.id === previousTokenId);
           if (tokenToRestore) {
             tokenToRestore.control({ releaseOthers: true });
           }
         } else if (restoredToken && canvas.tokens) {
-          // previousTokenId가 없으면 임시 저장한 토큰으로 복원
+          // Without previousTokenId, fall back to the token stashed above
           restoredToken.control({ releaseOthers: true });
         }
         
@@ -1577,9 +1541,9 @@
       if (!actor || !item) return false;
 
       const activeDisable = item.system?.active?.disable ?? '-';
-      // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다 — used 카운터만 소비하고
-      // active.state 는 켜지 않는다(지속 타이밍이 없어 영원히 안 꺼지고, 스텟 기여도 0).
-      // once 지속형(disable=timed)은 그대로 켜서 disable 타이밍에 정상 해소한다.
+      // Instant-resolve consumables (disable='-') leave no lingering toggle — they spend the used
+      // counter without setting active.state (with no expiry timing it would never turn off, and it contributes nothing).
+      // Timed consumables (disable=<timing>) are switched on as usual and expire at that timing.
       const skipToggle = item.type === 'once' && activeDisable === '-';
       if (item.system?.active?.runTiming === 'instant' && !item.system?.active?.state && activeDisable !== 'notCheck' && !skipToggle) {
         await item.update({'system.active.state': true});
@@ -1589,9 +1553,9 @@
     },
 
     /**
-     * 비용·사용 횟수를 쓰기 전에 타입별 판정 설정이 유효한지 확인한다.
-     * 타입 핸들러에서 뒤늦게 실패하면 이미 지불한 비용을 되돌릴 수 없으므로,
-     * 정적으로 확인 가능한 기능/판정 데이터는 공용 파이프라인 앞에서 막는다.
+     * Verify the per-type roll configuration before any cost or usage count is spent.
+     * A late failure inside a type handler cannot refund what was already paid, so anything
+     * statically checkable about the skill/roll data is rejected ahead of the shared pipeline.
      */
     validateItemUsePreflight(actor, item, itemType, action) {
       const requiresResolvedSkill = (
@@ -1625,12 +1589,12 @@
     },
 
     /**
-     * 아이템 사용 처리 (getTarget 체크 포함)
-     * @param {string} actorId - 액터 ID
-     * @param {string} itemId - 아이템 ID
-     * @param {string} itemType - 아이템 타입
-     * @param {string} roisAction - 로이스 액션 (선택사항)
-     * @param {boolean} getTarget - getTarget 설정 (선택사항)
+     * Handle an item use (including the getTarget check)
+     * @param {string} actorId - actor id
+     * @param {string} itemId - item id
+     * @param {string} itemType - item type
+     * @param {string} roisAction - Lois action (optional)
+     * @param {boolean} getTarget - the getTarget setting (optional)
      */
     async handleItemUse(actorId, itemId, itemType, roisAction, getTarget, options = {}) {
       if (!actorId || !itemId) {
@@ -1646,9 +1610,9 @@
       if (!item) {
         return false;
       }
-      // 커넥션/마도서는 구 타입 핸들러 안에서 일반 판정/콤보를 골랐고, 그 시점에는
-      // 이미 비용과 사용 횟수가 지불된 뒤였다. 취소하거나 콤보 빌더만 열어도 비용이
-      // 사라지지 않도록 선택 자체를 공용 비용 게이트 앞으로 끌어올린다.
+      // Connections and books used to choose plain-roll vs combo inside their type handler,
+      // by which point cost and usage count were already spent. The choice is hoisted ahead of
+      // the shared cost gate so cancelling — or merely opening the builder — costs nothing.
       const connectionHasRoll = itemType === 'connection'
         && item.system?.skill && item.system.skill !== '-';
       if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined) {
@@ -1679,8 +1643,8 @@
         }
         options = {...options, comboMode: 'normal'};
       }
-      // 무기/비클은 비용·사용 채팅카드보다 먼저 판정 방식을 고른다.
-      // 콤보를 고르면 개별 장비 사용으로 간주하지 않고, 즉석 콤보만 연다.
+      // Weapons/vehicles pick their roll mode before the cost/usage chat card is emitted.
+      // Choosing combo is not an individual equipment use — it only opens an ad-hoc combo.
       if (itemType === 'weapon' || itemType === 'vehicle') {
         if (options.comboMode === 'combo') {
           const skillKey = item.system?.skill;
@@ -1692,7 +1656,7 @@
           return true;
         }
         if (options.comboMode === 'normal') {
-          // 시트 메뉴에서 이미 선택했다.
+          // Already chosen from the sheet menu.
         } else {
         if (typeof window.DX3rdChooseItemMode !== 'function') {
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
@@ -1718,20 +1682,20 @@
       const action = window.DX3rdItemEffectAdapter?.invocationAction(item, options)
         || ((itemType === 'weapon' || itemType === 'vehicle') ? 'attack' : 'use');
       
-      // 대상 필요 시: 타겟이 없으면 중단 (하이라이트 유지)
-      // 콤보 본체에는 멤버의 확장 카드가 복사되지 않는다. 본체만 어댑터에 물으면 false가
-      // 나와 system.getTarget=true조차 nullish 폴백에서 무시됐고, 비용·횟수를 쓴 뒤 대상
-      // 효과만 사라졌다. 일반 구성 슬롯과 무기 슬롯을 모두 역할별 액션으로 검사한다.
-      // 활성화 전용 카드 때문에 콤보가 타겟을 요구해서는 안 된다.
+      // When a target is required: abort if none is picked (the highlight stays)
+      // Member extension cards are not copied onto the combo itself. Asking the adapter about the
+      // combo alone returned false, so even system.getTarget=true was lost to the nullish fallback,
+      // and the target effects vanished after cost and counts were spent. Check both the normal
+      // member slots and the weapon slots under their role action — an activation-only card must not make the combo demand a target.
       const comboMemberRequiresTarget = item.type === 'combo'
         && (window.DX3rdComboHandler?.comboMemberEntries?.(actor, item) || []).some(({item: memberItem}) => {
           const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, action);
           return !!memberItem.system?.getTarget
             || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(memberItem, memberAction);
         });
-      // 자동 적용하지 않고 다른 액터에 수동 반영하는 컴펜디움 이펙트도 있다.
-      // 이 플래그는 호출부가 getTarget=false를 넘겨도 대상 선택을 생략할 수 없고,
-      // 자기 자신을 대상으로 삼으면 비용을 쓰기 전에 중단한다.
+      // Some compendium effects are meant to be applied by hand to another actor, not automatically.
+      // This flag makes target selection mandatory even when the caller passes getTarget=false,
+      // and aborts before any cost is spent if the caster targets themselves.
       const manualTargetOtherOnly = item.getFlag?.('dx3rd-emanim', 'manualTargetOtherOnly') === true;
       const requiresTarget = manualTargetOtherOnly || (getTarget !== undefined
         ? getTarget
@@ -1753,7 +1717,7 @@
         if (targets.length === 0) {
           window.DX3rdDebug.log('DX3rd | Item use blocked - no targets selected (highlight preserved)');
           ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
-          return false; // 하이라이트 유지하고 중단
+          return false; // abort, keeping the highlight
         }
         if (manualTargetOtherOnly && targets.some(target => target.actor?.id === actor.id)) {
           window.DX3rdDebug.log('DX3rd | Item use blocked - self is not a valid manual target:', item.name);
@@ -1768,10 +1732,10 @@
         return false;
       }
 
-      // 사용 버튼 클릭 시 통합 처리
-      await new Promise(resolve => setTimeout(resolve, 50)); // 50ms 딜레이
+      // Unified handling for a use-button click
+      await new Promise(resolve => setTimeout(resolve, 50)); // 50ms delay
       
-      // 0. SpellCalamity 5번 효과 체크 (마술 사용 불가)
+      // 0. SpellCalamity effect #5 (spells unusable)
       if (itemType === 'spell') {
         const appliedEffects = window.DX3rdAppliedEffects?.collect
           ? window.DX3rdAppliedEffects.collect(actor)
@@ -1782,13 +1746,13 @@
             let count = 0;
             
             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-              // spell_disabled는 attrName 또는 객체 key로만 판별한다.
-              //   (과거의 `attrValue === true`절은 move_half 등 임의 boolean-true 속성까지 오인해
-              //    마술을 잘못 차단했으므로 제거)
+              // spell_disabled is detected by attrName, or by the object's key — nothing else.
+              //   (the old `attrValue === true` clause mistook any boolean-true attribute — move_half
+              //    and friends — for it and wrongly blocked spells, so it was removed)
               if (attrName === 'spell_disabled' ||
                   (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled')) {
                 hasSpellDisabled = true;
-                // count 값 찾기
+                // Look up the count value
                 const countValue = appliedEffect.attributes?.spell_disabled_count;
                 if (countValue !== undefined) {
                   count = typeof countValue === 'object' ? (countValue.value || 0) : Number(countValue || 0);
@@ -1798,35 +1762,35 @@
             }
             
             if (hasSpellDisabled) {
-              // count가 있으면 count 표시, 없으면 기본 메시지
+              // Show the count when present, otherwise the default message
               if (count > 0) {
                 ui.notifications.warn(game.i18n.format('DX3rd.SpellDisabled', { count: count }));
               } else {
                 ui.notifications.warn(game.i18n.localize('DX3rd.SpellCatastropheText3'));
               }
-              return false; // 마술 사용 불가
+              return false; // spell unusable
             }
           }
         }
       }
       
-      // 1. 침식률/HP 비용 처리 및 아이템 사용 메시지 출력
-      // Finding E(룰 3271-3273/3660-3664): 이펙트 자신의 침식 코스트가 임계치(100/160)를
-      // 넘겨도, 이번 사용의 [level]은 '코스트 반영 전' 침식 레벨로 고정한다.
-      // (이미 발동한 이펙트는 자신의 침식 상승분으로 레벨이 오르지 않는다.)
-      // getItemLevel(helpers.js)이 이 임시 플래그를 우선 읽는다. 재진입 대비 이전 값 저장.
+      // 1. Pay the encroachment/HP cost and emit the item-use message
+      // Finding E (rules 3271-3273 / 3660-3664): even when an effect's own encroachment cost
+      // crosses a threshold (100/160), this use's [level] stays frozen at the pre-cost level.
+      // (An effect already firing does not gain a level from its own encroachment rise.)
+      // getItemLevel (helpers.js) reads this scratch flag first. The prior value is kept for re-entry.
       const _prevFrozenEncLevel = actor._dx3rdUsageEncLevel;
       actor._dx3rdUsageEncLevel = Number(actor.system?.attributes?.encroachment?.level) || 0;
-      // 변동형 런타임 입력 스냅샷(재진입 대비): 사용 종료 시 복원해 잔류값이 다음 이펙트에 새지 않게 한다.
+      // Snapshot the runtime input too, and restore it on exit so a leftover cannot leak into the next effect.
       const _prevRuntimeInput = actor._dx3rdRuntimeInput;
       try {
-      // 선언형 장비(「…선언하면」)를 그 무기로 공격하는 것만으로 소모하지 않는다.
-      // 회수·코스트·사용 카드는 판정 다이얼로그의 선언 토글이 확정할 때(action:'use')
-      // 한 번만 치른다 — 공격은 공격일 뿐이고, 쓸지 말지는 명중판정 직전에 고르는 것이
-      // 이 계열 장비의 전부다. 여기서도 걷으면 로켓 런처를 들고 평범하게 쏘기만 해도
-      // 시나리오 1회뿐인 회수가 사라지고, 정작 보정은 액션이 달라 붙지도 않는다.
-      // 판단 기준을 선언 UI 와 같은 함수(isDeclarable)로 두어 "목록에 뜨는 것 = 여기서
-      // 안 걷는 것"이 어긋날 수 없게 한다.
+      // Declaration equipment ("if you declare …") is not spent merely by attacking with it.
+      // Uses, cost, and the usage card are paid exactly once, when the roll dialog's declaration
+      // toggle commits (action:'use') — an attack is just an attack, and choosing whether to spend
+      // it right before the accuracy roll is the whole point of this class of equipment. Charging
+      // here too would burn a once-per-scenario use on an ordinary shot, and the bonus would not
+      // even apply, the action being different. The test is the same function the declaration UI
+      // uses (isDeclarable), so "listed there" and "free here" cannot diverge.
       const declarationOnly = action === 'attack'
         && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);
 
@@ -1837,7 +1801,7 @@
           return false;
         }
 
-        // 1.5. 사용 횟수 증가 (notCheck가 아닌 경우)
+        // 1.5. Increment the usage count (unless notCheck)
         const usedDisable = item.system?.used?.disable || 'notCheck';
         if (usedDisable !== 'notCheck') {
           const currentUsedState = item.system?.used?.state || 0;
@@ -1848,50 +1812,50 @@
         window.DX3rdDebug.log('DX3rd | handleItemUse - Declaration-only equipment: attack costs nothing', item.name);
       }
 
-      // 2. instant 활성화 처리 (disable이 'notCheck'가 아닌 경우에만)
-      // once 즉시해소형(disable='-')은 잔류 토글을 남기지 않는다(activateItem 주석 참조).
+      // 2. Instant activation (only when disable is not 'notCheck')
+      // Instant-resolve consumables (disable='-') leave no lingering toggle (see activateItem).
       const activeDisable = item.system?.active?.disable ?? '-';
       const skipToggle = item.type === 'once' && activeDisable === '-';
       const adapter = window.DX3rdItemEffectAdapter;
-      // 자기 보정 채널의 액션이 '활성화'로 잡히는 아이템(상시 이펙트 / applyMode='toggle' /
-      // 효과 카드에서 액션을 「활성화」로 지정)은 사용 액션('use'·'attack')과 액션이 달라
-      // 게이트를 통과하지 못했다. 그런데 같은 이펙트를 콤보 멤버로 넣으면 combo-handler 가
-      // 액션 게이트 없이 applySelfModifiers 를 부르므로 켜진다 — 단독 사용만 조용히
-      // 아무 일도 안 하는 비대칭이었고, 지속 효과가 꺼진 이펙트는 사용해도 계속 꺼진 채였다.
-      // → 직접 사용은 활성화를 포함하는 것으로 본다(판정은 어댑터 useMeansActivation 단일 기준).
+      // Items whose self-modifier channel resolves to the 'activation' action (always-on effects,
+      // applyMode='toggle', or a card authored with action 'activation') did not match the use
+      // action ('use'/'attack') and so failed the gate. Yet the same effect placed in a combo does
+      // switch on, because combo-handler calls applySelfModifiers with no action gate — an
+      // asymmetry where standalone use silently did nothing and the effect stayed switched off.
+      // → A direct use is taken to include activation (the adapter's useMeansActivation decides).
       const useMeansActivate = !!adapter?.useMeansActivation?.(item);
       const selfActionMatches = !adapter
         || adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')
         || useMeansActivate
-        // 항목별 「발현 액션」이 채널 기본과 다르게 저작돼 있으면 채널 게이트만으로는 막힌다.
+        // A row whose own trigger action differs from the channel default would be blocked by the channel gate alone.
         || adapter.hasExplicitBucket(item, 'self', action);
-      // 「아직 걸 게 남았는가」는 채널마다 다르다 — 어댑터 selfModifiersPending 단일 기준.
-      // (활성화 채널: !active.state / 동결 채널: 사용할 때마다 새로 / notCheck: 적용 안 함)
+      // "Is there anything left to apply" differs per channel — the adapter's selfModifiersPending decides.
+      // (activation channel: !active.state / frozen channel: fresh on every use / notCheck: never)
       const selfPending = adapter ? adapter.selfModifiersPending(item)
         : (!item.system.active?.state && activeDisable !== 'notCheck');
       if (selfActionMatches && item.system.active?.runTiming === 'instant' && selfPending && !skipToggle) {
-        // '활성화' 채널로 저작된 보정은 동결이 아니라 토글로 켠다. 시트 표시·콤보의 지속 판정
-        // (combo-data getPersistentEffectIds/calculateItemAttackBonus)이 active.state 를 읽으므로,
-        // 여기서 동결 AE만 걸면 "효과는 걸렸는데 여전히 비활성"인 상태가 그대로 남는다.
+        // Modifiers authored on the 'activation' channel are toggled on, not frozen. The sheet display
+        // and the combo persistence checks (combo-data getPersistentEffectIds/calculateItemAttackBonus)
+        // read active.state, so freezing an AE only would leave "applied, yet still inactive".
         const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate, action });
         window.DX3rdDebug.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       
-      // 2.7. 자원소비 비례형(네이티브 필드) 처리 — HP 등을 n 소비하고 n×배수만큼 판정/스탯 버프
+      // 2.7. Resource-proportional cost (native field) — spend n of HP etc. for an n×mult roll/stat buff
       await this.processResourceCost(actor, item);
 
-      // 3. instant 타이밍 매크로/어플라이드/익스텐션 실행
+      // 3. Run the instant-timing macros / applied effects / extensions
       await this.executeMacros(item, 'instant', action);
       await this.applyToTargets(actor, item, 'instant', null, action);
-      // 콤보는 익스텐션을 콤보 핸들러에서 이펙트와 병합 처리하므로 여기서는 건너뜀 (롤 타입 무관)
+      // A combo merges its extensions with its members in ComboHandler, so skip here (any roll type)
       if (item.type !== 'combo') {
         await this.processItemExtensions(actor, item, 'instant', action);
       } else {
         window.DX3rdDebug.log('DX3rd | handleItemUse - Skipping combo instant extensions here (will be merged and executed in ComboHandler)');
       }
       
-      // 4. runTiming이 instant인 경우, afterMain 익스텐드를 큐에 등록
-      // 단, 콤보는 ComboHandler에서 병합하여 등록하므로 여기서는 건너뜀
+      // 4. When runTiming is instant, queue the afterMain extensions
+      // Combos are skipped: ComboHandler merges and registers them instead
       if (item.system.active?.runTiming === 'instant') {
         if (item.type !== 'combo') {
           const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend');
@@ -1904,7 +1868,7 @@
         }
       }
 
-      // 아이템 타입별 핸들러 호출
+      // Dispatch to the per-type handler
       const handlerMap = {
         'weapon': window.DX3rdWeaponHandler,
         'protect': window.DX3rdProtectHandler,
@@ -1921,13 +1885,13 @@
       };
       
       const handler = handlerMap[itemType];
-      // 공격 가능한 아이템의 별도 '사용' 액션은 연결된 효과만 발현한다. 여기서 타입
-      // 핸들러까지 부르면 무기/공격 이펙트가 다시 공격 굴림으로 진입해 액션 분리가 무너진다.
+      // For an attack-capable item, a separate 'use' action fires only its attached effects.
+      // Calling the type handler here would re-enter the attack roll and collapse that separation.
       const effectOnlyUse = action === 'use' && window.DX3rdItemEffectAdapter?.isAttackItem(item);
       if (handler && !effectOnlyUse) {
-        // 핸들러 내부 예외가 조용히 삼켜져 "오류도 없이 실행 안 됨"이 되지 않도록 표면화한다.
+        // Surface exceptions from the handler, so they cannot become "nothing happened, no error".
         try {
-          // 로이스 아이템의 경우 roisAction에 따라 분기
+          // Lois items branch on roisAction
           let handlerResult;
           if (itemType === 'rois' && roisAction) {
             if (roisAction === 'titus') {
@@ -1935,18 +1899,18 @@
             } else if (roisAction === 'sublimation') {
               handlerResult = await handler.handleSublimation(actorId, itemId);
             } else if (roisAction === 'activate') {
-              // 발동형 로이스(D로이스 등): 매크로/자기효과/코스트/사용횟수는 위 공용 파이프라인에서
-              // 이미 실행됐다. RoisHandler.handle 은 티투스/승화 전용이므로 여기서 호출하면
-              // 매크로가 이중 실행되고 D로이스에 의미 없는 titus 플래그가 켜진다 → 호출하지 않는다.
+              // Activatable Lois (D-Lois etc.): macros, self effects, cost, and usage count already ran
+              // in the shared pipeline above. RoisHandler.handle is Titus/sublimation only, so calling
+              // it here would double-run the macros and set a meaningless titus flag → do not call it.
             } else {
               handlerResult = await handler.handle(actorId, itemId, getTarget, options);
             }
           } else {
             handlerResult = await handler.handle(actorId, itemId, getTarget, options);
           }
-          // 기존 핸들러의 undefined 성공 계약은 유지하되, 명시적 false는 반드시 호출자까지
-          // 전파한다. 그래야 채팅 완료 표시와 임시 콤보 정리가 실제 실행 실패를 성공으로
-          // 오인하지 않는다.
+          // Keep the legacy "undefined means success" contract, but propagate an explicit false all
+          // the way up, so the chat completion marker and ad-hoc combo cleanup cannot mistake a real
+          // failure for success.
           if (handlerResult === false) return false;
         } catch (e) {
           console.error(`DX3rd | handleItemUse - ${itemType} handler threw:`, e);
@@ -1957,13 +1921,13 @@
         console.warn(`DX3rd | handleItemUse - No handler registered for itemType: ${itemType}`);
       }
 
-      // 성공적으로 완료
+      // Completed successfully
       return true;
       } finally {
-        // 사용 종료: 사용-중 레벨 고정 해제(재진입 시 이전 값 복원)
+        // End of use: release the frozen level (restoring the prior value on re-entry)
         if (_prevFrozenEncLevel === undefined) delete actor._dx3rdUsageEncLevel;
         else actor._dx3rdUsageEncLevel = _prevFrozenEncLevel;
-        // 런타임 입력값 복원(잔류 방지)
+        // Restore the runtime input so nothing lingers
         if (_prevRuntimeInput === undefined) delete actor._dx3rdRuntimeInput;
         else actor._dx3rdRuntimeInput = _prevRuntimeInput;
       }
@@ -1972,34 +1936,15 @@
 
 })();
 
-// ========== AfterMain 큐 시스템 ========== //
-/**
- * AfterMain 큐에 익스텐션 추가 (GM에게 소켓으로 전송)
- * @param {Actor} actor
- * @param {Object} extensionData - healData, damageData, conditionData 등
- * @param {Item} item
- * @param {string} type - 'heal', 'damage', 'condition'
- */
-/**
- * afterMain 타이밍 익스텐드를 큐에 등록하는 헬퍼 함수
- * @param {Actor} actor - 사용자 액터
- * @param {Item} item - 아이템
- * @param {Object} itemExtend - 아이템 익스텐드 데이터
- */
-/**
- * AfterMain 큐 처리 (이니셔티브 직전 실행)
- */
-/**
- * AfterMain 큐 초기화 (전투 종료 시 등)
- */
-
+// The AfterMain queue (addToAfterMainQueue / registerAfterMainExtensions /
+// processAfterMainQueue / clearAfterMainQueue) lives in handlers/universal-after-main.js.
 
 /**
- * 자원소비 비례형(네이티브 필드 system.resourceCost) 처리.
- *   - HP(기본)를 상한 내에서 n 소비 → applied 버프 value = n × mult 를 attrKey(달성치 add/공격력 attack/가드 guard/장갑 armor 등)에 부여.
- *   - 버프 수명(disable)은 필드값(기본 main = 그 메인 프로세스 동안).
- *   - self 한정(대상측 변경 없음 → GM 권한 불필요).
- * "HP가 0 이하로 내려가도록 소비할 수는 없다" 규칙을 상한에 반영(min(cap, 현재HP)).
+ * Resource-proportional cost (the native system.resourceCost field).
+ *   - Spend n of HP (the default) within the cap → grant an applied buff of value = n × mult on
+ *     attrKey (add / attack / guard / armor …). The buff's lifetime (disable) comes from the field
+ *     (default main = for that main process). Self only, so no GM rights are needed.
+ * The cap is whatever the formula yields — it is deliberately NOT clamped to current HP (see below).
  * @param {Actor} actor
  * @param {Item} item
  */
@@ -2010,17 +1955,17 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
     if (!actor) return;
 
     const resource = rc.resource || 'hp';
-    // input 모드: 자원을 소비하지 않고 "사용 시 임의값 입력"만 받아 그 값을 보정으로 적용(동적참조 대체).
-    //   동적 토큰([침식률÷10]/[최대HP-현재HP]/[소비한 HP] 등)을 자동계산 대신 플레이어가 직접 입력.
+    // input mode: spends no resource; it only prompts for a number on use and applies it as the bonus
+    //   (a stand-in for dynamic references — [침식률÷10], [최대HP-현재HP], [소비한 HP] and the like are typed by the player).
     const isInput = (resource === 'input');
 
-    // 상한 공식 평가([level]*3 / 20 등 → 숫자). 비숫자면 0.
+    // Evaluate the cap formula ([level]*3, 20, … → a number). Non-numeric becomes 0.
     let cap = Number(this.evaluateFormulaForExtension(String(rc.cap ?? ''), item, actor));
     if (!Number.isFinite(cap)) cap = 0;
     cap = Math.max(0, Math.floor(cap));
 
-    // 상한은 공식이 정한 cap 그대로다. 현재 HP로 깎지 않는다 —
-    // 지불 능력은 사용 가부를 제한하지 않으며, HP가 0 이하가 되어도 무방하다.
+    // The cap is exactly what the formula yields; it is not clamped to current HP —
+    // the ability to pay does not gate the use, and dropping to 0 or below is acceptable.
     const usableMax = (resource === 'hp') ? cap
                     : isInput ? (cap > 0 ? cap : 99)
                     : cap;
@@ -2030,18 +1975,18 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
       return;
     }
 
-    // n 입력(0~usableMax). input 모드는 초기값 0(입력 유도).
+    // Prompt for n (0..usableMax). input mode starts at 0, to force a deliberate entry.
     const n = await this.promptResourceAmount(item, resource, usableMax, isInput ? 0 : usableMax);
-    if (!Number.isFinite(n) || n <= 0) return; // 취소 또는 0
+    if (!Number.isFinite(n) || n <= 0) return; // canceled, or zero
 
-    // 자원 차감(hp만; input/기타는 차감 없음)
+    // Deduct the resource (hp only; input and the rest deduct nothing)
     if (resource === 'hp') {
-      // 차감 시점의 HP를 읽는다(입력 다이얼로그가 열려 있는 동안 바뀌었을 수 있다).
+      // Read HP at deduction time — it may have changed while the prompt was open.
       const curHp = Number(actor.system?.attributes?.hp?.value ?? 0);
       await actor.update({ 'system.attributes.hp.value': curHp - n });
     }
 
-    // applied 버프 부여
+    // Grant the applied buff
     const value = n * (Number(rc.mult) || 1);
     const uid = foundry.utils.randomID();
     const key = `rescost_${item.id}`;
@@ -2054,7 +1999,7 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
       attributes: { [uid]: { key: rc.attrKey || 'add', label: rc.label || '-', value: value } }
     });
 
-    // 채팅 통지(타 메시지 매처 트리거 방지 위해 중립 문구 사용)
+    // Chat notice (neutral wording, so it does not trip the other message matchers)
     const attrLabel = game.i18n.localize(`DX3rd.ResourceCostAttr.${rc.attrKey || 'add'}`);
     const lhs = isInput ? game.i18n.localize('DX3rd.ResourceCostInput') : `${resource.toUpperCase()} -${n}`;
     ChatMessage.create({
@@ -2067,20 +2012,20 @@ window.DX3rdUniversalHandler.processResourceCost = async function(actor, item) {
 };
 
 /**
- * 침식률 조정 Extend 즉시 실행 (상호참조/동적참조형 — 사용 시 임의값 입력).
- *   값을 자동계산하지 않고(사용자 지시) 사용 시 다이얼로그로 감소량 X(0~max)를 입력받는다.
- *   - 자신 침식 += X × selfMult (자기 액터 직접; 권한 불필요)
- *   - 대상(targetToken) 침식 -= X (대상은 GM 소유 → GM 소켓 위임)
+ * Run an encroachment-adjustment extend immediately (cross/dynamic reference — a number typed on use).
+ *   The value is not computed; a dialog asks for the reduction X (0..max) at use time.
+ *   - own encroachment += X × selfMult (applied directly; no special rights needed)
+ *   - target (targetToken) encroachment -= X (targets are GM-owned → delegated over the socket)
  * @param {Actor} actor
  * @param {Object} encData - { target, max, selfMult, timing, activate }
  * @param {Item} item
  */
 window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor, encData, item = null) {
   if (!actor || !actor.id) { ui.notifications.error('액터 정보가 유효하지 않습니다.'); return; }
-  const { max = '', selfMult = 1, target = 'targetToken' } = encData || {};
+  const { max = '', selfMult = 1, target = 'targetToken', selectedTargetIds, targetsFrozen = false } = encData || {};
 
-  // 고정 자기 비용. afterMain 큐에서도 같은 실행기를 사용해 "메인 프로세스 종료 후"
-  // 침식 상승을 즉시 비용으로 앞당기지 않는다.
+  // Fixed self cost. The afterMain queue reuses this same executor, so an "after the main process"
+  // encroachment rise is not pulled forward into an immediate cost.
   const fixedRaw = String(encData?.value ?? encData?.formula ?? encData?.amount ?? '').trim();
   if (encData?.fixed === true && target === 'self' && fixedRaw && fixedRaw !== '-') {
     if (actor.system?.attributes?.encroachment?.type === 'none') return;
@@ -2098,31 +2043,38 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
     return;
   }
 
-  // 입력 상한(max 공식) 평가
+  // Evaluate the input cap (the max formula)
   const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;
   const itemForFormula = { type: item?.type || 'effect', system: { level: { value: itemLevel } } };
   let cap = Number(window.DX3rdFormulaEvaluator.evaluate(String(max || '0'), itemForFormula, actor));
   if (!Number.isFinite(cap) || cap < 0) cap = 0;
   cap = Math.floor(cap);
 
-  // 감소량 X 입력 (0~cap)
+  // Prompt for the reduction X (0..cap)
   const x = await this.promptEncroachAmount(item, cap);
-  if (!Number.isFinite(x) || x <= 0) return; // 취소 또는 0
+  if (!Number.isFinite(x) || x <= 0) return; // canceled, or zero
 
-  // 1) 자신 침식 상승 (자기 액터 직접)
+  // 1) Raise own encroachment (directly on this actor)
   const selfDelta = x * (Number(selfMult) || 1);
   const curSelf = Number(actor.system?.attributes?.encroachment?.value ?? 0);
   await actor.update({ 'system.attributes.encroachment.value': curSelf + selfDelta });
 
-  // 2) 대상 수집(targetToken)
+  // 2) Collect the targets (targetToken)
   const targets = [];
   if (target === 'targetToken') {
-    Array.from(game.user.targets).forEach(t => { if (t.actor && !targets.find(a => a.id === t.actor.id)) targets.push(t.actor); });
+    if (targetsFrozen || (selectedTargetIds && selectedTargetIds.length > 0)) {
+      (selectedTargetIds || []).forEach(tokenId => {
+        const token = canvas.tokens.get(tokenId);
+        if (token?.actor && !targets.find(targetActor => targetActor.id === token.actor.id)) targets.push(token.actor);
+      });
+    } else {
+      Array.from(game.user.targets).forEach(t => { if (t.actor && !targets.find(a => a.id === t.actor.id)) targets.push(t.actor); });
+    }
   }
 
   const enc = game.i18n.localize('DX3rd.Encroachment') || '침식률';
   if (targets.length === 0) {
-    // 대상 미지정 — 자신 상승만 통지
+    // No target picked — announce the self rise only
     ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<div class="dx3rd-encroach"><b>${item?.name || ''}</b><br>${actor.name}: ${enc} +${selfDelta}</div>` });
     return;
   }
@@ -2133,8 +2085,8 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
     actorName: actor.name,
     itemName: item?.name || '',
     targets: targets.map(t => ({ id: t.id, name: t.name })),
-    targetDelta: -x,        // 대상 침식 감소
-    selfDelta: selfDelta,   // 채팅 통지용(자신 상승은 이미 적용됨)
+    targetDelta: -x,        // the target's encroachment drops
+    selfDelta: selfDelta,   // for the chat notice (the self rise is already applied)
   };
 
   if (game.user.isGM) {
@@ -2146,9 +2098,9 @@ window.DX3rdUniversalHandler.executeEncroachExtensionNow = async function(actor,
 };
 
 /**
- * 침식률 조정 감소량 입력 다이얼로그 (호출한 클라이언트에만 표시).
- * @returns {Promise<number|false|null>} 입력값(0~cap), 취소/닫기는 숫자가 아닌 값.
- *   0 이 유효값이므로 호출자는 Number.isFinite 로 판정할 것.
+ * Dialog for the encroachment reduction amount (shown on the calling client only).
+ * @returns {Promise<number|false|null>} the entered value (0..cap); cancel/close return a non-number.
+ *   0 is a valid value, so callers must test with Number.isFinite.
  */
 window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
   const enc = game.i18n.localize('DX3rd.Encroachment') || '침식률';
@@ -2191,7 +2143,7 @@ window.DX3rdUniversalHandler.promptEncroachAmount = async function(item, cap) {
 };
 
 /**
- * 침식률 조정 요청 처리 (GM 전용) — 대상 토큰의 침식률 감소 + 통지.
+ * Handle an encroachment-adjustment request (GM only) — lower the target tokens' encroachment and announce it.
  */
 window.DX3rdUniversalHandler.handleEncroachRequest = async function(requestData) {
   if (!game.user.isGM) return;
@@ -2203,7 +2155,7 @@ window.DX3rdUniversalHandler.handleEncroachRequest = async function(requestData)
     const tActor = token?.actor || game.actors.get(tref.id);
     if (!tActor) continue;
     const cur = Number(tActor.system?.attributes?.encroachment?.value ?? 0);
-    const next = Math.max(0, cur + targetDelta);   // 0 미만 방지
+    const next = Math.max(0, cur + targetDelta);   // never below 0
     await tActor.update({ 'system.attributes.encroachment.value': next });
     lines.push(`${tActor.name}: ${enc} ${targetDelta >= 0 ? '+' : ''}${targetDelta} (→ ${next})`);
   }
@@ -2215,14 +2167,14 @@ window.DX3rdUniversalHandler.handleEncroachRequest = async function(requestData)
   }
 };
 
-/** 무기 이름이 맨손(Fist)인지 판정한다. `맨손` 또는 `[맨손]`을 포함하면 참. */
+/** Whether a weapon name denotes the fist: the localized fist name, or a name containing it in brackets. */
 window.DX3rdUniversalHandler.isFistWeaponName = function(name) {
   if (!name) return false;
   const fistName = game.i18n.localize('DX3rd.Fist');
   return name === fistName || name.includes(`[${fistName}]`);
 };
 
-/** 데미지 산출 시 맨손(Fist) 무기에만 적용되는 공격력 보너스(attrs.attack.fist). 맨손 아님/비무기면 0. */
+/** Damage-time attack bonus that applies to the fist alone (attrs.attack.fist). 0 for anything else. */
 window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
   try {
     if (!item || item.type !== 'weapon' || !actor) return 0;
@@ -2232,33 +2184,33 @@ window.DX3rdUniversalHandler.getFistAttackBonus = function(actor, item) {
 };
 
 /**
- * 가드 보정의 무기 버킷을 판별한다. `attrs.guard.<버킷>` 을 고르는 키들.
+ * Resolve which weapon buckets a guard bonus applies through — the keys into `attrs.guard.<bucket>`.
  *
- * 공격력의 버킷(`resolveAttackBonuses`)과 다른 점은 **판정 시점**이다. 공격은 어느 무기로
- * 때리는지가 판정 시작 시 정해지지만, 가드는 맞고 나서 방어 다이얼로그에서 무기를 고른다.
- * 그래서 액터의 파생값은 버킷에 남겨 두고 여기서 무기별로 꺼낸다.
+ * The difference from the attack buckets (`resolveAttackBonuses`) is **when it is decided**. The
+ * attacking weapon is fixed when the roll starts; the guarding weapon is picked in the defense
+ * dialog after the hit. So the actor's derived values stay bucketed and are read per weapon here.
  *
- * **맨손은 `fist` 와 `melee` 를 둘 다 받는다 — 배타가 아니라 가산이다.** 룰상 맨손은
- * 「종별: 백병」이므로 「백병 무기의 가드치에 +N」은 맨손으로 가드할 때도 붙어야 한다.
- * 공격력 쪽이 이미 그렇다(`resolveAttackBonuses`: 맨손의 `system.type` 이 `melee` 라
- * melee 버킷이 붙고, 그 위에 `getFistAttackBonus` 가 fist 버킷을 **더한다**). 여기만
- * 하나를 고르면 같은 어휘가 두 키에서 다른 뜻이 되어, 「맨손 및 백병」을 저작할 수 없다.
- * 순서는 좁은 것부터다(표시용으로 첫 항을 쓰는 곳이 생겨도 맨손이 melee 로 뭉개지지 않게).
- * @returns {Array<'fist'|'melee'|'ranged'>} 전체(`_`)만 받는 무기면 빈 배열
+ * **The fist takes both `fist` and `melee` — they add, they are not exclusive.** By the rules the
+ * fist is "type: melee", so "+N to the guard value of melee weapons" must apply bare-handed too.
+ * The attack side already works this way (`resolveAttackBonuses`: the fist's `system.type` is
+ * `melee`, so the melee bucket applies, and `getFistAttackBonus` **adds** the fist bucket on top).
+ * Picking only one here would give the same vocabulary two different meanings across two keys,
+ * making "fist and melee" unauthorable. Narrowest first, so any display taking the first entry does not flatten the fist into melee.
+ * @returns {Array<'fist'|'melee'|'ranged'>} empty for a weapon that takes only the catch-all (`_`)
  */
 window.DX3rdUniversalHandler.resolveGuardBuckets = function(weapon) {
   if (!weapon || weapon.type !== 'weapon') return [];
   const type = weapon.system?.type;
   const buckets = [];
-  // 맨손 판정이 먼저다 — 맨손은 종별이 melee 라서 순서를 뒤집으면 fist 가 영영 안 걸린다.
+  // Fist is tested first — its type is melee, so the reverse order would never reach the fist bucket.
   if (this.isFistWeaponName(weapon.name)) buckets.push('fist');
   if (type === 'melee' || type === 'ranged') buckets.push(type);
   return buckets;
 };
 
 /**
- * 그 무기로 가드할 때만 붙는 버킷 보정. 고정분과 다이스식을 갈라 돌려준다
- * (다이스식은 방어를 확정할 때 한 번만 굴린다).
+ * Bucket bonuses that apply only when guarding with this weapon. Fixed and dice terms come back
+ * separately (the dice are rolled once, when the defense is confirmed).
  * @returns {{fixed: number, formula: string}}
  */
 window.DX3rdUniversalHandler.getWeaponGuardBonus = function(actor, weapon) {
@@ -2274,14 +2226,14 @@ window.DX3rdUniversalHandler.getWeaponGuardBonus = function(actor, weapon) {
 };
 
 /**
- * 수치 항과 다이스식 항을 하나의 Roll 수식 문자열로 잇는다(빈 항·0 항은 버린다).
+ * Join numeric and dice terms into one Roll formula string (empty and zero terms are dropped).
  *
- * 공격력 운반 객체(mergeAttackBonuses)는 고정치를 `attack`(숫자), 다이스식을
- * `attackFormula`(문자열)에 **따로** 담는다. 둘 중 하나만 고르면(옛 `attackFormula || attack`)
- * 「고정 공격력 이펙트 + 다이스 공격력 무기」를 조합했을 때 고정분이 조용히 사라진다.
- * 명중 판정 시점(executeStatRoll)·에너미 달성치 경로(ComboHandler)·데미지 산출 창이
- * 모두 이 한 함수를 쓴다 — 각자 이으면 항 하나가 빠지는 자리가 다시 생긴다.
- * @returns {string} 이어붙인 수식(전부 비면 '0')
+ * The attack-bonus carrier (mergeAttackBonuses) keeps the fixed value in `attack` (a number) and
+ * the dice formula in `attackFormula` (a string), **separately**. Taking only one of them (the old
+ * `attackFormula || attack`) silently dropped the fixed part whenever a fixed-attack effect was
+ * combined with a dice-attack weapon. The accuracy roll (executeStatRoll), the enemy achievement
+ * path (ComboHandler), and the damage dialog all use this one function — joining terms locally would recreate that gap.
+ * @returns {string} the joined formula ('0' when every term is empty)
  */
 window.DX3rdUniversalHandler.joinFormulaTerms = function(...terms) {
   return terms.reduce((formula, value) => {
@@ -2295,8 +2247,8 @@ window.DX3rdUniversalHandler.joinFormulaTerms = function(...terms) {
 };
 
 /**
- * 아이템의 공격 타입(melee/ranged)을 판별한다.
- * weapon은 자체 type, vehicle은 항상 melee, 그 외는 attackRoll 필드를 따른다.
+ * Resolve an item's attack type (melee/ranged).
+ * Weapons use their own type, vehicles are always melee, everything else follows the attackRoll field.
  * @returns {'melee'|'ranged'|null}
  */
 window.DX3rdUniversalHandler.resolveAttackType = function(item) {
@@ -2308,13 +2260,13 @@ window.DX3rdUniversalHandler.resolveAttackType = function(item) {
 };
 
 /**
- * 액터의 공격력/관통 보너스를 공격 타입에 맞춰 합산한다.
- * 명중 판정 시점(executeAttackRoll)과 데미지 굴림 시점(handleDamageRoll), 콤보 경로가
- * 모두 이 함수를 거쳐야 두 시점의 값이 갈라지지 않는다.
+ * Sum the actor's attack/penetrate bonuses for the given attack type.
+ * The accuracy roll (executeAttackRoll), the damage roll (handleDamageRoll), and the combo path
+ * must all go through this function, or the two moments will disagree.
  * @param {object} [options]
- * @param {string} [options.attackType]     공격 타입을 직접 지정(미지정 시 아이템에서 판별).
- * @param {string} [options.fistWeaponName] 맨손 보너스를 아이템이 아닌 이 무기 이름으로 판정한다.
- *                                          이펙트/콤보가 weapon-for-attack으로 무기를 고른 경우 사용.
+ * @param {string} [options.attackType]     force the attack type (otherwise resolved from the item).
+ * @param {string} [options.fistWeaponName] decide the fist bonus from this weapon name, not the item.
+ *                                          Used when an effect/combo picked its weapon via weapon-for-attack.
  * @returns {{attackType: string|null, actorAttack: number, actorAttackFormula: string,
  *            actorPenetrate: number, actorPenetrateFormula: string}}
  */
@@ -2322,7 +2274,7 @@ window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, option
   const attackType = options.attackType ?? this.resolveAttackType(item);
   const attrs = actor?.system?.attributes || {};
 
-  // 공격 타입에 맞는 attack 보너스 계산
+  // Attack bonus for the matching attack type
   let actorAttack = attrs.attack?.value || 0;
   const attackFormulas = attrs.attack?.rollFormula || {};
   let actorAttackFormula = attackFormulas._ || '';
@@ -2333,9 +2285,9 @@ window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, option
     actorAttack += attrs.attack.ranged;
     actorAttackFormula = [actorAttackFormula, attackFormulas.ranged].filter(Boolean).join(' + ');
   }
-  // 맨손 한정 공격력(축퇴기관 등): 무기가 맨손일 때만 가산
+  // Fist-only attack power (Degeneration Organ etc.): added only when the weapon is the fist
   if (options.fistWeaponName !== undefined) {
-    // 선택 무기 기준 판정(이펙트/콤보가 weapon-for-attack으로 맨손을 고른 경우)
+    // Judge by the selected weapon (an effect/combo picked the fist via weapon-for-attack)
     if (this.isFistWeaponName(options.fistWeaponName)) {
       actorAttack += Number(attrs.attack?.fist) || 0;
     }
@@ -2348,17 +2300,17 @@ window.DX3rdUniversalHandler.resolveAttackBonuses = function(actor, item, option
     actorAttack,
     actorAttackFormula,
     actorPenetrate: attrs.penetrate?.value || 0,
-    // 관통 다이스식(굴리지 않은 원문). 숫자로 굳히려면 resolveAttackBonusesRolled 를 쓴다.
+    // The penetrate dice formula, unrolled. Use resolveAttackBonusesRolled to freeze it to a number.
     actorPenetrateFormula: attrs.penetrate?.rollFormula || ''
   };
 };
 
 /**
- * resolveAttackBonuses + 관통 다이스식을 "지금" 한 번 굴려 숫자로 굳힌 결과.
- * 관통은 공격자 값이지만 소비는 방어 창(장갑과 상쇄)에서 일어난다. 방어 시점에 굴리면
- * 공격자의 다이스를 방어자 클라이언트가 굴리게 되므로, 명중 판정 시점에 굴려
- * actorPenetrate 숫자에 접어 넣고 이후 경로(채팅 버튼·소켓)는 기존대로 숫자만 나른다.
- * @returns {Promise<Object>} resolveAttackBonuses 결과 + penetrateRoll(굴렸다면 Roll)
+ * resolveAttackBonuses, with the penetrate dice formula rolled once *now* and frozen to a number.
+ * Penetration is the attacker's value but is consumed in the defense dialog (offsetting armor).
+ * Rolling it there would make the defender's client roll the attacker's dice, so it is rolled at
+ * accuracy time and folded into actorPenetrate; downstream (chat buttons, socket) carries only numbers.
+ * @returns {Promise<Object>} the resolveAttackBonuses result plus penetrateRoll (a Roll, if one was made)
  */
 window.DX3rdUniversalHandler.resolveAttackBonusesRolled = async function(actor, item, options = {}) {
   const bonuses = this.resolveAttackBonuses(actor, item, options);
@@ -2374,7 +2326,7 @@ window.DX3rdUniversalHandler.resolveAttackBonusesRolled = async function(actor, 
   return bonuses;
 };
 
-/** 자원소비량 n 입력 다이얼로그(0~max). 취소/닫기는 숫자가 아닌 값 — Number.isFinite 로 판정할 것. */
+/** Dialog for the resource amount n (0..max). Cancel/close return a non-number — test with Number.isFinite. */
 window.DX3rdUniversalHandler.promptResourceAmount = async function(item, resource, max, initial = max) {
   const DialogV2 = foundry.applications?.api?.DialogV2;
   if (!DialogV2?.wait) {

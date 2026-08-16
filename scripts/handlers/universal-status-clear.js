@@ -15,12 +15,12 @@
    */
   handler.executeStatusClearExtension = async function(actor, data, item = null) {
     if (!actor || !data) return;
-    const { target = 'self', exclude = [], selectedTargetIds } = data;
+    const { target = 'self', exclude = [], selectedTargetIds, targetsFrozen = false } = data;
     const targets = [];
     if (target === 'self' || target === 'targetAll') targets.push(actor);
     if (target === 'targetToken' || target === 'targetAll') {
-      if (selectedTargetIds && selectedTargetIds.length > 0) {
-        selectedTargetIds.forEach(id => {
+      if (targetsFrozen || (selectedTargetIds && selectedTargetIds.length > 0)) {
+        (selectedTargetIds || []).forEach(id => {
           const token = canvas.tokens.get(id);
           if (token?.actor && !targets.find(targetActor => targetActor.id === token.actor.id)) targets.push(token.actor);
         });

@@ -1465,13 +1465,15 @@ Hooks.once('ready', async function() {
     }
   });
 
-  // HP 이전 값을 저장하기 위한 Map
+  // The initiating client records the pre-update value and alone owns the resulting status change.
+  // preUpdateActor is local to that client, while updateActor is observed by every client; keeping
+  // both halves on the initiator avoids both a missing GM cache and duplicate status toggles.
   const _previousHpValues = new Map();
-  // preUpdateActor가 누락되는 경우를 대비한 마지막 HP 캐시
   const _lastKnownHpValues = new Map();
   
   // HP 변경 전에 이전 값을 저장
   Hooks.on('preUpdateActor', (actor, updateData, options, userId) => {
+    if (userId !== game.user.id) return;
     // updateData는 nested 형태 또는 dot-notation 형태로 올 수 있음
     const incomingHp =
       updateData.system?.attributes?.hp?.value ??
@@ -1486,8 +1488,9 @@ Hooks.once('ready', async function() {
   
   // HP 변경 감지하여 전투불능(dead) 상태 자동 토글
   Hooks.on('updateActor', async (actor, updateData, options, userId) => {
-    // HP 0 감지에 따른 상태이상 토글은 GM만 수행 (플레이어+GM 동시 접속 시 중복 메시지 방지)
-    if (!game.user.isGM) return;
+    // Only the client which initiated this update has the matching pre-update value. That client
+    // necessarily had permission to update the actor, and can therefore toggle its status as well.
+    if (userId !== game.user.id) return;
 
     // HP 값이 변경되었는지 확인
     const incomingHp =
@@ -1505,8 +1508,10 @@ Hooks.once('ready', async function() {
       _previousHpValues.delete(actor.id);
       _lastKnownHpValues.set(actor.id, newHp);
       
-      // HP가 0이 되었을 때
-      if (oldHp > 0 && newHp === 0) {
+      const transition = window.DX3rdRuntimeUtils?.classifyHpTransition?.(oldHp, newHp);
+
+      // HP crossed from positive to zero or below.
+      if (transition === 'defeated') {
         // dead 상태 이상이 이미 있는지 확인
         const hasDeadEffect = actor.effects.find(e => e.statuses.has("dead"));
         if (!hasDeadEffect) {
@@ -1536,8 +1541,8 @@ Hooks.once('ready', async function() {
           }
         }
       }
-      // HP가 0에서 0 초과로 변했을 때
-      else if (oldHp === 0 && newHp > 0) {
+      // HP crossed from zero or below back to a positive value.
+      else if (transition === 'revived') {
         // dead 상태 이상이 있는지 확인
         const deadEffect = actor.effects.find(e => e.statuses.has("dead"));
         if (deadEffect) {

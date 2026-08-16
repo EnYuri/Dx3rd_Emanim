@@ -1,9 +1,9 @@
 /**
- * Shared compatibility helpers for the 이전 시트 to AppV2 migration.
+ * Shared DOM and rendering helpers for AppV2 applications.
  */
 (function() {
-    // 동일한 문서 변경에서 updateItem/updateActor/명시적 UI 갱신이 연달아 발생할 수 있다.
-    // AppV2 렌더는 비용이 크므로 같은 마이크로태스크 안의 요청은 앱별 한 번으로 합친다.
+    // One document change can trigger updateItem/updateActor hooks and an explicit UI refresh.
+    // AppV2 renders are expensive, so coalesce requests per application within a microtask.
     const pendingRenders = new WeakMap();
 
     function unwrapRoot(root) {
@@ -67,13 +67,14 @@
     }
 
     /**
-     * 서브밋 데이터에서 값이 undefined 인 키를 재귀적으로 제거하고, 제거한 경로 목록을 돌려준다.
-     * 부분 업데이트에서 undefined 는 "그 필드를 건드리지 않음"과 같은 뜻이지만,
-     * DataModel 검증은 "키가 존재하는데 값이 undefined" 인 경우를 `may not be undefined`
-     * 실패로 처리해 서브밋 전체를 취소한다(폼 컨트롤이 값을 내놓지 못한 순간에 발생).
+     * Recursively remove undefined values from submitted data and return their paths.
+     *
+     * In a partial update, undefined means "leave this field unchanged." DataModel validation,
+     * however, rejects a present key whose value is undefined and cancels the entire submission.
+     * This can happen briefly when a form control cannot provide a value.
      * @param {object} data
      * @param {string} [prefix]
-     * @returns {string[]} 제거된 키 경로
+     * @returns {string[]} removed property paths
      */
     function pruneUndefinedValues(data, prefix = '') {
         const dropped = [];

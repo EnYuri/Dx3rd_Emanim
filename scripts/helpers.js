@@ -1,4 +1,4 @@
-// Handlebars 헬퍼 함수들
+// Handlebars helpers
 (function() {
     const fixedOrder = {
         body: ["melee", "evade"],
@@ -7,12 +7,12 @@
         social: ["negotiation", "procure"]
     };
 
-    // 수식 평가 함수 (안전한 계산)
+    // Formula evaluator (safe arithmetic)
     window.DX3rdFormulaEvaluator = {
         /**
-         * 수식 입력의 검증 상태를 입력 칸 자체에 남긴다.
-         * 알림은 금방 사라지고 어느 칸이 문제였는지 알기 어려우므로, 오류는 hover/focus
-         * 시에도 확인할 수 있게 한다.
+         * Record a formula input's validation state on the input element itself.
+         * A notification disappears quickly and does not say which field was wrong, so the error
+         * stays reachable on hover/focus.
          */
         setInputValidationState: function(input, validation) {
             if (!input) return;
@@ -20,7 +20,7 @@
             input.classList.toggle('dx3rd-formula-invalid', Boolean(message));
             if (message) input.setAttribute('aria-invalid', 'true');
             else input.removeAttribute('aria-invalid');
-            // setCustomValidity는 AppV2 form submit 자체를 막으므로 사용하지 않는다.
+            // setCustomValidity is avoided: it would block the AppV2 form submit outright.
             input.title = message;
             if (message) input.dataset.tooltip = message;
             else delete input.dataset.tooltip;
@@ -30,14 +30,14 @@
             return game.i18n.format(key, data);
         },
         /**
-         * 저장 단계 검증. 다이스 수식은 Foundry Roll 문법의 정상적인 일부이므로
-         * 여기서는 변환하거나 거부하지 않는다. 실제 굴림은 evaluateRoll()을 호출한
-         * 행동 경로에서만 일어난다.
+         * Save-time validation. A dice formula is a legitimate part of Foundry's Roll syntax, so
+         * it is neither converted nor rejected here. The actual roll happens only on the action
+         * path that calls evaluateRoll().
          *
-         * 다만 굴릴 시점이 없는 필드(HP·행동치 등 시트에 상시 표시되는 파생치)는
-         * prepareData 가 다이스식을 0으로 흡수한다. 예전에는 그게 아무 표시 없이
-         * 일어나서 "분명 적었는데 아무 일도 안 일어난다"로 보였다. 저장은 그대로
-         * 허용하되(입력 자체를 막지는 않는다) 그 사실만 입력칸에 남긴다.
+         * Fields with no roll moment (HP, initiative — derived values permanently shown on the
+         * sheet) do have their dice absorbed to 0 by prepareData. That used to happen with no
+         * indication at all, reading as "I definitely typed it and nothing happens". Saving is
+         * still allowed — the input is never blocked — the fact is merely recorded on the field.
          * @see ROLL_TIME_KEYS
          */
         validateDeterministicFormula: function(formula, attributeKey = null) {
@@ -54,19 +54,19 @@
         },
 
         /**
-         * "행동 시점에 굴리는" 어트리뷰트 키 목록 — 다이스식을 숫자로 동결하지 않고 원문으로 보존한다.
-         * 여기 없는 키는 시트에 상시 표시되는 결정론적 파생치(hp/init/이동력 등)라서
-         * 다이스식을 넣어도 prepareData가 0으로 흡수한다(액터 갱신마다 값이 흔들리면 안 되므로).
+         * Attribute keys "rolled at action time" — their dice formulas are kept as text, not frozen to a number.
+         * A key not listed here is a deterministic derived value shown permanently on the sheet
+         * (hp/init/movement), so prepareData absorbs its dice to 0 — such a value must not wobble on every actor update.
          *
-         * 이 목록은 actor.js(_indexAppliedEffects) / universal-apply.js / dx3rd-applied-toggle.js가
-         * 각자 복제해 갖고 있었고, 한 곳만 고치면 채널마다 동작이 갈렸다(reduce/guard/armor 누락 사고).
-         * 반드시 이 상수 한 곳만 수정할 것.
+         * actor.js (_indexAppliedEffects), universal-apply.js and dx3rd-applied-toggle.js each used
+         * to keep their own copy, and fixing one made the channels diverge (reduce/guard/armor went missing).
+         * Edit this one constant and nothing else.
          */
         ROLL_TIME_KEYS: new Set([
             'attack',
-            // 방어 시점(방어 다이얼로그)에 굴리는 값 필드
+            // Rolled at defense time (in the defense dialog)
             'guard', 'armor', 'reduce',
-            // 관통은 공격자 값이라 명중 판정 시점에 굴려 숫자로 굳혀 방어 창까지 넘긴다
+            // Penetration is the attacker's, so it is rolled at accuracy time and reaches the defense dialog as a number
             'penetrate',
             'dice', 'add', 'critical',
             'major_dice', 'major_add', 'major_critical',
@@ -75,7 +75,7 @@
             'stat_bonus', 'stat_dice', 'stat_add', 'cast_dice', 'cast_add'
         ]),
 
-        /** key 가 행동 시점 굴림 대상인지. @see ROLL_TIME_KEYS */
+        /** Whether a key is rolled at action time. @see ROLL_TIME_KEYS */
         isRollTimeKey: function(key) {
             return this.ROLL_TIME_KEYS.has(key);
         },
@@ -84,7 +84,7 @@
             return typeof formula === 'string' && /(?:^|[^a-z0-9_])\d*\s*d\s*\d+(?=$|[^a-z0-9_])/i.test(formula);
         },
 
-        /** 참조를 치환한 Foundry Roll 수식. prepareData에서는 이 값을 굴리지 않는다. */
+        /** A Foundry Roll formula with references substituted. prepareData never rolls this. */
         prepareRollFormula: function(formula, item = null, actor = null) {
             if (formula === null || formula === undefined || formula === '') return '0';
             let result = String(formula).trim().replace(/×/g, '*').replace(/÷/g, '/');
@@ -93,10 +93,10 @@
         },
 
         /**
-         * 행동 시점용 비동기 해석기.
-         * 일반 산술식은 기존 evaluate와 같은 값을 돌려주고, 다이스식은 Foundry 코어 Roll로
-         * 정확히 한 번 굴린다. 호출자는 반환된 roll을 채팅 메시지에 포함시켜 같은 행동 안에서
-         * 결과를 재사용해야 한다.
+         * Asynchronous resolver, for action time.
+         * Plain arithmetic returns exactly what evaluate() would; a dice formula is rolled through
+         * Foundry's core Roll exactly once. Callers must put the returned roll into the chat message
+         * and reuse that result within the same action.
          */
         evaluateRoll: async function(formula, item = null, actor = null) {
             const prepared = this.prepareRollFormula(formula, item, actor);
@@ -112,11 +112,11 @@
             }
         },
 
-        // 순환 참조 검증 함수
+        // Circular-reference validation
         validateCircularReference: function(formula, label, actor = null, attributeType = null) {
             if (!formula || !label) return { valid: true };
             
-            // stat_add와 stat_dice는 순환 참조가 발생하지 않으므로 검증 스킵
+            // stat_add and stat_dice cannot create a cycle, so skip the check
             if (attributeType === 'stat_add' || attributeType === 'stat_dice') {
                 return { valid: true };
             }
@@ -124,7 +124,7 @@
             const formulaStr = String(formula).trim();
             const labelLower = label.toLowerCase();
             
-            // 기본 능력치 체크
+            // Base attributes
             const abilities = {
                 'body': game.i18n.localize('DX3rd.Body'),
                 'sense': game.i18n.localize('DX3rd.Sense'),
@@ -132,10 +132,10 @@
                 'social': game.i18n.localize('DX3rd.Social')
             };
             
-            // Label이 능력치인 경우
+            // The label names an attribute
             for (const [key, localizedName] of Object.entries(abilities)) {
                 if (labelLower === key) {
-                    // [body] 또는 [육체] 패턴 확인
+                    // Look for the [body] pattern, or its localized equivalent
                     const keyPattern = new RegExp(`\\[${key}\\]`, 'i');
                     const namePattern = new RegExp(`\\[${this.escapeRegex(localizedName)}\\]`, 'i');
                     
@@ -150,7 +150,7 @@
                 }
             }
             
-            // Label이 스킬인 경우 (기본 스킬 + 액터의 커스텀 스킬)
+            // The label names a skill (the defaults, plus the actor's custom skills)
             const defaultSkills = {
                 'melee': game.i18n.localize('DX3rd.melee'),
                 'evade': game.i18n.localize('DX3rd.evade'),
@@ -163,7 +163,7 @@
                 'procure': game.i18n.localize('DX3rd.procure')
             };
             
-            // 기본 스킬 체크
+            // Default skills
             for (const [key, localizedName] of Object.entries(defaultSkills)) {
                 if (labelLower === key) {
                     const keyPattern = new RegExp(`\\[${this.escapeRegex(key)}\\]`, 'i');
@@ -180,13 +180,13 @@
                 }
             }
             
-            // 액터가 있으면 커스텀 스킬도 체크
+            // With an actor, check the custom skills too
             if (actor && actor.system?.attributes?.skills) {
                 const skills = actor.system.attributes.skills;
                 const labelSkill = skills[label] || skills[labelLower];
                 
                 if (labelSkill) {
-                    // 키로 참조 차단
+                    // Block references by key
                     const keyPattern = new RegExp(`\\[${this.escapeRegex(label)}\\]`, 'i');
                     if (keyPattern.test(formulaStr)) {
                         return { 
@@ -195,7 +195,7 @@
                         };
                     }
                     
-                    // 이름으로 참조 차단
+                    // Block references by name
                     if (labelSkill.name) {
                         let skillName = labelSkill.name;
                         if (skillName.startsWith('DX3rd.')) {
@@ -220,55 +220,55 @@
                 return 0;
             }
             
-            // 이미 숫자인 경우
+            // Already a number
             if (typeof formula === 'number') {
                 return formula;
             }
             
-            // boolean 값인 경우 (true/false는 평가하지 않음, 플래그로 사용되므로 0 반환)
+            // Booleans are flags, not expressions — return 0
             if (typeof formula === 'boolean') {
                 return 0;
             }
             
             let formulaStr = String(formula).trim();
 
-            // 빈 문자열
+            // Empty
             if (formulaStr === '' || formulaStr === '-') {
                 return 0;
             }
 
-            // 순수 숫자 문자열 fast-path: 참조([토큰])가 없으므로 replaceReferences를 건너뛰고 조기 반환.
-            // 아래 line의 simpleNumber 분기와 동일한 값을 반환하므로 동작 보존(대부분의 호출이 여기서 종료됨).
+            // Fast path for a plain numeric string: no [token] references, so replaceReferences is skipped.
+            // It returns exactly what the simpleNumber branch below would, so behavior is unchanged (most calls end here).
             const fastNum = Number(formulaStr);
             if (!isNaN(fastNum)) {
                 return fastNum;
             }
 
-            // 곱셈/나눗셈 기호 정규화 (다단 연산식 지원: [20-(LV×5)], [침식÷10] 등)
+            // Normalize the multiply/divide signs (for compound expressions like [20-(LV×5)])
             formulaStr = formulaStr.replace(/×/g, '*').replace(/÷/g, '/');
 
-            // 참조 치환 ([Lv], [level], [레벨], [body], [육체], [melee], [백병] 등)
+            // Substitute references ([Lv], [level], [body], [melee] and their localized forms)
             if (item || actor) {
                 formulaStr = this.replaceReferences(formulaStr, item, actor);
             }
             
-            // 단순 숫자인 경우
+            // A plain number
             const simpleNumber = Number(formulaStr);
             if (!isNaN(simpleNumber)) {
                 return simpleNumber;
             }
             
-            // min/max 함수 지원 (cap 표현: min(0, -[20-(LV×5)]) / max(0, …) 등)
+            // min/max support, for cap expressions such as min(0, -[20-(LV×5)])
             const evalStr = formulaStr.replace(/\bmin\s*\(/gi, 'Math.min(').replace(/\bmax\s*\(/gi, 'Math.max(');
 
-            // 수식 평가 (안전한 문자만 허용). Math.min/Math.max만 화이트리스트(쉼표=함수 인자 구분).
+            // Evaluate, allowing safe characters only. Math.min/Math.max are the sole whitelist (the comma is their argument separator).
             const stripped = evalStr.replace(/Math\.(?:min|max)/g, '');
             if (/[^0-9+\-*/(),.\s]/.test(stripped)) {
-                // 다이스식은 행동 경로에서 evaluateRoll()/Foundry Roll로 별도 처리한다.
-                // 이 동기 평가기는 수치 미리보기·집계에도 쓰이므로 여기서 다시 경고를
-                // 내지 않고 0을 돌려준다. 실제 굴림 결과에는 영향을 주지 않는다.
+                // Dice formulas are handled on the action path, by evaluateRoll() / Foundry Roll.
+                // This synchronous evaluator also feeds previews and aggregates, so it returns 0
+                // without warning again. The actual roll result is unaffected.
                 if (this.hasDice(formulaStr)) return 0;
-                // boolean 값 "true"/"false" 문자열은 경고하지 않음
+                // Do not warn on the strings "true"/"false"
                 if (formulaStr !== 'true' && formulaStr !== 'false') {
                     console.warn(`DX3rd | Invalid characters in formula: ${formulaStr}`);
                 }
@@ -276,13 +276,13 @@
             }
 
             try {
-                // Function 생성자를 사용한 안전한 평가
+                // Evaluate through the Function constructor
                 const result = new Function(`return ${evalStr}`)();
                 if (isNaN(result) || !isFinite(result)) {
                     console.warn(`DX3rd | Formula evaluation resulted in invalid number: ${formulaStr}`);
                     return 0;
                 }
-                return Math.floor(result); // 정수로 변환
+                return Math.floor(result); // truncate to an integer
             } catch (error) {
                 console.warn(`DX3rd | Formula evaluation error: ${formulaStr}`, error);
                 return 0;
@@ -290,12 +290,12 @@
         },
         
         replaceReferences: function(formulaStr, item, actor) {
-            // 곱셈/나눗셈 기호 정규화 (직접 호출 경로에서도 다단식 지원)
+            // Normalize the multiply/divide signs (compound expressions work on the direct-call path too)
             let result = String(formulaStr).replace(/×/g, '*').replace(/÷/g, '/');
 
-            // 0) [count:이름] / [개수:이름] — 액터가 소지한 '동일 이름' 아이템 개수로 치환.
-            //    연산자 평탄화(2단계)보다 먼저 처리: 이름에 '-' 등이 섞여도 먼저 정수(개수)로 바뀐 뒤
-            //    사칙연산에 참여한다. 예: [count:정신강화수술]*2 → 소지 3개면 6.
+            // 0) [count:name] — substitute how many identically named items the actor holds.
+            //    Runs before the operator flattening in step 2, so a name containing '-' becomes an
+            //    integer first and only then joins the arithmetic. e.g. [count:<name>]*2 → 6 when 3 are held.
             if (actor) {
                 result = result.replace(/\[(?:count|개수)\s*:\s*([^\[\]]+?)\s*\]/gi, (m, name) => {
                     const target = String(name).trim();
@@ -304,8 +304,8 @@
                 });
             }
 
-            // 1) 대괄호로 감싼 단일 토큰 치환 ([Lv], [body], [melee] …) — 기존 동작 보존
-            // [Lv], [level], [레벨] 치환 (아이템 레벨)
+            // 1) Substitute single bracketed tokens ([Lv], [body], [melee] …) — legacy behavior
+            // [Lv] / [level] / the localized form → the item level
             if (item) {
                 const itemLevel = this.getItemLevel(item);
                 result = result.replace(/\[Lv\]/gi, itemLevel);
@@ -313,10 +313,10 @@
                 result = result.replace(/\[레벨\]/g, itemLevel);
             }
 
-            // 1.5) 런타임 입력 토큰 치환 ([소비HP]/[입력]/[입력값]/[input])
-            //    사용 시점에 handleItemUse가 actor._dx3rdRuntimeInput에 걸어둔 플레이어 입력값.
-            //    "소모한 HP만큼", "원하는 만큼 소모하고 그만큼" 같은 변동형 수치를 잇는 통로.
-            //    사용 밖(시트 미리보기 등)에서는 값이 없으므로 0으로 치환한다.
+            // 1.5) Runtime-input tokens ([소비HP] / [입력] / [입력값] / [input])
+            //    The player value handleItemUse parked on actor._dx3rdRuntimeInput at use time.
+            //    This is the channel for variable amounts — "as much HP as you spent", "spend as much as you like".
+            //    Outside a use (sheet previews and the like) there is no value, so it becomes 0.
             if (actor) {
                 const runtimeInput = Number(actor._dx3rdRuntimeInput) || 0;
                 result = result.replace(/\[소비HP\]/gi, runtimeInput);
@@ -324,33 +324,33 @@
                 result = result.replace(/\[input\]/gi, runtimeInput);
             }
 
-            // 액터 능력치/스킬 참조 치환 (대괄호 형태)
+            // Substitute actor attribute/skill references (the bracketed form)
             if (actor) {
                 result = this.replaceActorReferences(result, actor);
             }
 
-            // 2) 다단 연산식 대괄호([20-(LV×5)], [5-LV] 등) 평탄화:
-            //    내부에 연산자가 남은 대괄호는 '식'이므로 내부 토큰을 한 번 더(대괄호 없이) 치환하고
-            //    외곽 []→() 로 바꿔 일반 사칙연산으로 평가되게 한다. (회귀 방지: 식 대괄호에만 적용)
+            // 2) Flatten compound bracketed expressions ([20-(LV×5)], [5-LV], …):
+            //    a bracket still holding an operator is an expression, so its inner tokens are
+            //    substituted once more (bare) and the outer [] becomes (), letting plain arithmetic evaluate it. Only expression brackets are touched.
             result = result.replace(/\[([^\[\]]*[-+*/()][^\[\]]*)\]/g, (m, inner) => {
                 return '(' + this.replaceBareTokens(inner, item, actor) + ')';
             });
 
-            // 3) 대괄호 없이 남은 bare 토큰(Lv/능력치/스킬) 치환.
-            //    → [Lv]*10 뿐 아니라 lv*10, +(lv*n), body+2 처럼 대괄호를 생략해도 동작하게 한다.
-            //    이 시점의 문자열은 위 단계에서 모든 대괄호가 숫자/괄호식으로 치환된 뒤이므로
-            //    남은 것은 숫자·연산자·(미치환) bare 토큰뿐이다. replaceBareTokens는 단어 경계로만
-            //    치환하므로 이미 치환된 숫자는 건드리지 않는다(회귀 안전).
+            // 3) Substitute the bare tokens left over (Lv / attributes / skills).
+            //    This makes lv*10, +(lv*n) and body+2 work as well as [Lv]*10.
+            //    By now every bracket has become a number or a parenthesized expression, so what
+            //    remains is numbers, operators, and unsubstituted bare tokens. replaceBareTokens
+            //    only matches on word boundaries, so already-substituted numbers are left alone.
             result = this.replaceBareTokens(result, item, actor);
 
             return result;
         },
 
-        // 대괄호 없는 토큰을 치환 (다단 연산식 내부 전용).
-        // 영문 키는 단어경계(\b)로, 한글 이름은 길이 내림차순(부분일치 방지)으로 치환한다.
+        // Substitute unbracketed tokens (used inside compound expressions).
+        // English keys match on word boundaries; localized names are substituted longest-first, to avoid partial matches.
         replaceBareTokens: function(inner, item, actor) {
             let s = inner;
-            // 런타임 입력 토큰(대괄호 없는 형태) — 다단 연산식 내부([소비HP*2] 등) 대응
+            // Runtime-input tokens, unbracketed — for use inside compound expressions ([소비HP*2] and the like)
             if (actor) {
                 const runtimeInput = Number(actor._dx3rdRuntimeInput) || 0;
                 s = s.replace(/소비HP/gi, runtimeInput).replace(/입력값?/g, runtimeInput).replace(/\binput\b/gi, runtimeInput);
@@ -361,7 +361,7 @@
             }
             if (actor && actor.system?.attributes) {
                 const attrs = actor.system.attributes;
-                // 능력치 (key + 로컬라이즈 이름)
+                // Attributes (key plus localized name)
                 const abilities = { body: 'DX3rd.Body', sense: 'DX3rd.Sense', mind: 'DX3rd.Mind', social: 'DX3rd.Social' };
                 for (const [key, locKey] of Object.entries(abilities)) {
                     const a = attrs[key];
@@ -370,7 +370,7 @@
                     const loc = game.i18n.localize(locKey);
                     if (loc && loc !== locKey) s = s.split(loc).join(v);
                 }
-                // 스킬 (이름 길이 내림차순으로 부분일치 방지)
+                // Skills (longest name first, to avoid partial matches)
                 const skills = attrs.skills || {};
                 const entries = Object.entries(skills).map(([key, sk]) => {
                     let name = sk?.name || '';
@@ -388,29 +388,29 @@
         
         getItemLevel: function(item) {
             if (!item) return 0;
-            // Effect/Psionic 아이템만 레벨 있음
+            // Only effect/psionic items have a level
             if (item.type === 'effect' || item.type === 'psionic') {
                 if (item.type === 'effect' && window.DX3rdEffectLevel) {
                     return window.DX3rdEffectLevel.value(item, item.actor);
                 }
                 const lvl = item.system?.level || {};
-                // 실제 소유 아이템(액터 보유)인 이펙트는 침식률 레벨을 동적으로 계산한다.
-                // level.value는 이펙트 시트의 레벨 필드를 편집할 때(_onLevelChange)만 저장되므로
-                // 침식률이 변동하면 캐시값이 뒤처져 콤보 등에서 레벨이 잘못 적용된다.
+                // An effect actually owned by an actor computes its encroachment level dynamically.
+                // level.value is only written when the sheet's level field is edited (_onLevelChange),
+                // so as encroachment moves the cached value falls behind and combos apply a wrong level.
                 const actor = item.actor;
                 if (item.type === 'effect' && lvl.upgrade && actor) {
                     const init = Number(lvl.init) || 0;
-                    // Finding E: 아이템 사용 중에는 '코스트 반영 전' 고정 침식 레벨을 우선한다.
-                    // (handleItemUse가 actor._dx3rdUsageEncLevel에 스냅샷을 걸어둔다.
-                    //  이미 발동한 이펙트가 자신의 침식 코스트로 레벨이 오르는 것을 방지.)
-                    //  플래그가 없으면(사용 밖) 실시간 침식 레벨을 그대로 읽는다.
+                    // Finding E: during an item use, the pre-cost frozen encroachment level wins.
+                    // (handleItemUse parks that snapshot on actor._dx3rdUsageEncLevel, so an effect
+                    //  already firing cannot gain a level from its own encroachment cost.)
+                    //  Without the flag — that is, outside a use — the live encroachment level is read.
                     const frozen = actor._dx3rdUsageEncLevel;
                     const encLevel = (frozen !== undefined && frozen !== null)
                         ? Number(frozen) || 0
                         : Number(actor.system?.attributes?.encroachment?.level) || 0;
                     return init + encLevel;
                 }
-                // 액터 컨텍스트가 없는 임시 아이템이거나 upgrade가 아니면 저장된 value(없으면 init) 사용
+                // A temporary item with no actor context, or one without upgrade, uses the stored value (falling back to init)
                 return Number(lvl.value ?? lvl.init) || 0;
             }
             return 0;
@@ -420,12 +420,12 @@
             let result = formulaStr;
             const attrs = actor.system?.attributes;
             if (!attrs) {
-                // prepareData 실행 중 일시적으로 발생할 수 있으므로 경고 제거
+                // This can happen transiently during prepareData, so it warns about nothing
                 return result;
             }
             
-            // 능력치 참조 치환 (key와 로컬라이징된 이름 모두 지원)
-            // 주의: total을 사용하면 순환 참조 가능성이 있으므로 기본값만 참조
+            // Substitute attribute references (both the key and the localized name)
+            // total is used when already computed; otherwise only the base components are summed (no cycle)
             const abilities = {
                 'body': { key: 'body', localized: game.i18n.localize('DX3rd.Body') },
                 'sense': { key: 'sense', localized: game.i18n.localize('DX3rd.Sense') },
@@ -437,41 +437,41 @@
                 const abilityData = attrs[key];
                 let value = 0;
                 if (abilityData) {
-                    // total이 이미 계산되어 있으면 사용
+                    // Use total when it has already been computed
                     if (abilityData.total !== undefined) {
                         value = abilityData.total;
                     } else {
-                        // total이 없으면 즉시 계산 (point + bonus + extra만, 순환 참조 방지)
+                        // Otherwise compute it now from point + bonus + extra alone, to avoid a cycle
                         value = (abilityData.point || 0) + (abilityData.bonus || 0) + (abilityData.extra || 0);
                     }
                 }
                 
-                // Key로 참조 (대소문자 무시, 대괄호 이스케이프)
+                // By key (case-insensitive; the brackets are escaped)
                 const keyPattern = `\\[${this.escapeRegex(key)}\\]`;
                 const keyRegex = new RegExp(keyPattern, 'gi');
                 result = result.replace(keyRegex, value);
                 
-                // 로컬라이징된 이름으로 참조
+                // By localized name
                 const localizedPattern = `\\[${this.escapeRegex(info.localized)}\\]`;
                 const localizedRegex = new RegExp(localizedPattern, 'g');
                 result = result.replace(localizedRegex, value);
             }
             
-            // 스킬 참조 치환 (key와 name 모두 지원)
+            // Substitute skill references (by key and by name)
             const skills = attrs.skills || {};
             
             for (const [key, skill] of Object.entries(skills)) {
-                // total 값 사용 (순환 참조는 검증 함수로 차단됨)
+                // Use total (cycles are blocked by the validation function)
                 let value = 0;
                 if (skill) {
-                    // total이 이미 계산되어 있으면 사용 (0이어도 계산된 값임)
+                    // Use total when computed — 0 is still a computed value
                     if (skill.total !== undefined) {
                         value = skill.total;
                     } else {
-                        // 아직 계산 안 됐으면 즉시 계산 (point + bonus + extra + works)
+                        // Not computed yet: sum point + bonus + extra + works now
                         value = (skill.point || 0) + (skill.bonus || 0) + (skill.extra || 0);
                         
-                        // Works 보너스 추가
+                        // Add the works bonus
                         const worksItems = actor.items?.filter(item => item.type === 'works') || [];
                         for (const worksItem of worksItems) {
                             if (worksItem.system?.skills?.[key]?.apply && worksItem.system.skills[key].add) {
@@ -481,20 +481,20 @@
                     }
                 }
                 
-                // Key로 참조 (대소문자 무시, 대괄호 이스케이프)
+                // By key (case-insensitive; the brackets are escaped)
                 const keyPattern = `\\[${this.escapeRegex(key)}\\]`;
                 const keyRegex = new RegExp(keyPattern, 'gi');
                 result = result.replace(keyRegex, value);
                 
-                // Name으로 참조
+                // By name
                 if (skill && skill.name) {
                     let skillName = skill.name;
-                    // DX3rd.로 시작하면 로컬라이징
+                    // Localize when it starts with DX3rd.
                     if (skillName.startsWith('DX3rd.')) {
                         skillName = game.i18n.localize(skillName);
                     }
                     
-                    // 이름으로 참조 (정확히 일치하는 경우만, 대괄호 이스케이프)
+                    // By name, exact match only (the brackets are escaped)
                     const namePattern = `\\[${this.escapeRegex(skillName)}\\]`;
                     const nameRegex = new RegExp(namePattern, 'g');
                     result = result.replace(nameRegex, value);
@@ -509,56 +509,56 @@
         }
     };
 
-    // evalFormula 헬퍼 - 수식을 평가하여 값 반환
+    // evalFormula helper — evaluate a formula and return its value
     Handlebars.registerHelper('evalFormula', function(formula, item, actor) {
         if (!formula) return 0;
         return window.DX3rdFormulaEvaluator.evaluate(formula, item, actor);
     });
 
-    // skill 헬퍼 - 스킬 이름을 한글로 변환 (DX3rd.* 키만 로컬라이즈)
+    // skill helper — resolve a skill's display name (only DX3rd.* keys are localized)
     Handlebars.registerHelper('skill', function(skillName) {
         if (!skillName) return '-';
         
-        // 로컬라이징 키인 경우
+        // A localization key
         if (typeof skillName === 'string' && skillName.startsWith('DX3rd.')) {
-            // 스킬 키 추출 (예: "DX3rd.rc" -> "rc")
+            // Extract the skill key, e.g. "DX3rd.rc" -> "rc"
             const skillKey = skillName.replace('DX3rd.', '');
             
-            // customSkills 설정에서 커스텀 이름 확인
+            // Look for a custom name in the customSkills setting
             const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
             
-            // 커스텀 이름이 있으면 우선 사용
+            // A custom name wins
             if (customSkills[skillKey]) {
-                // 객체 형식 또는 문자열 형식 모두 지원
+                // Both the object and the string shape are supported
                 return typeof customSkills[skillKey] === 'object' 
                     ? customSkills[skillKey].name 
                     : customSkills[skillKey];
             }
             
-            // 커스텀 이름이 없으면 기본 로컬라이징
+            // No custom name: fall back to plain localization
         return game.i18n.localize(skillName);
         }
         
-        // 이미 커스텀 이름인 경우 그대로 반환
+        // Already a custom name — return it as-is
         return skillName;
     });
 
-    // 스킬 정렬 헬퍼
+    // Skill sorting helper
     Handlebars.registerHelper('sortSkills', function(skills, abilityId) {
         if (!skills) return [];
         const orderArr = fixedOrder[abilityId] || [];
-        // 1. 고정 순서 스킬
+        // 1. Skills in the fixed order
         const fixed = orderArr
             .map(key => [key, skills[key]])
             .filter(([_, skill]) => skill && skill.base === abilityId);
-        // 2. 나머지(추가된) 스킬 — 기본 기능 바로 아래에 LV(total) 높은 순으로 정렬
+        // 2. The rest (added skills) — right below the defaults, sorted by LV (total) descending
         const rest = Object.entries(skills)
             .filter(([key, skill]) => skill.base === abilityId && !orderArr.includes(key))
             .sort((a, b) => {
                 const lvA = Number(a[1].total) || 0;
                 const lvB = Number(b[1].total) || 0;
-                if (lvB !== lvA) return lvB - lvA; // 높은 LV 우선
-                // 동일 LV: 기존 order → 이름 순으로 안정적 정렬
+                if (lvB !== lvA) return lvB - lvA; // higher LV first
+                // Same LV: stable sort by the existing order, then by name
                 if (a[1].order !== undefined && b[1].order !== undefined) {
                     return a[1].order - b[1].order;
                 }
@@ -580,53 +580,53 @@
         return Number(a) - Number(b);
     });
 
-    // timing 헬퍼 - 타이밍 값을 한글로 변환
+    // timing helper — localize a timing value
     Handlebars.registerHelper('timing', function(arg) {
         if (!arg || arg === '-') return '-';
         return game.i18n.localize(`DX3rd.${arg.charAt(0).toUpperCase() + arg.slice(1)}`);
     });
 
-    // skillByKey 헬퍼 - 액터의 스킬 키로 스킬 이름 반환
+    // skillByKey helper — resolve a skill name from the actor's skill key
     Handlebars.registerHelper('skillByKey', function(actor, key) {
         if (!actor || !key || key === '-') return '-';
         const skill = actor.system?.attributes?.skills?.[key];
         if (!skill) {
-            // 스킬이 없으면 기본 속성 체크
+            // No such skill: try the base attributes
             const attributes = ['body', 'sense', 'mind', 'social'];
             if (attributes.includes(key)) {
                 return game.i18n.localize(`DX3rd.${key.charAt(0).toUpperCase() + key.slice(1)}`);
             }
-            // 신드롬 체크
+            // Syndrome
             if (key === 'syndrome') {
                 return game.i18n.localize('DX3rd.Syndrome');
             }
             return key;
         }
-        // 스킬 이름이 DX3rd.로 시작하면 로컬라이징
+        // Localize when the skill name starts with DX3rd.
         if (skill.name && skill.name.startsWith('DX3rd.')) {
             return game.i18n.localize(skill.name);
         }
         return skill.name || key;
     });
 
-    // system.skill은 기존 롤/조합 경로용 대표 기능으로 유지한다. 이 헬퍼는
-    // 원본에 명시된 "백병/사격" 등의 복수 허용 기능을 표시할 때 사용한다.
+    // system.skill stays the representative skill for the existing roll/combination paths. This
+    // helper is for displaying the multiple allowed skills the source text names ("melee/ranged").
     Handlebars.registerHelper('skillChoicesByKey', function(actor, keys) {
         const values = Array.isArray(keys) ? keys : [];
         if (!values.length) return '-';
         return values.map(key => Handlebars.helpers.skillByKey(actor, key)).join(' / ');
     });
 
-    // ========== 어트리뷰트 관리 유틸리티 함수들 ========== //
+    // ========== Attribute management utilities ========== //
     /**
-     * 스킬 그룹 매칭 헬퍼
+     * Skill-group matcher
      */
     window.DX3rdSkillGroupMatcher = {
         /**
-         * 스킬이 특정 그룹에 속하는지 확인
-         * @param {string} skillKey - 스킬 키
-         * @param {string} groupLabel - 그룹 라벨 (drive, ars, know, info)
-         * @returns {boolean} 그룹에 속하는지 여부
+         * Whether a skill belongs to a given group
+         * @param {string} skillKey - the skill key
+         * @param {string} groupLabel - the group label (drive, ars, know, info)
+         * @returns {boolean}
          */
         isSkillInGroup(skillKey, groupLabel) {
             if (!skillKey || !groupLabel) return false;
@@ -642,7 +642,7 @@
                     return skillKeyLower.startsWith('ars');
                     
                 case 'know':
-                    // know로 시작하거나 cthulhu 스킬
+                    // Starts with know, or is the cthulhu skill
                     return skillKeyLower.startsWith('know') || skillKeyLower === 'cthulhu';
                     
                 case 'info':
@@ -656,10 +656,10 @@
 
     window.DX3rdAttributeManager = {
         /**
-         * 어트리뷰트 생성
-         * @param {Object} item - 아이템 객체
-         * @param {string} position - 'main' (system.attributes) 또는 'sub' (system.effect.attributes)
-         * @returns {Promise} 업데이트 결과
+         * Create an attribute row
+         * @param {Object} item - the item
+         * @param {string} position - 'main' (system.attributes) or 'sub' (system.effect.attributes)
+         * @returns {Promise} the update result
          */
         async createAttribute(item, position = 'main', action = '') {
             const attributeKey = foundry.utils.randomID();
@@ -667,8 +667,8 @@
                 ? `system.attributes.${attributeKey}`
                 : `system.effect.attributes.${attributeKey}`;
 
-            // action: '' = 채널 기본 버킷(기본 발현 액션 상속). 값이 있으면 그 발현 액션의
-            // 명시 버킷에 들어간다 — 확장 도구에서 지금 펴 둔 카드가 정한다(item-effect-adapter 참조).
+            // action: '' means the channel's default bucket (inheriting its trigger action). A value
+            // puts the row in that action's explicit bucket — the card currently open in the extend tool decides (see item-effect-adapter).
             const newAttribute = {
                 key: '-',
                 label: '-',
@@ -682,11 +682,11 @@
         },
 
         /**
-         * 어트리뷰트 삭제
-         * @param {Object} item - 아이템 객체
-         * @param {string} attributeKey - 삭제할 어트리뷰트 키
-         * @param {string} position - 'main' 또는 'sub'
-         * @returns {Promise} 업데이트 결과
+         * Delete an attribute row
+         * @param {Object} item - the item
+         * @param {string} attributeKey - the attribute key to remove
+         * @param {string} position - 'main' or 'sub'
+         * @returns {Promise} the update result
          */
         async deleteAttribute(item, attributeKey, position = 'main') {
             const parentPath = position === 'main'
@@ -706,10 +706,10 @@
         },
 
         /**
-         * 어트리뷰트 라벨 업데이트 (동적으로 input/select 변경)
-         * @param {HTMLElement|jQuery} row - 어트리뷰트 행 요소
-         * @param {Object} item - 아이템 객체
-         * @param {string} position - 'main' 또는 'sub'
+         * Update an attribute's label control (swapping between input and select)
+         * @param {HTMLElement|jQuery} row - the attribute row element
+         * @param {Object} item - the item
+         * @param {string} position - 'main' or 'sub'
          */
         async updateAttributeLabel(row, item, position = 'main') {
             const dom = window.DX3rdApplicationCompat;
@@ -760,13 +760,13 @@
             };
 
             if (selectedKey === 'attack' || selectedKey === 'guard') {
-                // 공격력·가드치 행에서만 이 칸은 「능력치/기능」이 아니라 **무기 종류**다. 열
-                // 헤더는 한 벌뿐인데 한 목록에 키가 다른 행이 섞이므로 헤더로는 그 사실을 알릴
-                // 수 없다 — 그래서 옵션 글자 자체가 뜻을 말하게 하고(`-` 를 「전체」로 보여 준다)
-                // 툴팁을 단다. 저장값은 그대로 `-`/melee/ranged/fist 이며, actor.js 의
-                // `R.bucket('<키>', ['melee','ranged','fist'])` 가 이 라벨로 버킷을 가른다.
-                // 두 키의 목록이 같은 것은 의도다 — 갈라 두면 「맨손의 공격력과 가드치에 각각
-                // +N」(강인한 골격 등) 한 문장을 두 가지 어휘로 저작하게 된다.
+                // On attack and guard rows alone this field is not an attribute/skill but a **weapon
+                // type**. There is only one column header while rows of different keys share the list,
+                // so the header cannot convey that — instead the option text itself says it (`-` shows
+                // as "all") and a tooltip is attached. The stored value is still `-`/melee/ranged/fist,
+                // and actor.js's `R.bucket('<key>', ['melee','ranged','fist'])` splits the buckets by it.
+                // The two keys sharing one list is deliberate: splitting them would force a single
+                // sentence like "+N to both the attack and the guard of the fist" into two vocabularies.
                 if (labelElement.matches('input')) {
                     const select = createSelect();
                     select.title = game.i18n.localize(selectedKey === 'attack'
@@ -774,23 +774,23 @@
                     addOption(select, '-', game.i18n.localize('DX3rd.AttackTypeAll'));
                     addOption(select, 'melee', game.i18n.localize('DX3rd.Melee'));
                     addOption(select, 'ranged', game.i18n.localize('DX3rd.Ranged'));
-                    // 맨손 한정(축퇴기관·특수장갑의수 등). 런타임(`attrs.attack.fist`)은 처음부터
-                    // 있었으나 이 목록에 없어 저작할 방법이 없었다 — 그래서 실측 0건이었다.
+                    // Fist-only (Degeneration Organ, the prosthetic arm, …). The runtime side
+                    // (`attrs.attack.fist`) always existed, but it was absent from this list so there was no way to author it — hence 0 occurrences in the data.
                     addOption(select, 'fist', game.i18n.localize('DX3rd.Fist'));
-                    // 저장값이 이 넷 중에 없으면(빌더가 키 이름을 라벨에 복사해 둔 옛 데이터 등)
-                    // 브라우저가 첫 항목을 보여 주는 대신 뜻이 같은 `-`(전체)로 명시해 맞춘다.
-                    // 그러지 않으면 칸이 빈 채로 보이고, 한 번 건드리는 것만으로 뜻이 바뀐다.
+                    // When the stored value is none of these four (old data where the builder copied
+                    // the key name into the label), pin it to the equivalent `-` (all) rather than let
+                    // the browser show the first option — otherwise the field looks blank, and one touch changes its meaning.
                     select.value = ['-', 'melee', 'ranged', 'fist'].includes(currentValue) ? currentValue : '-';
                     bindLabelUpdate(select);
                     labelElement.replaceWith(select);
                 }
             } else if (statKeys.includes(selectedKey)) {
-                // stat 관련 키인 경우 드롭다운으로 변경
+                // A stat key: turn the field into a dropdown
                 if (labelElement.matches('input')) {
                     const select = createSelect();
                     addOption(select, '-', '-');
 
-                    // 스킬 그룹과 능력치 매핑
+                    // Skill group per attribute
                     const skillGroupByAttribute = {
                         'body': 'drive',
                         'sense': 'ars',
@@ -798,7 +798,7 @@
                         'social': 'info'
                     };
 
-                    // 능력치별로 옵션 구성
+                    // Build the options attribute by attribute
                     const attributes = ['body', 'sense', 'mind', 'social'];
                     const skills = item.actor?.system?.attributes?.skills || {};
                     const hasActor = item.actor && Object.keys(skills).length > 0;
@@ -822,19 +822,19 @@
                         'procure': 'DX3rd.procure'
                     };
                     
-                    // 커스텀 스킬 설정 가져오기 (액터 없을 때 사용)
+                    // The customSkills setting (used when there is no actor)
                     const customSkills = game.settings?.get("dx3rd-emanim", "customSkills") || {};
 
                     attributes.forEach(attr => {
-                        // 능력치 옵션 추가
+                        // The attribute option itself
                         const localizedAttrName = game.i18n.localize(`DX3rd.${attr.charAt(0).toUpperCase() + attr.slice(1)}`);
                         addOption(select, attr, localizedAttrName);
                         
-                        // 해당 능력치의 기본 스킬들 추가
+                        // That attribute's default skills
                         const defaultSkillList = defaultSkillsByAttr[attr] || [];
                         defaultSkillList.forEach(skillKey => {
                             if (hasActor) {
-                                // 액터가 있으면 액터의 스킬 데이터 사용
+                                // With an actor, use the actor's own skill data
                                 const skillData = skills[skillKey];
                                 if (skillData && skillData.base === attr) {
                                     const skillName = skillData.name.startsWith('DX3rd.') 
@@ -843,7 +843,7 @@
                                     addOption(select, skillKey, skillName);
                                 }
                             } else {
-                                // 액터가 없으면 커스텀 스킬 설정 확인 후 기본 스킬 이름 사용
+                                // Without one, check the customSkills setting, then the default name
                                 let skillName;
                                 if (customSkills[skillKey]) {
                                     skillName = typeof customSkills[skillKey] === 'object' 
@@ -856,14 +856,14 @@
                             }
                         });
                         
-                        // stat_add/stat_dice인 경우 해당 능력치의 스킬 그룹 옵션 추가
+                        // stat_add / stat_dice also offer that attribute's skill-group option
                         if ((selectedKey === 'stat_add' || selectedKey === 'stat_dice') && skillGroupByAttribute[attr]) {
                             const groupKey = skillGroupByAttribute[attr];
                             const groupName = game.i18n.localize(`DX3rd.${groupKey}`);
                             addOption(select, groupKey, groupName);
                         }
                         
-                        // 해당 능력치의 커스텀 스킬들 추가 (액터가 있을 때만)
+                        // That attribute's custom skills (only when there is an actor)
                         if (hasActor) {
                             Object.entries(skills).forEach(([skillKey, skillData]) => {
                                 if (skillData && skillData.base === attr && !defaultSkillList.includes(skillKey)) {
@@ -881,7 +881,7 @@
                     labelElement.replaceWith(select);
                 }
             } else {
-                // stat 관련 키가 아닌 경우 비활성화된 input으로 변경
+                // Not a stat key: turn the field into a disabled input
                 if (labelElement.matches('select')) {
                     const input = document.createElement('input');
                     input.type = 'text';
@@ -895,9 +895,9 @@
         },
 
         /**
-         * 스킬을 능력치별로 정렬
-         * @param {Object} skills - 스킬 객체
-         * @returns {Array} 정렬된 스킬 배열
+         * Sort skills by attribute
+         * @param {Object} skills - the skills object
+         * @returns {Array} the sorted skill entries
          */
         sortSkillsByAttribute(skills) {
             const fixedOrder = {
@@ -911,7 +911,7 @@
             const attributes = ['body', 'sense', 'mind', 'social'];
 
             attributes.forEach(attr => {
-                // 고정 순서 스킬
+                // Skills in the fixed order
                 const fixedSkills = fixedOrder[attr] || [];
                 fixedSkills.forEach(skillKey => {
                     if (skills[skillKey] && skills[skillKey].base === attr) {
@@ -919,7 +919,7 @@
                     }
                 });
 
-                // 나머지 스킬
+                // The remaining skills
                 Object.entries(skills)
                     .filter(([key, skill]) => 
                         skill.base === attr && 
@@ -940,13 +940,13 @@
         },
 
         /**
-         * 시트 렌더링 후 어트리뷰트 라벨 초기화
-         * @param {HTMLElement|jQuery} html - HTML 요소
-         * @param {Object} item - 아이템 객체
+         * Initialize the attribute labels after the sheet renders
+         * @param {HTMLElement|jQuery} html - the rendered element
+         * @param {Object} item - the item
          */
         async initializeAttributeLabels(html, item) {
             const dom = window.DX3rdApplicationCompat;
-            // 행마다 data-pos 를 들고 있다(한 목록에 자신/대상 버킷의 행이 섞여 있다).
+            // Every row carries a data-pos — the self and target buckets share one list.
             const mainUpdates = dom.queryAll(html, '.attribute[data-pos="main"]')
                 .map(element => window.DX3rdAttributeManager.updateAttributeLabel(element, item, 'main'));
 
@@ -957,36 +957,36 @@
         }
     };
 
-    // ========== 무기 탭 관리 유틸리티 함수들 ========== //
+    // ========== Weapon tab utilities ========== //
     window.DX3rdWeaponTabManager = {
         /**
-         * 무기 탭 데이터 준비 (getData에서 호출)
-         * @param {Object} data - 시트 데이터
-         * @param {Object} item - 아이템 객체
-         * @returns {Object} 무기 탭 데이터가 추가된 data
+         * Prepare the weapon tab data (called from getData)
+         * @param {Object} data - the sheet data
+         * @param {Object} item - the item
+         * @returns {Object} data, with the weapon tab fields added
          */
         prepareWeaponTabData(data, item) {
-            // 무기 관련 데이터 초기화 (undefined일 때만 설정, 빈 문자열도 유효한 값으로 간주)
+            // Seed the weapon fields only when undefined — an empty string is a valid value
             if (data.system.weaponTmp === undefined) data.system.weaponTmp = item.system?.weaponTmp || "-";
             if (data.system.weapon === undefined) data.system.weapon = item.system?.weapon || [];
             if (data.system.weaponItems === undefined) data.system.weaponItems = {};
             if (data.system.attackRoll === undefined) data.system.attackRoll = item.system?.attackRoll || "-";
             if (data.system.weaponSelect === undefined) data.system.weaponSelect = item.system?.weaponSelect || false;
 
-            // 액터 무기 아이템 목록 생성 (무기 + 비클, sort 값으로 정렬)
+            // Build the actor's weapon list (weapons + vehicles, ordered by sort)
             data.actorWeapon = {};
-            // 가상 무기(「무기 없음」)는 여기에 넣지 않는다 — 이 드롭다운에는 이미 같은 뜻의
-            // 정적 `-` 옵션이 있고, 등록해 봐야 수치 기여가 0 이라 목록만 흐려진다.
-            // 그 한 장은 공격 시 무기 선택 다이얼로그에서만 쓴다.
+            // The virtual weapon ("no weapon") is not listed here — this dropdown already has an
+            // equivalent static `-` option, and registering it contributes nothing but noise.
+            // That single row is used only by the attack-time weapon picker.
             if (item.actor) {
-                // 무기 먼저 추가 (sort 값으로 정렬)
+                // Weapons first (ordered by sort)
                 const weaponItems = item.actor.items.filter(i => i.type === 'weapon')
                     .sort((a, b) => (a.sort || 0) - (b.sort || 0));
                 weaponItems.forEach(w => {
                     data.actorWeapon[w.id] = w.name;
                 });
                 
-                // 비클 추가 (sort 값으로 정렬)
+                // Then vehicles (ordered by sort)
                 const vehicleItems = item.actor.items.filter(i => i.type === 'vehicle')
                     .sort((a, b) => (a.sort || 0) - (b.sort || 0));
                 vehicleItems.forEach(v => {
@@ -994,11 +994,11 @@
                 });
             }
 
-            // 선택된 무기 아이템들 정보 가져오기
+            // Resolve the selected weapon items
             if (Array.isArray(data.system.weapon)) {
                 data.system.weapon.forEach((weaponId) => {
                     if (weaponId && weaponId !== '-') {
-                        // 액터의 무기/비클 아이템 또는 가상(월드) 무기에서 찾기
+                        // Look in the actor's weapons/vehicles, or among the virtual (world) weapons
                         const weaponOrVehicleItem = window.DX3rdResolveWeapon?.(item.actor, weaponId) || item.actor?.items.get(weaponId);
                         if (weaponOrVehicleItem && (weaponOrVehicleItem.type === 'weapon' || weaponOrVehicleItem.type === 'vehicle')) {
                             data.system.weaponItems[weaponId] = weaponOrVehicleItem;
@@ -1011,18 +1011,18 @@
         },
 
         /**
-         * 무기 탭 이벤트 리스너 설정
-         * @param {HTMLElement|jQuery} html - 시트 HTML
-         * @param {Object} sheet - 시트 인스턴스
+         * Wire up the weapon tab listeners
+         * @param {HTMLElement|jQuery} html - the sheet root
+         * @param {Object} sheet - the sheet instance
          */
         setupWeaponTabListeners(html, sheet) {
             const dom = window.DX3rdApplicationCompat;
             const cleanups = [];
-            // 무기 추가 버튼
+            // "Add weapon" button
             cleanups.push(dom.on(html, 'click', '.add-weapon', async (event, button) => {
                 event.preventDefault();
-                // 무기 선택 영역의 래퍼 클래스는 시트마다 다르다(.add-skills / .dx3rd-weapon-picker).
-                // 어느 쪽도 못 찾으면 시트 루트에서 직접 찾는다.
+                // The picker's wrapper class differs per sheet (.add-skills / .dx3rd-weapon-picker).
+                // When neither matches, search from the sheet root instead.
                 const picker = button.closest('.add-skills, .dx3rd-weapon-picker') || button.parentElement;
                 const weaponSelect = dom.query(picker, '#actor-weapon') || dom.query(html, '#actor-weapon');
                 const weaponId = weaponSelect?.value;
@@ -1033,23 +1033,23 @@
                 }
 
                 try {
-                    // 현재 무기 배열 가져오기
+                    // The current weapon array
                     const currentWeapons = sheet.item.system.weapon || [];
                     
-                    // 이미 추가된 무기인지 확인
+                    // Already registered?
                     if (currentWeapons.includes(weaponId)) {
                         ui.notifications.warn("이미 추가된 무기입니다.");
                         return;
                     }
 
-                    // 무기 추가
+                    // Append
                     const newWeapons = [...currentWeapons, weaponId];
                     
                     await sheet.item.update({
                         'system.weapon': newWeapons
                     });
 
-                    // 콤보 시트 등에서 무기 추가 직후 후처리(공격 콤보 자동화) 훅
+                    // Post-add hook, e.g. the combo sheet's attack-combo automation
                     if (typeof sheet._onWeaponAdded === 'function') {
                         try { await sheet._onWeaponAdded(weaponId); }
                         catch (e) { console.error('DX3rd | WeaponTabManager - _onWeaponAdded failed', e); }
@@ -1057,7 +1057,7 @@
 
                     ui.notifications.info("무기가 추가되었습니다.");
 
-                    // 시트 다시 렌더링
+                    // Re-render the sheet
                     sheet.render(false);
 
                 } catch (error) {
@@ -1066,7 +1066,7 @@
                 }
             }));
 
-            // 무기 삭제 버튼
+            // "Delete weapon" button
             cleanups.push(dom.on(html, 'click', '.weapon-item .item-control.item-delete', async (event, button) => {
                 event.preventDefault();
                 const weaponId = button.closest('.item')?.dataset.itemId;
@@ -1077,7 +1077,7 @@
                 }
 
                 try {
-                    // 현재 무기 배열에서 제거
+                    // Remove it from the current weapon array
                     const currentWeapons = sheet.item.system.weapon || [];
                     const newWeapons = currentWeapons.filter(id => id !== weaponId);
                     
@@ -1085,7 +1085,7 @@
                         'system.weapon': newWeapons
                     });
 
-                    // 콤보 시트 등에서 무기 삭제 직후 후처리(판정 기능/공격판정 재계산) 훅
+                    // Post-delete hook, e.g. recomputing the combo's skill and attack roll
                     if (typeof sheet._onWeaponRemoved === 'function') {
                         try { await sheet._onWeaponRemoved(weaponId); }
                         catch (e) { console.error('DX3rd | WeaponTabManager - _onWeaponRemoved failed', e); }
@@ -1093,7 +1093,7 @@
 
                     ui.notifications.info("무기가 삭제되었습니다.");
                     
-                    // 시트 다시 렌더링
+                    // Re-render the sheet
                     sheet.render(false);
                     
                 } catch (error) {
@@ -1102,8 +1102,8 @@
                 }
             }));
 
-            // 무기 편집 버튼 - 콤보/이펙트/사이오닉 시트의 무기 행에서 원본 무기 시트를 연다.
-            // (이펙트 행의 편집은 각 시트가 .combo-item:not(.weapon-item) 로 따로 배선한다.)
+            // "Edit weapon" — opens the source weapon's sheet from a weapon row on a combo/effect/psionic sheet.
+            // (Editing an effect row is wired separately per sheet, via .combo-item:not(.weapon-item).)
             cleanups.push(dom.on(html, 'click', '.weapon-item .item-control.item-edit', (event, button) => {
                 event.preventDefault();
                 const weaponId = button.closest('.item')?.dataset.itemId;
@@ -1113,7 +1113,7 @@
                     return;
                 }
 
-                // 가상(월드) 무기는 실제 문서가 아니므로 열 시트가 없다.
+                // A virtual (world) weapon is not a real document, so it has no sheet to open.
                 if (window.DX3rdVirtualWeapons?.isVirtual?.(weaponId)) {
                     ui.notifications.info("가상 무기는 편집할 수 없습니다.");
                     return;
@@ -1131,12 +1131,12 @@
         }
     };
 
-    // ========== 디스크립션 에디터 관리 함수 ========== //
+    // ========== Description editor helpers ========== //
     window.DX3rdDescriptionManager = {
         /**
-         * 디스크립션 에디터를 위한 enrichedBiography 생성
-         * @param {Object} item - 아이템 객체
-         * @param {string} description - 설명 텍스트
+         * Build the enrichedBiography for the description editor
+         * @param {Object} item - the item
+         * @param {string} description - the description text
          * @returns {Promise<string>} enriched HTML
          */
         async createEnrichedBiography(item, description = "") {
@@ -1148,10 +1148,10 @@
         },
 
         /**
-         * 시트 데이터에 enrichedBiography 추가
-         * @param {Object} data - 시트 데이터 객체
-         * @param {Object} item - 아이템 객체
-         * @returns {Promise<Object>} 업데이트된 시트 데이터
+         * Add enrichedBiography to the sheet data
+         * @param {Object} data - the sheet data
+         * @param {Object} item - the item
+         * @returns {Promise<Object>} the updated sheet data
          */
         async enrichSheetData(data, item) {
             if (!data.enrichedBiography) {
@@ -1165,15 +1165,15 @@
     };
 
     /**
-     * 스킬 선택 옵션 관리자
+     * Skill selection option manager
      */
     window.DX3rdSkillManager = {
         /**
-         * 스킬 키로부터 표시 이름 가져오기 (커스텀 스킬 및 로컬라이징 처리).
-         * combo/effect 핸들러가 각자 복제해 두었던 것을 여기로 모았다 — 계통/커스텀 스킬
-         * 라벨이 판정 경로마다 달라지지 않게 하는 것이 목적이다.
+         * Resolve a skill's display name from its key (handling custom skills and localization).
+         * The combo and effect handlers each kept their own copy; they were merged here so that a
+         * category or custom skill's label cannot differ from one roll path to another.
          * @param {string} skillKey
-         * @param {Object} skillStat - 액터의 해당 스킬 데이터
+         * @param {Object} skillStat - the actor's data for that skill
          * @returns {string}
          */
         getSkillDisplayName(skillKey, skillStat) {
@@ -1191,11 +1191,11 @@
         },
 
         /**
-         * 아이템 타입별 스킬 선택 옵션 생성
-         * @param {string} itemType - 아이템 타입 ('effect', 'weapon', 'psionic', 'combo')
-         * @param {Object} actorSkills - 액터의 스킬 데이터
-         * @param {string} actorType - 액터 타입 ('character', 'enemy', etc.)
-         * @returns {Array} 정렬된 스킬 옵션 배열
+         * Build the skill options for an item type
+         * @param {string} itemType - 'effect', 'weapon', 'psionic', 'combo'
+         * @param {Object} actorSkills - the actor's skill data
+         * @param {string} actorType - 'character', 'enemy', etc.
+         * @returns {Array} the sorted skill options
          */
         getSkillSelectOptions(itemType, actorSkills, actorType = null) {
             const options = [];
@@ -1206,10 +1206,10 @@
                 return text;
             };
 
-            // 기본 옵션 추가
+            // The default option
             options.push({ value: '-', label: '-' });
 
-            // 능력치 옵션 추가 (순서: Body, Sense, Mind, Social)
+            // Attribute options (in order: Body, Sense, Mind, Social)
             const attributes = [
                 { value: 'body', label: localizeIfKey('DX3rd.Body') },
                 { value: 'sense', label: localizeIfKey('DX3rd.Sense') },
@@ -1219,13 +1219,13 @@
 
             options.push(...attributes);
 
-            // 에너미인 경우 능력치만 반환
+            // Enemies get the attributes only
             if (actorType === 'enemy') {
                 return options;
             }
 
-            // 액터 스킬 옵션 추가 (능력치별 정렬)
-            // actorSkills가 비어있거나 스킬이 없으면 기본 스킬 사용
+            // Actor skill options, grouped by attribute.
+            // When actorSkills is empty or absent, fall back to the default skills
             const hasSkills = actorSkills && 
                              typeof actorSkills === 'object' && 
                              !Array.isArray(actorSkills) &&
@@ -1233,17 +1233,17 @@
             
             if (hasSkills) {
                 const sortedSkills = this.sortSkillsByAttribute(actorSkills);
-                // 정렬된 스킬 라벨 로컬라이즈
+                // Localize the sorted skill labels
                 sortedSkills.forEach(o => { o.label = localizeIfKey(o.label); });
                 options.push(...sortedSkills);
             } else {
-                // 기본 스킬만 추가 (액터가 없을 때)
+                // Defaults only (there is no actor)
                 const defaultSkills = this.getDefaultSkillOptions();
                 defaultSkills.forEach(o => { o.label = localizeIfKey(o.label); });
                 options.push(...defaultSkills);
             }
 
-            // 이펙트 아이템의 경우 신드롬을 맨 마지막에 추가
+            // Effects get the skill groups and syndrome appended at the very end
             if (itemType === 'effect') {
                 options.push(
                     { value: 'drive', label: localizeIfKey('DX3rd.drive') },
@@ -1258,14 +1258,14 @@
         },
         
         /**
-         * 기본 스킬 옵션 반환 (액터가 없을 때 사용)
-         * @returns {Array} 기본 스킬 옵션 배열 (능력치별로 정렬)
+         * The default skill options (used when there is no actor)
+         * @returns {Array} the default skill options, grouped by attribute
          */
         getDefaultSkillOptions() {
-            // customSkills 설정에서 커스터마이징된 스킬 이름 가져오기
+            // Customized skill names from the customSkills setting
             const customSkills = game.settings?.get("dx3rd-emanim", "customSkills") || {};
             
-            // 기본 스킬을 능력치별로 그룹화
+            // Group the default skills by attribute
             const skillGroups = {
                 body: ['melee', 'evade'],
                 sense: ['ranged', 'perception'],
@@ -1277,9 +1277,9 @@
             const attributeOrder = ['body', 'sense', 'mind', 'social'];
             
             for (const attr of attributeOrder) {
-                // 기본 스킬 추가
+                // The default skills
                 for (const skillKey of skillGroups[attr]) {
-                    // cthulhu는 stageCRC 설정에 따라 추가
+                    // cthulhu depends on the stageCRC setting
                     if (skillKey === 'cthulhu') {
                         const stageCRCEnabled = game.settings?.get("dx3rd-emanim", "stageCRC");
                         if (!stageCRCEnabled) continue;
@@ -1296,13 +1296,13 @@
                     options.push({ value: skillKey, label: skillName });
                 }
                 
-                // 해당 능력치의 커스텀 스킬 추가
+                // That attribute's custom skills
                 for (const [skillKey, skillData] of Object.entries(customSkills)) {
-                    // 기본 스킬이 아닌 경우만
+                    // Non-default skills only
                     const isDefaultSkill = ['melee', 'evade', 'ranged', 'perception', 'rc', 'will', 'cthulhu', 'negotiation', 'procure'].includes(skillKey);
                     if (isDefaultSkill) continue;
                     
-                    // 해당 능력치에 속하는 경우만
+                    // Belonging to this attribute only
                     const skillBase = typeof skillData === 'object' ? skillData.base : 'body';
                     if (skillBase === attr) {
                         const skillName = typeof skillData === 'object' ? skillData.name : skillData;
@@ -1315,15 +1315,15 @@
         },
         
         /**
-         * 액터 스킬을 능력치별로 정렬 (기본 스킬 우선, 추가 스킬 후순위)
-         * @param {Object} actorSkills - 액터의 스킬 데이터
-         * @returns {Array} 정렬된 스킬 옵션 배열
+         * Sort the actor's skills by attribute (defaults first, added skills after)
+         * @param {Object} actorSkills - the actor's skill data
+         * @returns {Array} the sorted skill options
          */
         sortSkillsByAttribute(actorSkills) {
             const skillOptions = [];
             const attributeOrder = ['body', 'sense', 'mind', 'social'];
             
-            // 기본 스킬 목록 (시스템에 미리 정의된 스킬들)
+            // The system's predefined default skills
             const defaultSkills = {
                 body: ['melee', 'evade'],
                 sense: ['ranged', 'perception'],
@@ -1331,11 +1331,11 @@
                 social: ['negotiation', 'procure']
             };
             
-            // 각 능력치별로 스킬 정렬
+            // Sort within each attribute
             attributeOrder.forEach(attr => {
                 const defaultSkillList = defaultSkills[attr] || [];
                 
-                // 1. 기본 스킬들 먼저 추가
+                // 1. The default skills first
                 defaultSkillList.forEach(skillId => {
                     const skillData = actorSkills[skillId];
                     if (skillData && skillData.base === attr) {
@@ -1346,10 +1346,10 @@
                     }
                 });
                 
-                // 2. 나머지 추가 스킬들 추가 (기본 스킬에 없는 것들)
+                // 2. Then the added skills (those not among the defaults)
                 Object.entries(actorSkills).forEach(([skillId, skillData]) => {
                     if (skillData && skillData.base === attr && !defaultSkillList.includes(skillId)) {
-                        // 커스텀 스킬 이름 처리
+                        // Resolve the custom skill name
                         let skillLabel;
                         if (typeof (skillData.name) === 'string' && skillData.name.startsWith('DX3rd.')) {
                             skillLabel = game?.i18n?.localize?.(skillData.name) || skillData.name;
@@ -1369,17 +1369,17 @@
         }
     };
 
-    // 어트리뷰트 이름을 로컬라이징 키로 변환하는 헬퍼
+    // Turns an attribute name into its localization key
     window.DX3rdAttributeLocalizer = {
         /**
-         * 어트리뷰트 이름을 로컬라이징된 문자열로 변환
-         * @param {string} attrName - 어트리뷰트 이름 (예: "hp", "body", "melee")
-         * @returns {string} 로컬라이징된 문자열
+         * Localize an attribute name
+         * @param {string} attrName - the attribute name (e.g. "hp", "body", "melee")
+         * @returns {string} the localized string
          */
         localize(attrName) {
             if (!attrName || attrName === '-') return attrName;
 
-            // 특수 케이스 매핑 (key → 로컬라이징 키)
+            // Special cases (key → localization key)
             const specialMappings = {
                 'hp': 'DX3rd.HP',
                 'init': 'DX3rd.Init',
@@ -1412,40 +1412,40 @@
                 'cast_add': 'DX3rd.CastingAdd'
             };
 
-            // 특수 매핑 확인
+            // Special mapping first
             if (specialMappings[attrName]) {
                 return game.i18n.localize(specialMappings[attrName]);
             }
 
-            // 기본 능력치 (body, sense, mind, social)
+            // Base attributes (body, sense, mind, social)
             const basicAttributes = ['body', 'sense', 'mind', 'social'];
             if (basicAttributes.includes(attrName.toLowerCase())) {
                 const key = `DX3rd.${attrName.charAt(0).toUpperCase() + attrName.slice(1)}`;
                 return game.i18n.localize(key);
             }
 
-            // 스킬 (melee, evade, ranged, etc.) - 소문자 그대로
+            // Skills (melee, evade, ranged, …) — lowercase as-is
             const key = `DX3rd.${attrName}`;
             const localized = game.i18n.localize(key);
             
-            // 로컬라이징이 실패하면 (key 그대로 반환되면) 원래 이름 반환
+            // When localization fails (the key comes back unchanged), return the original name
             return localized !== key ? localized : attrName;
         }
     };
 
     /**
-     * 사용 조건 게이트 — 「위반인가」와 「막을 것인가」는 다른 축이다.
+     * Usage-condition gates — "is this a violation" and "should it block" are different axes.
      *
-     * 소진 게이트(DX3rdItemExhausted.allowExhaustedUse)와 같은 구조다. 위반 판정은
-     * 부르는 쪽이 그대로 하고, 여기서 읽는 월드 설정은 그것을 **차단으로 이을지**만 정한다.
-     * 기본값은 전부 「막지 않음」이다 — 자동화가 다듬어지는 중이라 데이터 한 줄이 틀렸다는
-     * 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다. 대신 막지 않을 때도 경고와
-     * 채팅 기록은 남겨 GM 이 「원래는 못 쓰는 것을 썼다」를 놓치지 않게 한다.
+     * Same shape as the exhaustion gate (DX3rdItemExhausted.allowExhaustedUse). The caller still
+     * detects the violation; the world setting read here only decides whether that **blocks**.
+     * Every default is "do not block" — the automation is still being tuned, and halting a session
+     * because one line of data is wrong is the worse failure. Even when nothing is blocked, the
+     * warning and the chat record still go out so the GM sees that something unusable was used.
      *
-     * 설정이 등록되기 전(init 이전)이나 등록 실패 시에는 막지 않는 쪽으로 떨어진다.
+     * Before the settings are registered (pre-init), or if registration failed, it falls back to not blocking.
      */
     window.DX3rdUsageGates = {
-        // 게이트 키 → 월드 설정 키. universal-handler 의 reportUsageGate 가 유일한 소비자다.
+        // Gate key → world setting key. universal-handler's reportUsageGate is the only consumer.
         SETTINGS: {
             resurrect: 'allowResurrectViolation',
             encroachLimit: 'allowEncroachLimitViolation',
@@ -1454,9 +1454,9 @@
         },
 
         /**
-         * 이 게이트의 위반을 그대로 통과시킬 것인가.
-         * @param {string} gate  SETTINGS 의 키
-         * @returns {boolean} true 면 경고만 하고 사용 허용
+         * Should a violation of this gate be let through?
+         * @param {string} gate  a key in SETTINGS
+         * @returns {boolean} true means warn only and allow the use
          */
         allows: function(gate) {
             const setting = this.SETTINGS[gate];
@@ -1469,16 +1469,16 @@
         },
 
         /**
-         * 그 상태이상 중에도 쓸 수 있다고 **저작된** 아이템인가.
+         * Is this item **authored** as usable even under that condition?
          *
-         * 게이트 설정(위)과는 다른 축이다 — 설정은 「규칙을 강제할 것인가」를 테이블 단위로
-         * 정하고, 이쪽은 「이 아이템은 원문상 그 규칙의 예외인가」를 아이템 단위로 정한다.
-         * 그래서 설정을 켜 둔(=차단하는) 테이블에서도 예외 아이템은 그대로 통과한다.
+         * A different axis from the gate setting above — the setting decides per table whether to
+         * enforce the rule at all, while this decides per item whether the source text exempts it.
+         * So an exempt item passes even at a table that has the setting on (i.e. blocking).
          *
-         * 근거는 둘을 OR 한다:
-         *   ⑴ 아이템 자신의 저작(`system.conditionExempt.<상태>`, 확장 도구의 이펙트 설정).
-         *   ⑵ 월드 설정의 이름 목록(구 경로). 아이템에 저작할 자리가 없던 시절의 데이터가
-         *      그대로 도는 월드가 있어 남긴다 — 새로 쓸 때는 ⑴ 을 쓸 것.
+         * Two grounds, OR'd together:
+         *   (1) the item's own authoring (`system.conditionExempt.<condition>`, in the extend tool).
+         *   (2) the world setting's name list (the legacy path). Some worlds still run data from
+         *       before items had a field for this, so it stays — but author new ones with (1).
          * @param {Item} item
          * @param {'pressure'|'berserk'} condition
          * @returns {boolean}
@@ -1486,9 +1486,9 @@
         conditionExempt: function(item, condition) {
             if (item?.system?.conditionExempt?.[condition] === true) return true;
 
-            // 콤보는 자기 칸이 없다(예외 저작은 이펙트 시트에만 있다). 구성 멤버 중 하나라도
-            // 예외로 저작돼 있으면 그 콤보도 예외로 본다 — 예외 이펙트를 넣은 리액션 콤보가
-            // [폭주] 중에 막히면, 그 이펙트를 단독으로 쓸 때와 결과가 갈린다.
+            // A combo has no field of its own (the exemption is authored on the effect sheet). If any
+            // member is authored exempt, the combo counts as exempt too — otherwise a reaction combo
+            // holding an exempt effect would be blocked under [Berserk] while that effect alone is not.
             if (item?.type === 'combo') {
                 const actor = item.actor;
                 const members = window.DX3rdUniversalHandler?.comboMemberItems?.(actor, item) || [];
@@ -1506,21 +1506,21 @@
             }
             if (!names) return false;
 
-            // 루비(`이름||요미가나`)는 표시 이름만 남긴다 — 목록에는 표시 이름으로 적는다.
+            // Ruby (`name||reading`) keeps only the display name — the list is written with display names.
             const itemName = (String(item?.name || '').match(/^(.+)\|\|(.+)$/) || [null, item?.name])[1];
             return names.split(',').map(n => n.trim()).includes(itemName);
         }
     };
 
-    // 아이템 소진 여부 확인 유틸리티 함수
+    // Item exhaustion utilities
     window.DX3rdItemExhausted = {
         /**
-         * 소진된 것을 그래도 쓰게 둘 것인가(월드 설정 allowExhaustedUse).
-         * 소진 **판정**(isItemExhausted)과는 별개다 — 소진 여부는 그대로 계산해 표시하고,
-         * 이 값은 그것을 차단으로 이어 붙일지만 정한다. 그래서 시트의 소진 스타일이나
-         * 선언 목록의 잔여 회수 표시는 설정과 무관하게 계속 보인다.
-         * 설정이 등록되기 전(init 이전)이나 등록 실패 시에는 막지 않는 쪽으로 떨어진다.
-         * @returns {boolean} true 면 소진돼도 사용 가능(경고만)
+         * Should exhausted items still be usable (world setting allowExhaustedUse)?
+         * Separate from the exhaustion **test** (isItemExhausted) — exhaustion is computed and shown
+         * regardless; this only decides whether it turns into a block. That is why the sheet's
+         * exhausted styling and the declaration list's remaining-uses display persist either way.
+         * Before the setting is registered (pre-init), or if registration failed, it falls back to not blocking.
+         * @returns {boolean} true means usable even when exhausted (warning only)
          */
         allowExhaustedUse: function() {
             try {
@@ -1531,34 +1531,34 @@
         },
 
         /**
-         * 아이템의 사용 횟수 소진 여부를 확인
-         * @param {Object} item - 체크할 아이템
-         * @returns {boolean} 소진 여부 (true: 소진됨, false: 사용 가능)
+         * Whether an item has exhausted its usage count
+         * @param {Object} item - the item to check
+         * @returns {boolean} true when exhausted, false when still usable
          */
         isItemExhausted: function(item) {
             if (!item || !item.system) {
                 return false;
             }
             
-            // 콤보는 포함된 이펙트 중 하나라도 소진되면 소진으로 간주
+            // A combo counts as exhausted as soon as any of its member effects is
             if (item.type === 'combo') {
-                // 콤보의 구성 이펙트 ID: 정규화는 normalizeEffectIds 한 곳이 담당한다.
-                // 여기 있던 자체 구현은 콤보의 system.effect 가 { disable, runTiming, attributes }
-                // **설정 객체**라는 것을 몰라서, effectIds 가 비면 Object.values 로 'instant' 같은
-                // 값을 아이템 id 로 집어 들었다. (스키마가 effectIds 를 항상 배열로 채우므로
-                // 실제로 도달하지는 않았다. 이 함수는 helpers 가 먼저 로드되어도 호출은 런타임이라
-                // 안전하다.)
+                // Member effect ids: normalizeEffectIds is the single place that normalizes them.
+                // The local implementation that used to live here did not know a combo's system.effect
+                // is a **config object** ({ disable, runTiming, attributes }), so with an empty effectIds
+                // it would pick values like 'instant' out of Object.values as if they were item ids.
+                // (The schema always fills effectIds with an array, so it was never actually reached.
+                //  This is safe even though helpers loads first, since the call happens at runtime.)
                 const effectIds = window.DX3rdUniversalHandler?.normalizeEffectIds?.(item)
                     ?? (Array.isArray(item.system?.effectIds) ? item.system.effectIds.filter(e => e && e !== '-') : []);
 
                 if (effectIds.length === 0) {
-                    return false; // 포함된 이펙트가 없으면 소진되지 않음
+                    return false; // no member effects → never exhausted
                 }
                 
-                // 액터 가져오기
+                // Resolve the actor
                 let actor = item.actor || game.actors.get(item.actorId);
-                // 템플릿 컨텍스트에서 넘어온 평문 객체일 수 있어 actor가 비어있는 경우가 있음
-                // 이때는 아이템 ID를 기준으로 소유 액터를 탐색한다
+                // The item may be a plain object from a template context, with no actor attached;
+                // in that case find the owning actor by item id
                 if (!actor) {
                     const itemId = item._id || item.id;
                     if (itemId) {
@@ -1575,7 +1575,7 @@
                     return false;
                 }
                 
-                // 포함된 이펙트 중 하나라도 소진되었는지 확인
+                // Is any member effect exhausted?
                 for (const effectId of effectIds) {
                     if (effectId && effectId !== '-') {
                         const effect = actor.items.get(effectId);
@@ -1587,7 +1587,7 @@
                             const usedLevel = effect.system.used?.level || false;
                             
                             if (usedDisable !== 'notCheck') {
-                                // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
+                                // Compute displayMax (add the level when used.level is checked)
                                 let displayMax = Number(usedMax) || 0;
                                 if (usedLevel) {
                                     const finalLevel = window.DX3rdEffectLevel
@@ -1599,26 +1599,26 @@
                                 const isEffectExhausted = displayMax <= 0 || usedState >= displayMax;
                                 
                                 if (isEffectExhausted) {
-                                    return true; // 하나라도 소진되면 콤보도 소진
+                                    return true; // one exhausted member exhausts the combo
                                 }
                             }
                         }
                     }
                 }
                 
-                return false; // 모든 이펙트가 사용 가능하면 콤보도 사용 가능
+                return false; // every effect usable → the combo is usable
             }
             
             const usedDisable = item.system.used?.disable || 'notCheck';
             
-            // used 체크가 비활성화면 소진되지 않음
+            // With the used check disabled, nothing is ever exhausted
             if (usedDisable === 'notCheck') return false;
             
             const usedState = item.system.used?.state || 0;
             const usedMax = item.system.used?.max || 0;
             const usedLevel = item.system.used?.level || false;
             
-            // 액터 가져오기 (템플릿 데이터의 경우 item.actor가 없을 수 있음)
+            // Resolve the actor (template data may not carry item.actor)
             let actor = item.actor;
             if (!actor) {
                 const itemId = item._id || item.id;
@@ -1633,7 +1633,7 @@
                 }
             }
             
-            // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
+            // Compute displayMax (add the level when used.level is checked)
             let displayMax = Number(usedMax) || 0;
             if (usedLevel && item.type === 'effect') {
                 const finalLevel = window.DX3rdEffectLevel
@@ -1647,11 +1647,11 @@
             
             const isUsedExhausted = displayMax <= 0 || usedState >= displayMax;
             
-            // 무기는 attack-used도 체크
+            // Weapons also check attack-used
             if (item.type === 'weapon') {
                 const attackUsedDisable = item.system['attack-used']?.disable || 'notCheck';
                 if (attackUsedDisable === 'notCheck') {
-                    // attack-used가 비활성화면 used만 체크
+                    // With attack-used disabled, only used matters
                     return isUsedExhausted;
                 }
                 
@@ -1659,20 +1659,20 @@
                 const attackUsedMax = item.system['attack-used']?.max || 0;
                 const isAttackUsedExhausted = attackUsedMax <= 0 || attackUsedState >= attackUsedMax;
                 
-                // used와 attack-used 둘 다 소진되어야 완전 소진
+                // Fully exhausted only when both used and attack-used are
                 return isUsedExhausted && isAttackUsedExhausted;
             }
             
-            // 무기가 아닌 경우 used만 체크
+            // Non-weapons check used alone
             return isUsedExhausted;
         }
     };
 
-    // 기존의 다른 헬퍼 함수들...
+    // Other existing helpers follow…
 })(); 
 
-// 임시 콤보는 실행 후 문서를 제거해도 채팅 카드의 후속 처리가 계속될 수 있어야 한다.
-// 따라서 채팅 플래그에는 Document 인스턴스가 아닌 직렬화 가능한 스냅샷만 보관한다.
+// A temporary combo may have its document removed right after use, yet the chat card's follow-up
+// must keep working. So the chat flags hold only a serializable snapshot, never a Document instance.
 (function() {
     const FLAG_SCOPE = 'dx3rd-emanim';
     const FLAG_KEY = 'instantCombo';
@@ -1687,7 +1687,7 @@
     window.DX3rdSerializeInstantCombo = function(item) {
         if (!item) return null;
         const snapshot = item.toObject ? item.toObject() : foundry.utils.deepClone(item);
-        // Foundry의 toObject()는 _id만 보장하지만, 기존 채팅 버튼은 id를 기준으로 찾는다.
+        // Foundry's toObject() guarantees _id only, but the existing chat buttons look items up by id.
         snapshot.id ??= item.id || snapshot._id;
         snapshot.flags ??= {};
         snapshot.flags[FLAG_SCOPE] ??= {};
@@ -1696,8 +1696,8 @@
     };
 })();
 
-// "즉석 콤보를 사용할까요?" 확인창을 대체하는 비모달 선택 메뉴.
-// 호출 위치의 포커스 요소 아래에 붙고, 포커스가 없을 때만 화면 중앙 근처에 배치한다.
+// A non-modal picker replacing the "use an ad-hoc combo?" confirmation dialog.
+// It anchors below the focused element at the call site, and only centers on screen when there is none.
 (function() {
     let activeMenu = null;
 
@@ -1745,9 +1745,9 @@
             }));
             document.body.appendChild(menu);
 
-            // body/html은 문서 전체 크기의 rect를 돌려주므로 호출 위치가 아니다.
-            // (그대로 쓰면 메뉴가 문서 하단으로 클램프되어 화면 좌하단에 붙는다.)
-            // 클릭 요소처럼 면적이 있는 실제 앵커만 사용하고, 그 외에는 화면 중앙에 둔다.
+            // body/html return a rect the size of the whole document, which is not the call site.
+            // (Using it would clamp the menu to the document bottom and pin it to the lower-left corner.)
+            // So only a real anchor with area — a clicked element — is used; otherwise center it.
             const isUsableAnchor = anchor instanceof Element
                 && anchor !== document.body
                 && anchor !== document.documentElement
@@ -1785,12 +1785,12 @@
             icon: isAttack ? 'fa-solid fa-crosshairs' : 'fa-solid fa-bolt',
             label: game.i18n.localize(isAttack ? 'DX3rd.EffectActionAttack' : 'DX3rd.EffectActionUse')
         }];
-        // 공격 아이템이라도 '사용' 액션에 묶인 효과가 있으면 별도 진입점을 낸다.
-        // 무기의 선언형 자기 보정(「마이너 액션을 소비해서 선언하면 …」 볼트액션 라이플,
-        // 「가드를 실행할 때 선언한다」 가드 실드)은 공격이 아니라 선언이 발동점인데,
-        // 메뉴에 공격/콤보/효과 적용밖에 없어 그 선언을 할 방법이 「효과 적용 → 자신」
-        // (자기 타겟팅 필요)뿐이었다 — 사용 횟수도 안 세고 침식 비용도 안 걷힌다.
-        // handleItemUse 는 이미 effectOnlyUse 로 이 액션을 지원한다(공격 굴림 없이 효과만).
+        // Even for an attack item, a separate entry point appears when effects are bound to 'use'.
+        // A weapon's declared self-modifiers ("spend a minor action to declare …" for the bolt-action
+        // rifle, "declare when you guard" for the guard shield) fire on the declaration, not the attack.
+        // With only attack/combo/apply-effect in the menu, the sole way to declare was "apply effect →
+        // self" (which needs self-targeting) — and that neither counts a use nor charges encroachment.
+        // handleItemUse already supports this action via effectOnlyUse (effects only, no attack roll).
         if (isAttack && window.DX3rdItemEffectAdapter?.hasActionEffects?.(item, 'use')) {
             entries.push({
                 value: 'use',
@@ -1805,8 +1805,8 @@
                 label: game.i18n.localize('DX3rd.Combo')
             });
         }
-        // 비공격 아이템은 '사용' 자체가 효과 적용 경로다. 공격 아이템만 공격 없이
-        // 카드 효과를 적용할 수 있도록 별도 진입점을 제공한다.
+        // For a non-attack item, 'use' IS the effect-application path. Only attack items get a
+        // separate entry point for applying their card effects without attacking.
         if (isAttack) {
             entries.push({value: 'apply', icon: 'fa-solid fa-hand-sparkles', label: game.i18n.localize('DX3rd.ApplyEffect')});
         }

@@ -39,7 +39,7 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
   
   window.DX3rdDebug.log('DX3rd | executeHealExtensionNow called', { actor: actor.name, actorId: actor.id, healData, item: item?.name, options });
   
-  const { formulaDice, formulaAdd, target, rivival, resurrect, selectedTargetIds, triggerItemName, healTo, encroachFixed, excludeSelf = false } = healData;
+  const { formulaDice, formulaAdd, target, rivival, resurrect, selectedTargetIds, targetsFrozen = false, triggerItemName, healTo, encroachFixed, excludeSelf = false } = healData;
   const { skipDialog = false } = options;
   
   // 대상 수집
@@ -51,9 +51,9 @@ handler.executeHealExtensionNow = async function(actor, healData, item = null, o
   
   if (target === 'targetToken' || target === 'targetAll') {
     // selectedTargetIds가 있으면 사용 (큐에서 복원된 경우)
-    if (selectedTargetIds && selectedTargetIds.length > 0) {
+    if (targetsFrozen || (selectedTargetIds && selectedTargetIds.length > 0)) {
       window.DX3rdDebug.log('DX3rd | Using saved target IDs from queue:', selectedTargetIds);
-      selectedTargetIds.forEach(tokenId => {
+      (selectedTargetIds || []).forEach(tokenId => {
         const token = canvas.tokens.get(tokenId);
         if (token && token.actor && (!excludeSelf || token.actor.id !== actor.id) && !targets.find(a => a.id === token.actor.id)) {
           targets.push(token.actor);

@@ -1,4 +1,4 @@
-// DX3rd 채팅 메시지 분류. 신규 메시지는 flags를 저장하고, 기존 콘텐츠는 호환용으로만 판별한다.
+// DX3rd chat-message classification. New messages store flags; content inspection is legacy-only.
 (function() {
   const SCOPE = 'dx3rd-emanim';
   const TYPES = Object.freeze({

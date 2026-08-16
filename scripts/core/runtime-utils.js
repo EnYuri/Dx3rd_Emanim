@@ -1,5 +1,5 @@
-// DX3rd 런타임에서 Foundry 문서에 의존하지 않는 순수 유틸리티.
-// 브라우저 전역으로 노출해 classic script 로딩을 유지하고, Node 테스트에서도 VM으로 검증한다.
+// Pure DX3rd runtime utilities with no Foundry Document dependency.
+// They remain browser globals for classic-script loading and are exercised in a VM by Node tests.
 (function() {
   const AFTER_MAIN_TYPES = new Set(['heal', 'damage', 'condition', 'statusClear', 'encroach']);
 
@@ -15,10 +15,66 @@
     return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
   }
 
+  /**
+   * Preserve an extension's authored target while limiting selected targets to actors that
+   * actually took HP damage. `targetAll` still means caster + selected targets; collapsing it to
+   * `targetToken` would silently drop the caster. The internal `damagedTargets` label is normalized
+   * to the executor's selected-target vocabulary.
+   */
+  function resolveAfterDamageTarget(target = 'self', damagedTokenIds = [], fallbackTargetIds = []) {
+    const authoredTarget = target || 'self';
+    const damaged = [...new Set((damagedTokenIds || []).filter(id => typeof id === 'string' && id))];
+    if (authoredTarget === 'self') return { target: 'self', selectedTargetIds: [], targetsFrozen: true };
+    if (authoredTarget === 'targetToken' || authoredTarget === 'damagedTargets') {
+      return { target: 'targetToken', selectedTargetIds: damaged, targetsFrozen: true };
+    }
+    // Extension executors treat an empty selectedTargetIds array as "use the current UI targets".
+    // Once damage results are frozen that fallback is unsafe: if nobody was damaged, targetAll
+    // means only the caster, not whoever the responsible GM happens to have targeted now.
+    if (authoredTarget === 'targetAll') {
+      return damaged.length > 0
+        ? { target: 'targetAll', selectedTargetIds: damaged, targetsFrozen: true }
+        : { target: 'self', selectedTargetIds: [], targetsFrozen: true };
+    }
+    return {
+      target: authoredTarget,
+      selectedTargetIds: [...new Set((fallbackTargetIds || []).filter(id => typeof id === 'string' && id))],
+      targetsFrozen: true
+    };
+  }
+
+  function recordAfterDamageReport(request, { targetTokenId, targetActorId, hpChange } = {}) {
+    if (!request || !targetTokenId || !targetActorId) {
+      return { accepted: false, complete: false, reportCount: 0, targetCount: 0 };
+    }
+    const targetTokenIds = Array.isArray(request.targetTokenIds) ? request.targetTokenIds : [];
+    const targetIndex = targetTokenIds.indexOf(targetTokenId);
+    const expectedActorId = request.targetActorIds?.[targetIndex];
+    if (targetIndex < 0 || expectedActorId !== targetActorId) {
+      return {
+        accepted: false,
+        complete: false,
+        reportCount: Object.keys(request.damageReports || {}).length,
+        targetCount: targetTokenIds.length
+      };
+    }
+    request.damageReports ||= {};
+    request.reportActorIds ||= {};
+    request.damageReports[targetTokenId] = Number(hpChange) || 0;
+    request.reportActorIds[targetTokenId] = targetActorId;
+    request.reportCount = Object.keys(request.damageReports).length;
+    return {
+      accepted: true,
+      complete: request.reportCount >= targetTokenIds.length,
+      reportCount: request.reportCount,
+      targetCount: targetTokenIds.length
+    };
+  }
+
   function cloneSerializable(value) {
     if (value === undefined) return undefined;
     if (typeof structuredClone === 'function') {
-      try { return structuredClone(value); } catch (error) { /* JSON fallback */ }
+      try { return structuredClone(value); } catch { /* Fall back to JSON. */ }
     }
     return JSON.parse(JSON.stringify(value));
   }
@@ -33,16 +89,16 @@
   }
 
   /**
-   * 문서 업데이트 페이로드가 특정 경로를 건드리는지 판별한다.
+   * Check whether a document update payload touches a property path.
    *
-   * Foundry 는 훅에 넘기는 변경분을 항상 같은 모양으로 주지 않는다 — 호출 경로에 따라
-   * 중첩 객체({system:{conditions:{...}}}), 최상위 점 표기({"system.conditions.x":1}),
-   * 혼합({system:{"conditions.x":1}}) 셋 다 나온다. 훅마다 제각각 방어하다 한 형태를
-   * 빠뜨리면(예: 중첩만 읽는 가드) 정상 경로가 조용히 죽으므로 여기로 모은다.
+   * Foundry does not give every hook the same update shape. Depending on the call path, the
+   * payload may be nested ({system:{conditions:{...}}}), flattened ({"system.conditions.x":1}),
+   * or mixed ({system:{"conditions.x":1}}). Centralizing the check prevents individual hooks
+   * from silently missing one of those forms.
    *
-   * @param {object} updateData 훅이 받은 변경분
-   * @param {string} path 점 표기 경로 (예: 'system.conditions')
-   * @returns {boolean} 해당 경로 또는 그 하위가 변경분에 포함되면 true
+   * @param {object} updateData update payload received by the hook
+   * @param {string} path dot-delimited path, such as 'system.conditions'
+   * @returns {boolean} whether the path or one of its descendants is present
    */
   function updateTouchesPath(updateData, path) {
     if (!isPlainObject(updateData) || typeof path !== 'string' || !path) return false;
@@ -50,7 +106,7 @@
     let node = updateData;
     for (let i = 0; i < segments.length; i++) {
       if (!isPlainObject(node)) return false;
-      // 남은 경로가 이 깊이에서 점 표기로 뭉쳐 있을 수 있다.
+      // The remainder may be flattened into a dot-delimited key at this depth.
       const remainder = segments.slice(i).join('.');
       for (const key of Object.keys(node)) {
         if (key === remainder || key.startsWith(`${remainder}.`)) return true;
@@ -197,13 +253,22 @@
   }
 
   /**
-   * 액터만 스피커로 반환한다.
-   * token/scene을 명시적으로 null로 고정해야 선택된 토큰에 스피커가 오염되지 않고,
-   * GM을 포함한 모든 클라이언트에서 액터 초상화가 쓰인다(lichsoma-speaker-selecter 호환).
+   * Return an actor-only chat speaker.
+   * Explicitly clearing token and scene prevents a controlled token from contaminating the
+   * speaker and preserves actor portraits on every client (including lichsoma-speaker-selecter).
    */
   function getActorOnlySpeaker(actor) {
     const s = ChatMessage.getSpeaker({ actor });
     return { ...s, token: null, scene: null };
+  }
+
+  function classifyHpTransition(oldValue, newValue) {
+    const oldHp = Number(oldValue);
+    const newHp = Number(newValue);
+    if (!Number.isFinite(oldHp) || !Number.isFinite(newHp)) return null;
+    if (oldHp > 0 && newHp <= 0) return 'defeated';
+    if (oldHp <= 0 && newHp > 0) return 'revived';
+    return null;
   }
 
   window.DX3rdRuntimeUtils = Object.freeze({
@@ -213,11 +278,14 @@
     updateTouchesPath,
     escapeHTML,
     createRequestId,
+    resolveAfterDamageTarget,
+    recordAfterDamageReport,
     createSocketEnvelope,
     normalizeSocketEnvelope,
     validateSocketEnvelope,
     createAfterMainQueueEntry,
     extensionGroupKey,
-    groupExtensionsByKey
+    groupExtensionsByKey,
+    classifyHpTransition
   });
 })();

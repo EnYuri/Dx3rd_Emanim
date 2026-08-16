@@ -236,8 +236,10 @@ function collect(live, prev, liveFolders, prevFolders) {
   // 대상 채널은 수명/타이밍/행/버킷이 한 덩어리 — applyOverride 가 통째로 갈아끼우므로 통째로 싣는다.
   const le = live.system?.effect, pe = prev.system?.effect;
   if (!same(le?.disable, pe?.disable, "disable") || !same(le?.runTiming, pe?.runTiming, "runTiming")
+      || !same(le?.action, pe?.action, "action")
       || !sameAttrs(le?.attributes, pe?.attributes) || !same(le?.buckets, pe?.buckets, "buckets")) {
     const eff = { disable: le?.disable, runTiming: le?.runTiming, attributes: attrRows(le?.attributes) };
+    if (le?.action !== undefined) eff.action = le.action;
     if (le?.buckets && Object.keys(le.buckets).length) eff.buckets = le.buckets;
     put("effect", eff, "effect(대상 채널)");
   }
@@ -261,6 +263,11 @@ function collect(live, prev, liveFolders, prevFolders) {
 
   const li = live.flags?.["dx3rd-emanim"]?.itemExtend, pi = prev.flags?.["dx3rd-emanim"]?.itemExtend;
   if (!same(li, pi, "itemExtend")) put("itemExtend", li, "itemExtend(확장 도구)");
+  const lm = live.flags?.["dx3rd-emanim"]?.manualTargetOtherOnly;
+  const pm = prev.flags?.["dx3rd-emanim"]?.manualTargetOtherOnly;
+  if (!same(lm, pm, "manualTargetOtherOnly")) {
+    put("manualTargetOtherOnly", lm, "manualTargetOtherOnly(자신 이외 대상)");
+  }
 
   const lf = folderPath(liveFolders, live.folder), pf = folderPath(prevFolders, prev.folder);
   if (lf.join(" / ") !== pf.join(" / ")) put("folder", lf, `folder ${pf.join(" / ") || "(루트)"} -> ${lf.join(" / ") || "(루트)"}`);

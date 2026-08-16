@@ -1,8 +1,8 @@
 /**
- * Double Cross 3rd Actor 클래스 (공식 깃허브 스타일 참고)
+ * The Double Cross 3rd Actor class.
  */
 (function() {
-    // v13/v14 호환: Actor 글로벌이 없을 경우 폴백
+    // v13/v14 compatibility: fall back when the Actor global is absent
     const _ActorBase = foundry.documents?.Actor ?? globalThis.Actor;
     const sumItemEncroachInit = items => {
         let total = 0;
@@ -17,29 +17,29 @@
         let total = 0;
         for (const item of Array.from(items || [])) {
             if (!SAVING_ITEM_TYPES.has(item?.type)) continue;
-            // 기존 문서에는 acquisition 필드가 없다. 데이터 이행 없이도 과거 계산을
-            // 보존하도록 누락값은 상비(permanent)로 취급하고, 구매(purchase)와
-            // 기타(other, 값을 치르지 않고 얻은 것)만 상비점에서 차감하지 않는다.
+            // Existing documents have no acquisition field. To preserve the old arithmetic without a
+            // migration, a missing value counts as permanent; only purchase and other (obtained
+            // without paying for it) are excluded from the stock cost.
             const acquisition = item?.system?.saving?.acquisition;
             if (acquisition === 'purchase' || acquisition === 'other') continue;
             total += Number(item?.system?.saving?.value) || 0;
         }
         return total;
     };
-    // 초과 지출은 0으로 감추지 않고 음수로 남긴다 — 얼마나 모자란지가 곧 정보다.
+    // Overspending stays negative rather than hidden at 0 — how far short you are is the information.
     const calculateSavingRemain = (maximum, items) =>
         (Number(maximum) || 0) - sumItemSavingCost(items);
     const deriveStock = (baseValue, modifierValue = 0, minimumValue = 0) => {
         const base = Number(baseValue) || 0;
         const modifier = Number(modifierValue) || 0;
-        // min은 구 데이터 호환용으로만 남는다. 여기서 클램프하면 초과 소모분이
-        // modifier에 숨은 음수로 쌓여 다음 증가분을 통째로 삼킨다.
+        // min survives only for legacy data. Clamping here would bury the overspend as a hidden
+        // negative inside modifier, which would then swallow the next increase whole.
         const min = Number(minimumValue) || 0;
         return {
             base,
             modifier,
             value: base + modifier,
-            // max는 구 매크로/모듈 호환용 별칭이다. 새 UI와 계산의 정본은 base다.
+            // max is an alias kept for old macros and modules. base is canonical for the new UI and arithmetic.
             max: base,
             min
         };
@@ -49,14 +49,14 @@
         prepareData() {
             super.prepareData();
 
-            // system과 attributes의 기본 구조 보장
+            // Guarantee the basic system / attributes shape
             if (!this.system) this.system = {};
             if (!this.system.attributes) this.system.attributes = {};
             
-            // enemy 타입 여부 확인
+            // Enemy type?
             const isEnemy = this.type === 'enemy';
             
-            // 기본 능력치 구조 보장
+            // The default attribute shape
             const defaultAttributes = {
                 body: { point: 0, bonus: 0, extra: 0, total: 0, dice: 0, add: 0 },
                 sense: { point: 0, bonus: 0, extra: 0, total: 0, dice: 0, add: 0 },
@@ -74,7 +74,7 @@
                 applied: {}
             };
             
-            // character 타입 전용 속성 추가
+            // Character-only attributes
             if (!isEnemy) {
                 defaultAttributes.encroachment = { value: 0, max: 100, min: 0, type: game.settings.get('dx3rd-emanim', 'defaultEncroachmentType') || '-', dice: 0, level: 0, init: { input: 0, value: 0 } };
                 defaultAttributes.stock = { value: 0, base: 0, modifier: 0, min: 0, max: 0 };
@@ -173,17 +173,17 @@
                 };
             }
 
-            // enemy 타입: "침식률(없음)" 선택 및 침식률 상승 규칙을 위해 encroachment 최소 구조 보장.
-            // (character 처럼 dice/level/exp 계산은 하지 않고 type/value 만 유지한다.)
+            // Enemies keep a minimal encroachment shape, for the "none" option and the rise rules.
+            // (Unlike characters, no dice/level/exp arithmetic — only type and value are kept.)
             if (isEnemy) {
                 defaultAttributes.encroachment = { value: 0, max: 100, min: 0, type: '-' };
             }
 
-            // 기본값으로 누락된 속성 채우기
+            // Fill in whichever attributes are missing
             for (const [key, value] of Object.entries(defaultAttributes)) {
-                // applied는 기본값으로 초기화하지 않음 (저장된 데이터 보존)
+                // applied is never reset to a default — the stored data is preserved
                 if (key === 'applied') {
-                    // applied가 완전히 없을 때만 빈 객체로 초기화
+                    // Only when applied is entirely absent is it seeded with an empty object
                     if (this.system.attributes[key] === undefined || this.system.attributes[key] === null) {
                         this.system.attributes[key] = {};
                     } else {
@@ -194,18 +194,18 @@
                 if (!this.system.attributes[key]) {
                     this.system.attributes[key] = foundry.utils.deepClone(value);
                 } else if (key === 'skills' && !isEnemy) {
-                    // 스킬의 경우 기존 스킬은 유지하면서 누락된 기본 스킬만 추가 (character만)
+                    // Skills: keep the existing ones and add only the missing defaults (characters only)
                     const defaultSkills = value;
                     const currentSkills = this.system.attributes.skills;
                     for (const [skillKey, skillValue] of Object.entries(defaultSkills)) {
                         if (!currentSkills[skillKey]) {
-                            // 삭제 불가능한 기본 스킬만 자동 추가
-                            // 삭제 가능한 스킬(delete: true)은 사용자가 삭제했을 수 있으므로 재생성하지 않음
+                            // Only non-deletable default skills are re-added automatically;
+                            // a deletable one (delete: true) may have been removed on purpose
                             if (skillValue.delete === false) {
                             currentSkills[skillKey] = foundry.utils.deepClone(skillValue);
                             }
                         } else {
-                            // 기존 스킬이 있으면 delete 속성은 기본값으로 업데이트
+                            // For an existing skill, refresh its delete flag from the default
                             if (currentSkills[skillKey].delete !== undefined && skillValue.delete !== undefined) {
                                 currentSkills[skillKey].delete = skillValue.delete;
                             }
@@ -214,9 +214,9 @@
                 }
             }
 
-            // character 타입 전용 처리
+            // Character-only work
             if (!isEnemy) {
-                // syndrome 배열 보정 (체크된 신드롬 ID 목록)
+                // Normalize the syndrome array (the list of checked syndrome ids)
                 if (!Array.isArray(this.system.attributes.syndrome)) {
                     const val = this.system.attributes.syndrome;
                     if (val == null) {
@@ -224,7 +224,7 @@
                     } else if (typeof val === 'string') {
                         this.system.attributes.syndrome = [val];
                     } else if (typeof val === 'object') {
-                        // 구형 형태: { <id>: true/false, ... } → true인 key만 배열로 변환
+                        // Legacy shape { <id>: true/false, … } → keep only the true keys
                         const entries = Object.entries(val);
                         this.system.attributes.syndrome = entries
                             .filter(([, v]) => !!v)
@@ -234,10 +234,10 @@
                     }
                 }
 
-                this._prepareActorEnc();  // 침식도 보정 먼저 실행
+                this._prepareActorEnc();  // encroachment first
             }
             
-            this._prepareActorAttributes();  // 능력치 계산
+            this._prepareActorAttributes();  // then the attributes
 
             let items = this.items;
             if (!Array.isArray(items)) {
@@ -249,11 +249,11 @@
                 }
             }
             
-            // enemy 타입은 combo와 effect만 가짐
+            // Enemies hold combos and effects only
             if (isEnemy) {
                 this.comboList = items.filter(i => i.type === "combo");
                 this.effectList = items.filter(i => i.type === "effect");
-                // 나머지는 빈 배열
+                // The rest stay empty
                 this.workList = [];
                 this.syndromeList = [];
                 this.psionicsList = [];
@@ -266,8 +266,8 @@
                 this.loisList = [];
                 this.recordList = [];
             } else {
-                // character 타입은 모든 아이템 타입 허용
-                // 성능: 13회의 items.filter 반복 대신 단일 순회로 타입별 버킷에 분류 (순서/의미 동일)
+                // Characters allow every item type.
+                // Performance: one pass into per-type buckets instead of 13 items.filter calls (same order, same meaning)
                 this.workList = [];
                 this.syndromeList = [];
                 this.comboList = [];
@@ -306,14 +306,14 @@
             const attrs = system.attributes;
             const isEnemy = this.type === 'enemy';
 
-            // enemy 타입은 간소화된 계산만 수행
+            // Enemies get the simplified arithmetic only
             if (isEnemy) {
                 this._prepareEnemyAttributes();
                 return;
             }
 
-            // prepareData 중 같은 아이템 타입을 반복 필터링하지 않도록 한 번만 분류한다.
-            // 각 버킷은 원래 컬렉션 순서를 유지하므로 기존 계산 순서와 결과는 동일하다.
+            // Classify once, so prepareData does not re-filter the same item type over and over.
+            // Each bucket keeps the original collection order, so the arithmetic is unchanged.
             const actorItems = Array.from(this.items || []);
             const itemsByType = new Map();
             for (const item of actorItems) {
@@ -323,25 +323,25 @@
             }
             const itemsOfType = type => itemsByType.get(type) || [];
 
-            // 활성 아이템 및 Applied 효과 목록 미리 준비.
-            // 이펙트류(effect/spell/psionic/combo)는 자체계산에서 제외한다 — 이들은 토글 시
-            // appliedKey AE(DX3rdAppliedToggle)로 반영되어 collect()→appliedByKey 경로로 합산되므로
-            // 여기서 다시 세면 이중가산된다. 장비/기록/아이템/기타만 아이템 자체계산에 남긴다.
+            // Prepare the active items and the applied effects up front.
+            // Effect-like types (effect/spell/psionic/combo) are left out of this self-computation —
+            // toggling them writes an appliedKey AE (DX3rdAppliedToggle) summed via collect() → appliedByKey,
+            // so counting them again here would double. Only equipment, records, items and misc stay here.
             const activeItems = actorItems.filter(item =>
                 item.system?.active?.state === true &&
                 ['weapon', 'protect', 'vehicle', 'connection', 'etc', 'once', 'rois'].includes(item.type)
             );
-            // 소스 이행: applied 버프는 네이티브 ActiveEffect(flag)에서 재구성. (전환 브리지로 레거시 필드도 병합)
+            // Applied buffs are rebuilt from native ActiveEffects (flags); the legacy field is merged in as a transition bridge.
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
                 : (attrs.applied || {});
-            // 성능: Applied 효과를 1회만 색인 (기존엔 파생치마다 전체 재순회)
+            // Performance: index the applied effects once (this used to be re-walked for every derived value)
             const appliedByKey = this._indexAppliedEffects(appliedEffects);
-            // ④ 활성 아이템 + applied 기여를 단일 경로로 소비하는 리더(지연 평가 보존)
+            // A single reader over both the active-item and the applied contributions (lazily evaluated)
             const R = this._makeContribReader(activeItems, appliedByKey);
 
-            // 성능: 여러 파생치 계산에서 반복 호출되던 동일 아이템 필터를 1회만 수행해 재사용
-            // (기존에는 능력치/스킬/경험치/장비 계산마다 this.items.filter를 매번 다시 돌렸음)
+            // Performance: the identical item filters that several derived values repeated are done once
+            // (previously attributes, skills, exp and equipment each re-ran this.items.filter)
             const worksItems = itemsOfType('works');
             const syndromeItems = itemsOfType('syndrome');
             const effectItems = itemsOfType('effect');
@@ -354,23 +354,23 @@
             const equippedProtects = itemsOfType('protect').filter(i => i.system?.equipment === true);
             const equippedVehicles = itemsOfType('vehicle').filter(i => i.system?.equipment === true);
 
-            // === 1차 패스: 능력치 total 계산 (stat_bonus만) ===
+            // === Pass 1: attribute totals (stat_bonus only) ===
             for (const key of ["body", "sense", "mind", "social"]) {
                 const stat = attrs[key];
                 
-                // 신드롬 보너스 계산
+                // Syndrome bonus
                 let syndromeBonus = 0;
                 const syndromeList = attrs.syndrome || [];
                 
-                // 액터가 가진 신드롬 아이템 개수에 따른 배율 결정
+                // The multiplier depends on how many syndrome items the actor holds
                 const totalSyndromeCount = syndromeItems.length;
                 
                 let multiplier = 1;
                 if (totalSyndromeCount === 1) {
-                    // 퓨어브리드: 2배
+                    // Pure breed: ×2
                     multiplier = 2;
                 } else if (totalSyndromeCount >= 2) {
-                    // 크로스브리드/트라이브리드: 1배
+                    // Cross / tri breed: ×1
                     multiplier = 1;
                 }
                 
@@ -382,7 +382,7 @@
                     }
                 }
 
-                // 워크스 보너스 계산
+                // Works bonus
                 let worksBonus = 0;
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.attributes?.[key]?.value) {
@@ -390,20 +390,20 @@
                     }
                 }
 
-                // 활성 아이템 + applied 의 stat_bonus(능력치 라벨 일치) 단일 경로 합
+                // stat_bonus from active items and applied effects, matched by attribute label
                 stat.bonus = R.byLabel('stat_bonus', key);
 
-                // total 계산 (기본값 + extra + bonus + 신드롬 + 워크스)
+                // total = point + extra + bonus + syndrome + works
                 stat.total = (stat.point || 0) + (stat.extra || 0) + stat.bonus + syndromeBonus + worksBonus;
-                // 최소값 보정: total은 최소 0
+                // Floor: total is never below 0
                 if (stat.total < 0) stat.total = 0;
             }
 
-            // === 1차 패스: 스킬 total 계산 (stat_bonus만) ===
+            // === Pass 1: skill totals (stat_bonus only) ===
             const skills = attrs.skills || {};
 
             for (const [key, skill] of Object.entries(skills)) {
-                // Works 보너스 계산
+                // Works bonus
                 let worksBonus = 0;
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.skills?.[key]?.apply && worksItem.system.skills[key].add) {
@@ -411,28 +411,28 @@
                     }
                 }
 
-                // 활성 아이템 + applied 의 stat_bonus(스킬 라벨 일치) 단일 경로 합
+                // stat_bonus from active items and applied effects, matched by skill label
                 skill.bonus = R.byLabel('stat_bonus', key);
-                // works 값도 저장 (다이얼로그에서 표시용)
+                // Keep the works value too, for display in dialogs
                 skill.works = worksBonus;
                 
-                // 스킬 total 계산 (point + extra + bonus + works)
+                // total = point + extra + bonus + works
                 skill.total = (skill.point || 0) + (skill.extra || 0) + skill.bonus + worksBonus;
-                // 최소값 보정: total은 최소 0
+                // Floor: total is never below 0
                 if (skill.total < 0) skill.total = 0;
             }
 
-            // === HP, Init, Saving 등 파생 값 계산 (total 사용) ===
+            // === Derived values (HP, init, saving, …), computed from the totals ===
 
-            // HP 계산 (body.total * 2 + mind.total + 20 + 아이템/적용 효과 보너스)
+            // HP = body.total × 2 + mind.total + 20 + item/applied bonuses
             const hpBonus = R.sum('hp');
 
             attrs.hp.max = (attrs.body?.total || 0) * 2 + (attrs.mind?.total || 0) + 20 + hpBonus;
             if (attrs.hp.value > attrs.hp.max) attrs.hp.value = attrs.hp.max;
             if (attrs.hp.value < 0) attrs.hp.value = 0;
 
-            // === Attack 계산 === (라벨 버킷: melee/ranged/fist, 무라벨/'-' → 전체 공격 '_')
-            // fist = 맨손 한정 공격력(축퇴기관 등) — 데미지 산출 시 무기가 맨손일 때만 가산
+            // === Attack === (label buckets: melee/ranged/fist; no label or '-' → the catch-all '_')
+            // fist = fist-only attack power (Degeneration Organ etc.) — added at damage time only when the weapon is the fist
             const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);
             const atkDiceFormula = R.actionDiceFormula('attack', ['melee', 'ranged', 'fist']);
 
@@ -443,11 +443,11 @@
             attrs.attack.fist = atk.fist;
             attrs.attack.rollFormula = atkDiceFormula;
 
-            // === Armor 계산 ===
+            // === Armor ===
             let armorBonus = 0;
-            // 장비 고유 필드(protect/vehicle 의 system.armor)에 쓴 다이스식은 어트리뷰트 채널이
-            // 아니라 리더(R)가 보지 못한다. 여기서 따로 모아 valueFormula 에 합류시킨다 —
-            // 그러지 않으면 evaluate()가 0을 돌려줘 입력한 값이 조용히 사라진다.
+            // A dice formula written into an equipment's own field (protect/vehicle system.armor) is
+            // not on an attribute channel, so the reader (R) never sees it. It is gathered separately
+            // and joined into valueFormula — otherwise evaluate() returns 0 and the input silently vanishes.
             const equipmentArmorFormulas = [];
             const addEquipmentArmor = (equipment) => {
                 if (!equipment?.system?.armor) return;
@@ -457,33 +457,33 @@
                 else armorBonus += F.evaluate(equipment.system.armor, equipment, this);
             };
 
-            // 장착된 프로텍트/비클의 armor 값 추가 (equippedProtects/Vehicles는 상단에서 1회 계산)
+            // Armor from the equipped protects/vehicles (both lists were computed once above)
             for (const protect of equippedProtects) addEquipmentArmor(protect);
             for (const vehicle of equippedVehicles) addEquipmentArmor(vehicle);
 
-            // 활성 아이템 + applied 의 armor 보너스
+            // Armor bonus from active items and applied effects
             armorBonus += R.sum('armor');
 
             attrs.armor.value = armorBonus;
-            // 최소값 보정: armor는 최소 0
+            // Floor: armor is never below 0
             if (attrs.armor.value < 0) attrs.armor.value = 0;
             if (attrs.armor.value < attrs.armor.min) attrs.armor.value = attrs.armor.min;
-            // 값 필드에 직접 쓴 다이스식([레벨]d10 등)은 여기서 굴리지 않고 보존한다.
-            // 방어 다이얼로그가 피격 확정 시 한 번 굴려 고정치에 얹는다.
+            // A dice formula written straight into the value field ([level]d10 etc.) is preserved, not rolled here.
+            // The defense dialog rolls it once when the hit is confirmed, on top of the fixed value.
             attrs.armor.valueFormula = [R.actionDiceFormula('armor')._, ...equipmentArmorFormulas]
                 .filter(Boolean).join(' + ');
 
-            // === Guard 계산 === (라벨 버킷: melee/ranged/fist, 무라벨/'-' → 전체 '_')
-            // 공격력과 같은 축이다 — 「맨손의 가드치에 +N」(특수장갑의수 등)은 **그 무기로
-            // 가드할 때만** 붙어야 하므로, 어느 무기로 가드할지 정해지는 시점까지 버킷에
-            // 남겨 둔다. base 로 내려가는 것은 무조건 붙는 `_`(전체)뿐이다.
+            // === Guard === (label buckets: melee/ranged/fist; no label or '-' → the catch-all '_')
+            // Same axis as attack power — "+N to the guard of the fist" (the prosthetic arm etc.) must
+            // apply **only when guarding with that weapon**, so it stays bucketed until the guarding
+            // weapon is chosen. Only the unconditional `_` (catch-all) descends into base.
             const grd = R.bucket('guard', ['melee', 'ranged', 'fist']);
             const grdDiceFormula = R.actionDiceFormula('guard', ['melee', 'ranged', 'fist']);
             let equipmentGuardBonus = 0;
             const equipmentGuardFormulas = [];
 
-            // 액터 시트의 표시값에는 장착 무기의 고유 가드치를 포함한다. 방어 다이얼로그는
-            // 아래 base 값에서 출발해 실제 선택한 무기만 다시 더하므로 이중 적용하지 않는다.
+            // The actor sheet's displayed value includes the equipped weapons' own guard values. The
+            // defense dialog starts from base below and re-adds only the chosen weapon, so nothing doubles.
             for (const weapon of equippedWeapons) {
                 const F = window.DX3rdFormulaEvaluator;
                 const raw = weapon.system?.guard;
@@ -492,11 +492,11 @@
                     if (F.hasDice(prepared)) equipmentGuardFormulas.push(`(${prepared})`);
                     else equipmentGuardBonus += Number(F.evaluate(raw, weapon, this)) || 0;
                 }
-                // 그 무기가 속한 버킷의 보정도 **표시값에만** 싣는다. base 에 넣으면 무기를
-                // 고르지 않아도 붙고, 여기서 빼면 시트의 가드치가 실제보다 작게 보인다.
-                // 규칙은 방어 다이얼로그와 같다(무기 한 자루당 한 번) — 갈리면 시트와 창의
-                // 숫자가 어긋난다.
-                // 맨손은 fist 와 melee 를 둘 다 받는다(가산) — 공격력 쪽과 같은 규칙이다.
+                // That weapon's bucket bonuses also ride on the **display value only**. Putting them in
+                // base would apply them with no weapon chosen; omitting them here would make the sheet
+                // read lower than reality. The rule matches the defense dialog (once per weapon) — if
+                // the two diverge, the sheet and the dialog disagree.
+                // The fist takes both fist and melee (they add) — the same rule as on the attack side.
                 const buckets = window.DX3rdUniversalHandler?.resolveGuardBuckets?.(weapon) || [];
                 for (const bucket of buckets) {
                     equipmentGuardBonus += grd[bucket] || 0;
@@ -512,34 +512,34 @@
             attrs.guard.equipment = equipmentGuardBonus;
             attrs.guard.equipmentFormula = equipmentGuardFormulas.join(' + ');
             attrs.guard.value = Math.max(attrs.guard.base + equipmentGuardBonus, attrs.guard.min || 0, 0);
-            attrs.guard.valueFormula = grdDiceFormula._;   // 가드치 필드에 쓴 다이스식(방어 확정 시 굴림)
+            attrs.guard.valueFormula = grdDiceFormula._;   // dice written into the guard field (rolled when defense is confirmed)
 
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
 
-            // === Penetrate 계산 ===
+            // === Penetrate ===
             const penetrateBonus = R.sum('penetrate');
 
             attrs.penetrate.value = penetrateBonus;
-            // 최소값 보정: penetrate는 최소 0
+            // Floor: penetrate is never below 0
             if (attrs.penetrate.value < 0) attrs.penetrate.value = 0;
             if (attrs.penetrate.value < attrs.penetrate.min) attrs.penetrate.value = attrs.penetrate.min;
-            // 관통 다이스식: 명중 판정 시점에 굴려(resolveAttackBonusesRolled) 숫자로 굳힌 뒤
-            // 데미지 창·방어 창까지 그 숫자로 넘어간다. 방어 측에서 다시 굴리지 않는다.
+            // The penetrate dice are rolled at accuracy time (resolveAttackBonusesRolled), frozen to a
+            // number, and carried as that number into the damage and defense dialogs. Never re-rolled there.
             attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;
 
-            // === Reduce 계산 ===
+            // === Reduce ===
             const reduceBonus = R.sum('reduce');
 
             attrs.reduce.value = reduceBonus;
-            // 최소값 보정: reduce는 최소 0
+            // Floor: reduce is never below 0
             if (attrs.reduce.value < 0) attrs.reduce.value = 0;
             if (attrs.reduce.value < attrs.reduce.min) attrs.reduce.value = attrs.reduce.min;
-            attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;   // 경감치 필드에 쓴 다이스식(방어 확정 시 굴림)
+            attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;   // dice written into the reduction field (rolled when defense is confirmed)
 
-            // 이니셔티브 계산 (sense.total * 2 + mind.total + 아이템/적용 효과 보너스)
+            // Initiative = sense.total × 2 + mind.total + item/applied bonuses
             let initBonus = 0;
             
-            // 장착된 프로텍트의 init 값 추가
+            // init from the equipped protects
             const equippedProtectsForInit = equippedProtects;
             for (const protect of equippedProtectsForInit) {
                 if (protect.system?.init) {
@@ -548,7 +548,7 @@
                 }
             }
             
-            // 장착된 비클의 init 값 추가
+            // init from the equipped vehicles
             const equippedVehiclesForInit = equippedVehicles;
             for (const vehicle of equippedVehiclesForInit) {
                 if (vehicle.system?.init) {
@@ -557,12 +557,12 @@
                 }
             }
             
-            // 활성 아이템 + applied 의 init 보너스
+            // init bonus from active items and applied effects
             initBonus += R.sum('init');
 
             attrs.init.value = (attrs.sense?.total || 0) * 2 + (attrs.mind?.total || 0) + initBonus;
             
-            // Madness5 아이템 체크 및 init 패널티 적용 (폭주 패널티 전에 적용)
+            // Madness 5: apply its init penalty (before the berserk penalties)
             const madnessTypePrefix = game.i18n.localize('DX3rd.MadnessType');
             const madness5Name = madnessTypePrefix + ': ' + game.i18n.localize('DX3rd.Madness5');
             const hasMadness5 = effectItems.some(item => item.name === madness5Name);
@@ -571,69 +571,69 @@
                 const initBeforeMadness5 = attrs.init.value;
                 attrs.init.value -= 5;
                 
-                // 적용 전 값이 1 이상이고 5 이하일 경우 최소값 1 보장 (이미 0 이하라면 상관없음)
+                // When the pre-penalty value was 1..5, floor the result at 1 (already 0 or less is fine)
                 if (initBeforeMadness5 >= 1 && initBeforeMadness5 <= 5) {
                     attrs.init.value = Math.max(1, attrs.init.value);
                 }
             }
             
-            // 폭주 상태이상 체크
+            // Berserk condition
             if (system.conditions?.berserk?.active) {
-                // 폭주 해방 (-9999 패널티)
+                // Berserk "release" (-9999)
                 if (system.conditions.berserk.type === 'release') {
                     attrs.init.value -= 9999;
                 }
-                // 폭주 망상 (-10 패널티)
+                // Berserk "delusion" (-10)
                 else if (system.conditions.berserk.type === 'delusion') {
                     attrs.init.value -= 10;
                 }
             }
             
-            // 이니셔티브 최소값 0 보장
+            // Initiative floors at 0
             if (attrs.init.value < 0) attrs.init.value = 0;
 
-            // 이동력 계산
-            // 간이 거리 계산 설정 확인
+            // Movement
+            // The simplified-distance setting
             const simplifiedDistance = game.settings.get('dx3rd-emanim', 'simplifiedDistance');
             
             if (!simplifiedDistance) {
-                // 장착된 비클 확인 (move.battle 계산에 사용)
+                // Equipped vehicles (used for move.battle)
                 const equippedVehicle = equippedVehicles[0];
                 
-                // 기본 계산식: init.value + 5 또는 비클 move / 5 중 큰 값
+                // Base formula: the greater of init.value + 5 and the vehicle's move / 5
                 let baseBattleMove = attrs.init.value + 5;
                 
                 if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                    // 비클의 move 값을 평가
+                    // Evaluate the vehicle's move value
                     const vehicleMove = window.DX3rdFormulaEvaluator.evaluate(
                         equippedVehicle.system.move,
                         this,
                         equippedVehicle
                     );
                     const vehicleBattleMove = Math.floor(vehicleMove / 5);
-                    // 비클 move/5와 행동치+5 중 큰 값 선택
+                    // Take the greater of vehicle move/5 and initiative+5
                     baseBattleMove = Math.max(baseBattleMove, vehicleBattleMove);
                 }
                 
-                // battleMove 보너스 계산
+                // battleMove bonus
                 let moveBattleBonus = 0;
                 
-                // 활성 아이템 + applied 의 battleMove 보너스
+                // battleMove bonus from active items and applied effects
                 moveBattleBonus += R.sum('battleMove');
 
                 attrs.move.battle = baseBattleMove + moveBattleBonus;
                 
-                // 경직 상태이상 체크 (-9999 패널티)
+                // Rigor condition (-9999)
                 if (system.conditions?.rigor?.active) {
                     attrs.move.battle -= 9999;
                 }
                 
-                // 이동력(전투) 최소값 0 보장
+                // Battle movement floors at 0
                 if (attrs.move.battle < 0) attrs.move.battle = 0;
                 
-                // 이동력(전력) 기본 계산: move.battle * 2 또는 비클 move
+                // Full movement: move.battle × 2, or the vehicle's move
                 if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                    // 비클이 있으면 비클의 move 값 사용
+                    // With a vehicle, use its move value
                     const vehicleMove = window.DX3rdFormulaEvaluator.evaluate(
                         equippedVehicle.system.move,
                         equippedVehicle,
@@ -641,83 +641,83 @@
                     );
                     attrs.move.full = vehicleMove;
                 } else {
-                    // 비클이 없으면 move.battle * 2
+                    // Without one, move.battle × 2
             attrs.move.full = attrs.move.battle * 2;
                 }
                 
-                // 이동력(전력) fullMove 보너스 추가
+                // fullMove bonus on top
                 let moveFullBonus = 0;
                 
-                // 활성 아이템 + applied 의 fullMove 보너스
+                // fullMove bonus from active items and applied effects
                 moveFullBonus += R.sum('fullMove');
                 
-                // fullMove 보너스를 move.full에 추가 (비클이 있으면 비클 기준, 없으면 move.battle*2 기준)
+                // Add it to move.full (based on the vehicle when present, otherwise move.battle × 2)
                 attrs.move.full += moveFullBonus;
                 
-                // 경직 상태이상 체크 (-9999 패널티)
+                // Rigor condition (-9999)
                 if (system.conditions?.rigor?.active) {
                     attrs.move.full -= 9999;
                 }
                 
-                // 이동력(전력) 최소값 0 보장
+                // Full movement floors at 0
                 if (attrs.move.full < 0) attrs.move.full = 0;
                 
-                // SpellCalamity 1번 효과: 이동력 절반
-                // move_half는 primitive 이름 또는 객체 key 형태 모두 색인의 'move_half' 버킷에 들어간다
+                // SpellCalamity effect 1: movement halved.
+                // move_half lands in the index's 'move_half' bucket whether it is a primitive name or an object key
                 const hasMoveHalf = (appliedByKey['move_half'] || []).length > 0;
                 
                 if (hasMoveHalf) {
                     if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                        // 비클이 있는 경우: move.battle과 move.full 모두 절반으로 하고, 그 값의 /5가 move.battle과 비교
+                        // With a vehicle: halve both move.battle and move.full, then compare that /5 against move.battle
                         attrs.move.battle = Math.floor(attrs.move.battle / 2);
                         attrs.move.full = Math.floor(attrs.move.full / 2);
                         const vehicleBattleFromFull = Math.floor(attrs.move.full / 5);
                         attrs.move.battle = Math.max(attrs.move.battle, vehicleBattleFromFull);
                     } else {
-                        // 비클이 없는 경우: move.battle만 절반으로 계산 (move.full은 자동으로 절반이 됨)
+                        // Without one: halve move.battle only (move.full follows automatically)
                         attrs.move.battle = Math.floor(attrs.move.battle / 2);
                         attrs.move.full = attrs.move.battle * 2;
                     }
                 }
             } else {
-                // 간이 거리 계산식
-                // 장착된 비클 확인
+                // Simplified distance formula
+                // Equipped vehicles
                 const equippedVehicle = equippedVehicles[0];
                 
-                // 기본 계산식: Math.floor(init.value / 2) + 2 또는 비클 move / 5 중 큰 값
+                // Base formula: the greater of floor(init.value / 2) + 2 and the vehicle's move / 5
                 let baseBattleMove = Math.floor(attrs.init.value / 2) + 2;
                 
                 if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                    // 비클의 move 값을 평가
+                    // Evaluate the vehicle's move value
                     const vehicleMove = window.DX3rdFormulaEvaluator.evaluate(
                         equippedVehicle.system.move,
                         this,
                         equippedVehicle
                     );
                     const vehicleBattleMove = Math.floor(vehicleMove / 5);
-                    // 비클 move/5와 (행동치/2)+2 중 큰 값 선택
+                    // Take the greater of vehicle move/5 and (initiative/2)+2
                     baseBattleMove = Math.max(baseBattleMove, vehicleBattleMove);
                 }
                 
-                // battleMove 보너스 계산
+                // battleMove bonus
                 let moveBattleBonus = 0;
                 
-                // 활성 아이템 + applied 의 battleMove 보너스
+                // battleMove bonus from active items and applied effects
                 moveBattleBonus += R.sum('battleMove');
                 
                 attrs.move.battle = baseBattleMove + moveBattleBonus;
                 
-                // 경직 상태이상 체크 (-9999 패널티)
+                // Rigor condition (-9999)
                 if (system.conditions?.rigor?.active) {
                     attrs.move.battle -= 9999;
                 }
                 
-                // 이동력(전투) 최소값 0 보장
+                // Battle movement floors at 0
                 if (attrs.move.battle < 0) attrs.move.battle = 0;
                 
-                // 이동력(전력) 기본 계산: move.battle * 2 또는 비클 move
+                // Full movement: move.battle × 2, or the vehicle's move
                 if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                    // 비클이 있으면 비클의 move 값 사용
+                    // With a vehicle, use its move value
                     const vehicleMove = window.DX3rdFormulaEvaluator.evaluate(
                         equippedVehicle.system.move,
                         equippedVehicle,
@@ -725,91 +725,91 @@
                     );
                     attrs.move.full = vehicleMove;
                 } else {
-                    // 비클이 없으면 move.battle * 2
+                    // Without one, move.battle × 2
             attrs.move.full = attrs.move.battle * 2;
                 }
                 
-                // 이동력(전력) fullMove 보너스 추가
+                // fullMove bonus on top
                 let moveFullBonus = 0;
                 
-                // 활성 아이템 + applied 의 fullMove 보너스
+                // fullMove bonus from active items and applied effects
                 moveFullBonus += R.sum('fullMove');
                 
-                // fullMove 보너스를 move.full에 추가 (비클이 있으면 비클 기준, 없으면 move.battle*2 기준)
+                // Add it to move.full (based on the vehicle when present, otherwise move.battle × 2)
                 attrs.move.full += moveFullBonus;
                 
-                // 경직 상태이상 체크 (-9999 패널티)
+                // Rigor condition (-9999)
                 if (system.conditions?.rigor?.active) {
                     attrs.move.full -= 9999;
                 }
                 
-                // 이동력(전력) 최소값 0 보장
+                // Full movement floors at 0
                 if (attrs.move.full < 0) attrs.move.full = 0;
                 
-                // SpellCalamity 1번 효과: 이동력 절반 (간이 거리 계산식)
+                // SpellCalamity effect 1: movement halved (simplified distance)
                 const hasMoveHalfSimplified = (appliedByKey['move_half'] || []).length > 0;
                 
                 if (hasMoveHalfSimplified) {
                     if (equippedVehicle && equippedVehicle.system?.move !== undefined) {
-                        // 비클이 있는 경우: move.battle과 move.full 모두 절반으로 하고, 그 값의 /5가 move.battle과 비교
+                        // With a vehicle: halve both move.battle and move.full, then compare that /5 against move.battle
                         attrs.move.battle = Math.floor(attrs.move.battle / 2);
                         attrs.move.full = Math.floor(attrs.move.full / 2);
                         const vehicleBattleFromFull = Math.floor(attrs.move.full / 5);
                         attrs.move.battle = Math.max(attrs.move.battle, vehicleBattleFromFull);
                     } else {
-                        // 비클이 없는 경우: move.battle만 절반으로 계산 (move.full은 자동으로 절반이 됨)
+                        // Without one: halve move.battle only (move.full follows automatically)
                         attrs.move.battle = Math.floor(attrs.move.battle / 2);
                         attrs.move.full = attrs.move.battle * 2;
                     }
                 }
             }
 
-            // 세이빙 계산 (social.total * 2 + procure.total * 2 + 아이템/적용 효과 보너스)
+            // Saving = social.total × 2 + procure.total × 2 + item/applied bonuses
             const socialTotal = Number(attrs.social?.total || 0);
             const procureTotal = Number(attrs.skills?.procure?.total || 0);
             let savingBonus = 0;
             
-            // 활성 아이템 + applied 의 saving_max 보너스
+            // saving_max bonus from active items and applied effects
             savingBonus += R.sum('saving_max');
             
-            // 이론상 상비점 최대치 (아이템 상비화 비용 차감 전)
+            // The theoretical saving maximum (before deducting the items' permanent-stock costs)
             attrs.saving.max = socialTotal * 2 + procureTotal * 2 + savingBonus;
             
-            // 잔여 상비점은 저장값이 아니라 현재 최대치와 보유 아이템 비용에서 매번 파생한다.
-            // 기본 구조의 0을 과거 값으로 취급해 Math.min 하면 한 번 0인 액터가 영구히
-            // 회복되지 않으므로, 아이템 추가·삭제와 능력치 변경 모두 현재 데이터로 재계산한다.
+            // The remaining saving is derived from the current maximum and the held items every time,
+            // never stored. Treating the structural 0 as a past value and Math.min-ing it would leave
+            // an actor that once hit 0 permanently stuck there, so item changes and stat changes both recompute.
             attrs.saving.remain = calculateSavingRemain(attrs.saving.max, actorItems);
 
-            // 스톡 계산 (saving.remain + 아이템/적용 효과 보너스)
+            // Stock = saving.remain + item/applied bonuses
             let stockBonus = 0;
             
-            // 활성 아이템 + applied 의 stock_point 보너스
+            // stock_point bonus from active items and applied effects
             stockBonus += R.sum('stock_point');
             
-            // 기본 재산점 = 상비화 후 남은 상비점 + 효과 보너스.
-            // 현재 재산점 = 기본 + 사용자가 사유와 함께 기록한 누적 수정치.
-            // 구 데이터의 value=0은 초기값과 실제 0을 구분할 수 없고 기존 버그로 대부분
-            // 0에 고정돼 있었으므로, modifier가 없는 문서는 수정 없음(0)으로 이행한다.
-            // 상비점 초과분(음수 remain)은 상비점 칸에만 남기고 재산점으로 넘기지 않는다 —
-            // 두 점수는 별개의 초과 지출이라 한쪽 적자를 다른 쪽에 이중으로 물리지 않는다.
+            // Base stock = the saving left after permanent purchases, plus effect bonuses.
+            // Current stock = base + the cumulative modifier the user recorded with a reason.
+            // In legacy data value=0 cannot be told apart from an unset initial value, and an old bug
+            // pinned most of them at 0, so a document without a modifier migrates to "no adjustment" (0).
+            // An overspend on saving (a negative remain) stays in the saving field and is not carried
+            // into stock — the two are separate budgets, so one deficit must not be charged twice.
             Object.assign(attrs.stock, deriveStock(
                 Math.max(Number(attrs.saving.remain) || 0, 0) + stockBonus,
                 attrs.stock.modifier,
                 attrs.stock.min
             ));
 
-            // 침식도/경험치 기본값 보정
+            // Encroachment / experience defaults
             attrs.encroachment.max = 100;
             attrs.encroachment.min = attrs.encroachment.min ?? 0;
             if (attrs.encroachment.value < attrs.encroachment.min) attrs.encroachment.value = attrs.encroachment.min;
             
-            // 침식률 초기값 계산
-            // system.encroach.init 은 이펙트 전용 슬롯이 아니다. 엠블럼·유니크 등
-            // 일반 아이템에도 같은 필드를 사용하며, 타입과 무관하게 모두 합산한다.
-            // record 는 별도의 system.encroachment 통로로 더하므로 여기서는 제외한다.
+            // Initial encroachment
+            // system.encroach.init is not an effect-only slot. Emblems, uniques and other ordinary
+            // items use the same field, and every type is summed regardless.
+            // Records are excluded here, since they add through their own system.encroachment path.
             let encroachInitSum = sumItemEncroachInit(actorItems);
             
-            // 레코드 아이템의 encroachment 합산
+            // Encroachment from record items
             for (const record of recordItems) {
                 const recordEncroach = Number(record.system?.encroachment) || 0;
                 encroachInitSum += recordEncroach;
@@ -818,7 +818,7 @@
             const encroachInput = Number(attrs.encroachment.init?.input) || 0;
             attrs.encroachment.init.value = encroachInput + encroachInitSum;
 
-            // 레코드 아이템의 경험치 합산
+            // Experience from record items
             let recordExpSum = 0;
             for (const record of recordItems) {
                 const recordExp = Number(record.system?.exp) || 0;
@@ -829,15 +829,15 @@
             attrs.exp.append = recordExpSum;
             attrs.exp.total = attrs.exp.init + attrs.exp.append;
             
-            // 경험치 차감 계산 (exp.now)
+            // Experience spent (exp.now)
             let expReduction = 0;
             
-            // 능력치 경험치 차감 계산
+            // Experience spent on attributes
             for (const key of ["body", "sense", "mind", "social"]) {
                 const stat = attrs[key];
                 const point = stat.point || 0;
                 
-                // 신드롬 보너스 계산
+                // Syndrome bonus
                 let syndromeBonus = 0;
                 const syndromeList = attrs.syndrome || [];
                 const totalSyndromeCount = syndromeItems.length;
@@ -855,7 +855,7 @@
                     }
                 }
                 
-                // 워크스 보너스 계산
+                // Works bonus
                 let worksBonus = 0;
                 for (const worksItem of worksItems) {
                     if (worksItem.system?.attributes?.[key]?.value) {
@@ -865,31 +865,31 @@
                 
                 const bonus = syndromeBonus + worksBonus;
                 
-                // 전체 점수 (신드롬 + 워크스 + 포인트)
+                // The full score (syndrome + works + points)
                 const totalPoint = point + bonus;
                 
                 let abilityExpReduction = 0;
                 
-                // 0~11: 1당 10점
+                // 0..11: 10 points each
                 if (totalPoint > 11) {
                     abilityExpReduction += (11 - 0) * 10;
                 } else {
                     abilityExpReduction += (totalPoint - 0) * 10;
                 }
                 
-                // 12~21: 1당 20점
+                // 12..21: 20 points each
                 if (totalPoint > 21) {
                     abilityExpReduction += (21 - 11) * 20;
                 } else if (totalPoint > 11) {
                     abilityExpReduction += (totalPoint - 11) * 20;
                 }
                 
-                // 22 이상: 1당 30점
+                // 22 and up: 30 points each
                 if (totalPoint > 21) {
                     abilityExpReduction += (totalPoint - 21) * 30;
                 }
                 
-                // 신드롬+워크스 보너스 차감
+                // Deduct the syndrome + works bonus
                 if (bonus > 0) {
                     abilityExpReduction -= bonus * 10;
                 }
@@ -897,7 +897,7 @@
                 expReduction += abilityExpReduction;
             }
             
-            // 스킬 경험치 차감 계산
+            // Experience spent on skills
             for (const [key, skill] of Object.entries(skills)) {
                 const point = skill.point || 0;
                 const worksBonus = skill.works || 0;
@@ -907,62 +907,62 @@
                 let skillExpReduction = 0;
                 
                 if (isDeletable) {
-                    // delete=true: 0~6(1), 7~11(3), 12~21(5), 22+(10)
-                    // 0~6: 1당 1점
+                    // delete=true: 0~6 (1), 7~11 (3), 12~21 (5), 22+ (10)
+                    // 0..6: 1 point each
                     if (totalPoint > 6) {
                         skillExpReduction += (6 - 0) * 1;
                     } else {
                         skillExpReduction += (totalPoint - 0) * 1;
                     }
                     
-                    // 7~11: 1당 3점
+                    // 7..11: 3 points each
                     if (totalPoint > 11) {
                         skillExpReduction += (11 - 6) * 3;
                     } else if (totalPoint > 6) {
                         skillExpReduction += (totalPoint - 6) * 3;
                     }
                     
-                    // 12~21: 1당 5점
+                    // 12..21: 5 points each
                     if (totalPoint > 21) {
                         skillExpReduction += (21 - 11) * 5;
                     } else if (totalPoint > 11) {
                         skillExpReduction += (totalPoint - 11) * 5;
                     }
                     
-                    // 22 이상: 1당 10점
+                    // 22 and up: 10 points each
                     if (totalPoint > 21) {
                         skillExpReduction += (totalPoint - 21) * 10;
                     }
                 } else {
-                    // delete=false: 0~6(2), 7~11(3), 12~21(5), 22+(10)
-                    // 0~6: 1당 2점
+                    // delete=false: 0~6 (2), 7~11 (3), 12~21 (5), 22+ (10)
+                    // 0..6: 2 points each
                     if (totalPoint > 6) {
                         skillExpReduction += (6 - 0) * 2;
                     } else {
                         skillExpReduction += (totalPoint - 0) * 2;
                     }
                     
-                    // 7~11: 1당 3점
+                    // 7..11: 3 points each
                     if (totalPoint > 11) {
                         skillExpReduction += (11 - 6) * 3;
                     } else if (totalPoint > 6) {
                         skillExpReduction += (totalPoint - 6) * 3;
                     }
                     
-                    // 12~21: 1당 5점
+                    // 12..21: 5 points each
                     if (totalPoint > 21) {
                         skillExpReduction += (21 - 11) * 5;
                     } else if (totalPoint > 11) {
                         skillExpReduction += (totalPoint - 11) * 5;
                     }
                     
-                    // 22 이상: 1당 10점
+                    // 22 and up: 10 points each
                     if (totalPoint > 21) {
                         skillExpReduction += (totalPoint - 21) * 10;
                     }
                 }
                 
-                // 워크스 보너스 차감 (delete=false는 2배, delete=true는 1배)
+                // Deduct the works bonus (×2 when delete=false, ×1 when delete=true)
                 if (worksBonus > 0) {
                     const bonusMultiplier = isDeletable ? 1 : 2;
                     skillExpReduction -= worksBonus * bonusMultiplier;
@@ -971,7 +971,7 @@
                 expReduction += skillExpReduction;
             }
             
-            // Effect 아이템들의 경험치 차감 계산
+            // Experience spent on effect items
             for (const effect of effectItems) {
                 const expOwn = effect.system?.exp?.own || false;
                 const expUpgrade = effect.system?.exp?.upgrade || false;
@@ -979,27 +979,27 @@
                 const levelInit = effect.system?.level?.init || 1;
                 
                 if (effectType === 'easy') {
-                    // easy 타입
+                    // easy type
                     if (expOwn) {
                         expReduction += 2;
                     }
                     if (expUpgrade && levelInit >= 2) {
-                        // level 2일 때 -2, level 3일 때 -4 (누적이 아닌 레벨당 -2)
+                        // -2 at level 2, -4 at level 3 (per level, not cumulative)
                         expReduction += (levelInit - 1) * 2;
                     }
                 } else if (effectType === 'normal') {
-                    // normal 타입
+                    // normal type
                     if (expOwn) {
                         expReduction += 15;
                     }
                     if (expUpgrade && levelInit >= 2) {
-                        // level 2일 때 -5, level 3일 때 -10 (누적이 아닌 레벨당 -5)
+                        // -5 at level 2, -10 at level 3 (per level, not cumulative)
                         expReduction += (levelInit - 1) * 5;
                     }
                 }
             }
             
-            // Psionic 아이템들의 경험치 차감 계산
+            // Experience spent on psionic items
             for (const psionic of psionicItems) {
                 const expOwn = psionic.system?.exp?.own || false;
                 const expUpgrade = psionic.system?.exp?.upgrade || false;
@@ -1009,12 +1009,12 @@
                     expReduction += 15;
                 }
                 if (expUpgrade && levelInit >= 2) {
-                    // level 2일 때 -5, level 3일 때 -10 (누적이 아닌 레벨당 -5)
+                    // -5 at level 2, -10 at level 3 (per level, not cumulative)
                     expReduction += (levelInit - 1) * 5;
                 }
             }
             
-            // Rois 아이템들의 경험치 차감 계산 (type이 M인 경우 15점 차감)
+            // Experience spent on Lois items (type M costs 15)
             for (const rois of roisItems) {
                 const roisType = rois.system?.type || '-';
                 if (roisType === 'M') {
@@ -1022,7 +1022,7 @@
                 }
             }
             
-            // Spell 아이템들의 경험치 차감 계산
+            // Experience spent on spell items
             for (const spell of spellItems) {
                 const temporarySpell = spell.system?.temporarySpell || false;
                 if (!temporarySpell) {
@@ -1031,7 +1031,7 @@
                 }
             }
             
-            // Weapon, Protect, Vehicle, Book, Connection, Etc 아이템들의 경험치 차감 계산
+            // Experience spent on weapon / protect / vehicle / book / connection / etc items
             const expItemTypes = ['weapon', 'protect', 'vehicle', 'book', 'connection', 'etc'];
             for (const itemType of expItemTypes) {
                 for (const item of itemsOfType(itemType)) {
@@ -1040,7 +1040,7 @@
                 }
             }
             
-            // Once 아이템들의 경험치 차감 계산
+            // Experience spent on consumable (once) items
             for (const once of onceItems) {
                 const quantity = Number(once.system?.quantity) || 1;
                 const onceExp = Number(once.system?.exp) || 0;
@@ -1049,53 +1049,53 @@
             
             attrs.exp.now = attrs.exp.total - expReduction;
             
-            // 경험치 할인 적용
+            // Apply the experience discount
             const discount = Number(attrs.exp?.discount) || 0;
             attrs.exp.now += discount;
-            // 최대값 보정: exp.now는 exp.total을 넘지 못함
+            // Ceiling: exp.now can never exceed exp.total
             if (attrs.exp.now > attrs.exp.total) attrs.exp.now = attrs.exp.total;
 
-            // === 크리티컬 하한치 계산 ===
-            const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10; // 기본값
-            // 하한치는 "선언한 것이 있을 때만" 그 값이고, 없으면 룰 기본 하한(2)이다.
-            // 예전에는 defaultCritical(10)에서 시작해 min 을 잡았기 때문에, 하한치를 따로
-            // 선언하지 않은 「크리티컬치 -1」이 Math.max(10, 9) 에 먹혀 전부 사라졌다.
-            // (승화 3번이 critical:-1 에 critical_min:2 를 붙여 둔 것도 그 우회였다.)
+            // === Critical floor ===
+            const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10; // the default
+            // The floor is the declared value only when something declares one; otherwise it is the
+            // rules' base floor of 2. Starting from defaultCritical (10) instead meant an undeclared
+            // "critical -1" was eaten by Math.max(10, 9) and vanished entirely.
+            // (Sublimation 3 pairing critical:-1 with critical_min:2 was a workaround for exactly that.)
             const declaredCriticalMin = R.min('critical_min', Infinity);
             const criticalMin = Number.isFinite(declaredCriticalMin) ? declaredCriticalMin : 2;
 
-            // 크리티컬 하한치 설정 (최소값 2로 제한)
+            // Set the critical floor (never below 2)
             if (!attrs.critical) attrs.critical = {};
             attrs.critical.min = Math.max(2, criticalMin);
 
-            // === 2차 패스: 능력치 dice, add, critical 계산 (이제 모든 total이 준비됨) ===
+            // === Pass 2: attribute dice, add and critical (every total is ready now) ===
             for (const key of ["body", "sense", "mind", "social"]) {
                 const stat = attrs[key];
                 
-                // dice 계산: total + 침식률 + dice(일반) + stat_dice[능력치]
-                // 활성 아이템 + applied: dice(무라벨) + stat_dice(능력치 라벨 일치)
+                // dice = total + encroachment + dice (generic) + stat_dice[attribute]
+                // From active items and applied effects: dice (unlabeled) + stat_dice matching this attribute
                 const abilityDiceBonus = R.sum('dice');
                 const abilityStatDiceBonus = R.byLabel('stat_dice', key);
 
                 stat.dice = stat.total + (attrs.encroachment?.dice || 0) + abilityDiceBonus + abilityStatDiceBonus;
-                // 최소값 보정: dice는 최소 1
+                // Floor: dice is never below 1
                 if (stat.dice < 1) stat.dice = 1;
                 
-                // add 계산: add(일반) + stat_add[능력치]
-                // 활성 아이템 + applied: add(무라벨) + stat_add(능력치 라벨 일치)
+                // add = add (generic) + stat_add[attribute]
+                // From active items and applied effects: add (unlabeled) + stat_add matching this attribute
                 const abilityAddBonus = R.sum('add');
                 const abilityStatAddBonus = R.byLabel('stat_add', key);
 
                 stat.add = abilityAddBonus + abilityStatAddBonus;
                 
-                // critical 계산: max(critical.min, defaultCritical + critical(일반))
-                // 활성 아이템 + applied 의 critical 보정(색인 경유로 통일 — object/primitive 형 모두 포함)
+                // critical = max(critical.min, defaultCritical + critical (generic))
+                // The critical modifier goes through the index, so object and primitive forms both count
                 const abilityCriticalMod = R.sum('critical');
 
                 const calculatedCritical = defaultCritical + abilityCriticalMod;
                 stat.critical = Math.max(attrs.critical?.min || defaultCritical, calculatedCritical);
                 
-                // major, reaction, dodge 판정별 dice, critical, add 계산
+                // Per-roll-type dice, critical and add for major / reaction / dodge
                 // major_dice, major_critical, major_add
                 let majorDiceBonus = 0;
                 let majorCriticalMod = 0;
@@ -1111,7 +1111,7 @@
                 let dodgeCriticalMod = 0;
                 let dodgeAddBonus = 0;
                 
-                // 장착된 프로텍트의 dodge 값 추가 (dodge_add에 적용)
+                // dodge from the equipped protects (applied to dodge_add)
                 const equippedProtectsForDodge = equippedProtects;
                 for (const protect of equippedProtectsForDodge) {
                     if (protect.system?.dodge) {
@@ -1120,7 +1120,7 @@
                     }
                 }
                 
-                // 활성 아이템 + applied 의 major/reaction/dodge 9키 단일패스 병합
+                // The nine major/reaction/dodge keys, merged in a single pass over items + applied
                 const M = R.mrd();
                 majorDiceBonus += M.major_dice;
                 majorCriticalMod += M.major_critical;
@@ -1132,7 +1132,7 @@
                 dodgeCriticalMod += M.dodge_critical;
                 dodgeAddBonus += M.dodge_add;
 
-                // 판정 타입별 최종 값 저장
+                // Store the final per-roll-type values
                 stat.major = {
                     dice: stat.dice + majorDiceBonus,
                     critical: Math.max(attrs.critical?.min || defaultCritical, stat.critical + majorCriticalMod),
@@ -1150,8 +1150,8 @@
                     critical: Math.max(attrs.critical?.min || defaultCritical, stat.critical + reactionCriticalMod + dodgeCriticalMod),
                     add: stat.add + reactionAddBonus + dodgeAddBonus
                 };
-                // stat_bonus는 능력치 total(=다이스 풀)에, stat_dice/stat_add는 각각
-                // 다이스/가산치에 들어간다. 다이스식은 여기서 굴리지 않고 판정으로 넘긴다.
+                // stat_bonus feeds the attribute total (the dice pool); stat_dice and stat_add feed
+                // dice and the addition respectively. Dice formulas are not rolled here — the check does that.
                 stat.rollFormula = {
                     dice: [
                         R.actionDiceFormulaWhere('stat_bonus', label => label === key),
@@ -1161,32 +1161,32 @@
                 };
             }
 
-            // === 2차 패스: 스킬 dice, add, critical 계산 및 분류 ===
+            // === Pass 2: skill dice, add and critical, and their classification ===
             system.skills = { body: {}, sense: {}, mind: {}, social: {} };
 
             for (const [key, skill] of Object.entries(skills)) {
-                // dice 계산: 기본능력치.dice + stat_dice[스킬]
+                // dice = the base attribute's dice + stat_dice[skill]
                 const baseAbility = attrs[skill.base];
                 let baseDice = baseAbility ? baseAbility.dice || 0 : 0;
-                // 활성 아이템 + applied 의 stat_dice(직접 or 스킬그룹 매칭) 단일 경로
+                // stat_dice from active items and applied effects (direct or skill-group match)
                 const skillStatDiceBonus = R.bySkill('stat_dice', key);
 
                 skill.dice = baseDice + skillStatDiceBonus;
-                // 최소값 보정: dice는 최소 1
+                // Floor: dice is never below 1
                 if (skill.dice < 1) skill.dice = 1;
                 
-                // add 계산: add(일반) + stat_add[능력치] + stat_add[스킬]
-                // 활성 아이템 + applied: add(무라벨) + stat_add(능력치=skill.base) + stat_add(직접/그룹 매칭)
+                // add = add (generic) + stat_add[attribute] + stat_add[skill]
+                // From items and applied: add (unlabeled) + stat_add for skill.base + stat_add (direct/group match)
                 const skillAddBonus = R.sum('add');
                 const skillAbilityAddBonus = R.byLabel('stat_add', skill.base);
                 const skillStatAddBonus = R.bySkill('stat_add', key);
 
                 skill.add = skill.total + skillAddBonus + skillAbilityAddBonus + skillStatAddBonus;
                 
-                // critical 계산: 기본능력치의 critical 값 사용
+                // critical: taken from the base attribute
                 skill.critical = baseAbility ? baseAbility.critical || defaultCritical : defaultCritical;
                 
-                // major, reaction, dodge 판정별 dice, critical, add 계산
+                // Per-roll-type dice, critical and add for major / reaction / dodge
                 let majorDiceBonus = 0;
                 let majorCriticalMod = 0;
                 let majorAddBonus = 0;
@@ -1199,7 +1199,7 @@
                 let dodgeCriticalMod = 0;
                 let dodgeAddBonus = 0;
                 
-                // 장착된 프로텍트의 dodge 값 추가 (dodge_add에 적용)
+                // dodge from the equipped protects (applied to dodge_add)
                 const equippedProtectsForSkill = equippedProtects;
                 for (const protect of equippedProtectsForSkill) {
                     if (protect.system?.dodge) {
@@ -1208,7 +1208,7 @@
                     }
                 }
                 
-                // 활성 아이템 + applied 의 major/reaction/dodge 9키 단일패스 병합
+                // The nine major/reaction/dodge keys, merged in a single pass over items + applied
                 const M = R.mrd();
                 majorDiceBonus += M.major_dice;
                 majorCriticalMod += M.major_critical;
@@ -1220,7 +1220,7 @@
                 dodgeCriticalMod += M.dodge_critical;
                 dodgeAddBonus += M.dodge_add;
 
-                // 판정 타입별 최종 값 저장
+                // Store the final per-roll-type values
                 skill.major = {
                     dice: skill.dice + majorDiceBonus,
                     critical: Math.max(attrs.critical?.min || defaultCritical, skill.critical + majorCriticalMod),
@@ -1239,8 +1239,8 @@
                     add: skill.add + reactionAddBonus + dodgeAddBonus
                 };
 
-                // 기능치 판정은 기반 능력치의 다이스식도 물려받는다. stat_bonus는
-                // 기능치 total에 더해지는 값이므로 가산치로, stat_dice는 다이스 풀로 처리한다.
+                // A skill check also inherits the base attribute's dice formulas. stat_bonus adds into
+                // the skill total, so it is treated as an addition; stat_dice feeds the dice pool.
                 const skillMatches = label => label === key || window.DX3rdSkillGroupMatcher?.isSkillInGroup(key, label);
                 skill.rollFormula = {
                     dice: [
@@ -1254,42 +1254,42 @@
                     ].filter(Boolean).join(' + ')
                 };
 
-                // base가 올바른 경우만 분류
+                // Classify only when base is valid
                 if (skill.base && system.skills[skill.base]) {
                     system.skills[skill.base][key] = skill;
                 }
             }
 
-            // 기타 주요 속성 기본값 보정
+            // Defaults for the remaining top-level fields
             system.sublimation = system.sublimation || { dice: 0, critical: 0, cast_dice: 0, cast_add: 0 };
             system.details = system.details || {};
             system.conditions = system.conditions || {};
 
-            // 캐스팅 관련 파생치 최종 계산 (모든 스킬 계산 완료 후)
-            // 성능: 상단에서 만든 appliedByKey 재사용 → collect()+색인 2차 호출 제거
+            // Final casting-related derivations (after every skill is computed).
+            // Performance: reuse the index built above, instead of a second collect() + index pass.
             this._prepareCastingStats(appliedByKey);
         }
 
         /**
-         * 성능: Applied 효과(attrs.applied)를 1회만 순회해 key별 색인을 만든다.
-         * 기존에는 각 파생치 계산마다 Object.entries(appliedEffects) 전체를 다시 훑었다(수십 회).
+         * Performance: walk the applied effects (attrs.applied) once and index them by key.
+         * Every derived value used to re-walk Object.entries(appliedEffects) in full — dozens of times.
          *
-         * 반환: { [key]: [{ label, val }] }
-         *  - key/label/val 정규화는 소비부(균일 루프)의 기존 파생과 정확히 동일하게 맞춘다.
-         *    · val = (객체형이고 'value' 보유) ? attrValue.value
+         * Returns { [key]: [{ label, val }] }.
+         *  - The key/label/val normalization matches exactly what the (uniform) consumers derived before:
+         *    · val = (an object with 'value') ? attrValue.value
          *          : (boolean) ? 0
-         *          : evaluate(attrValue)   // primitive(숫자) → 그대로
-         *  - primitive 형태({ dice: -2 })는 label=null (실데이터상 label 필요 key는 primitive로 저장되지 않음).
-         *  - 주의: attrName 기반으로 매칭하는 critical, boolean/Number 처리가 다른
-         *    major/reaction/dodge, 조기 탐지하는 move_half 루프는 이 색인을 쓰지 않는다.
+         *          : evaluate(attrValue)   // a primitive number passes through
+         *  - The primitive form ({ dice: -2 }) has label=null (in real data, keys that need a label are never stored primitively).
+         *  - Note: this index is NOT used by critical (matched on attrName), by major/reaction/dodge
+         *    (different boolean/Number handling), or by the early-detection move_half loop.
          */
         _indexAppliedEffects(appliedEffects) {
             const byKey = {};
-            // 행동/방어 시점 굴림 키는 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
+            // The action/defense-time roll keys come from the single definition in DX3rdFormulaEvaluator.ROLL_TIME_KEYS.
             const isRollTimeKey = (key) => window.DX3rdFormulaEvaluator.isRollTimeKey(key);
             for (const eff of Object.values(appliedEffects || {})) {
                 if (!eff || !eff.attributes) continue;
-                if (eff._disabled) continue; // 비활성화(disabled) 토글된 applied 효과는 계산 제외
+                if (eff._disabled) continue; // a disabled applied effect is excluded from the arithmetic
 
                 for (const [attrName, attrValue] of Object.entries(eff.attributes)) {
                     const isObj = (typeof attrValue === 'object' && attrValue !== null);
@@ -1307,29 +1307,29 @@
         }
 
         /**
-         * ④ 소비 경로 단일화: 활성 아이템(라이브 평가) + applied(정규화 숫자) 기여를
-         *   하나의 인터페이스로 병합해 반환하는 리더. prepareData/캐스팅/에너미 3경로가 공유한다.
-         *  - 활성 아이템 수식은 "소비 시점"에 지연 평가한다(스탯 확정 후 값 참조 보존 = 기존 타이밍 유지).
-         *  - applied 값은 _indexAppliedEffects 가 정규화한 숫자({label,val})를 그대로 합산.
-         *  - 평가기 인자 순서는 문서 시그니처 evaluate(formula, item, actor) 로 통일
-         *    (구 hp/init 루프의 스왑 인자 quirk 교정). NaN 은 0 으로 흡수.
-         */
+         * A single consumption path: a reader merging the active-item contributions (evaluated live)
+         * with the applied ones (already normalized to numbers). prepareData, casting and the enemy
+         * path all share it.
+         *  - Active-item formulas are evaluated lazily, at consumption time, so they still see the
+         *    finalized stats — the original timing is preserved.
+         *  - Evaluator arguments follow the documented signature evaluate(formula, item, actor), fixing
+         *    the swapped-argument quirk of the old hp/init loops. NaN is absorbed to 0.
         _makeContribReader(activeItems, appliedByKey) {
             const actor = this;
             const ev = (v, item) => Number(window.DX3rdFormulaEvaluator.evaluate(v, item, actor)) || 0;
-            // 성능: 활성 아이템 어트리뷰트를 key별로 1회 색인({ [key]: [{a,item}] }).
-            //   기존엔 리더 호출(sum/byLabel/… 수십 회)마다 전체 activeItems×attrs 를 재스캔했다.
-            //   값(a.value)의 수식 평가는 여전히 소비 시점에 지연 수행 → 타이밍/결과 불변(diff=0).
+            // Performance: index the active items' attributes by key once ({ [key]: [{a,item}] }).
+            //   Previously every reader call (sum/byLabel/… dozens of them) rescanned all activeItems × attrs.
+            //   Evaluating a.value is still deferred to consumption time, so timing and results are unchanged.
             const activeByKey = {};
             const effectAdapter = window.DX3rdItemEffectAdapter;
             for (const item of activeItems) {
                 const map = item.system?.attributes;
                 if (!map) continue;
                 for (const a of Object.values(map)) {
-                    if (!a || a.key == null) continue; // key 없는 어트리뷰트는 어떤 리더 키에도 매칭 안 됨(기존 동작)
-                    // 항목별 「발현 액션」이 「사용/공격 시」로 저작된 보정은 상태가 켜져 있는
-                    // 동안 붙는 것이 아니라 그때그때 동결 AE 로 걸린다(appliedByKey 쪽에서 온다).
-                    // 여기서 또 세면 같은 보정이 두 번 붙는다.
+                    if (!a || a.key == null) continue; // an attribute with no key matches no reader key (unchanged behavior)
+                    // A row whose own trigger action is authored as "on use" or "on attack" does not apply
+                    // while the state is on — it is attached as a frozen AE at that moment instead, and
+                    // arrives through appliedByKey. Counting it here too would apply the same bonus twice.
                     if (effectAdapter && !effectAdapter.appliesWhileActive(item, a)) continue;
                     (activeByKey[a.key] = activeByKey[a.key] || []).push({ a, item });
                 }
@@ -1340,15 +1340,15 @@
                 for (const { a, item } of list) fn(a, item);
             };
             return {
-                // 라벨 무관 단순 합
+                // Plain sum, ignoring labels
                 sum(key) {
                     let s = 0;
                     eachOfKey(key, (a, item) => { if (a.value) s += ev(a.value, item); });
                     for (const { val } of (appliedByKey[key] || [])) s += Number(val) || 0;
                     return s;
                 },
-                // 행동 시점에만 확정할 다이스식을 라벨별로 보존한다.
-                // 고정 수치는 기존 sum/bucket에 남고 다이스식만 실제 굴림으로 넘어간다.
+                // Preserve, per label, the dice formulas that can only be settled at action time.
+                // Fixed numbers stay in sum/bucket; only the dice formulas go on to the real roll.
                 actionDiceFormula(key, labels = []) {
                     const F = window.DX3rdFormulaEvaluator;
                     const out = { _: [] };
@@ -1364,8 +1364,8 @@
                     for (const { label, val } of (appliedByKey[key] || [])) push(label || '-', val, null);
                     return Object.fromEntries(Object.entries(out).map(([label, terms]) => [label, terms.join(' + ')]));
                 },
-                // stat_*은 수치 파생에서는 0으로 흡수될 수 있으므로, 판정 시점용
-                // 다이스식은 라벨 조건에 맞춰 별도로 보존한다.
+                // stat_* can be absorbed to 0 during numeric derivation, so the action-time dice
+                // formulas are preserved separately, filtered by the label condition.
                 actionDiceFormulaWhere(key, matches) {
                     const F = window.DX3rdFormulaEvaluator;
                     const terms = [];
@@ -1378,14 +1378,14 @@
                     for (const { label, val } of (appliedByKey[key] || [])) push(label || '-', val, null);
                     return terms.join(' + ');
                 },
-                // 정확 라벨 일치 합 (stat_bonus 능력치·스킬, 능력치 stat_dice/stat_add)
+                // Sum on an exact label match (stat_bonus for attributes and skills, stat_dice/stat_add for attributes)
                 byLabel(key, want) {
                     let s = 0;
                     eachOfKey(key, (a, item) => { if (a.label === want && a.value) s += ev(a.value, item); });
                     for (const { label, val } of (appliedByKey[key] || [])) if (label === want) s += Number(val) || 0;
                     return s;
                 },
-                // 스킬 매칭(직접 라벨 or 스킬 그룹) 합 (스킬 stat_dice/stat_add)
+                // Sum on a skill match — a direct label or a skill group (skill stat_dice/stat_add)
                 bySkill(key, skillKey) {
                     const match = (label) => label === skillKey || window.DX3rdSkillGroupMatcher?.isSkillInGroup(skillKey, label);
                     let s = 0;
@@ -1393,14 +1393,14 @@
                     for (const { label, val } of (appliedByKey[key] || [])) if (match(label)) s += Number(val) || 0;
                     return s;
                 },
-                // 최소치 (critical_min): seed 부터 더 작은 값으로
+                // Minimum (critical_min): the smallest value, starting from seed
                 min(key, seed) {
                     let m = seed;
                     eachOfKey(key, (a, item) => { if (a.value) { const v = ev(a.value, item); if (v < m) m = v; } });
                     for (const { val } of (appliedByKey[key] || [])) { const v = Number(val) || 0; if (v < m) m = v; }
                     return m;
                 },
-                // 라벨 버킷(attack: melee/ranged/fist). 그 외/'-'/무라벨 → '_'
+                // Label buckets (attack: melee/ranged/fist). Anything else, '-', or unlabeled → '_'
                 bucket(key, labels) {
                     const out = { _: 0 };
                     for (const l of labels) out[l] = 0;
@@ -1409,7 +1409,7 @@
                     for (const { label, val } of (appliedByKey[key] || [])) add(label || '-', Number(val) || 0);
                     return out;
                 },
-                // 다중키 단일패스: major/reaction/dodge 의 dice/critical/add 9키 합
+                // Multi-key single pass: the nine major/reaction/dodge dice/critical/add sums
                 mrd() {
                     const KS = ['major_dice', 'major_critical', 'major_add', 'reaction_dice', 'reaction_critical', 'reaction_add', 'dodge_dice', 'dodge_critical', 'dodge_add'];
                     const out = {};
@@ -1425,7 +1425,7 @@
 
         _prepareActorEnc() {
             let enc = this.system.attributes.encroachment;
-            let encType = enc.type || "-";  // type이 없으면 "-" 사용
+            let encType = enc.type || "-";  // "-" when no type is set
             enc.dice = 0;
             enc.level = 0;
 
@@ -1444,18 +1444,18 @@
                 },
             };
 
-            // encType이 유효하지 않은 경우 "-" 사용
+            // Fall back to "-" when encType is not a known key
             if (!encList[encType]) {
                 encType = "-";
             }
 
-            // dice 보정
+            // dice steps
             for (let threshold of encList[encType].dice) {
                 if (enc.value < threshold) break;
                 enc.dice += 1;
             }
 
-            // level 보정
+            // level steps
             for (let threshold of encList[encType].level) {
                 if (enc.value < threshold) break;
                 enc.level += 1;
@@ -1463,18 +1463,18 @@
         }
 
         /**
-         * 캐스팅 관련 파생치 계산
+         * Casting-related derived values
          * - cast.dice = round((mind.total + skills.will.total) / 2) + sum(cast_dice from active/applied)
          * - cast.add = sum(cast_add from active/applied)
          * - cast.eibon = round(skills.cthulhu.total / 4)
          */
         _prepareCastingStats(appliedByKey = null) {
             const attrs = this.system.attributes;
-            // 이펙트류는 자체계산 제외(appliedByKey 로 합산) — cast_dice/cast_add 이중가산 방지.
+            // Effect-like types are excluded from the self-computation (they sum via appliedByKey), which is what prevents cast_dice/cast_add double counting.
             const activeItems = (this.items || []).filter(i =>
                 i.system?.active?.state &&
                 !['effect', 'spell', 'psionic', 'combo'].includes(i.type));
-            // 성능: 호출부(_prepareActorAttributes)가 이미 만든 색인을 재사용. 없을 때만 새로 수집.
+            // Performance: reuse the index the caller (_prepareActorAttributes) already built; only collect when absent.
             if (!appliedByKey) {
                 const appliedEffects = window.DX3rdAppliedEffects?.collect
                     ? window.DX3rdAppliedEffects.collect(this)
@@ -1488,7 +1488,7 @@
             let castDice = Math.round((mindTotal + willTotal) / 2);
             let castAdd = 0;
 
-            // ④ 활성 아이템 + applied 의 cast_dice/cast_add 단일 경로 병합(색인 경유로 object/primitive 형 모두 포함)
+            // cast_dice / cast_add from active items and applied effects, merged through the index (object and primitive forms alike)
             const R = this._makeContribReader(activeItems, appliedByKey);
             castDice += R.sum('cast_dice');
             castAdd += R.sum('cast_add');
@@ -1499,7 +1499,7 @@
 
             attrs.cast = attrs.cast || { dice: 0, add: 0, eibon: 0 };
             attrs.cast.dice = castDice;
-            // 최소값 보정: cast.dice는 최소 1
+            // Floor: cast.dice is never below 1
             if (attrs.cast.dice < 1) attrs.cast.dice = 1;
             attrs.cast.add = castAdd;
             attrs.cast.rollFormula = {
@@ -1507,21 +1507,21 @@
                 add: R.actionDiceFormula('cast_add')._
             };
             attrs.cast.eibon = eibon;
-            // 최소값 보정: cast.eibon은 최소 0
+            // Floor: cast.eibon is never below 0
             if (attrs.cast.eibon < 0) attrs.cast.eibon = 0;
         }
 
         /**
-         * Enemy 타입 전용 간소화된 능력치 계산
-         * HP, 행동치, 이동력, 전투 관련 속성만 계산
+         * The simplified attribute derivation for enemies.
+         * Only HP, initiative, movement and the combat-related attributes are computed.
          */
         _prepareEnemyAttributes() {
             const system = this.system;
             const attrs = system.attributes;
             const defaultCritical = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
 
-            // 이펙트류(combo/effect)는 자체계산 제외 — 토글 시 appliedKey AE(DX3rdAppliedToggle)로
-            // 반영되어 appliedByKey 로 합산된다. enemy 도 동일 경로(sync 대상). 이중가산 방지.
+            // Effect-like types (combo/effect) are excluded from the self-computation — toggling them
+            // writes an appliedKey AE (DX3rdAppliedToggle) summed via appliedByKey. Enemies share that path (they are sync targets), preventing double counting.
             const activeItems = this.items.filter(item =>
                 item.system?.active?.state === true &&
                 !['combo', 'effect', 'spell', 'psionic'].includes(item.type)
@@ -1529,48 +1529,48 @@
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(this)
                 : (attrs.applied || {});
-            // 성능: Applied 효과를 1회만 색인 (character 경로와 동일)
+            // Performance: index the applied effects once (same as the character path)
             const appliedByKey = this._indexAppliedEffects(appliedEffects);
-            // ④ 활성 아이템 + applied 기여를 단일 경로로 소비하는 리더(지연 평가 보존)
+            // A single reader over both the active-item and the applied contributions (lazily evaluated)
             const R = this._makeContribReader(activeItems, appliedByKey);
 
-            // === 크리티컬 하한치 계산 (능력치 critical 계산보다 먼저 실행) ===
-            // character 경로와 동일: 선언된 하한치가 없으면 룰 기본 하한(2)이다.
-            // 이전 값(attrs.critical.min)을 seed 로 쓰면 파생값이 스스로를 되먹여 한 번 내려간
-            // 하한이 다시 올라오지 않는 문제도 있었다 — 매 계산마다 선언 항목에서만 도출한다.
+            // === Critical floor (computed before the attribute criticals) ===
+            // Same as the character path: with no declared floor, the rules' base floor of 2 applies.
+            // Seeding from the previous value (attrs.critical.min) would let a derived value feed itself,
+            // so a floor that once dropped could never come back up — it is derived only from declarations.
             const declaredCriticalMin = R.min('critical_min', Infinity);
             const criticalMin = Number.isFinite(declaredCriticalMin) ? declaredCriticalMin : 2;
             if (!attrs.critical) attrs.critical = {};
             attrs.critical.min = Math.max(2, criticalMin);
 
-            // === 능력치 total 계산 (bonus, dice, add 포함) ===
+            // === Attribute totals (including bonus, dice and add) ===
             for (const key of ["body", "sense", "mind", "social"]) {
                 const stat = attrs[key];
                 
-                // 활성 아이템 + applied 의 stat_bonus(능력치 라벨 일치) 단일 경로 합
+                // stat_bonus from active items and applied effects, matched by attribute label
                 stat.bonus = R.byLabel('stat_bonus', key);
                 stat.total = (stat.point || 0) + (stat.extra || 0) + stat.bonus;
                 if (stat.total < 0) stat.total = 0;
 
-                // 활성 아이템 + applied: dice(무라벨) + stat_dice(능력치 라벨 일치)
+                // From active items and applied effects: dice (unlabeled) + stat_dice matching this attribute
                 const diceBonus = R.sum('dice');
                 const statDiceBonus = R.byLabel('stat_dice', key);
 
                 stat.dice = stat.total + diceBonus + statDiceBonus;
                 if (stat.dice < 1) stat.dice = 1;
                 
-                // 활성 아이템 + applied: add(무라벨) + stat_add(능력치 라벨 일치)
+                // From active items and applied effects: add (unlabeled) + stat_add matching this attribute
                 const addBonus = R.sum('add');
                 const statAddBonus = R.byLabel('stat_add', key);
 
                 stat.add = addBonus + statAddBonus;
                 
-                // 크리티컬 보정 (enemy 전용 simple critical)
+                // Critical modifier (the enemy's simple critical)
                 const abilityCriticalMod = R.sum('critical');
                 const calculatedCritical = defaultCritical + abilityCriticalMod;
                 stat.critical = Math.max(attrs.critical?.min || defaultCritical, calculatedCritical);
                 
-                // 메이저/리액션/닷지 다이스·수정치·크리티컬 보정 (에너미 판정용) — 9키 단일패스 병합
+                // Major/reaction/dodge dice, additions and criticals for enemy checks — the nine keys in one pass
                 const M = R.mrd();
                 const majorDiceBonus = M.major_dice;
                 const majorAddBonus = M.major_add;
@@ -1604,10 +1604,10 @@
                     add: R.actionDiceFormulaWhere('stat_add', label => label === key)
                 };
             }
-            // 활성 아이템 + applied 의 hp / hp_max 보너스
+            // hp / hp_max bonus from active items and applied effects
             const hpBonus = R.sum('hp') + R.sum('hp_max');
             
-            // hp.base가 없으면 기존 max 값을 base로 설정 (마이그레이션)
+            // Migration: with no hp.base, adopt the existing max as the base
             if (attrs.hp.base === undefined || attrs.hp.base === null) {
                 attrs.hp.base = attrs.hp.max || 0;
             }
@@ -1617,11 +1617,11 @@
             if (attrs.hp.value > attrs.hp.max) attrs.hp.value = attrs.hp.max;
             if (attrs.hp.value < 0) attrs.hp.value = 0;
 
-            // === 행동치 계산 (base + 보정치) ===
-            // 활성 아이템 + applied 의 init / initiative 보너스
+            // === Initiative (base + modifiers) ===
+            // init / initiative bonus from active items and applied effects
             const initBonus = R.sum('init') + R.sum('initiative');
             
-            // init.base가 없으면 기존 계산값을 base로 설정 (마이그레이션)
+            // Migration: with no init.base, adopt the previously computed value as the base
             if (attrs.init.base === undefined || attrs.init.base === null) {
                 const calculatedInit = (attrs.sense?.total || 0) * 2 + (attrs.mind?.total || 0);
                 attrs.init.base = calculatedInit;
@@ -1629,7 +1629,7 @@
             
             attrs.init.value = (attrs.init.base || 0) + initBonus;
             
-            // 폭주 상태이상 체크
+            // Berserk condition
             if (system.conditions?.berserk?.active) {
                 if (system.conditions.berserk.type === 'release') {
                     attrs.init.value -= 9999;
@@ -1640,12 +1640,12 @@
             
             if (attrs.init.value < 0) attrs.init.value = 0;
 
-            // === 이동력 계산 (base + 보정치) ===
-            // 활성 아이템 + applied 의 move 보너스 (battle: move/move_battle/battleMove, full: move_full/fullMove)
+            // === Movement (base + modifiers) ===
+            // move bonuses from active items and applied effects (battle: move/move_battle/battleMove, full: move_full/fullMove)
             const moveBattleBonus = R.sum('move') + R.sum('move_battle') + R.sum('battleMove');
             const moveFullBonus = R.sum('move_full') + R.sum('fullMove');
             
-            // move.base가 없으면 기존 계산값을 base로 설정 (마이그레이션)
+            // Migration: with no move.base, adopt the previously computed value as the base
             if (attrs.move.base === undefined || attrs.move.base === null) {
                 const simplifiedDistance = game.settings.get('dx3rd-emanim', 'simplifiedDistance');
                 let calculatedBattleMove;
@@ -1659,19 +1659,19 @@
             
             attrs.move.battle = (attrs.move.base || 0) + moveBattleBonus;
             
-            // 경직 상태이상 체크
+            // Rigor condition
             if (system.conditions?.rigor?.active) {
                 attrs.move.battle -= 9999;
             }
             
             if (attrs.move.battle < 0) attrs.move.battle = 0;
             
-            // 전력이동: 전투이동 total의 2배 + 보정치
+            // Full movement: twice the battle-movement total, plus modifiers
             attrs.move.full = attrs.move.battle * 2 + moveFullBonus;
             if (attrs.move.full < 0) attrs.move.full = 0;
 
-            // === Attack 계산 === (라벨 버킷)
-            const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);   // fist = 맨손 한정(축퇴기관 등)
+            // === Attack === (label buckets)
+            const atk = R.bucket('attack', ['melee', 'ranged', 'fist']);   // fist = fist-only (Degeneration Organ etc.)
             const atkDiceFormula = R.actionDiceFormula('attack', ['melee', 'ranged', 'fist']);
 
             if (!attrs.attack) attrs.attack = { value: 0, melee: 0, ranged: 0, fist: 0 };
@@ -1681,22 +1681,22 @@
             attrs.attack.fist = atk.fist;
             attrs.attack.rollFormula = atkDiceFormula;
 
-            // === Armor, Guard, Penetrate, Reduce 계산 === (활성 아이템 + applied 단일 경로)
+            // === Armor, Guard, Penetrate, Reduce === (one path over active items + applied)
             const armorBonus = R.sum('armor');
-            // 가드도 공격력과 같은 라벨 버킷을 쓴다(맨손 한정 가드치 등). 무기가 정해지는
-            // 방어 다이얼로그가 버킷분을 더하므로, 여기 내려가는 것은 전체(`_`)뿐이다.
+            // Guard uses the same label buckets as attack (a fist-only guard value, say). The defense
+            // dialog adds the bucket share once the weapon is known, so only the catch-all `_` lands here.
             const grd = R.bucket('guard', ['melee', 'ranged', 'fist']);
             const grdDiceFormula = R.actionDiceFormula('guard', ['melee', 'ranged', 'fist']);
             const guardBonus = grd._;
             const penetrateBonus = R.sum('penetrate');
             const reduceBonus = R.sum('reduce');
 
-            // armor.base가 없으면 기존 value를 base로 설정 (마이그레이션)
+            // Migration: with no armor.base, adopt the existing value as the base
             if (attrs.armor.base === undefined || attrs.armor.base === null) {
                 attrs.armor.base = attrs.armor.value || 0;
             }
             attrs.armor.value = Math.max(0, (attrs.armor.base || 0) + armorBonus);
-            // 값 필드에 직접 쓴 다이스식은 굴리지 않고 보존 → 방어 다이얼로그가 확정 시 한 번 굴린다.
+            // A dice formula written into the value field is preserved, not rolled → the defense dialog rolls it once on confirmation.
             attrs.armor.valueFormula = R.actionDiceFormula('armor')._;
             attrs.guard.value = Math.max(0, guardBonus);
             attrs.guard.base = attrs.guard.value;
@@ -1707,53 +1707,53 @@
             attrs.guard.valueFormula = grdDiceFormula._;
             attrs.actionRollFormula = { dice: R.actionDiceFormula('dice')._, add: R.actionDiceFormula('add')._, critical: R.actionDiceFormula('critical')._, major: { dice: R.actionDiceFormula('major_dice')._, add: R.actionDiceFormula('major_add')._, critical: R.actionDiceFormula('major_critical')._ }, reaction: { dice: R.actionDiceFormula('reaction_dice')._, add: R.actionDiceFormula('reaction_add')._, critical: R.actionDiceFormula('reaction_critical')._ }, dodge: { dice: R.actionDiceFormula('dodge_dice')._, add: R.actionDiceFormula('dodge_add')._, critical: R.actionDiceFormula('dodge_critical')._ } };
             attrs.penetrate.value = Math.max(0, penetrateBonus);
-            attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;   // 명중 판정 시점에 굴림
+            attrs.penetrate.rollFormula = R.actionDiceFormula('penetrate')._;   // rolled at accuracy time
             attrs.reduce.value = Math.max(0, reduceBonus);
             attrs.reduce.valueFormula = R.actionDiceFormula('reduce')._;
 
-            // === 회피치 계산 (base + 보정치) ===
-            // 닷지 달성치 보정치 (dodge_add 또는 dodge_achievement) — 활성 아이템 + applied 단일 경로
+            // === Evasion (base + modifiers) ===
+            // Dodge achievement modifier (dodge_add or dodge_achievement) — one path over active items + applied
             const dodgeAchievementBonus = R.sum('dodge_add') + R.sum('dodge_achievement');
 
-            // 닷지 다이스 보정치 (dodge_dice * 2)
+            // Dodge dice modifier (dodge_dice × 2)
             const dodgeDiceBonus = R.sum('dodge_dice') * 2;
             
-            // evasion이 없으면 초기화
+            // Initialize evasion when absent
             if (!attrs.evasion) {
                 attrs.evasion = {};
             }
             
-            // evasion.base가 없으면 기존 value를 base로 설정 (마이그레이션)
+            // Migration: with no evasion.base, adopt the existing value as the base
             if (attrs.evasion.base === undefined || attrs.evasion.base === null) {
                 attrs.evasion.base = attrs.evasion.value || 0;
             }
             
-            // evasion.disabled가 없으면 false로 초기화
+            // Default evasion.disabled to false
             if (attrs.evasion.disabled === undefined) {
                 attrs.evasion.disabled = false;
             }
             
-            // 비활성화되어 있지 않을 때만 계산
+            // Compute only while it is not disabled
             if (!attrs.evasion.disabled) {
                 attrs.evasion.value = (attrs.evasion.base || 0) + dodgeAchievementBonus + dodgeDiceBonus;
                 if (attrs.evasion.value < 0) attrs.evasion.value = 0;
             }
 
-            // 기타 필수 구조 보정
+            // Remaining structural defaults
             system.conditions = system.conditions || {};
         }
 
         /**
-         * "침식률(없음)" 가드.
-         * 침식률 타입(system.attributes.encroachment.type)이 'none'인 액터는 침식률이 오르지 않는다.
-         * 이펙트 사용·의지/공포 판정·리저렉트 부작용·주문 등 모든 침식률 상승 경로가
-         * 최종적으로 actor.update({'system.attributes.encroachment.value': ...}) 를 거치므로
-         * 여기서 한 번에 차단한다. 감소(백트랙·수동 조정)와 동일값은 허용한다.
-         * 규칙상 'none'은 계산 목적상 코어(-)와 동일하게 취급하되 상승만 막는다.
+         * The "no encroachment" guard.
+         * An actor whose encroachment type (system.attributes.encroachment.type) is 'none' never rises.
+         * Every path that raises encroachment — effect use, will/fear checks, resurrect side effects,
+         * spells — ultimately goes through actor.update({'system.attributes.encroachment.value': …}),
+         * so it is blocked here in one place. Decreases (backtrack, manual edits) and no-ops pass.
+         * By the rules 'none' is treated like core (-) for arithmetic; only the rise is blocked.
          */
         async _preUpdate(changed, options, user) {
             try {
-                // 이 업데이트로 바뀌는 타입이 있으면 그것을, 없으면 현재 타입을 기준으로 판정한다.
+                // Judge against the type this update sets, or the current one when it sets none.
                 const nextType = changed?.system?.attributes?.encroachment?.type
                     ?? this.system?.attributes?.encroachment?.type;
                 if (nextType === 'none') {
@@ -1761,7 +1761,7 @@
                     if (encChange && encChange.value !== undefined && encChange.value !== null) {
                         const before = Number(this.system?.attributes?.encroachment?.value ?? 0);
                         const after = Number(encChange.value);
-                        // 상승만 차단: 변경셋에서 value 키를 제거해 기존값을 유지한다.
+                        // Block the rise only: drop the value key from the changeset so the old value stays.
                         if (Number.isFinite(after) && after > before) {
                             delete encChange.value;
                         }
@@ -1773,13 +1773,13 @@
             return super._preUpdate(changed, options, user);
         }
 
-        // 코어 버전이 다른 월드에서 내보낸 JSON도 가져올 수 있도록 _stats.coreVersion을 보정한다.
+        // Fix up _stats.coreVersion so JSON exported from a world on a different core version still imports.
         importFromJSON(json) {
             return super.importFromJSON(window.DX3rdImportCompat?.sanitizeImportJSON(json) ?? json);
         }
     }
 
-    // Foundry에 커스텀 Actor 등록
+    // Register the custom Actor class with Foundry
     CONFIG.Actor.documentClass = DX3rdActor;
     CONFIG.Actor.typeLabels = {
         character: "DX3rd.Character",

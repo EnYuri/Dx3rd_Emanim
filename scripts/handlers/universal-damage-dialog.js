@@ -7,8 +7,47 @@
     console.error('DX3rd | universal-damage-dialog.js loaded before universal-handler.js; damage methods unavailable.');
     return;
   }
+  // A defense choice can legitimately stay open during discussion, so expiry is deliberately
+  // generous. It is a leak-safety net; explicit cancel/close cleans up immediately.
+  const AFTER_DAMAGE_REQUEST_TTL_MS = 30 * 60 * 1000;
 
   Object.assign(window.DX3rdUniversalHandler, {
+    scheduleAfterDamageRequestExpiry(damageRequestId) {
+      if (!damageRequestId) return;
+      window.DX3rdAfterDamageExpiryTimers ||= {};
+      const previous = window.DX3rdAfterDamageExpiryTimers[damageRequestId];
+      if (previous) window.clearTimeout(previous);
+      window.DX3rdAfterDamageExpiryTimers[damageRequestId] = window.setTimeout(() => {
+        this.discardAfterDamageRequest(damageRequestId, { reason: 'expired' });
+      }, AFTER_DAMAGE_REQUEST_TTL_MS);
+    },
+
+    releaseAfterDamageRequestExpiry(damageRequestId) {
+      if (!damageRequestId) return;
+      const extensionPending = Boolean(window.DX3rdAfterDamageExtensionQueue?.[damageRequestId]);
+      const activationPending = Boolean(window.DX3rdAfterDamageActivationQueue?.[damageRequestId]);
+      if (extensionPending || activationPending) return;
+      const timer = window.DX3rdAfterDamageExpiryTimers?.[damageRequestId];
+      if (timer) window.clearTimeout(timer);
+      if (window.DX3rdAfterDamageExpiryTimers) delete window.DX3rdAfterDamageExpiryTimers[damageRequestId];
+    },
+
+    discardAfterDamageRequest(damageRequestId, { targetActorId = null, itemId = null, reason = 'cancelled' } = {}) {
+      if (!damageRequestId) return false;
+      const hadExtension = Boolean(window.DX3rdAfterDamageExtensionQueue?.[damageRequestId]);
+      const hadActivation = Boolean(window.DX3rdAfterDamageActivationQueue?.[damageRequestId]);
+      if (hadExtension) delete window.DX3rdAfterDamageExtensionQueue[damageRequestId];
+      if (hadActivation) delete window.DX3rdAfterDamageActivationQueue[damageRequestId];
+      if (targetActorId && itemId) {
+        delete window.DX3rdTargetApplyQueue?.[`${targetActorId}_${itemId}`];
+      }
+      this.releaseAfterDamageRequestExpiry(damageRequestId);
+      if (hadExtension || hadActivation) {
+        window.DX3rdDebug.log(`DX3rd | AfterDamage request ${reason}:`, damageRequestId);
+      }
+      return hadExtension || hadActivation;
+    },
+
     /**
      * 채팅 카드가 DOM에 들어온 뒤 기존 데미지 굴림 버튼과 똑같은 클릭 경로를 실행한다.
      * 이 경로를 공유해야 afterSuccess, 공격 횟수, 임시 콤보 플래그가 수동 굴림과 갈라지지 않는다.
@@ -482,11 +521,84 @@
      * 데미지 적용 처리
      * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택적)
      */
+    async processAfterDamageExtensionRequest(request) {
+      if (!request) return [];
+      const reports = Object.entries(request.damageReports || {}).map(([targetKey, value]) => {
+        const index = request.targetTokenIds?.indexOf(targetKey) ?? -1;
+        return {
+          targetTokenId: typeof value === 'object' ? (value.targetTokenId || targetKey) : targetKey,
+          actorId: typeof value === 'object'
+            ? value.actorId
+            : (request.reportActorIds?.[targetKey] || request.targetActorIds?.[index] || targetKey),
+          hpChange: Number(typeof value === 'object' ? value.hpChange : value) || 0
+        };
+      });
+      const damagedReports = reports.filter(report => report.hpChange >= 1);
+      const damagedActorIds = [...new Set(damagedReports.map(report => report.actorId).filter(Boolean))];
+      const damagedTokenIds = [...new Set(damagedReports.map(report => report.targetTokenId).filter(Boolean))];
+      const extensions = request.extensions || {};
+      const conditions = Array.isArray(extensions.condition)
+        ? extensions.condition
+        : (extensions.condition ? [extensions.condition] : []);
+      const cards = Array.isArray(extensions.cards) ? extensions.cards : [];
+      const allEntries = [extensions.heal, extensions.damage, extensions.statusClear, ...conditions,
+        ...cards.map(card => card.data)].filter(Boolean);
+      const includesSelf = allEntries.some(data => {
+        const target = data.target || 'self';
+        return target === 'self' || target === 'targetAll';
+      });
+      if (damagedActorIds.length === 0 && !includesSelf) return damagedActorIds;
+
+      const actor = game.actors.get(request.attackerId);
+      if (!actor) return damagedActorIds;
+      const item = actor.items.get(request.itemId) || null;
+      const withTargets = data => ({
+        ...data,
+        ...window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
+          data?.target,
+          damagedTokenIds,
+          data?.selectedTargetIds || []
+        ),
+        triggerItemName: request.triggerItemName || item?.name || null,
+        triggerItemId: request.itemId
+      });
+      const execute = async (type, rawData) => {
+        if (!rawData) return;
+        const authoredTarget = rawData.target || 'self';
+        if ((authoredTarget === 'targetToken' || authoredTarget === 'damagedTargets')
+            && damagedTokenIds.length === 0) return;
+        const data = withTargets(rawData);
+        if (data.timing === 'afterMain') {
+          if (item?.system?.active?.runTiming === 'afterDamage') {
+            await this.addToAfterMainQueue(actor, data, item, type);
+          }
+          return;
+        }
+        if (type === 'heal') await this.executeHealExtensionNow(actor, data, item);
+        else if (type === 'damage') await this.executeDamageExtensionNow(actor, data, item);
+        else if (type === 'statusClear') await this.executeStatusClearExtension(actor, data, item);
+        else if (type === 'condition') await this.executeConditionExtensionNow(actor, data, item);
+        else await this.executeItemExtension(actor, type, data, item);
+      };
+
+      await execute('heal', extensions.heal);
+      await execute('damage', extensions.damage);
+      await execute('statusClear', extensions.statusClear);
+      for (const condition of conditions) await execute('condition', condition);
+      for (const card of cards) await execute(card.type, card.data);
+      return damagedActorIds;
+    },
+
     handleDamageApply: async function(actor, item, damage, penetrate, targets, comboAfterDamageData = null, attackResult = null) {
       if (!actor || !targets || targets.length === 0) {
         return;
       }
-      
+      // One correlation id follows this damage application through registration, every defense
+      // dialog report, and cleanup. Actor+item is not unique when the same attack is rerun or used
+      // again before every target has answered.
+      const damageRequestId = window.DX3rdRuntimeUtils.createRequestId('afterDamage');
+      const targetActorIds = targets.map(target => target.actor.id);
+      const targetTokenIds = targets.map(target => target.id);
 
       // ===== 익스텐드 큐 등록 요청 (GM에게) =====
       // 콤보는 processComboAfterDamage에서 병합하여 처리하므로 제외
@@ -521,12 +633,9 @@
           );
         
         if (hasAfterDamageExtension || hasAfterMainExtensionForAfterDamage) {
-          const targetIds = targets.map(t => t.id);
-          const targetActorIds = targets.map(t => t.actor.id);
-          
-          if (game.user.isGM) {
-            // GM: 직접 큐에 등록
-            const queueKey = `${actor.id}_${item.id}`;
+          if (window.DX3rdSocketRouter.isResponsibleGM()) {
+            // The responsible GM owns the request queue, even when another GM initiated the attack.
+            const queueKey = damageRequestId;
             
             if (!window.DX3rdAfterDamageExtensionQueue) {
               window.DX3rdAfterDamageExtensionQueue = {};
@@ -535,8 +644,11 @@
             window.DX3rdAfterDamageExtensionQueue[queueKey] = {
               attackerId: actor.id,
               itemId: item.id,
+              damageRequestId,
               targetActorIds: targetActorIds,
+              targetTokenIds: targetTokenIds,
               damageReports: {},
+              reportActorIds: {},
               reportCount: 0,
               extensions: {
                 // afterDamage 타이밍 또는 (아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우)
@@ -562,8 +674,10 @@
                 cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
               },
               triggerItemName: item.name,
-              itemRunTiming: itemRunTiming  // 아이템의 runTiming 저장
+              itemRunTiming: itemRunTiming,  // 아이템의 runTiming 저장
+              createdAt: Date.now()
             };
+            this.scheduleAfterDamageRequestExpiry(damageRequestId);
             
             window.DX3rdDebug.log('DX3rd | GM registered afterDamage extension request:', {
               queueKey: queueKey,
@@ -580,7 +694,9 @@
               payload: {
                 attackerId: actor.id,
                 itemId: item.id,
+                damageRequestId,
                 targetActorIds: targetActorIds,
+                targetTokenIds: targetTokenIds,
                 extensions: {
                   // afterDamage 타이밍 또는 (아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우)
                   heal: itemExtend.heal?.activate && (
@@ -644,31 +760,28 @@
           const shouldRegister = shouldExecuteMacro || (usedDisable === 'notCheck' || usedState < usedMax);
           
           if (shouldRegister) {
-            const targetActorIds = targets.map(t => t.actor.id);
             const needsDialog = item.type === 'weapon' || item.type === 'vehicle';
             
-            if (game.user.isGM) {
-              // GM은 직접 큐에 등록
-              const queueKey = `${actor.id}_${item.id}`;
-              // 소켓 경로(main.js)와 같은 규칙: 남아 있는 앞선 요청은 완료되지 못한 것이므로
-              // 덮어쓰되 조용히 지우지는 않는다.
-              const stale = window.DX3rdAfterDamageActivationQueue[queueKey];
-              if (stale) {
-                console.warn(`DX3rd | afterDamage 활성화 요청이 완료되지 않은 채 남아 있어 새 요청으로 교체합니다 (${queueKey}, 보고 ${Object.keys(stale.damageReports || {}).length}/${stale.targetActorIds?.length ?? 0})`);
-              }
+            if (window.DX3rdSocketRouter.isResponsibleGM()) {
+              // The responsible GM owns the request queue, even when another GM initiated the attack.
+              const queueKey = damageRequestId;
               window.DX3rdAfterDamageActivationQueue[queueKey] = {
                 attackerId: actor.id,
                 itemId: item.id,
+                damageRequestId,
                 targetActorIds: targetActorIds,
+                targetTokenIds: targetTokenIds,
                 damageReports: {},
+                reportActorIds: {},
                 reportCount: 0,
                 shouldExecuteMacro: shouldExecuteMacro,
                 shouldActivate: shouldActivate,
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
                 comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
-                timestamp: Date.now()
+                createdAt: Date.now()
               };
+              this.scheduleAfterDamageRequestExpiry(damageRequestId);
               window.DX3rdDebug.log('DX3rd | GM registered afterDamage request:', {
                 queueKey: queueKey,
                 attacker: actor.name,
@@ -683,7 +796,9 @@
                 payload: {
                   attackerId: actor.id,
                   itemId: item.id,
+                  damageRequestId,
                   targetActorIds: targetActorIds,
+                  targetTokenIds: targetTokenIds,
                   shouldExecuteMacro: shouldExecuteMacro,
                   shouldActivate: shouldActivate,
                   shouldApplyToTargets: shouldApplyToTargets,
@@ -710,12 +825,14 @@
         
         const payload = {
           targetActorId: targetActor.id,
+          targetTokenId: target.id,
           damage: damage,
           penetrate: penetrate,
           attackResult: attackResult,
           attackerName: actor.name,
           attackerId: actor.id,
-          itemId: item?.id || null
+          itemId: item?.id || null,
+          damageRequestId
         };
         
         // 방어 다이얼로그 전송 (타겟 소유자 우선)
@@ -756,7 +873,7 @@
      * 방어 다이얼로그 표시
      */
     showDefenseDialog: async function(payload) {
-      const { targetActorId, damage, penetrate, attackResult, attackerName, attackerId, itemId } = payload;
+      const { targetActorId, targetTokenId, damage, penetrate, attackResult, attackerName, attackerId, itemId, damageRequestId } = payload;
       
       const targetActor = game.actors.get(targetActorId);
       if (!targetActor) {
@@ -902,6 +1019,29 @@
       // 토글해 둔 선언형 장비의 실제 사용은 「확인」에서 일어난다. 배선은 render 이후라
       // 여기서는 자리만 잡아 두고, 확정 콜백이 이 참조를 통해 commit 한다.
       let declareControl = null;
+      let damageRequestSettled = false;
+      const cancelDamageRequest = async () => {
+        if (damageRequestSettled) return;
+        damageRequestSettled = true;
+        if (!damageRequestId || !targetTokenId || !itemId) return;
+        if (window.DX3rdSocketRouter.isResponsibleGM()) {
+          this.discardAfterDamageRequest(damageRequestId, {
+            targetActorId: targetActor.id,
+            itemId,
+            reason: 'cancelled'
+          });
+        } else {
+          window.DX3rdSocketRouter.emit({
+            type: 'cancelAfterDamageRequest',
+            payload: {
+              damageRequestId,
+              targetActorId: targetActor.id,
+              targetTokenId,
+              itemId
+            }
+          });
+        }
+      };
 
       const dialog = new DialogV2({
         window: {
@@ -1006,211 +1146,37 @@
               
               // ===== afterDamage 익스텐드 큐 시스템 =====
               if (attackerId && itemId) {
-                const extensionQueueKey = `${attackerId}_${itemId}`;
+                const extensionQueueKey = damageRequestId;
                 const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[extensionQueueKey];
                 
                 if (extensionRequest) {
-                  // 보고 기록
-                  extensionRequest.damageReports[targetActor.id] = hpChange;
-                  // 보고 횟수가 아니라 보고한 타겟의 수를 센다 — main.js 의 같은 판정 참조.
-                  extensionRequest.reportCount = Object.keys(extensionRequest.damageReports).length;
+                  const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
+                    targetTokenId,
+                    targetActorId: targetActor.id,
+                    hpChange
+                  });
 
                   window.DX3rdDebug.log('DX3rd | Extension damage report recorded:', {
                     target: targetActor.name,
                     hpChange: hpChange,
-                    reportCount: extensionRequest.reportCount,
-                    totalTargets: extensionRequest.targetActorIds.length
+                    reportCount: report.reportCount,
+                    totalTargets: report.targetCount
                   });
                   
                   // 모든 타겟이 보고했는지 확인
-                  if (extensionRequest.reportCount >= extensionRequest.targetActorIds.length) {
+                  if (report.accepted && report.complete && !extensionRequest.processing) {
+                    extensionRequest.processing = true;
                     window.DX3rdDebug.log('DX3rd | All targets reported for extensions, processing...');
                     
-                    // HP 데미지를 받은 타겟 목록
-                    const damagedTargets = Object.entries(extensionRequest.damageReports)
-                      .filter(([id, hp]) => hp >= 1)
-                      .map(([id, hp]) => id);
-                    
-                    // targetAll/self 포함 여부 확인
-                    const healTarget = extensionRequest.extensions.heal?.target;
-                    const damageTarget = extensionRequest.extensions.damage?.target;
-                    const statusClearTarget = extensionRequest.extensions.statusClear?.target;
-                    const condList = Array.isArray(extensionRequest.extensions.condition)
-                      ? extensionRequest.extensions.condition
-                      : (extensionRequest.extensions.condition ? [extensionRequest.extensions.condition] : []);
-                    const conditionTarget = condList[0]?.target;
-                    const cardList = Array.isArray(extensionRequest.extensions.cards) ? extensionRequest.extensions.cards : [];
-                    const includesSelf = healTarget === 'self' || healTarget === 'targetAll' ||
-                                        damageTarget === 'self' || damageTarget === 'targetAll' ||
-                                        statusClearTarget === 'self' || statusClearTarget === 'targetAll' ||
-                                        conditionTarget === 'self' || conditionTarget === 'targetAll' ||
-                                        cardList.some(card => card.data?.target === 'self' || card.data?.target === 'targetAll');
-                    
-                    // 데미지를 받은 타겟이 있거나, self를 포함하는 경우 처리
-                    if (damagedTargets.length > 0 || includesSelf) {
-                      const attacker = game.actors.get(attackerId);
-                      const triggerItem = attacker?.items.get(itemId);
-                      
-                      // heal 익스텐션 처리
-                      if (extensionRequest.extensions.heal) {
-                        const healTiming = extensionRequest.extensions.heal.timing;
-                        window.DX3rdDebug.log(`DX3rd | Processing heal extension for damaged targets (timing: ${healTiming})`);
-                        
-                        // healDataWithTargets 먼저 생성
-                        const originalTarget = extensionRequest.extensions.heal.target;
-                        const healDataWithTargets = {
-                          ...extensionRequest.extensions.heal,
-                          // afterDamage에서는 HP 데미지를 받은 타겟만 적용하도록 target을 조정
-                          // self는 유지, targetToken/targetAll은 HP 데미지 받은 타겟만 적용
-                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
-                          selectedTargetIds: damagedTargets.map(actorId => {
-                            const token = canvas.tokens.placeables.find(t => t.actor?.id === actorId);
-                            return token?.id;
-                          }).filter(id => id),
-                          triggerItemName: extensionRequest.triggerItemName,
-                          triggerItemId: itemId
-                        };
-                        
-                        // afterMain 타이밍인 경우: 아이템의 runTiming이 afterDamage이면 큐에 등록, 아니면 건너뛰기
-                        if (healTiming === 'afterMain') {
-                          const itemRunTiming = triggerItem?.system.active?.runTiming;
-                          if (itemRunTiming === 'afterDamage') {
-                            // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, healDataWithTargets, triggerItem, 'heal');
-                            window.DX3rdDebug.log('DX3rd | Heal extension (afterMain) registered to afterMain queue from afterDamage');
-                          } else {
-                            window.DX3rdDebug.log('DX3rd | Skipping afterMain heal extension in afterDamage (item runTiming is not afterDamage)');
-                          }
-                        } else {
-                          if (window.DX3rdUniversalHandler) {
-                            // afterDamage 타이밍만 즉시 실행
-                            await window.DX3rdUniversalHandler.executeHealExtensionNow(attacker, healDataWithTargets, triggerItem);
-                          }
-                        }
-                      }
-                      
-                      // damage 익스텐션 처리
-                      if (extensionRequest.extensions.damage) {
-                        const damageTiming = extensionRequest.extensions.damage.timing;
-                        window.DX3rdDebug.log(`DX3rd | Processing damage extension for damaged targets (timing: ${damageTiming})`);
-                        
-                        // damageDataWithTargets 먼저 생성
-                        const originalTarget = extensionRequest.extensions.damage.target;
-                        const damageDataWithTargets = {
-                          ...extensionRequest.extensions.damage,
-                          // afterDamage에서는 HP 데미지를 받은 타겟만 적용하도록 target을 조정
-                          // self는 유지, targetToken/targetAll은 HP 데미지 받은 타겟만 적용
-                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
-                          selectedTargetIds: damagedTargets.map(actorId => {
-                            const token = canvas.tokens.placeables.find(t => t.actor?.id === actorId);
-                            return token?.id;
-                          }).filter(id => id),
-                          triggerItemName: extensionRequest.triggerItemName,
-                          triggerItemId: itemId
-                        };
-                        
-                        // afterMain 타이밍인 경우: 아이템의 runTiming이 afterDamage이면 큐에 등록, 아니면 건너뛰기
-                        if (damageTiming === 'afterMain') {
-                          const itemRunTiming = triggerItem?.system.active?.runTiming;
-                          if (itemRunTiming === 'afterDamage') {
-                            // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, damageDataWithTargets, triggerItem, 'damage');
-                            window.DX3rdDebug.log('DX3rd | Damage extension (afterMain) registered to afterMain queue from afterDamage');
-                          } else {
-                            window.DX3rdDebug.log('DX3rd | Skipping afterMain damage extension in afterDamage (item runTiming is not afterDamage)');
-                          }
-                        } else {
-                          if (window.DX3rdUniversalHandler) {
-                            // afterDamage 타이밍만 즉시 실행
-                            await window.DX3rdUniversalHandler.executeDamageExtensionNow(attacker, damageDataWithTargets, triggerItem);
-                          }
-                        }
-                      }
-
-                      // 상태이상 해제 익스텐션 처리
-                      if (extensionRequest.extensions.statusClear) {
-                        const statusClearTiming = extensionRequest.extensions.statusClear.timing;
-                        const originalTarget = extensionRequest.extensions.statusClear.target;
-                        const statusClearDataWithTargets = {
-                          ...extensionRequest.extensions.statusClear,
-                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
-                          selectedTargetIds: damagedTargets.map(actorId => {
-                            const token = canvas.tokens.placeables.find(t => t.actor?.id === actorId);
-                            return token?.id;
-                          }).filter(id => id),
-                          triggerItemName: extensionRequest.triggerItemName,
-                          triggerItemId: itemId
-                        };
-                        if (statusClearTiming === 'afterMain') {
-                          const itemRunTiming = triggerItem?.system.active?.runTiming;
-                          if (itemRunTiming === 'afterDamage') {
-                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, statusClearDataWithTargets, triggerItem, 'statusClear');
-                          }
-                        } else {
-                          await window.DX3rdUniversalHandler.executeStatusClearExtension(attacker, statusClearDataWithTargets, triggerItem);
-                        }
-                      }
-                      
-                      // condition 익스텐션 처리
-                      for (const condCfg of condList) {
-                        const conditionTiming = condCfg.timing;
-                        window.DX3rdDebug.log(`DX3rd | Processing condition extension for damaged targets (timing: ${conditionTiming}, type: ${condCfg.type})`);
-                        
-                        const originalTarget = condCfg.target;
-                        const conditionDataWithTargets = {
-                          ...condCfg,
-                          // afterDamage에서는 HP 데미지를 받은 타겟만 적용하도록 target을 조정
-                          // self는 유지, targetToken/targetAll은 HP 데미지 받은 타겟만 적용
-                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
-                          selectedTargetIds: damagedTargets.map(actorId => {
-                            const token = canvas.tokens.placeables.find(t => t.actor?.id === actorId);
-                            return token?.id;
-                          }).filter(id => id),
-                          triggerItemName: extensionRequest.triggerItemName,
-                          triggerItemId: itemId
-                        };
-                        
-                        // afterMain 타이밍인 경우: 아이템의 runTiming이 afterDamage이면 큐에 등록, 아니면 건너뛰기
-                        if (conditionTiming === 'afterMain') {
-                          const itemRunTiming = triggerItem?.system.active?.runTiming;
-                          if (itemRunTiming === 'afterDamage') {
-                            // 아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain이면 큐에 등록
-                            await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, conditionDataWithTargets, triggerItem, 'condition');
-                            window.DX3rdDebug.log('DX3rd | Condition extension (afterMain) registered to afterMain queue from afterDamage');
-                          } else {
-                            window.DX3rdDebug.log('DX3rd | Skipping afterMain condition extension in afterDamage (item runTiming is not afterDamage)');
-                          }
-                        } else {
-                          if (window.DX3rdUniversalHandler) {
-                            // afterDamage 타이밍만 즉시 실행
-                            await window.DX3rdUniversalHandler.executeConditionExtensionNow(attacker, conditionDataWithTargets, triggerItem);
-                          }
-                        }
-                      }
-
-                      // 신규 무제한 카드도 각각 독립적으로 실행한다. 같은 종류의 카드가
-                      // 여러 장이어도 합쳐 덮어쓰지 않고 카드 수만큼 순서대로 처리한다.
-                      for (const card of cardList) {
-                        const originalTarget = card.data?.target || 'self';
-                        const dataWithTargets = {
-                          ...(card.data || {}),
-                          target: originalTarget === 'self' ? 'self' : (damagedTargets.length > 0 ? 'targetToken' : originalTarget),
-                          selectedTargetIds: damagedTargets.map(actorId => canvas.tokens.placeables.find(t => t.actor?.id === actorId)?.id).filter(Boolean),
-                          triggerItemName: extensionRequest.triggerItemName,
-                          triggerItemId: itemId
-                        };
-                        if (dataWithTargets.timing === 'afterMain') {
-                          await window.DX3rdUniversalHandler.addToAfterMainQueue(attacker, dataWithTargets, triggerItem, card.type);
-                        } else {
-                          await window.DX3rdUniversalHandler.executeItemExtension(attacker, card.type, dataWithTargets, triggerItem);
-                        }
-                      }
-                    } else {
-                      window.DX3rdDebug.log('DX3rd | No damaged targets for extensions, skipping');
+                    try {
+                      await window.DX3rdUniversalHandler.processAfterDamageExtensionRequest(extensionRequest);
+                    } catch (error) {
+                      console.error('DX3rd | AfterDamage extension request failed:', error);
+                    } finally {
+                      // A partially applied extension request is not safe to retry automatically.
+                      delete window.DX3rdAfterDamageExtensionQueue[extensionQueueKey];
+                      this.releaseAfterDamageRequestExpiry(extensionQueueKey);
                     }
-                    
-                    // 요청 삭제
-                    delete window.DX3rdAfterDamageExtensionQueue[extensionQueueKey];
                     window.DX3rdDebug.log('DX3rd | Extension request removed from queue');
                   }
                 }
@@ -1228,8 +1194,9 @@
                 window.DX3rdDebug.log('DX3rd | Reporting damage result to GM, hpChange:', hpChange);
                 window.DX3rdDebug.log('DX3rd | Current user isGM:', game.user.isGM);
                 
-                if (game.user.isGM) {
-                  // GM은 직접 큐 확인 및 처리
+                if (window.DX3rdSocketRouter.isResponsibleGM()) {
+                  // Only the GM that owns the queue processes reports locally. Other GMs report
+                  // through the same socket path as players.
                   const applyQueueKey = `${targetActor.id}_${itemId}`; // 효과: 타겟 기준
                   
                   // 1. afterDamage 타겟 효과 적용
@@ -1271,29 +1238,34 @@
                   }
                   
                   // 2. 활성화/매크로 처리 (활성화 큐 확인 및 보고 수집)
-                  const activationQueueKey = `${attackerId}_${itemId}`;
+                  const activationQueueKey = damageRequestId;
                   const activationRequest = window.DX3rdAfterDamageActivationQueue?.[activationQueueKey];
                   if (activationRequest) {
-                    // 보고 기록
-                    activationRequest.damageReports[targetActor.id] = hpChange;
-                    // 보고 횟수가 아니라 보고한 타겟의 수를 센다 — main.js 의 같은 판정 참조.
-                    activationRequest.reportCount = Object.keys(activationRequest.damageReports).length;
+                    const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(activationRequest, {
+                      targetTokenId,
+                      targetActorId: targetActor.id,
+                      hpChange
+                    });
 
                     window.DX3rdDebug.log('DX3rd | Activation report recorded:', {
                       target: targetActor.name,
                       hpChange: hpChange,
-                      reportCount: activationRequest.reportCount,
-                      totalTargets: activationRequest.targetActorIds.length
+                      reportCount: report.reportCount,
+                      totalTargets: report.targetCount
                     });
                     
                     // 모든 타겟이 보고했는지 확인
-                    if (activationRequest.reportCount >= activationRequest.targetActorIds.length) {
+                    if (report.accepted && report.complete && !activationRequest.processing) {
+                      activationRequest.processing = true;
                       window.DX3rdDebug.log('DX3rd | All targets reported, processing activation...');
-                      
+                      try {
                       // HP 데미지를 받은 타겟 목록
-                      const damagedTargets = Object.entries(activationRequest.damageReports)
-                        .filter(([id, hp]) => hp > 0)
-                        .map(([id, hp]) => id);
+                      const damagedReports = Object.entries(activationRequest.damageReports)
+                        .filter(([, hp]) => hp > 0);
+                      const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
+                      const damagedTargets = [...new Set(damagedReports
+                        .map(([tokenId]) => activationRequest.reportActorIds[tokenId])
+                        .filter(Boolean))];
                       
                       const attacker = game.actors.get(attackerId);
                       if (!attacker) {
@@ -1311,8 +1283,15 @@
                       if (comboData && damagedTargets.length > 0) {
                         window.DX3rdDebug.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
                         // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
-                        const damagedActors = damagedTargets.map(id => game.actors.get(id)).filter(a => a);
-                        await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors);
+                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
+                          .filter(Boolean);
+                        for (const actorId of damagedTargets) {
+                          const damagedActor = game.actors.get(actorId);
+                          if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
+                            damagedActors.push(damagedActor);
+                          }
+                        }
+                        await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
                       }
 
                       const attackerItem = attacker.items.get(itemId);
@@ -1323,7 +1302,6 @@
                         // 저장 아이템 기반 후속 작업은 원본 문서가 없으면 실행할 수 없다.
                         // 큐를 남기면 같은 키의 다음 요청까지 막으므로 반드시 정리한다.
                         console.warn('DX3rd | Attacker item not found:', itemId);
-                        delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
                         return;
                       }
                       if (!attackerItem) {
@@ -1347,7 +1325,6 @@
                             });
                           }
                         }
-                        delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
                         window.DX3rdDebug.log('DX3rd | Temporary combo afterDamage request removed from queue');
                         return;
                       }
@@ -1465,9 +1442,12 @@
                         }
                       }
                       
-                      // 큐에서 제거
-                      delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
-                      window.DX3rdDebug.log('DX3rd | Activation request removed from queue');
+                      } finally {
+                        // A partially applied activation request is not safe to retry automatically.
+                        delete window.DX3rdAfterDamageActivationQueue[activationQueueKey];
+                        this.releaseAfterDamageRequestExpiry(activationQueueKey);
+                        window.DX3rdDebug.log('DX3rd | Activation request removed from queue');
+                      }
                     }
                   }
                 } else {
@@ -1493,7 +1473,9 @@
                     payload: {
                       attackerId: attackerId,
                       itemId: itemId,
+                      damageRequestId,
                       targetActorId: targetActor.id,
+                      targetTokenId,
                       hpChange: hpChange
                     }
                   });
@@ -1503,11 +1485,20 @@
                   });
                 }
               }
-              
+
+              // Only suppress close/cancel cleanup after every local or socket report has completed.
+              damageRequestSettled = true;
               ui.notifications.info(`${targetActor.name}: HP ${currentHP} → ${newHP} (-${finalDamage})`);
             }
+          },
+          {
+            action: 'cancel',
+            icon: '<i class="fas fa-times"></i>',
+            label: game.i18n.localize('DX3rd.Cancel'),
+            callback: cancelDamageRequest
           }
-        ]
+        ],
+        close: cancelDamageRequest
       });
 
       await dialog.render(true);
@@ -1801,7 +1792,9 @@
           itemId,
           item.type,
           null,
-          item.system?.getTarget,
+          // Let the shared gate derive the requirement from both the item and every combo member.
+          // Passing the combo's stored false here suppresses a member's target requirement.
+          undefined,
           {
             predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
             afterRollCallback: ({ total }) => setReactionResult(total)

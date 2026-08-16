@@ -1,17 +1,9 @@
 /*
- * 액터 아이템 채팅 출력 서브시스템 (이전 시트/AppV2 공유).
+ * Shared actor-item chat output for AppV2 sheets and external UI callers.
  *
- * 원래 scripts/sheets/actor-sheet.js(이전 시트)에만 있던 _sendItemToChat 및 그
- * 보조 메서드(채팅 카드 HTML 생성, 토글 리스너, 루비 변환 등)를 그대로 옮겨
- * 한 클래스로 감쌌다. 클래스로 감싸면 this.actor(생성자 주입),
- * this._getSkillDisplay/this._createItemChatContent 등(프로토타입),
- * this.constructor._globalChatToggleListener(정적 싱글톤)가 원본과 동일하게
- * 동작하므로 본문은 한 줄도 수정하지 않았다.
- *
- * 외부(dx3rd-combat-ui / dx3rd-action-ui / dx3rd-macro)는 여전히
- * sheet._sendItemToChat(item) 으로 호출한다 — 이전 시트/AppV2 시트가 각각 얇은
- * 위임자를 두어 이 모듈로 넘긴다. 따라서 AppV2 액터 시트에서도 동일하게
- * 채팅 출력이 동작한다.
+ * Sheet classes expose a thin _sendItemToChat(item) delegate while this service owns card HTML,
+ * toggle listeners, ruby conversion, and the injected actor reference. External callers such as
+ * dx3rd-macro can therefore keep using the sheet API without duplicating card behavior.
  */
 (() => {
   "use strict";
@@ -20,7 +12,7 @@
     const html = String(value ?? '').trim();
     if (!html) return false;
 
-    // 텍스트가 없어도 자체로 내용을 이루는 리치 텍스트 요소는 설명으로 취급한다.
+    // Treat intrinsically meaningful rich elements as content even without text nodes.
     if (/<(?:img|video|audio|iframe|object|embed|canvas|svg|table|hr)\b/i.test(html)) return true;
 
     const template = document.createElement('template');
@@ -37,9 +29,8 @@
             return window.DX3rdActorSheetData.getSkillDisplay(this.actor, skillKey);
         }
 
-        // 채팅 미리보기는 행동을 실행하는 곳이 아니므로 다이스를 굴리지 않는다.
-        // 수식에 다이스가 있으면 참조만 현재 값으로 치환한 원문을 표시하고,
-        // 고정 수식만 기존처럼 계산된 숫자로 표시한다.
+        // Chat preview must not roll dice. Resolve references in dice formulas for display, while
+        // deterministic formulas retain the existing evaluated-number presentation.
         _getDisplayFormula(value, item) {
             const formula = window.DX3rdFormulaEvaluator;
             const prepared = formula.prepareRollFormula(value, item, this.actor);
@@ -50,17 +41,16 @@
 
         async _sendItemToChat(item) {
             try {
-                // 액터 데이터 최신화 (침식률 변경 등 반영)
+                // Refresh derived actor data before reading encroachment-sensitive values.
                 await this.actor.prepareData();
 
-                // 최신화된 아이템 데이터 가져오기
+                // Re-resolve the embedded item in case preparation replaced stale references.
                 const currentItem = this.actor.items.get(item.id);
                 if (!currentItem) {
                     console.error('DX3rd | Item not found in actor:', item.id);
                     return;
                 }
 
-                // 아이템 타입별 정보 수집 (최신 데이터 사용)
                 const itemData = {
                     id: currentItem.id,
                     name: currentItem.name,
@@ -69,10 +59,9 @@
                     img: currentItem.img
                 };
 
-                // 아이템 타입별 추가 정보 수집 (최신 데이터 사용)
                 switch (currentItem.type) {
                     case 'effect':
-                        // 침식률에 따른 레벨 계산
+                        // Effect level includes the actor's current encroachment bands.
                         const calculatedLevel = window.DX3rdEffectLevel
                             ? window.DX3rdEffectLevel.value(currentItem, this.actor)
                             : Number(currentItem.system.level?.init || 0);
@@ -99,7 +88,7 @@
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         break;
                     case 'psionic':
-                        // 사이오닉은 침식률 보정 없이 init만 사용
+                        // Psionic levels use init without encroachment scaling.
                         const psionicBaseLevel = Number(currentItem.system.level?.init || 0);
                         itemData.level = psionicBaseLevel;
                         itemData.maxLevel = Number(currentItem.system.level?.max) || itemData.level || 0;
@@ -163,10 +152,9 @@
                         itemData.used = currentItem.system.used || { disable: 'notCheck', state: 0, max: 0 };
                         itemData.attackRoll = currentItem.system.attackRoll || '-';
                         
-                        // 콤보의 파생 표시값(다이스/크리티컬/수정치/공격력/침식치)은 콤보 시트가
-                        // 컨텍스트를 만들 때와 같은 계산이다. 예전에는 sheet.getData()로 가져왔지만
-                        // AppV2 시트에는 getData()가 없어 항상 catch로 떨어져 전부 0으로 표시됐다.
-                        // 시트 인스턴스를 만들지 말고 계산 모듈을 직접 호출한다.
+                        // Compute combo display values through the same data module as the sheet.
+                        // AppV2 has no getData(), and instantiating a sheet here previously made every
+                        // derived value fall through to zero.
                         if (window.DX3rdComboData) {
                             try {
                                 const sheetData = await window.DX3rdComboData.prepareSheetData({system: {}}, currentItem, this.actor);
@@ -177,7 +165,7 @@
                                 itemData.encroach = sheetData.system?.encroach?.value || 0;
                                 itemData.attackLabel = sheetData.attackLabel || game.i18n.localize('DX3rd.Attack');
                             } catch (e) {
-                                // 조용히 0으로 떨어지면 표시가 틀린 것을 알아챌 수 없다.
+                                // A visible failure is safer than silently rendering incorrect zeros.
                                 console.warn('DX3rd | 콤보 채팅 파생값 계산 실패', currentItem?.name, e);
                                 itemData.dice = 0;
                                 itemData.critical = 10;
@@ -192,7 +180,7 @@
                             itemData.add = 0;
                             itemData.attack = 0;
                             itemData.encroach = 0;
-                            // attackRoll에 따라 라벨 설정
+                            // The roll mode determines whether the card labels its attack value.
                             if (itemData.attackRoll === 'melee') {
                                 itemData.attackLabel = game.i18n.localize('DX3rd.MeleeAttack');
                             } else if (itemData.attackRoll === 'ranged') {
@@ -202,7 +190,7 @@
                             }
                         }
 
-                        // 콤보에 포함된 이펙트와 무기 정보 수집
+                        // Preserve member details for the combo card's expandable sections.
                         itemData.effects = [];
                         itemData.weapons = [];
 
@@ -242,20 +230,20 @@
                                 if (weaponId && weaponId !== '-') {
                                     const weaponOrVehicle = this.actor.items.get(weaponId);
                                     if (weaponOrVehicle && (weaponOrVehicle.type === 'weapon' || weaponOrVehicle.type === 'vehicle')) {
-                                        // 비클인 경우 특별 처리
+                                        // Vehicles use the fixed melee/engage projection expected by combo cards.
                                         if (weaponOrVehicle.type === 'vehicle') {
                                             itemData.weapons.push({
                                                 id: weaponOrVehicle.id,
                                                 name: weaponOrVehicle.name,
-                                                type: game.i18n.localize('DX3rd.Melee'), // 종별: 백병
+                                                type: game.i18n.localize('DX3rd.Melee'),
                                                 skill: weaponOrVehicle.system.skill || '-',
-                                                range: game.i18n.localize('DX3rd.Engage'), // 사정거리: 교전
-                                                add: 0, // 수정치: 0
+                                                range: game.i18n.localize('DX3rd.Engage'),
+                                                add: 0,
                                                 attack: weaponOrVehicle.system.attack || 0,
                                                 guard: 0
                                             });
                                         } else {
-                                            // 일반 무기
+                                            // Weapons retain their authored combat fields.
                                             itemData.weapons.push({
                                                 id: weaponOrVehicle.id,
                                                 name: weaponOrVehicle.name,
@@ -322,7 +310,6 @@
                         break;
                 }
 
-                // 채팅 메시지 생성
                 const chatData = {
                     style: CONST.CHAT_MESSAGE_STYLES.OTHER,
                     content: await this._createItemChatContent(itemData),
@@ -332,17 +319,16 @@
                     }
                 };
 
-                // 채팅 메시지 전송
                 const message = await ChatMessage.create(chatData);
 
-                // 호출 시 타이밍의 매크로 실행
+                // Sending a card is the onInvoke lifecycle point.
                 if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
                     await window.DX3rdUniversalHandler.executeMacros(currentItem, 'onInvoke');
                 }
 
-                // 콤보 아이템의 경우 포함된 이펙트의 onInvoke 매크로도 실행
+                // Combo members receive the same onInvoke lifecycle as their parent card.
                 if (currentItem.type === 'combo') {
-                    // 정규화·존재 확인·타입 판정은 comboMemberItems 한 곳이 담당한다.
+                    // comboMemberItems centralizes normalization, lookup, and type filtering.
                     const memberItems = window.DX3rdUniversalHandler?.comboMemberItems?.(this.actor, currentItem) || [];
 
                     for (const effectItem of memberItems) {
@@ -352,7 +338,7 @@
                     }
                 }
 
-                // 새로 생성된 메시지에 토글 기능 초기화
+                // Apply the current expansion setting after Foundry inserts the new message DOM.
                 setTimeout(() => {
                     const newMessage = this._getChatMessageElement(message.id);
                     if (newMessage) {
@@ -364,12 +350,10 @@
                     }
                 }, 500);
 
-                // 토글 기능을 위한 이벤트 리스너 추가
+                // Bind the local toggle after the message element becomes available.
                 setTimeout(() => {
                     this._addChatToggleListeners(message.id);
                 }, 500);
-
-                // 기존 채팅 메시지 초기화는 main.js에서 처리됨
 
             } catch (error) {
                 console.error('DX3rd | Error sending item to chat:', error);
@@ -377,13 +361,12 @@
             }
         }
 
-        // 아이템 이름에서 || 패턴을 루비 문자로 변환하는 헬퍼 함수
+        // Convert the system's base||reading convention to ruby markup.
         _formatItemNameWithRuby(itemName) {
             if (!itemName || typeof itemName !== 'string') {
                 return itemName;
             }
 
-            // || 패턴이 있는지 확인
             const rubyPattern = /^(.+)\|\|(.+)$/;
             const match = itemName.match(rubyPattern);
 
@@ -400,12 +383,12 @@
             content += `<div class="item-header">`;
             content += `<img src="${itemData.img}" width="32" height="32" style="vertical-align: middle; margin-right: 8px;">`;
 
-            // 아이템 이름에서 || 패턴 처리
+            // Render ruby syntax in the visible item name.
             const formattedItemName = this._formatItemNameWithRuby(itemData.name);
 
             const itemNameStyle = `cursor: pointer;`;
 
-            // 로이스 타입 표시
+            // Resolve the visible Lois classification.
             if (itemData.type === 'rois') {
                 let roisTypeDisplay = '';
                 if (itemData.roisType && itemData.roisType !== '-') {
@@ -427,7 +410,7 @@
                     }
                     content += `<strong class="item-name-toggle" style="${itemNameStyle}">[${roisTypeDisplay}]${formattedItemName}</strong>`;
                 } else {
-                    // 타입이 "-"이거나 없으면 "로이스"로 표시
+                    // Missing classifications use the generic Lois label.
                     const roisLabel = game.i18n.localize('DX3rd.Rois');
                     content += `<strong class="item-name-toggle" style="${itemNameStyle}">[${roisLabel}]${formattedItemName}</strong>`;
                 }
@@ -436,7 +419,7 @@
             }
             content += `</div>`;
 
-            // 아이템 타입별 상세 정보
+            // Render the type-specific details table.
             switch (itemData.type) {
                 case 'effect':
                     content += `<div class="item-details effect-details collapsible-content collapsed">`;
@@ -500,7 +483,7 @@
                     content += `</div>`;
                     break;
                 case 'spell':
-                    // 발동치 표시 로직
+                    // Invocation values can be fixed or formula-backed display data.
                     let invokeDisplay = '';
                     if (itemData.invoke === '-' && itemData.evocation === '-') {
                         invokeDisplay = '자동성공';
@@ -645,13 +628,11 @@
                     content += `</div>`;
                     break;
                 case 'rois':
-                    // 로이스 타입별 조건부 표시
+                    // D/M/E Lois types suppress emotion details.
                     if (itemData.roisType !== 'D') {
-                        // 긍정/부정 감정 표시 (D 타입이 아닌 경우, 항상 표시)
                         content += `<div class="item-details rois-details">`;
                         content += `<div class="detail-row">`;
 
-                        // 긍정 감정
                         if (itemData.positive?.state) {
                             content += `<span class="detail-key" style="color:#73aae6; font-weight: bold;">긍정:</span> <span class="detail-value" style="color: rgb(115, 170, 230); font-weight: bold;">${itemData.positive.feeling || ''}</span>`;
                         } else {
@@ -659,7 +640,6 @@
                         }
                         content += `</div>`;
 
-                        // 부정 감정
                         content += `<div class="detail-row">`;
                         if (itemData.negative?.state) {
                             content += `<span class="detail-key" style="color:#f16060; font-weight: bold;">부정:</span> <span class="detail-value" style="color: rgb(241, 96, 96); font-weight: bold;">${itemData.negative.feeling || ''}</span>`;
@@ -672,7 +652,7 @@
                     break;
             }
 
-            // 설명이 있으면 추가
+            // Rich descriptions become the card's collapsible body.
             if (hasMeaningfulDescription(itemData.description)) {
                 content += `<div class="item-description collapsible-content collapsed">`;
                 content += `<div class="description-content">${itemData.description}</div>`;
@@ -686,7 +666,7 @@
                 content += `</div>`;
             }
 
-            // 콤보 아이템의 경우 이펙트/무기 버튼 추가 (토글 가능)
+            // Combo cards expose their effect and weapon member lists.
             if (itemData.type === 'combo') {
                 if ((itemData.effects && itemData.effects.length > 0) || (itemData.weapons && itemData.weapons.length > 0)) {
                     content += `<div class="item-actions collapsible-content collapsed" style="display: none;">`;
@@ -700,30 +680,27 @@
                 }
             }
 
-            // 아이템 사용 버튼 추가
+            // Render the actions available for this item type.
             if (itemData.type === 'effect' || itemData.type === 'psionic' || itemData.type === 'spell' || itemData.type === 'weapon' || itemData.type === 'protect' || itemData.type === 'vehicle' || itemData.type === 'connection' || itemData.type === 'etc' || itemData.type === 'once' || itemData.type === 'combo' || itemData.type === 'book') {
                 content += `<div class="item-actions">`;
 
-                // 소진을 **차단으로 이을지**는 월드 설정이 정한다(allowExhaustedUse, 기본 허용).
-                // 예전에는 이 카드만 설정을 보지 않고 버튼을 아예 렌더하지 않아, 설정을 켜 두어도
-                // 채팅 카드에서는 누를 것이 없었다 — 시트에서 직접 누르면 통과하므로 「설정이
-                // 안 먹는다」로 보였다. 남길 때는 방어·리액션 목록(universal-apply)과 같은 규칙으로
-                // 이름 뒤에 「소진」을 붙여, 고를 수는 있지만 원래는 못 쓰는 것임을 보이게 한다.
+                // allowExhaustedUse decides whether exhaustion hides an action. When allowed, keep
+                // the action visible but label it as exhausted, matching defense and reaction lists.
                 const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
                 const exhaustedLabel = game.i18n.localize('DX3rd.Exhausted');
                 const markExhausted = (text, exhausted) => (exhausted ? `${text} (${exhaustedLabel})` : text);
 
-                // 무기와 비클은 공격 롤 버튼 추가
+                // Weapons and vehicles expose a separate attack-roll action.
                 if (itemData.type === 'weapon' || itemData.type === 'vehicle') {
                     let attackExhausted = false;
 
-                    // 무기의 경우 attack-used 횟수 체크
+                    // Only weapons have the attack-used counter.
                     if (itemData.type === 'weapon') {
                         const attackUsedDisable = itemData['attack-used']?.disable || 'notCheck';
                         const attackUsedState = itemData['attack-used']?.state || 0;
                         const attackUsedMax = itemData['attack-used']?.max || 0;
 
-                        // notCheck가 아니면 state >= max 에서 소진 (max === 0도 0회 사용 가능)
+                        // A configured zero maximum means zero available uses.
                         attackExhausted = attackUsedDisable !== 'notCheck' && attackUsedState >= attackUsedMax;
                     }
 
@@ -733,10 +710,9 @@
                     }
                 }
 
-                // 모든 아이템에 사용 버튼 추가 (단, used 횟수 체크)
                 let useExhausted = false;
 
-                // used가 있는 아이템 타입만 체크 (무기는 별도 처리)
+                // Weapon use and attack-use are evaluated separately.
                 const itemsWithUsed = ['combo', 'effect', 'spell', 'psionic', 'weapon', 'protect', 'vehicle', 'connection', 'etc', 'once'];
                 if (itemsWithUsed.includes(itemData.type) && itemData.type !== 'weapon') {
                     const usedDisable = itemData.used?.disable || 'notCheck';
@@ -744,34 +720,33 @@
                     const usedMax = itemData.used?.max || 0;
                     const usedLevel = itemData.used?.level || false;
 
-                    // displayMax 계산 (used.level이 체크되어 있으면 레벨 추가)
                     let displayMax = Number(usedMax) || 0;
                     if (usedLevel && itemData.type === 'effect') {
-                        // 이펙트 아이템의 경우 침식률에 따른 레벨 수정이 적용된 수치 사용
+                        // Effects use the encroachment-adjusted level.
                         const currentItem = this.actor.items.get(itemData.id);
                         const finalLevel = window.DX3rdEffectLevel && currentItem
                             ? window.DX3rdEffectLevel.value(currentItem, this.actor)
                             : Number(itemData.level) || 0;
                         displayMax += finalLevel;
                     } else if (usedLevel && itemData.type === 'psionic') {
-                        // 사이오닉은 침식률 보정 없이 init만 더함
+                        // Psionics add init without encroachment scaling.
                         const baseLevel = Number(itemData.level) || 0;
                         displayMax += baseLevel;
                     }
 
-                    // notCheck가 아니면 state >= displayMax 에서 소진 (displayMax === 0도 0회 사용 가능)
+                    // A configured zero maximum means zero available uses.
                     if (usedDisable !== 'notCheck' && usedState >= displayMax) {
                         useExhausted = true;
                     }
                 }
 
-                // 무기는 used만 체크 (attack-used는 공격 버튼에서 체크)
+                // Weapon use exhaustion is independent of its attack action.
                 if (itemData.type === 'weapon') {
                     const usedDisable = itemData.used?.disable || 'notCheck';
                     const usedState = itemData.used?.state || 0;
                     const usedMax = itemData.used?.max || 0;
 
-                    // notCheck가 아니면 state >= max 에서 소진 (max === 0도 0회 사용 가능)
+                    // A configured zero maximum means zero available uses.
                     if (usedDisable !== 'notCheck' && usedState >= usedMax) {
                         useExhausted = true;
                     }
@@ -790,7 +765,7 @@
 
                 content += `</div>`;
             } else if (itemData.type === 'rois') {
-                // 로이스 버튼 (D, M, E 타입 제외, 승화 이미 사용된 경우 제외)
+                // Eligible Lois cards advance to Titus or Sublimation.
                 if (itemData.roisType !== 'D' && itemData.roisType !== 'M' && itemData.roisType !== 'E' && !itemData.sublimation) {
                     let buttonText = '';
                     let roisAction = '';
@@ -821,9 +796,8 @@
         }
 
         _addChatToggleListeners(messageId) {
-            // DOM이 완전히 렌더링될 때까지 대기
+            // Foundry inserts the message DOM asynchronously after ChatMessage.create resolves.
             setTimeout(() => {
-                // Foundry VTT의 채팅 메시지 구조에 맞게 수정
                 const messageElement = this._getChatMessageContent(messageId);
                 if (!messageElement) {
                     return;
@@ -834,60 +808,13 @@
                     return;
                 }
 
-                // 이벤트 위임을 사용하여 더 안정적으로 처리
                 toggleElement.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
 
                     this._toggleCollapsibleElements(messageElement.querySelectorAll('.collapsible-content'));
                 });
-            }, 1000); // 대기 시간을 더 늘림
-        }
-
-        _addGlobalChatToggleListeners() {
-            // 전역 이벤트 위임으로 채팅 로그의 모든 토글 요소 처리
-            if (this.constructor._globalChatToggleListener) {
-                document.removeEventListener('click', this.constructor._globalChatToggleListener);
-            }
-
-            this.constructor._globalChatToggleListener = (event) => {
-                const toggle = event.target?.closest?.('.item-name-toggle');
-                if (!toggle) return;
-
-                event.preventDefault();
-                event.stopPropagation();
-
-                // Foundry VTT 채팅 메시지 구조 확인
-                const messageElement = toggle.closest('.message');
-                if (!messageElement) return;
-
-                // 다양한 선택자 시도
-                let collapsibleElements = Array.from(messageElement.querySelectorAll('.collapsible-content'));
-                if (collapsibleElements.length === 0) {
-                    // message-content 내부에서 찾기
-                    const messageContent = messageElement.querySelector('.message-content');
-                    collapsibleElements = Array.from(messageContent?.querySelectorAll?.('.collapsible-content') || []);
-                }
-
-                if (collapsibleElements.length === 0) {
-                    return;
-                }
-
-                this._toggleCollapsibleElements(collapsibleElements);
-            };
-
-            document.addEventListener('click', this.constructor._globalChatToggleListener);
-        }
-
-        _initializeExistingChatMessages() {
-            // 기존 채팅 메시지에서 토글 요소들을 찾아서 초기화
-            const expandItemCards = game.settings.get('dx3rd-emanim', 'expandChatItemCards');
-            document.querySelectorAll('#chat-log .message, .chat-log .message').forEach(messageElement => {
-                messageElement.querySelectorAll('.dx3rd-item-chat .collapsible-content').forEach(element => {
-                    element.classList.toggle('collapsed', !expandItemCards);
-                    element.style.display = expandItemCards ? '' : 'none';
-                });
-            });
+            }, 1000);
         }
 
         _getChatMessageElement(messageId) {
@@ -914,7 +841,7 @@
   }
 
   window.DX3rdActorChat = {
-    /** 아이템 정보를 채팅으로 출력한다. 이전 시트/AppV2 시트 및 외부 UI 공용. */
+    /** Send an item's details to chat for sheets and external UI callers. */
     sendItemToChat(actor, item) {
       if (!actor) return;
       return new DX3rdActorChatHelper(actor)._sendItemToChat(item);

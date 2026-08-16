@@ -166,7 +166,9 @@ window.DX3rdComboHandler = {
         }
 
         // 1. instant 익스텐션 병합·실행 (공통 - 롤 타입 무관)
-        await this.processInstantExtensions(actor, item, comboAction);
+        await this.processInstantExtensions(actor, item, comboAction, {
+            skipWeaponAttackSpend: options.reroll === true
+        });
 
         // 2. 콤보 롤 타입 분기
         const rollType = item.system?.roll ?? '-';
@@ -314,7 +316,7 @@ window.DX3rdComboHandler = {
      * instant 익스텐션 병합 및 실행 (롤 타입 무관 공통 처리)
      * 콤보 + 포함된 이펙트들의 instant 익스텐션을 수집·병합·실행
      */
-    async processInstantExtensions(actor, item, action = null) {
+    async processInstantExtensions(actor, item, action = null, options = {}) {
         window.DX3rdDebug.log("DX3rd | ComboHandler - Processing instant extensions (common for all roll types)");
         const handler = window.DX3rdUniversalHandler;
         if (!handler) return;
@@ -354,7 +356,7 @@ window.DX3rdComboHandler = {
         const isEnemyAchievementShortcut = actor.type === 'enemy' &&
             item.system?.attackAchievement && item.system.attackAchievement !== '-' && item.system.attackAchievement !== '' &&
             isAttackCombo;
-        const skipPreIncrement = !isEnemyAchievementShortcut;
+        const skipPreIncrement = !isEnemyAchievementShortcut || options.skipWeaponAttackSpend === true;
         const weaponIds = item.system?.weapon || [];
         if (!skipPreIncrement && Array.isArray(weaponIds) && weaponIds.length > 0) {
             for (const weaponId of weaponIds) {
@@ -375,7 +377,10 @@ window.DX3rdComboHandler = {
                 }
             }
         } else if (skipPreIncrement) {
-            window.DX3rdDebug.log(`DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (${isAttackCombo ? 'attack combo; counted at damage roll' : 'non-attack combo; registered weapons are not used'})`);
+            const reason = options.skipWeaponAttackSpend === true
+                ? 'attack reroll; already spent by the original attack'
+                : (isAttackCombo ? 'attack combo; counted at damage roll' : 'non-attack combo; registered weapons are not used');
+            window.DX3rdDebug.log(`DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (${reason})`);
         }
 
         // 일반 구성 아이템의 사용 횟수 증가 (notCheck가 아닌 경우) — 무기 슬롯은 별도의
@@ -458,15 +463,11 @@ window.DX3rdComboHandler = {
                         triggerItemName: item.name
                     };
                     await handler.executeHealExtensionNow(actor, healData, null);
-                } else if (b.type === 'damage' && !b.custom) {
-                    const damageData = {
-                        formulaDice: b.merged?.dice || 0,
-                        formulaAdd: b.merged?.add || 0,
-                        target: b.target,
+                } else if (b.type === 'damage') {
+                    const damageData = handler.damageDataFromExtensionBucket(b, {
                         selectedTargetIds,
-                        ignoreReduce: b.ignoreReduce || false,
                         triggerItemName: item.name
-                    };
+                    });
                     await handler.executeDamageExtensionNow(actor, damageData, null);
                 } else if (b.type === 'condition' && !b.custom) {
                     // 같은 대상이면 서로 다른 컨디션도 한 번의 다이얼로그로 병합 처리
@@ -503,10 +504,6 @@ window.DX3rdComboHandler = {
                             console.warn(`DX3rd | ComboHandler - Failed to create ${b.type} from ${srcItem.name}:`, e);
                         }
                     }
-                    } else if (b.custom) {
-                        // 버킷 단위 custom(임의 공식)은 기존 단일 다이얼로그 흐름으로 처리하도록 개별 소스 실행을 유지
-                        // → 별도 병합 다이얼로그 구현 전까지는 스킵 (중복 창 방지 목적)
-                        window.DX3rdDebug.log('DX3rd | ComboHandler - Skipping custom bucket for now (kept for existing dialog):', b);
                     }
                 } else if (b.timing === 'afterMain' && b.parentRunTiming === 'instant') {
                     // afterMain 타이밍은 큐에 등록
@@ -525,14 +522,10 @@ window.DX3rdComboHandler = {
                         window.DX3rdDebug.log('DX3rd | ComboHandler - AfterMain heal data:', healData);
                         await handler.addToAfterMainQueue(actor, healData, null, 'heal');
                     } else if (b.type === 'damage') {
-                        const damageData = {
-                            formulaDice: b.merged?.dice || 0,
-                            formulaAdd: b.merged?.add || 0,
-                            target: b.target,
+                        const damageData = handler.damageDataFromExtensionBucket(b, {
                             selectedTargetIds,
-                            ignoreReduce: b.ignoreReduce || false,
                             triggerItemName: item.name
-                        };
+                        });
                         window.DX3rdDebug.log('DX3rd | ComboHandler - AfterMain damage data:', damageData);
                         await handler.addToAfterMainQueue(actor, damageData, null, 'damage');
                     } else if (b.type === 'condition') {
@@ -884,7 +877,8 @@ window.DX3rdComboHandler = {
                 const shortcutAttackBonus = adapter?.mergeAttackBonuses?.(effectAttackBonus, registeredWeaponBonus)
                     || effectAttackBonus || registeredWeaponBonus;
                 const achievementValue = await this.getAchievementWithModifiers(actor, item, baseAchievement, shortcutAttackBonus);
-                await this.createAttackMessageWithAchievement(actor, item, achievementValue, shortcutAttackBonus);
+                await this.createAttackMessageWithAchievement(
+                    actor, item, achievementValue, shortcutAttackBonus, options.sourceMessage || null);
                 return true;
             }
         }
@@ -946,7 +940,9 @@ window.DX3rdComboHandler = {
             options.predefinedDifficulty || predefinedDifficulty,
             false,
             false,
-            options.afterRollCallback || metaAfterRoll
+            options.afterRollCallback || metaAfterRoll,
+            false,
+            options.sourceMessage || null
         );
         return true;
     },
@@ -1112,7 +1108,9 @@ window.DX3rdComboHandler = {
             options.predefinedDifficulty || predefinedDifficulty,
             false,
             false,
-            options.afterRollCallback || metaAfterRoll
+            options.afterRollCallback || metaAfterRoll,
+            false,
+            options.sourceMessage || null
         );
         return true;
     },
@@ -1207,7 +1205,7 @@ window.DX3rdComboHandler = {
      * @param {Item} item - 콤보 아이템
      * @param {number} achievementValue - 명중 달성치
      */
-    async createAttackMessageWithAchievement(actor, item, achievementValue, attackBonus = null) {
+    async createAttackMessageWithAchievement(actor, item, achievementValue, attackBonus = null, sourceMessage = null) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler) {
             console.error("DX3rd | UniversalHandler not found");
@@ -1354,7 +1352,23 @@ window.DX3rdComboHandler = {
             }
         }
         
-        const attackMessage = await ChatMessage.create(messageData);
+        let attackMessage;
+        if (sourceMessage) {
+            const flagUpdates = {};
+            const systemFlags = messageData.flags?.['dx3rd-emanim'] || {};
+            for (const [key, value] of Object.entries(systemFlags)) {
+                flagUpdates[`flags.dx3rd-emanim.${key}`] = value;
+            }
+            await sourceMessage.update({
+                content: attackMessageContent,
+                'flags.dx3rd-emanim.pendingAttackRoll': false,
+                'flags.dx3rd-emanim.attackRollCompleted': false,
+                ...flagUpdates
+            });
+            attackMessage = sourceMessage;
+        } else {
+            attackMessage = await ChatMessage.create(messageData);
+        }
         await window.DX3rdUniversalHandler.maybeAutoRollDamage?.(attackMessage);
         
         // 메이저 롤 후 비활성화 훅 실행 (자기 자신에게만)

@@ -262,7 +262,9 @@
     const wpnIds = normalizeIdList(weaponIds ?? getWeaponIds(comboItem));
 
     const effects = effIds.map(id => actor?.items.get(id)).filter(Boolean);
-    const weapons = wpnIds.map(id => actor?.items.get(id)).filter(w => w && w.type === 'weapon');
+    const weapons = wpnIds
+      .map(id => window.DX3rdResolveWeapon?.(actor, id) || actor?.items.get(id))
+      .filter(item => item && ['weapon', 'vehicle'].includes(item.type));
 
     // --- 판정 기능(skill/base) ---
     // 근거: 룰 「명중판정」(rulebook-1-2 p.145) — 명중판정은 "무기 및 이펙트에 지정된 기능"으로 하며,
@@ -330,6 +332,9 @@
       const wpnSkillAR = weapons.find(w => w.system?.skill === 'melee' || w.system?.skill === 'ranged');
       if (wpnSkillAR) attackRoll = wpnSkillAR.system.skill;
     }
+    // Vehicles use their selected driving skill for the check, but the attack itself follows the
+    // same melee path as direct vehicle attacks in UniversalHandler.
+    if (!attackRoll && weapons.some(w => w.type === 'vehicle')) attackRoll = 'melee';
     if (attackRoll && attackRoll !== cs.attackRoll) {
       updates['system.attackRoll'] = attackRoll;
       // 공격판정이 새로 생겼는데 roll이 비어있으면 명중 판정(major) 활성화
@@ -399,11 +404,11 @@
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
   }
 
-  // 무기 추가 직후 호출: 콤보를 공격 콤보로 재구성. 무기 아이템에만 적용(비클 제외).
+  // 무기/비클 추가 직후 호출: 콤보를 공격 콤보로 재구성.
   async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
     if (!comboItem || !weaponId || weaponId === '-') return false;
     const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-    if (!weaponItem || weaponItem.type !== 'weapon') return false;
+    if (!weaponItem || !['weapon', 'vehicle'].includes(weaponItem.type)) return false;
     const updates = computeInheritedWeaponFields(comboItem, weaponItem, actor);
     applyWeaponRangeRecalc(updates, comboItem, actor);
     if (Object.keys(updates).length === 0) return false;
@@ -412,13 +417,55 @@
   }
 
   // 무기 삭제 직후 호출: 남은 이펙트/무기로 판정 기능/공격판정을 재계산(우선순위 재적용).
-  async function applyWeaponRemoved(comboItem, actor) {
+  async function applyWeaponRemoved(comboItem, actor, removedWeaponId = null) {
     if (!comboItem) return false;
     const updates = deriveComboAttackFields(comboItem, actor);
     applyWeaponRangeRecalc(updates, comboItem, actor);
+    const removedWeapon = removedWeaponId
+      ? (window.DX3rdResolveWeapon?.(actor, removedWeaponId) || actor?.items.get(removedWeaponId))
+      : null;
+    if (removedWeapon && !Object.hasOwn(updates, 'system.attackRoll')) {
+      const removedAttackRoll = removedWeapon.type === 'vehicle'
+        ? 'melee'
+        : [removedWeapon.system?.type, removedWeapon.system?.skill]
+          .find(value => value === 'melee' || value === 'ranged');
+      if (removedAttackRoll && comboItem.system?.attackRoll === removedAttackRoll) {
+        updates['system.attackRoll'] = '-';
+        updates['system.attack.value'] = '-';
+      }
+    }
+    if (removedWeapon && !Object.hasOwn(updates, 'system.skill')) {
+      const removedSkill = removedWeapon.system?.skill || removedWeapon.system?.type;
+      if (removedSkill && comboItem.system?.skill === removedSkill) {
+        updates['system.skill'] = '-';
+        updates['system.base'] = '-';
+      }
+    }
+    applyEmptyComboReset(updates, comboItem, getEffectIds(comboItem), getWeaponIds(comboItem));
     if (Object.keys(updates).length === 0) return false;
     await comboItem.update(updates);
     return true;
+  }
+
+  // Once every registered source is gone, values inherited from those sources must not survive as
+  // an apparently usable combo. This reset is deliberately limited to an empty combo: while any
+  // member remains, deriveComboAttackFields and the range/target combiners preserve authored values.
+  function applyEmptyComboReset(updates, comboItem, effectIds, weaponIds) {
+    if (normalizeIdList(effectIds).length || normalizeIdList(weaponIds).length) return;
+    const defaults = {
+      'system.skill': '-',
+      'system.base': '-',
+      'system.roll': '-',
+      'system.difficulty': '',
+      'system.timing': '-',
+      'system.range': '',
+      'system.target': '-',
+      'system.attackRoll': '-',
+      'system.attack.value': '-'
+    };
+    for (const [path, value] of Object.entries(defaults)) {
+      if (foundry.utils.getProperty(comboItem, path) !== value) updates[path] = value;
+    }
   }
 
   // 조합된 전체 이펙트에서 사거리/대상을 합성(가장 제한적인 값). 자신 규칙 위반은 selfConflict로 표시.
@@ -617,19 +664,41 @@
       return false;
     }
 
+    const removedEffect = actor?.items.get(effectId);
     const newEffects = getEffectIds(item).filter(id => id !== effectId);
+    const weaponIds = getWeaponIds(item);
     const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects),
       // 제거 후 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용; 예: RC 변경 이펙트 제거 시 무기 기능으로 복귀).
       ...deriveComboAttackFields(item, actor, { effectIds: newEffects })
     };
+    const combinedTiming = getCombinedEffectTiming(actor, newEffects);
+    if (combinedTiming.value) updates['system.timing'] = combinedTiming.value;
     // 제거 후 남은 이펙트로 사거리/대상 재계산(「무기」는 조합 무기로 치환, rankable 없으면 보존).
-    const combined = combineEffectsRangeTarget(actor, newEffects, getWeaponIds(item));
+    const combined = combineEffectsRangeTarget(actor, newEffects, weaponIds);
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
     // 난이도: 남은 이펙트로 조합 규칙 재계산.
     applyCombinedDifficulty(updates, item, actor, newEffects);
+
+    // If the removed effect was the last source for a descriptive field, discard only a value that
+    // still equals that source. A manually authored value which differs from the removed effect is
+    // preserved. With equipment still registered, its attack remains a major-action combo.
+    const removedSystem = removedEffect?.system || {};
+    const fallbackTiming = weaponIds.length ? 'major' : '-';
+    const fallbackRoll = weaponIds.length ? 'major' : '-';
+    const resetIfRemovedValue = (path, removedValue, fallback, replacementResolved = false) => {
+      if (replacementResolved || isEmptyComboField(removedValue)) return;
+      if (foundry.utils.getProperty(item, path) === removedValue) updates[path] = fallback;
+    };
+    resetIfRemovedValue('system.timing', removedSystem.timing, fallbackTiming, Boolean(combinedTiming.value));
+    resetIfRemovedValue('system.range', removedSystem.range, '', Boolean(combined?.range?.resolved));
+    resetIfRemovedValue('system.target', removedSystem.target, '-', Boolean(combined?.target?.resolved));
+    resetIfRemovedValue('system.difficulty', removedSystem.difficulty, '', Object.hasOwn(updates, 'system.difficulty'));
+    resetIfRemovedValue('system.roll', removedSystem.roll, fallbackRoll, Object.hasOwn(updates, 'system.roll'));
+
+    applyEmptyComboReset(updates, item, newEffects, weaponIds);
     await item.update(updates);
     return true;
   }

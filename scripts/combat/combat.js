@@ -1,21 +1,21 @@
 // Double Cross 3rd Combat System
 
 /**
- * 메인 프로세스 액터 표시 애니메이션
- * @param {string} imgSrc - 액터 이미지 소스
- * @param {string} actorName - 액터 이름
+ * The main-process actor banner animation
+ * @param {string} imgSrc - the actor's image source
+ * @param {string} actorName - the actor's name
  */
 function showTurnActor(imgSrc = null, actorName = null) {
-  // 컴배턴트 정보 가져오기 (파라미터가 없으면 현재 combatant에서 가져옴)
+  // Read the combatant details (falling back to the current combatant when no parameters are given)
   if (!imgSrc) imgSrc = game.combat?.combatant?.actor?.img ?? "";
   if (!actorName) actorName = game.combat?.combatant?.actor?.name ?? game.combat?.combatant?.name ?? "";
 
-  // 기존 제거
+  // Remove any previous banner
   document.getElementById("diamond-frame")?.remove();
   document.getElementById("diamond-label-left")?.remove();
   document.getElementById("diamond-label-right")?.remove();
 
-  // 스타일 정의 (중복 삽입 방지)
+  // Define the styles (only once)
   if (!document.getElementById("diamond-style")) {
     const style = document.createElement("style");
     style.id = "diamond-style";
@@ -168,7 +168,7 @@ function showTurnActor(imgSrc = null, actorName = null) {
     document.head.appendChild(style);
   }
 
-  // 라벨 생성 함수
+  // Label factory
   function createLabel(id, className, text) {
     const label = document.createElement("div");
     label.id = id;
@@ -178,7 +178,7 @@ function showTurnActor(imgSrc = null, actorName = null) {
     return label;
   }
 
-  // 프레임
+  // The frame
   const frame = document.createElement("div");
   frame.id = "diamond-frame";
 
@@ -187,15 +187,15 @@ function showTurnActor(imgSrc = null, actorName = null) {
   frame.appendChild(image);
   document.body.appendChild(frame);
 
-  // 라벨 생성
+  // The labels
   const leftLabel = createLabel("diamond-label-left", "diamond-label", game.i18n.localize("DX3rd.MainProcess"));
   const rightLabel = createLabel("diamond-label-right", "diamond-label", actorName);
 
-  // 애니메이션 타이밍 상수
-  const SHOW_DURATION = 1200; // 머무는 시간(ms)
-  const FADE_DURATION = 400;  // 사라지는 애니메이션(ms)
+  // Animation timings
+  const SHOW_DURATION = 1200; // how long it stays (ms)
+  const FADE_DURATION = 400;  // the fade-out animation (ms)
 
-  // 사라짐 처리
+  // Fade it out again
   setTimeout(() => {
     frame.classList.add("fade-out");
     leftLabel.classList.add("fade-out");
@@ -211,8 +211,8 @@ function showTurnActor(imgSrc = null, actorName = null) {
 function getGMSpeaker() {
   const gmUser = game.users.find(u => u.isGM && u.active) || game.users.find(u => u.isGM);
   if (!gmUser) return { alias: "GM", actor: null, token: null };
-  // 선택된 토큰(컨트롤된 토큰)에 의해 스피커가 오염되지 않도록
-  // scene/token/actor를 명시적으로 null로 고정한다.
+  // Pin scene/token/actor to null explicitly, so a controlled token cannot
+  // contaminate the speaker.
   const base = ChatMessage.getSpeaker({ user: gmUser });
   return {
     ...base,
@@ -224,12 +224,12 @@ function getGMSpeaker() {
 }
 
 /**
- * 프로세스 전환 알림을 채팅에 남긴다.
- * 라운드/전투 시작·종료 메시지와 같은 서식(dx3rd-combat-msg)을 쓴다.
- * 프로세스 전환은 GM 클라이언트에서만 일어나므로 여기서도 GM만 발신한다
- * (다른 클라이언트가 같은 전환을 관측해도 메시지가 중복되지 않도록).
- * @param {string} labelKey - 'DX3rd.SetupProcess' 등 i18n 키
- * @param {object} [speaker] - 생략 시 GM 스피커
+ * Announce a process transition in chat.
+ * Uses the same formatting (dx3rd-combat-msg) as the round/combat start and end messages.
+ * Process transitions only happen on the GM client, so only the GM emits here — otherwise
+ * another client observing the same transition would duplicate the message.
+ * @param {string} labelKey - an i18n key such as 'DX3rd.SetupProcess'
+ * @param {object} [speaker] - defaults to the GM speaker
  */
 async function announceCombatProcess(labelKey, speaker = null) {
   if (!game.user.isGM) return;
@@ -240,11 +240,11 @@ async function announceCombatProcess(labelKey, speaker = null) {
 }
 
 /**
- * 특정 접두사로 시작하는 모든 매크로 실행
- * @param {string} prefix - 매크로 이름 접두사
+ * Run every macro whose name starts with a given prefix
+ * @param {string} prefix - the macro name prefix
  */
 async function executeMacrosByPrefix(prefix) {
-  // GM만 매크로 실행
+  // The GM alone runs macros
   if (!game.user.isGM) {
     return;
   }
@@ -263,27 +263,27 @@ async function executeMacrosByPrefix(prefix) {
   }
 }
 
-// 컴배턴트 하나의 이니셔티브 값을 산출한다. 굴림은 없다 — 액터의 【행동치】가 그대로 값이다.
-// rollInitiative 와 부분 갱신(refreshCombatantInitiative)이 같은 규칙을 쓰도록 한 곳에 둔다.
+// Compute one combatant's initiative value. Nothing is rolled — the actor's initiative stat IS the value.
+// Kept in one place so rollInitiative and the partial refresh (refreshCombatantInitiative) share the rule.
 function computeInitiativeValue(combatant) {
-  // 셋업/클린업은 진행 표시를 위한 가상 컴배턴트다. 주도권을 굴리거나 소유하지 않는다.
+  // Setup and cleanup are synthetic combatants used for progress display. They neither roll nor own initiative.
   if (!combatant || combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return null;
   const actor = combatant.actor;
   if (!actor) return 0;
   const actionValue = Number(actor.system?.attributes?.init?.value ?? 0);
-  // 룰: 대기자는 【행동치】 무관하게 라운드 최후에 행동하되,
-  // 대기자가 여럿이면 행동치가 느린(낮은) 순서대로 실행한다.
-  // 이니셔티브를 -(행동치)로 두면 (1) 음수라 정상 액터 뒤로 정렬되고
-  // (2) 행동치가 낮을수록 -값이 0에 가까워 더 먼저 정렬된다.
+  // Rules: a delaying actor acts last in the round regardless of their initiative stat, and when
+  // several are delaying, the slower (lower) one goes first.
+  // Setting the initiative to -(stat) achieves both: (1) being negative sorts it after normal
+  // actors, and (2) a lower stat lands closer to 0, so it sorts earlier among the delayers.
   const isActionDelay = actor.system?.conditions?.action_delay?.active ?? false;
   return isActionDelay ? -actionValue : actionValue;
 }
 
-// 컴배턴트 한 명의 이니셔티브만 다시 스냅샷한다.
-// onlyIfLower: 값이 낮아질 때만 반영한다. 라운드 도중 【행동치】가 오르는 변경은
-// 그 액터의 메인 종료 시점까지 보류하기 위한 것이다 — 그러지 않으면 자기 차례 직전에
-// 행동치를 올려 남들보다 앞질러 행동할 수 있다. 내려가는 변경은 자기 순서를 뒤로
-// 미루는 것이라 즉시 통해도 무방하다.
+// Re-snapshot the initiative of a single combatant.
+// onlyIfLower: apply only when the value drops. An initiative-stat *increase* mid-round is held
+// until that actor's own main process ends — otherwise you could buff yourself right before your
+// turn and cut ahead of everyone. A decrease pushes your own turn later, which is legitimate, so
+// it applies immediately.
 async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = false} = {}) {
   if (!combat || !combatantId || !game.user.isGM) return;
   const combatant = combat.combatants.get(combatantId);
@@ -298,11 +298,11 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
 }
 
 (function() {
-  // v13/v14 호환: Combat, Combatant 글로벌이 없을 경우 폴백
+  // v13/v14 compatibility: fall back when the Combat / Combatant globals are absent
   const _CombatBase = foundry.documents?.Combat ?? globalThis.Combat;
   const _CombatantBase = foundry.documents?.Combatant ?? globalThis.Combatant;
   const toFiniteInitiative = (value) => {
-    // 프로세스 컴배턴트는 이니셔티브 순서에 참여하지 않는다.
+    // Process combatants take no part in the initiative order.
     if (value === null || value === undefined || value === "") return -Infinity;
     const number = Number(value);
     return Number.isFinite(number) ? number : -Infinity;
@@ -322,10 +322,10 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
       const actor = combatant.actor;
       if (!actor) return "0";
       
-      // 액터의 현재 행동치 값 사용
+      // Use the actor's current initiative stat
       const initValue = actor.system?.attributes?.init?.value ?? 0;
       
-      // 주사위를 굴리지 않고 직접 값을 반환하기 위해 문자열로 반환
+      // Returned as a string so no dice are rolled — the value passes straight through
       return String(initValue);
     }
 
@@ -335,7 +335,7 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
      * @param {object} options
      */
     async rollInitiative(ids, options = {}) {
-      // 배열로 변환
+      // Normalize to an array
       ids = typeof ids === "string" ? [ids] : ids;
       
       const updates = [];
@@ -352,7 +352,7 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
       
       if (updates.length === 0) return this;
       
-      // 업데이트 수행
+      // Write the updates
       await this.updateEmbeddedDocuments("Combatant", updates);
       
       return this;
@@ -361,30 +361,30 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
     /**
      * Override _sortCombatants to implement custom tie-breaking rules
      *
-     * 전투 순서 규칙의 단일 소스다. combat.turns 가 이 결과이고, 다음 행동자 선정
-     * (getPendingMainCombatants → startMainProcessFromInitiative)도 그 순서를 그대로
-     * 따른다. 순서 판단을 다른 곳에서 다시 구현하지 말 것.
+     * The single source of truth for turn ordering. combat.turns is this result, and choosing the
+     * next actor (getPendingMainCombatants → startMainProcessFromInitiative) follows that same
+     * order. Do not reimplement the ordering anywhere else.
      *
      * @param {Combatant} a
      * @param {Combatant} b
      * @returns {number}
      */
     _sortCombatants(a, b) {
-      // 1순위: 이니셔티브 (높은 순)
+      // 1st: initiative (descending)
       const ia = toFiniteInitiative(a.initiative);
       const ib = toFiniteInitiative(b.initiative);
       if (ia !== ib) return ib - ia;
       
-      // 이니셔티브가 같을 경우 동점자 처리 규칙 적용
+      // On a tie, fall through to the tie-breaking rules
       const actorA = a.actor;
       const actorB = b.actor;
       
-      // 액터가 없는 경우 (셋업/클린업 프로세스 컴배턴트)
+      // No actor: a setup/cleanup process combatant
       if (!actorA || !actorB) {
         return 0;
       }
       
-      // 2순위: 액터 타입 우선순위 (PlayerCharacter > Enemy > Ally > Troop > NPC)
+      // 2nd: actor type priority (PlayerCharacter > Enemy > Ally > Troop > NPC)
       const actorTypePriority = {
         'PlayerCharacter': 1,
         'Enemy': 2,
@@ -396,22 +396,22 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
       const bPriority = actorTypePriority[actorB.system?.actorType] ?? 99;
       if (aPriority !== bPriority) return aPriority - bPriority;
       
-      // 3순위: EXTRA TURN 없는 쪽 우선
+      // 3rd: whoever does NOT have an EXTRA TURN goes first
       const aExtraTurn = actorA.system?.conditions?.['extra-turn']?.active ?? false;
       const bExtraTurn = actorB.system?.conditions?.['extra-turn']?.active ?? false;
       if (aExtraTurn !== bExtraTurn) return aExtraTurn ? 1 : -1;
       
-      // 4순위: sense.total (높은 순)
+      // 4th: sense.total (descending)
       const aSense = actorA.system?.attributes?.sense?.total ?? 0;
       const bSense = actorB.system?.attributes?.sense?.total ?? 0;
       if (aSense !== bSense) return bSense - aSense;
       
-      // 5순위: mind.total (높은 순)
+      // 5th: mind.total (descending)
       const aMind = actorA.system?.attributes?.mind?.total ?? 0;
       const bMind = actorB.system?.attributes?.mind?.total ?? 0;
       if (aMind !== bMind) return bMind - aMind;
       
-      // 6순위: 이름 (알파벳/가나다/숫자 순)
+      // 6th: name (locale order)
       return a.name.localeCompare(b.name);
     }
   }
@@ -432,65 +432,65 @@ async function refreshCombatantInitiative(combat, combatantId, {onlyIfLower = fa
     }
   }
 
-  // 전역 노출
+  // Expose globally
   window.DX3rdCombat = DX3rdCombat;
   window.DX3rdCombatant = DX3rdCombatant;
 })();
 
-// Next Turn 버튼을 턴 프로세스 상태 기계에 연결
+// Wire the Next Turn button into the turn-process state machine
 Hooks.once('ready', () => {
-  // Combat.prototype.nextTurn 직접 래핑
+  // Wrap Combat.prototype.nextTurn directly
   if (!Combat.prototype.nextTurn._dx3rdOriginal) {
-    // 원본 메서드를 변수에 저장
+    // Keep the original method in a local
     const originalNextTurn = Combat.prototype.nextTurn;
     if (typeof originalNextTurn !== 'function') {
       console.warn('DX3rd | Combat - nextTurn is not a function');
     return;
   }
 
-    // 원본 메서드 저장
+    // Stash the original method
     Combat.prototype.nextTurn._dx3rdOriginal = originalNextTurn;
     
     Combat.prototype.nextTurn = async function(...args) {
-      // 원본 메서드 래퍼 (저장된 변수 사용)
+      // Wrapper around the original (using the local)
       const wrapped = async () => {
         return await originalNextTurn.apply(this, args);
       };
 
-      // FVTT의 다음 턴 버튼은 시스템 전투 상태 기계의 단일 진입점으로 보낸다.
-      // 행동 종료/대기는 진행 표시줄에서 명시적으로 선택한 경우에만 아래 기존 규칙 처리를 사용한다.
+      // Foundry's next-turn button funnels into the system's single combat state-machine entry point.
+      // The action-end / action-delay rules below run only for an explicit choice from the progress bar.
       if (!this._dx3rdForcedTurnChoice) {
         return window.DX3rdCombatFlow?.advance?.(this, 'forward');
       }
 
-      // 여기부터는 _dx3rdForcedTurnChoice 가 반드시 truthy 다(위 가드를 통과한 유일한 경우).
-      // 「선택이 없을 때」를 다시 분기하던 코드가 여기 있었으나 도달할 수 없어 걷어냈다.
+      // From here on _dx3rdForcedTurnChoice is necessarily truthy — that is the only way past the guard
+      // above. Code that re-branched on "no choice" used to live here; it was unreachable and is gone.
 
-      // 선택은 1회용이다. 아래 가드 중 어디에 걸려 돌아가더라도 반드시 먼저 소모한다 —
-      // 예전에는 delete 가 가드 아래에 있어서, 걸려서 반환한 뒤 플래그가 남았고
-      // 그 다음번 평범한 진행이 조용히 행동 종료/대기로 둔갑했다.
+      // The choice is one-shot. It is consumed first, before any guard below can return early —
+      // the delete used to sit below those guards, so hitting one left the flag set and the next
+      // ordinary advance silently turned into an action-end or action-delay.
       const choice = this._dx3rdForcedTurnChoice;
       delete this._dx3rdForcedTurnChoice;
 
-      // 현재 컴배턴트 확인
+      // The current combatant
       const currentCombatant = this.combatant;
 
-      // 셋업/클린업은 Combat 플래그로만 관리한다. 가상 컴배턴트는 만들지 않는다.
+      // Setup and cleanup live in Combat flags alone. No synthetic combatant is created for them.
       const currentProcess = this.getFlag('dx3rd-emanim', 'currentProcess');
       if (currentProcess?.type !== 'main') return;
 
-      // 액터가 있는 일반 컴배턴트만 종료/대기 규칙을 태운다.
+      // Only an ordinary combatant with an actor goes through the end/delay rules.
       if (!currentCombatant || !currentCombatant.actor) {
         return wrapped();
       }
 
-      // EXTRA TURN 이 붙으면 행동 종료를 골라도 action_end 가 해제되어 이번 라운드에
-      // 한 번 더 행동한다. 대기와 마찬가지로 완료 집합에서 되돌려야 한다.
+      // With an EXTRA TURN attached, choosing action-end still clears action_end, so the actor takes
+      // another turn this round. Like a delay, that has to be undone in the completed set.
       let extraTurnGranted = false;
 
-      // 선택에 따라 처리
+      // Branch on the choice
       if (choice === 'end') {
-        // 행동 종료 처리 - 액터의 action_end 상태 활성화
+        // Action end — set the actor's action_end condition
         const actor = currentCombatant.actor;
         if (actor) {
           const updates = {
@@ -498,28 +498,28 @@ Hooks.once('ready', () => {
           };
           let _extraTurnApplied = null;
 
-          // extra-turn 처리
+          // extra-turn handling
           const extraTurnActive = actor.system?.conditions?.['extra-turn']?.active ?? false;
           const extraTurnValue = actor.system?.conditions?.['extra-turn']?.value ?? 0;
           
           if (extraTurnActive && extraTurnValue > 0) {
-            // extra-turn.value를 1 차감
+            // Spend one from extra-turn.value
             updates['system.conditions.extra-turn.value'] = extraTurnValue - 1;
             
-            // EXTRA TURN applied 생성 - 기존 구조 사용
+            // Create the EXTRA TURN applied effect, reusing the existing structure
             const initValue = actor.system?.attributes?.init?.value ?? 0;
             let initPenalty = -Math.floor(initValue / 2);
             
             const appliedKey = `EXTRA_TURN_${actor.id}`;
 
-            // 이미 EXTRA TURN 패널티가 있는지 확인 (네이티브 AE flag 조회)
+            // Is an EXTRA TURN penalty already attached? (read via the native AE flag)
             const existingApplied = window.DX3rdAppliedEffects?.getEffect(actor, appliedKey)?.getFlag('dx3rd-emanim', 'applied');
             if (existingApplied && existingApplied.attributes?.init !== undefined) {
-              // 이미 EXTRA TURN 패널티가 있으면 -9999로 설정
+              // Already penalized once: pin it to -9999
               initPenalty = -9999;
             }
 
-            // EXTRA TURN 패널티가 부착되면 행동 종료 해제
+            // With the EXTRA TURN penalty attached, action-end is cleared again
             updates['system.conditions.action_end.active'] = false;
             _extraTurnApplied = { key: appliedKey, initPenalty };
             extraTurnGranted = true;
@@ -537,15 +537,15 @@ Hooks.once('ready', () => {
           }
         }
         
-        // main disable hook 실행 요청
+        // Request the main disable hook
         if (game.user.isGM) {
-          // GM이면 직접 실행
+          // The GM runs it directly
           if (typeof DX3rdDisableHooks !== 'undefined') {
             console.log('DX3rd | Executing main disable hook for all actors');
             await DX3rdDisableHooks.executeDisableHook('main', null);
           }
         } else {
-          // 플레이어면 GM에게 소켓으로 전달
+          // A player delegates to the GM over the socket
           window.DX3rdSocketRouter.emit({
             type: 'executeDisableHook',
             timing: 'main',
@@ -554,10 +554,10 @@ Hooks.once('ready', () => {
           });
         }
       } else if (choice === 'delay') {
-        // 행동 대기 처리
+        // Action delay
         const actor = currentCombatant.actor;
         if (actor) {
-          // 현재 전투의 모든 컴배턴트 중 action_delay가 활성화된 액터 수 확인
+          // Count how many combatants in this combat already have action_delay active
           const combat = this;
           let delayCount = 0;
           
@@ -567,7 +567,7 @@ Hooks.once('ready', () => {
             }
           }
           
-          // action_delay 활성화 및 value 설정 (기존 대기 수 + 1)
+          // Activate action_delay and set its value (the existing delay count + 1)
           await actor.update({
             'system.conditions.action_delay.active': true,
             'system.conditions.action_delay.value': delayCount + 1
@@ -579,14 +579,14 @@ Hooks.once('ready', () => {
           speaker: ChatMessage.getSpeaker({ actor })
         });
         
-        // main disable hook 실행 요청
+        // Request the main disable hook
         if (game.user.isGM) {
-          // GM이면 직접 실행
+          // The GM runs it directly
           if (typeof DX3rdDisableHooks !== 'undefined') {
             await DX3rdDisableHooks.executeDisableHook('main', null);
           }
         } else {
-          // 플레이어면 GM에게 소켓으로 전달
+          // A player delegates to the GM over the socket
           window.DX3rdSocketRouter.emit({
             type: 'executeDisableHook',
             timing: 'main',
@@ -596,11 +596,11 @@ Hooks.once('ready', () => {
         }
       }
       
-      // 종료/대기 뒤에도 같은 상태 기계로 다음 단계로 진행한다.
-      // 플레이어는 자신의 액터 상태는 갱신할 수 있어도 Combat 문서를 전환할
-      // 권한은 없으므로, GM에게 현재 메인 프로세스의 진행을 요청한다.
-      // 대기를 고른 경우에만 완료 집합을 되돌린다. 플래그를 쓰는 건 GM이므로
-      // 플레이어 경로에서는 소켓으로 그 사실을 함께 넘긴다.
+      // After an end or a delay, the same state machine still drives the next step.
+      // A player may update their own actor's state but has no permission to move the Combat
+      // document, so they ask the GM to advance the current main process.
+      // The completed set is rewound only for a delay. The GM is the one writing the flag, so on
+      // the player path that fact rides along over the socket.
       const deferCurrent = choice === 'delay' || extraTurnGranted;
       if (game.user.isGM) {
         await advanceCombatState(this, 'forward', {deferCurrent});
@@ -613,34 +613,34 @@ Hooks.once('ready', () => {
         });
       }
       
-      // nextTurn은 메인 프로세스 개시 버튼에서 실행하므로 여기서는 실행 안 함
+      // nextTurn runs from the main-process start button, so it is not called here
       return;
-      // 커스텀 로직 끝
+      // End of the custom logic
     };
   }
   
-  // Previous Turn 버튼 클릭 시 처리
+  // Handling for the Previous Turn button
   if (!Combat.prototype.previousTurn._dx3rdOriginal) {
-    // 원본 메서드를 변수에 저장
+    // Keep the original method in a local
     const originalPreviousTurn = Combat.prototype.previousTurn;
     if (typeof originalPreviousTurn !== 'function') {
       console.warn('DX3rd | Combat - previousTurn is not a function');
       return;
     }
     
-    // 원본 메서드 저장
+    // Stash the original method
     Combat.prototype.previousTurn._dx3rdOriginal = originalPreviousTurn;
     
     Combat.prototype.previousTurn = async function(...args) {
-      // 되감기도 상태 기계 단일 진입점으로 보낸다. 원본 previousTurn 은 쓰지 않는다
-      // (원본은 프로세스 단계를 모른 채 전투원 포인터만 되돌린다).
+      // Rewinding also funnels into the single state-machine entry point. The original previousTurn
+      // is never used — it moves only the combatant pointer, knowing nothing of the process stages.
       return window.DX3rdCombatFlow?.advance?.(this, 'backward');
     };
   }
 
-  // 라운드 이동 버튼도 마찬가지다. 코어 원본은 round 와 turn 만 옮기므로,
-  // 이 시스템에서는 프로세스 플래그가 지난 라운드 상태 그대로 남아 트래커와 실제
-  // 진행이 어긋난다(클린업 표시인 채 다음 라운드가 시작되는 등).
+  // The round buttons are the same story. The core originals move only round and turn, so in this
+  // system the process flag would be left holding the previous round's state and the tracker would
+  // disagree with the actual progress (starting a new round while still displaying cleanup).
   for (const [method, flow] of [['nextRound', 'nextRound'], ['previousRound', 'previousRound']]) {
     const original = Combat.prototype[method];
     if (typeof original !== 'function') {
@@ -655,17 +655,17 @@ Hooks.once('ready', () => {
   }
 });
 
-// === 라운드 진행 판정 =========================================================
-// 라운드가 끝났는지를 combat.turns 의 "배열 위치"(turns[currentIndex + 1] 이 있는가)로
-// 판정하면, 행동 대기로 이니셔티브가 재정렬되는 순간 남은 전투원을 통째로 건너뛴다.
-// 그래서 위치 대신 "이번 라운드에 메인 프로세스를 마친 전투원 집합"을 기준으로 삼는다.
-//   - 메인 시작 시 집합에 추가 (startMainProcessFromInitiative)
-//   - 행동 대기 / EXTRA TURN 시 집합에서 제거 = 아직 행동하지 않은 것으로 되돌림
-//     (advanceCombatState 의 deferCurrent)
-//   - 셋업(라운드 시작)에서 비움
-// 종료 보장: 대기는 라운드당 1회만 고를 수 있고(action_delay 는 라운드 리셋에서만 풀린다),
-// EXTRA TURN 은 고를 때마다 extra-turn.value 를 1 깎는다. 되돌림 횟수가 액터당 유한하므로
-// 라운드는 반드시 종료한다.
+// === Round-progress test ==================================================
+// Deciding whether a round has ended by array position in combat.turns (does turns[currentIndex + 1]
+// exist?) skips every remaining combatant the moment an action delay reorders the initiative.
+// So instead of position, the test is "the set of combatants that finished a main process this round".
+//   - added when a main starts (startMainProcessFromInitiative)
+//   - removed on an action delay or an EXTRA TURN = rewound to "has not acted yet"
+//     (advanceCombatState's deferCurrent)
+//   - cleared at setup (the start of the round)
+// Termination is guaranteed: a delay may be chosen once per round (action_delay only clears on the
+// round reset), and each EXTRA TURN decrements extra-turn.value. Each actor's removals are finite,
+// so the round must end.
 const MAIN_DONE_FLAG = 'mainDoneCombatantIds';
 
 function getMainDone(combat) {
@@ -677,17 +677,17 @@ async function setMainDone(combat, ids) {
   await combat.setFlag('dx3rd-emanim', MAIN_DONE_FLAG, Array.from(ids));
 }
 
-// 이번 라운드에 아직 행동할 수 있는 전투원인가.
+// Can this combatant still act this round?
 function isMainEligible(combatant) {
   if (!combatant || combatant.getFlag('dx3rd-emanim', 'isProcessCombatant')) return false;
   const actor = combatant.actor;
-  // 액터가 없는 전투원은 수동 진행용으로 남겨 둔다(기존 동작 유지).
+  // A combatant without an actor is left in, for manual progression (unchanged behavior).
   if (!actor) return true;
   if (actor.system?.conditions?.action_end?.active) return false;
   return (actor.system?.attributes?.hp?.value ?? 0) > 0;
 }
 
-// 아직 메인 프로세스를 받지 않은 전투원들. 현재 이니셔티브 정렬 순서를 그대로 따른다.
+// The combatants that have not yet had a main process, in the current initiative order.
 function getPendingMainCombatants(combat) {
   if (!combat) return [];
   const done = getMainDone(combat);
@@ -702,18 +702,18 @@ async function clearProcessInitiatives(combat) {
   if (processIds.length) await combat.deleteEmbeddedDocuments('Combatant', processIds);
 }
 
-// 이전 버전에서 만들어진 셋업/클린업 가상 컴배턴트도 한 번만 정리한다.
+// Clean up, once, any setup/cleanup pseudo-combatants left over from an older version.
 Hooks.once('ready', async () => {
   if (game.user.isGM && game.combat) await clearProcessInitiatives(game.combat);
 });
 
-// 라운드 카운터를 옮긴다. 코어 Combat#nextRound / #previousRound 와 같은 모양으로 —
-// 예전에는 round·turn 만 갈아치웠는데, 그러면 코어가 라운드 경계에서 하는 두 가지가 빠진다:
-//   - worldTime 전진: 게임 내 시간이 라운드가 지나도 흐르지 않았다(달력·시간 기반 모듈).
-//   - combatRound 훅: 라운드 경계에 끼어들라고 코어가 마련한 확장점이라, 여기에 건
-//     모듈이 이 시스템에서만 호출되지 않았다.
-// 시간 델타 계산은 코어 getTimeDelta 에 맡긴다(CONFIG.time.roundTime/turnTime 반영).
-// 되감을 때는 델타가 음수로 나오므로 시간도 그만큼 되돌아간다.
+// Move the round counter, in the same shape as core Combat#nextRound / #previousRound. This used to
+// just overwrite round and turn, which skipped the two things core does at a round boundary:
+//   - advancing worldTime: in-game time never moved between rounds (calendar and time-based modules).
+//   - the combatRound hook: core's extension point for hooking a round boundary, so modules that
+//     used it were never called in this system alone.
+// The time delta is left to core's getTimeDelta (which honors CONFIG.time.roundTime/turnTime).
+// Rewinding produces a negative delta, so time rolls back by the same amount.
 async function updateCombatRound(combat, targetRound) {
   const updateData = {round: targetRound, turn: 0};
   const delta = combat.getTimeDelta?.(combat.round, combat.turn, targetRound, 0) ?? 0;
@@ -725,69 +725,69 @@ async function updateCombatRound(combat, targetRound) {
 async function advanceToSetupProcess(combat) {
   if (!combat || !game.user.isGM) return;
   const process = combat.getFlag('dx3rd-emanim', 'currentProcess');
-  // 새 라운드는 항상 Foundry 순서의 첫 전투원에서 시작한다.
-  // 라운드만 올리고 이전 액터 커서를 유지하면 셋업/이니셔티브 대상이 뒤섞인다.
+  // A new round always starts from the first combatant in Foundry's order.
+  // Bumping the round while keeping the previous actor cursor scrambles the setup/initiative targets.
   if (process?.needsRoundAdvance) {
     await updateCombatRound(combat, (combat.round || 0) + 1);
-    // 라운드 지속 효과(disable: 'round')의 만료는 클린업(handleCombatUpdate)에서 한다.
-    // 이니셔티브 재굴림보다 먼저 만료돼야 EXTRA TURN 패널티가 트래커에 남지 않는다.
-    // (handleCombatUpdate 의 'round' 분기는 도달할 수 없어 한때 여기 있었다.)
+    // Round-lifetime effects (disable: 'round') expire in cleanup (handleCombatUpdate).
+    // They must expire before the initiative re-roll, or the EXTRA TURN penalty lingers in the tracker.
+    // (The 'round' branch of handleCombatUpdate was unreachable, and this once lived there.)
   } else if (combat.turn !== 0) {
     await combat.update({turn: 0});
   }
   await runCombatProcess(combat, 'setup');
 }
 
-// === 라운드 단위 이동 =========================================================
-// 전투 트래커 하단의 「다음 라운드 / 이전 라운드」 버튼이 들어오는 곳. 두 방향은 대칭이
-// 아니다 — 앞으로 가는 것은 「이번 라운드를 끝낸다」이고, 뒤로 가는 것은 「이번 라운드를
-// 없던 것으로 한다」이기 때문이다.
+// === Round-level jumps ====================================================
+// Where the "next round / previous round" buttons at the bottom of the combat tracker land. The two
+// directions are not symmetric — going forward means "finish this round", while going back means
+// "pretend this round never happened".
 
-// 다음 라운드: 남은 전투원의 차례를 모두 버리고, 클린업 프로세스를 정상적으로 이행한 뒤
-// 다음 라운드의 셋업으로 넘어간다. 클린업을 건너뛰면 라운드 종료 처리(1/라운드 사용 횟수
-// 복원, disable:'round' 만료, 회복·사독, 행동 종료/대기 해제, 이니셔티브 재굴림)가 통째로
-// 빠진 채 다음 라운드가 시작된다.
+// Next round: discard the remaining combatants' turns, run the cleanup process properly, then move
+// on to the next round's setup. Skipping cleanup would start the next round without any of the
+// round-end work (restoring once-per-round uses, expiring disable:'round', healing and poison,
+// clearing action end/delay, re-rolling initiative).
 async function jumpToNextRound(combat) {
   if (!combat || !game.user.isGM) return;
   const process = combat.getFlag('dx3rd-emanim', 'currentProcess');
   if (process?.type !== 'cleanup') {
     await runCombatProcess(combat, 'cleanup', {needsRoundAdvance: true});
-    // 클린업의 회복·사독 처리는 채팅 순서를 맞추려고 setTimeout(500) 뒤에 돈다.
-    // 평소에는 사람이 버튼을 누르는 사이에 끝나지만, 여기서는 그 자리에서 셋업으로
-    // 넘어가므로 기다려 준다. 안 기다리면 라운드 메시지가 회복보다 먼저 나온다.
+    // Cleanup's healing and poison work runs behind a setTimeout(500), to order the chat correctly.
+    // Normally that finishes while a human is reaching for the next button, but here we move straight
+    // on to setup — so we wait. Without the wait the round message precedes the healing.
     await new Promise(resolve => setTimeout(resolve, 600));
   }
   await advanceToSetupProcess(combat);
 }
 
-// 이전 라운드: 이번 라운드를 없던 것으로 되돌리고 직전 라운드의 셋업으로 돌아간다.
-// **클린업 처리는 하지 않는다.** 클린업이 하는 일(회복·사독의 HP 증감, disable:'round'
-// 만료, EXTRA TURN 차감)은 되돌릴 수 없는 작업이라, 되감기에 섞으면 라운드를 오갈 때마다
-// 상태가 한 방향으로만 깎여 나간다. 되감기의 의도는 「이번 라운드를 무르는 것」이다.
+// Previous round: undo this round and return to the previous round's setup.
+// **No cleanup is run.** What cleanup does (healing and poison HP changes, expiring disable:'round',
+// decrementing EXTRA TURN) is irreversible, so mixing it into a rewind would erode state in one
+// direction every time you moved between rounds. The point of rewinding is to take the round back.
 async function jumpToPreviousRound(combat) {
   if (!combat || !game.user.isGM) return;
-  // 라운드 0 은 「전투 미개시」를 뜻하므로 내려가지 않는다.
-  // 1 라운드에서 눌렀다면 그 라운드의 셋업을 다시 연다.
+  // Round 0 means "combat has not started", so we never go below 1.
+  // Pressed during round 1, this simply reopens that round's setup.
   const target = Math.max((combat.round || 1) - 1, 1);
   if (target !== combat.round) await updateCombatRound(combat, target);
   else if (combat.turn !== 0) await combat.update({turn: 0});
-  // 셋업 프로세스가 완료 집합을 비우고 전원 이니셔티브를 다시 굴린다 =
-  // 남은 전투원의 차례를 모두 버리는 것과 같다.
+  // The setup process clears the completed set and re-rolls everyone's initiative, which is the
+  // same thing as discarding the remaining combatants' turns.
   await runCombatProcess(combat, 'setup');
 }
 
-// 이니셔티브 프로세스에서 메인 프로세스를 시작한다.
-// 확인 다이얼로그를 거치지 않고 전투 진행 표시줄의 이니셔티브 신호를 눌러 실행한다.
+// Start a main process from the initiative process.
+// Triggered by the initiative signal on the combat progress bar, with no confirmation dialog.
 async function startMainProcessFromInitiative(combat) {
   if (!combat || !game.user.isGM) return;
 
-  // 순서는 셋업에서 확정된 스냅샷을 쓴다. 여기서 전원을 다시 굴리지 않는다 —
-  // 라운드 도중에 바뀐 【행동치】는 다음 셋업까지 미뤄야 하기 때문이다.
-  // (자기 순서를 뒤로 미루는 변경만 메인 종료 시점에 개별 반영된다.)
+  // The order comes from the snapshot fixed at setup. Nobody is re-rolled here — an initiative-stat
+  // change made mid-round has to wait for the next setup.
+  // (Only a change that pushes your own turn later is applied individually, at the end of your main.)
 
-  // 후보와 그 순서는 combat.turns 를 그대로 따른다. turns 는 DX3rdCombat._sortCombatants
-  // (이니셔티브 → 액터 타입 → EXTRA TURN → 감각 → 정신 → 이름)로 정렬된 목록이므로,
-  // 여기서 동점자 규칙을 다시 구현하면 두 곳이 조용히 어긋난다.
+  // The candidates and their order follow combat.turns verbatim. turns is sorted by
+  // DX3rdCombat._sortCombatants (initiative → actor type → EXTRA TURN → sense → mind → name), so
+  // reimplementing the tie-breaking here would let the two silently drift apart.
   const candidates = getPendingMainCombatants(combat);
   const alreadyDone = getMainDone(combat);
 
@@ -800,13 +800,13 @@ async function startMainProcessFromInitiative(combat) {
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'main', actorId: nextCombatant.actor?.id ?? null, combatantId: nextCombatant.id
     });
-    // 이번 라운드의 메인 프로세스를 받은 것으로 기록한다. 라운드 종료 판정의 기준.
+    // Record that this combatant has had their main process this round — the basis of the round-end test.
     alreadyDone.add(nextCombatant.id);
     await setMainDone(combat, alreadyDone);
-    // 매 메인 프로세스 시작 시 이전 액션 표시를 초기화한다.
+    // Reset the previous action display at the start of every main process.
     await combat.unsetFlag('dx3rd-emanim', 'actionTrackerUsage');
 
-    // 메인 프로세스 메시지 (누구의 메인인지 드러나도록 해당 액터가 말한다)
+    // The main-process message (spoken by that actor, so it is clear whose main it is)
     await announceCombatProcess('DX3rd.MainProcess', nextCombatant.actor
       ? ChatMessage.getSpeaker({ actor: nextCombatant.actor, token: null })
       : { alias: nextCombatant.name });
@@ -825,36 +825,36 @@ window.DX3rdCombatFlow.showTurnActor = showTurnActor;
 window.DX3rdCombatFlow.executeInitiativeProcess = executeInitiativeProcess;
 window.DX3rdCombatFlow.advanceCombatState = advanceCombatState;
 
-// 이니셔티브 프로세스 실행
+// Run the initiative process
 async function executeInitiativeProcess(combat, pendingCombatantId = null) {
   await clearProcessInitiatives(combat);
-  // === AfterMain 큐 처리 (이니셔티브 직전) ===
+  // === Drain the AfterMain queue (just before initiative) ===
   if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.processAfterMainQueue) {
     await window.DX3rdUniversalHandler.processAfterMainQueue();
   }
 
-  // 매 이니셔티브 프로세스마다 전원을 다시 계산해 순서를 즉시 반영한다.
-  // 단 【행동치】가 오르는 변경은 그 액터의 메인 종료까지 보류한다(onlyIfLower).
-  // 보류분은 advanceCombatState 의 메인 종료 지점에서 무조건 반영된다.
+  // Recompute everyone at each initiative process, so the order reflects changes at once.
+  // An initiative-stat *increase* is held until that actor's main ends (onlyIfLower).
+  // The held amount is applied unconditionally at advanceCombatState's end-of-main point.
   for (const combatant of combat.combatants) {
     await refreshCombatantInitiative(combat, combatant.id, {onlyIfLower: true});
   }
   await new Promise(resolve => setTimeout(resolve, 100));
   if (pendingCombatantId) {
-    // 되감기·네이티브 다음 턴처럼 대상을 못박아 들어온 경우다. 그 전투원은 이제 다시
-    // 메인을 받아야 하므로 완료 집합에서 뺀다(그러지 않으면 후보에서 걸러진다).
+    // A rewind, or Foundry's native next-turn, pinned the target. That combatant now has to take
+    // a main again, so they come out of the completed set (or they would be filtered from the candidates).
     const done = getMainDone(combat);
     if (done.delete(pendingCombatantId)) await setMainDone(combat, done);
   } else {
-    // 재정렬된 순서에서 아직 메인을 받지 않은 첫 전투원.
+    // The first combatant in the reordered list that has not yet had a main.
     pendingCombatantId = getPendingMainCombatants(combat)[0]?.id ?? null;
   }
   
-  // 이니셔티브 프로세스 플래그 설정
+  // Set the initiative-process flag
   const pendingCombatant = pendingCombatantId ? combat.combatants.get(pendingCombatantId) : null;
-  // 전투 트래커 커서도 이번에 행동할 전투원으로 옮긴다. 옮기지 않으면 이니셔티브
-  // 단계 내내 트래커가 직전 액터를 현재 차례로 표시한다(메인 시작 때까지 어긋난다).
-  // 재정렬이 끝난 뒤에 옮겨야 대기로 순서가 바뀐 경우도 맞는다.
+  // Move the combat tracker's cursor to the combatant about to act. Without this the tracker shows
+  // the previous actor as current for the whole initiative stage (out of step until the main starts).
+  // It has to move after the reordering, so a delay-driven change of order is reflected too.
   if (pendingCombatant) await moveCombatCursor(combat, pendingCombatant);
   await combat.setFlag('dx3rd-emanim', 'currentProcess', {
     type: 'initiative',
@@ -863,13 +863,13 @@ async function executeInitiativeProcess(combat, pendingCombatantId = null) {
     pendingCombatantId
   });
 
-  // 이니셔티브 프로세스 메시지
+  // The initiative-process message
   await announceCombatProcess('DX3rd.InitiativeProcess');
 
-  // 이니셔티브 프로세스 매크로 실행
+  // Initiative-process macros
   await executeMacrosByPrefix('init-process-macro-');
   
-  // 이니셔티브 단계 자체는 여기서 멈춘다. 메인 시작은 전투 진행 표시줄에서 명시적으로 선택한다.
+  // The initiative stage itself stops here. Starting the main is an explicit choice on the combat progress bar.
   document.getElementById("dx3rd-initiative-dialog")?.remove();
 }
 
@@ -881,8 +881,8 @@ async function moveCombatCursor(combat, combatant) {
 async function enterPreviousMainProcess(combat, combatant) {
   if (!combatant?.actor) return;
   await moveCombatCursor(combat, combatant);
-  // 되감기: "이 전투원까지 메인을 마친" 상태로 완료 집합을 다시 만든다.
-  // 그러지 않으면 되감은 뒤 앞으로 진행할 때 남은 전투원이 없다고 보고 라운드가 끝난다.
+  // Rewinding: rebuild the completed set as "every main up to this combatant is finished".
+  // Without this, advancing after a rewind would find no combatants left and end the round.
   const index = combat.turns.findIndex(entry => entry.id === combatant.id);
   const rewound = index >= 0 ? combat.turns.slice(0, index + 1) : [combatant];
   await setMainDone(combat, rewound
@@ -928,28 +928,28 @@ async function advanceCombatState(combat, direction = 'forward', {deferCurrent =
     return;
   }
 
-  // 여기부터 메인 프로세스에서 앞으로 진행하는 경로.
-  // 자기 턴이 끝나는 지점이다. 이니셔티브 프로세스에서 보류해 둔 【행동치】 상승분을
-  // 여기서 무조건 반영한다 — 이미 행동을 마쳤으므로 이번 라운드를 앞지를 수 없다.
+  // From here on: advancing forward from a main process.
+  // This is where your own turn ends. The initiative-stat increase held back during the initiative
+  // process is applied here unconditionally — having already acted, you cannot cut ahead this round.
   if (process.combatantId) {
     await refreshCombatantInitiative(combat, process.combatantId);
   }
 
   if (deferCurrent && process.combatantId) {
-    // 행동 대기를 고른 액터는 이번 라운드에 아직 행동하지 않은 것으로 되돌린다.
-    // 이후 executeInitiativeProcess 의 재정렬이 그를 라운드 최후로 보낸다.
+    // An actor who chose to delay is rewound to "has not acted this round".
+    // The reordering in executeInitiativeProcess then pushes them to the end of the round.
     const done = getMainDone(combat);
     if (done.delete(process.combatantId)) await setMainDone(combat, done);
   }
 
   if (process.combatantId && !turns.some(combatant => combatant.id === process.combatantId)) {
-    // 현재 메인 전투원이 사라졌다(삭제됐거나 플래그가 어긋났다). 예전에는 이 경우가
-    // "마지막 전투원"과 구분되지 않아 조용히 라운드가 끝났다. 이제는 남은 전투원
-    // 기준으로 계속 진행하되, 상태가 어긋났다는 사실은 드러낸다.
+    // The current main combatant is gone (deleted, or the flag drifted). This case used to be
+    // indistinguishable from "the last combatant", so the round silently ended. It now keeps going
+    // based on the remaining combatants, while making the inconsistent state visible.
     console.warn(`DX3rd | 메인 프로세스 전투원(${process.combatantId})을 전투에서 찾을 수 없습니다.`);
   }
 
-  // 라운드 종료 판정은 배열 위치가 아니라 "아직 메인을 받지 않은 전투원이 남았는가"다.
+  // The round-end test is not array position but "are there combatants who have not had a main yet".
   if (getPendingMainCombatants(combat).length > 0) {
     await executeInitiativeProcess(combat);
     return;
@@ -965,43 +965,43 @@ window.DX3rdCombatFlow.enterInitiative = executeInitiativeProcess;
 window.DX3rdCombatFlow.startMainProcessFromInitiative = startMainProcessFromInitiative;
 
 
-// 컴배턴트 생성 시 자동으로 이니셔티브 설정
+// Set the initiative automatically when a combatant is created
 Hooks.on('createCombatant', async (combatant, options, userId) => {
-  // GM만 실행 (권한 문제 방지)
+  // GM only (avoids permission problems)
   if (!game.user.isGM) return;
   
-  // 프로세스 컴배턴트 확인
+  // Is this a process combatant?
   const isProcessCombatant = combatant.getFlag('dx3rd-emanim', 'isProcessCombatant');
   if (isProcessCombatant) {
-    // 셋업/클린업은 턴을 표시하는 가상 항목일 뿐 이니셔티브를 가지지 않는다.
+    // Setup and cleanup are pseudo entries for displaying the turn; they hold no initiative.
     return;
   }
 
   const actor = combatant.actor;
   if (!actor) return;
 
-  // 액터의 행동치 값 가져오기
+  // The actor's initiative stat
   const initValue = Number(actor.system?.attributes?.init?.value ?? 0);
 
-  // 전투가 이미 진행 중인 경우 (round >= 1) action_end 체크
+  // With combat already under way (round >= 1), set action_end
   const combat = combatant.combat;
   if (combat && combat.round >= 1 && combat.started) {
-    // action_end를 true로 설정
+    // Set action_end to true
     await actor.update({
       'system.conditions.action_end.active': true
     });
   }
   
-  // 이니셔티브 설정
+  // Set the initiative
   await combatant.update({ initiative: initValue });
 });
 
-// 전투 시작 버튼을 눌렀을 때 채팅 메시지 출력
+// Emit a chat message when the combat start button is pressed
 Hooks.on('combatStart', async (combat, updateData) => {
-  // GM만 메시지 전송
+  // Only the GM sends the message
   if (!game.user.isGM) return;
   
-  // 전투 시작 시 프로세스 플래그 초기화
+  // Reset the process flag at the start of combat
   await combat.unsetFlag('dx3rd-emanim', 'currentProcess');
   await clearProcessInitiatives(combat);
   
@@ -1011,31 +1011,36 @@ Hooks.on('combatStart', async (combat, updateData) => {
     speaker: getGMSpeaker(),
   });
   
-  // 전투 시작 매크로 실행
+  // Combat-start macros
   await executeMacrosByPrefix('combat-start-macro-');
   await runCombatProcess(combat, 'setup');
 });
 
-// 라운드 경계에서 행동 종료/대기와 EXTRA TURN 잔량을 되돌린다.
+// Undo action end/delay and restore the EXTRA TURN allowance at the round boundary.
 //
-// 대상은 「활성 씬의 토큰 ∪ 이 전투의 전투원」이다. 씬 전체를 훑는 넓이는 의도다 —
-// deleteCombat 정리와 같은 범위이고, 전투에 올리지 않은 액터의 잔여 상태도 함께 푼다.
-// 거기에 전투원을 합치는 이유는 game.scenes.active 가 combat.scene 이 아니기 때문이다.
-// 전투가 활성 씬이 아닌 곳에서 벌어지면 그 전투원의 action_end 가 영영 풀리지 않고
-// isMainEligible 에서 계속 탈락해 2라운드부터 차례를 못 받았다.
-async function resetRoundActorStates(combat = null) {
+// Collect the active scene's token actors ∪ this combat's combatants. The combat scene is not
+// necessarily the active scene, and several tokens/combatants can point at the same actor.
+function collectCombatActors(combat = null, {combatantsOnly = false} = {}) {
   const targets = new Map();
   const collect = (actor) => {
     if (!actor) return;
     if (actor.type !== 'character' && actor.type !== 'enemy') return;
-    // 같은 액터를 가리키는 토큰이 여럿일 수 있다. 액터 기준으로 중복을 없앤다.
     if (!targets.has(actor.uuid)) targets.set(actor.uuid, actor);
   };
 
-  for (const tokenDoc of (game.scenes.active?.tokens ?? [])) collect(tokenDoc.actor);
+  if (!combatantsOnly) {
+    for (const tokenDoc of (game.scenes.active?.tokens ?? [])) collect(tokenDoc.actor);
+  }
   for (const combatant of (combat?.combatants ?? [])) collect(combatant.actor);
+  return [...targets.values()];
+}
 
-  for (const actor of targets.values()) {
+// Sweeping the whole active scene is deliberate: it also clears leftover state on actors that were
+// never added to the combat. Combatants are unioned in so an off-screen combat is reset as well.
+async function resetRoundActorStates(combat = null) {
+  const targets = collectCombatActors(combat);
+
+  for (const actor of targets) {
     const updates = {
       'system.conditions.action_end.active': false,
       'system.conditions.action_delay.active': false,
@@ -1047,61 +1052,61 @@ async function resetRoundActorStates(combat = null) {
   }
 }
 
-// 턴 변경 시 셋업/클린업 프로세스 메시지 출력 및 라운드 변경 시 상태 초기화
+// Emit the setup/cleanup process messages on a turn change, and reset state on a round change
 async function handleCombatUpdate(combat, changes, options, userId) {
-  // GM만 실행
+  // GM only
   if (!game.user.isGM) return;
 
-  // 프로세스 전환은 advanceCombatState/runCombatProcess만 담당한다.
-  // 일반 Combat 문서 갱신은 UI 갱신 외의 상태 전환을 유발하지 않는다.
+  // Process transitions are owned solely by advanceCombatState / runCombatProcess.
+  // An ordinary Combat document update triggers no state transition beyond a UI refresh.
   if (!combat._dx3rdRequestedProcess) return;
 
-  // 아래 코드는 _dx3rdRequestedProcess 가 있는 경우만 실행된다. 예전에는 이 지점에
-  // 'round' 분기와 !requestedProcess 분기가 있었지만, 위 가드 때문에 어느 쪽도 도달할
-  // 수 없었다. 라운드 지속 효과 만료는 advanceToSetupProcess 로 옮겼다.
+  // Everything below runs only when _dx3rdRequestedProcess is set. There used to be a 'round'
+  // branch and a !requestedProcess branch here, but the guard above made both unreachable.
+  // Expiring round-lifetime effects moved to advanceToSetupProcess.
 
-  // turn이 변경되었을 때만 실행
+  // Only on a turn change
   if (!('turn' in changes)) return;
 
   const requestedProcess = combat._dx3rdRequestedProcess;
   
   const processType = requestedProcess.type;
   
-  // 셋업 프로세스인 경우
+  // The setup process
   if (processType === 'setup') {
     const roundText = game.i18n.localize('DX3rd.Round');
     const currentRound = combat.round || 1;
     await resetRoundActorStates(combat);
-    // 새 라운드다. 아무도 아직 메인 프로세스를 받지 않았다.
+    // A new round: nobody has had a main process yet.
     await combat.unsetFlag('dx3rd-emanim', MAIN_DONE_FLAG);
-    // 새 라운드의 기준 순서. 여기서는 상승분 보류 없이 전원을 무조건 다시 굴린다 —
-    // 지난 라운드에 보류된 【행동치】 상승이 있다면 이 시점에 전부 풀린다.
-    // 셋업 진행 중에 걸리는 변경도 아래 훅이 즉시 순서에 반영한다.
+    // The round's baseline order. Everyone is re-rolled unconditionally here, with nothing held —
+    // any initiative-stat increase deferred during the previous round is released at this point.
+    // Changes made during setup are folded into the order immediately by the hook below.
     await combat.rollInitiative(combat.combatants.map(entry => entry.id));
 
-    // 셋업 프로세스 플래그 설정
+    // Set the setup-process flag
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'setup',
       actorId: null,
       combatantId: null
     });
     
-    // 라운드 메시지
+    // The round message
     await ChatMessage.create({
       content: `<h3 class="dx3rd-combat-msg">${roundText} ${currentRound}</h3>`,
       speaker: getGMSpeaker(),
     });
 
-    // 셋업 프로세스 메시지
+    // The setup-process message
     await announceCombatProcess('DX3rd.SetupProcess');
 
-    // 셋업 프로세스 매크로 실행
+    // Setup-process macros
     await executeMacrosByPrefix('setup-process-macro-');
   }
   
-  // 클린업 프로세스인 경우
+  // The cleanup process
   if (processType === 'cleanup') {
-    // 클린업 프로세스 플래그 설정
+    // Set the cleanup-process flag
     await combat.setFlag('dx3rd-emanim', 'currentProcess', {
       type: 'cleanup',
       actorId: null,
@@ -1109,27 +1114,27 @@ async function handleCombatUpdate(combat, changes, options, userId) {
       needsRoundAdvance: requestedProcess.needsRoundAdvance
     });
 
-    // 클린업 프로세스 메시지
+    // The cleanup-process message
     await announceCombatProcess('DX3rd.CleanupProcess');
 
-    // 클린업 프로세스 매크로 실행
+    // Cleanup-process macros
     await executeMacrosByPrefix('cleanup-process-macro-');
 
-    // === 라운드 종료 정리 =====================================================
-    // 이니셔티브를 왜곡하는 것들을 여기서 모두 풀고 원래 【행동치】로 되돌린다.
-    //   - 행동 대기: rollInitiative 가 -(행동치)로 뒤집어 둔 상태
-    //   - EXTRA TURN: disable 'round' 인 applied 의 init 패널티
-    // 풀지 않으면 클린업~다음 셋업 내내 전투 트래커가 뒤집힌 순서를 보여 준다
-    // (예전에는 다음 이니셔티브 프로세스의 전원 재굴림에서야 교정됐다).
-    // 라운드 지속 효과의 만료 지점도 셋업이 아니라 여기다 — 라운드가 끝나는 시점이
-    // 클린업이고, 여기서 만료시켜야 이어지는 재굴림에 반영된다.
+    // === Round-end cleanup ===================================================
+    // Everything that distorts initiative is released here, returning it to the plain initiative stat.
+    //   - an action delay: rollInitiative has flipped it to -(initiative stat)
+    //   - an EXTRA TURN: the init penalty of an applied effect with disable 'round'
+    // Left in place, the combat tracker would show the flipped order from cleanup all the way to the
+    // next setup (previously it was only corrected by the full re-roll at the next initiative process).
+    // Round-lifetime effects also expire here rather than at setup — cleanup IS the end of the round,
+    // and expiring here is what gets them reflected in the re-roll that follows.
     if (typeof DX3rdDisableHooks !== 'undefined') {
       await DX3rdDisableHooks.executeDisableHook('round', null);
     }
     await resetRoundActorStates(combat);
     await combat.rollInitiative(combat.combatants.map(entry => entry.id));
 
-    // SpellCalamity 5번 효과 count 감소 처리
+    // Decrement the SpellCalamity effect-5 counter
     if (game.user.isGM) {
       for (const combatant of combat.combatants) {
         const actor = combatant.actor;
@@ -1141,17 +1146,17 @@ async function handleCombatUpdate(combat, changes, options, userId) {
 
         for (const [appliedKey, appliedEffect] of Object.entries(appliedEffects)) {
           if (appliedEffect && appliedEffect.attributes && !appliedEffect._disabled) {
-            // spell_disabled 효과가 있는지 확인
+            // Is there a spell_disabled effect?
             let hasSpellDisabled = false;
             let currentCount = 0;
             
             for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
-              // spell_disabled는 attrName 또는 객체 key로만 판별한다.
-              //   (`attrValue === true`절은 임의 boolean-true 속성까지 오인하므로 제거 — universal-handler와 동일)
+              // spell_disabled is detected by attrName, or by the object's key — nothing else.
+              //   (The `attrValue === true` clause mistook any boolean-true attribute, so it was removed — as in universal-handler.)
               if (attrName === 'spell_disabled' ||
                   (typeof attrValue === 'object' && attrValue?.key === 'spell_disabled')) {
                 hasSpellDisabled = true;
-                // count 값 찾기
+                // Look up the count value
                 const countValue = appliedEffect.attributes?.spell_disabled_count;
                 if (countValue !== undefined) {
                   currentCount = typeof countValue === 'object' ? (countValue.value || 0) : Number(countValue || 0);
@@ -1164,10 +1169,10 @@ async function handleCombatUpdate(combat, changes, options, userId) {
               const newCount = currentCount - 1;
 
               if (newCount <= 0) {
-                // count가 0 이하가 되면 applied 제거
+                // Once the count reaches 0, drop the applied effect
                 await window.DX3rdAppliedEffects.remove(actor, appliedKey);
               } else {
-                // count만 감소: payload 복제 후 재저장
+                // Otherwise just decrement: clone the payload and store it again
                 const payload = foundry.utils.deepClone(appliedEffect);
                 const cv = payload.attributes.spell_disabled_count;
                 if (cv && typeof cv === 'object') cv.value = newCount;
@@ -1180,32 +1185,32 @@ async function handleCombatUpdate(combat, changes, options, userId) {
       }
     }
     
-    // dazed 상태이상 해제 처리
+    // Clear the dazed condition
     if (game.user.isGM) {
-      // 조건 맵 초기화
+      // Initialize the condition map
       if (!window.DX3rdConditionTriggerMap) {
         window.DX3rdConditionTriggerMap = new Map();
       }
       
-      // dazed 상태이상을 가진 액터들 수집
+      // Collect the actors carrying dazed
       const dazedActors = [];
       for (const combatant of combat.combatants) {
         const actor = combatant.actor;
         if (!actor) continue;
         
-        // dazed 상태이상이 있는지 확인
+        // Does it carry dazed?
         const dazedEffect = actor.effects.find(e => e.statuses.has('dazed'));
         if (dazedEffect) {
           dazedActors.push(actor);
         }
       }
       
-      // dazed 메시지 병합을 위한 배열
+      // Parts of the merged dazed message
       const dazedMessageParts = [];
       
-      // 각 액터의 dazed 해제 처리
+      // Clear dazed on each actor
       for (const actor of dazedActors) {
-        // 메시지 제어 플래그 설정
+        // Set the message-control flag
         const mapKey = `${actor.id}:dazed`;
         window.DX3rdConditionTriggerMap.set(mapKey, {
           triggerItemName: game.i18n.localize('DX3rd.CleanupProcess'),
@@ -1215,14 +1220,14 @@ async function handleCombatUpdate(combat, changes, options, userId) {
         
         await actor.toggleStatusEffect('dazed', { active: false });
         
-        // 메시지 부분 추가
+        // Append this message part
         dazedMessageParts.push(`<div>· ${actor.name}</div>`);
         
-        // 맵 정리
+        // Tidy the map
         window.DX3rdConditionTriggerMap.delete(mapKey);
       }
       
-      // 병합된 dazed 해제 메시지 출력
+      // Emit the merged dazed-cleared message
       if (dazedMessageParts.length > 0) {
         const dazedHeader = game.i18n.localize('DX3rd.DazedClear');
         const dazedContent = `<div class="dx3rd-item-chat"><div class="item-header"><strong>${dazedHeader}</strong></div>${dazedMessageParts.join('')}</div>`;
@@ -1234,48 +1239,48 @@ async function handleCombatUpdate(combat, changes, options, userId) {
       }
     }
     
-    // 힐링 및 사독 처리 (500ms 딜레이)
+    // Healing and poison (behind a 500ms delay)
     setTimeout(async () => {
-      // GM만 처리
+      // GM only
       if (!game.user.isGM) {
         return;
       }
       
-      // === 힐링 처리 (먼저 처리) ===
+      // === Healing (first) ===
       const healingActors = [];
       for (const combatant of combat.combatants) {
         const actor = combatant.actor;
         if (!actor) continue;
         
         const healingActive = actor.system?.conditions?.healing?.active ?? false;
-        // 시트 입력이 text라 string으로 저장될 수 있으므로 숫자로 강제 변환
+        // The sheet input is text, so this may be stored as a string — coerce to a number
         const healingValue = Number(actor.system?.conditions?.healing?.value ?? 0);
         const currentHP = actor.system?.attributes?.hp?.value ?? 0;
         const maxHP = actor.system?.attributes?.hp?.max ?? 0;
         
-        // HP가 0이 아니고, max가 아니고, 힐링이 활성화되어 있고, value가 1 이상인 경우만 처리
+        // Only when HP is neither 0 nor max, healing is active, and the value is at least 1
         if (healingActive && healingValue > 0 && currentHP > 0 && currentHP < maxHP) {
           healingActors.push({ actor, value: healingValue, currentHP });
         }
       }
       
-      // 힐링 메시지 병합을 위한 배열
+      // Parts of the merged healing message
       const healingMessageParts = [];
       
-      // 각 액터의 힐링 처리
+      // Heal each actor
       for (const { actor, value, currentHP } of healingActors) {
         const maxHP = actor.system?.attributes?.hp?.max ?? 0;
         const newHP = Math.min(maxHP, currentHP + value);
         const actualHealing = newHP - currentHP;
         
-        // HP 업데이트
+        // Write the HP
         await actor.update({ 'system.attributes.hp.value': newHP });
         
-        // 메시지 부분 추가
+        // Append this message part
         healingMessageParts.push(`<div>· ${actor.name} (HP +${actualHealing})</div>`);
       }
       
-      // 병합된 힐링 메시지 출력
+      // Emit the merged healing message
       if (healingMessageParts.length > 0) {
         const healingHeader = game.i18n.localize('DX3rd.HealingCheck');
         const healingContent = `<div class="dx3rd-item-chat"><div class="item-header"><strong>${healingHeader}</strong></div>${healingMessageParts.join('')}</div>`;
@@ -1286,7 +1291,7 @@ async function handleCombatUpdate(combat, changes, options, userId) {
         });
       }
       
-      // === 사독 데미지 처리 (힐링 처리 후) ===
+      // === Poison damage (after the healing) ===
       const poisonedActors = [];
       for (const combatant of combat.combatants) {
         const actor = combatant.actor;
@@ -1296,7 +1301,7 @@ async function handleCombatUpdate(combat, changes, options, userId) {
         const poisonedRank = actor.system?.conditions?.poisoned?.value ?? 0;
         const currentHP = actor.system?.attributes?.hp?.value ?? 0;
         
-        // HP가 0이 아니고, 사독이 활성화되어 있고, value가 1 이상인 경우만 처리 (value가 0이면 생략)
+        // Only when HP is not 0, poison is active, and the value is at least 1 (0 is skipped)
         if (poisonedActive && poisonedRank > 0 && currentHP > 0) {
           poisonedActors.push({ actor, rank: poisonedRank });
         }
@@ -1306,18 +1311,18 @@ async function handleCombatUpdate(combat, changes, options, userId) {
         return;
       }
       
-      // 사독 경감 설정 확인
+      // The poison-reduction setting
       const reducePoisonEnabled = game.settings.get('dx3rd-emanim', 'reducePoison');
       
-      // 사독 메시지 병합을 위한 배열
+      // Parts of the merged poison message
       const poisonMessageParts = [];
       
-      // 각 액터의 사독 데미지 처리
+      // Apply poison damage to each actor
       for (const { actor, rank } of poisonedActors) {
         const poisonDamage = rank * 3;
         const currentHP = actor.system?.attributes?.hp?.value ?? 0;
         
-        // 사독 경감 적용
+        // Apply the poison reduction
         let actualDamage = poisonDamage;
         if (reducePoisonEnabled) {
           const reduce = actor.system?.attributes?.reduce?.value ?? 0;
@@ -1326,14 +1331,14 @@ async function handleCombatUpdate(combat, changes, options, userId) {
         
         const newHP = Math.max(0, currentHP - actualDamage);
         
-        // HP 업데이트
+        // Write the HP
         await actor.update({ 'system.attributes.hp.value': newHP });
         
-        // 메시지 부분 추가
+        // Append this message part
         poisonMessageParts.push(`<div>· ${actor.name} (HP -${actualDamage})</div>`);
       }
       
-      // 병합된 사독 메시지 출력
+      // Emit the merged poison message
       if (poisonMessageParts.length > 0) {
         const poisonHeader = game.i18n.localize('DX3rd.PoisonedCheck');
         const poisonContent = `<div class="dx3rd-item-chat"><div class="item-header"><strong>${poisonHeader}</strong></div>${poisonMessageParts.join('')}</div>`;
@@ -1359,76 +1364,68 @@ async function runCombatProcess(combat, type, {needsRoundAdvance = false} = {}) 
 
 Hooks.on('updateCombat', handleCombatUpdate);
 
-// 전투 종료 시 채팅 메시지 출력
+// Emit a chat message when combat ends
 Hooks.on('deleteCombat', async (combat, options, userId) => {
-  // GM만 메시지 전송
-  if (!game.user.isGM) return;
+  // Every client observes deleteCombat. Elect one GM so cleanup, chat, and macros run exactly once.
+  const socketRouter = window.DX3rdSocketRouter;
+  if (!game.user.isGM || (socketRouter?.isResponsibleGM && !socketRouter.isResponsibleGM())) return;
   
-  // AfterMain 큐 초기화
+  // Clear the AfterMain queue
   if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.clearAfterMainQueue) {
     await window.DX3rdUniversalHandler.clearAfterMainQueue();
   }
   
-  // 전투 종료 채팅 메시지 출력
+  // The combat-end chat message
   const combatEndMsg = game.i18n.localize('DX3rd.CombatEnd');
   await ChatMessage.create({
     content: `<h3 class="dx3rd-combat-end-msg">${combatEndMsg}</h3>`,
     speaker: getGMSpeaker(),
   });
   
-  // 전투 종료 매크로 실행
+  // Combat-end macros
   await executeMacrosByPrefix('combat-end-macro-');
   
-  // 현재 씬의 토큰 액터만 Fist 아이템 리셋 및 행동 상태 초기화 (캐릭터 + 에너미)
-  const currentScene = game.scenes.active;
-  
-  if (currentScene) {
-    const tokensWithActors = currentScene.tokens.filter(t => t.actor && (t.actor.type === 'character' || t.actor.type === 'enemy'));
-    
-    for (const tokenDoc of tokensWithActors) {
-      const actor = tokenDoc.actor;
-      
-      // Fist 아이템 리셋·임시 아이템 삭제는 캐릭터만
-      if (actor.type === 'character') {
-        // 장비 변경의 수명은 표식(AE)이 쥔다 — 표식을 지우면 삭제 훅이 맨손을 되돌리고
-        // 생성 무기를 지운다. 여기서 복원 로직을 다시 쓰면 두 벌이 되어 반드시 갈린다.
-        // 이어지는 restoreFistItems 는 표식 없이 남은 옛 데이터를 위한 것이다.
-        //
-        // 예전에는 이 자리에서 이름이 맨손인 무기를 전부 찾아 -5/0 리터럴로 덮었는데, 그러면
-        // 맨손을 손본 액터와 《사이버 암》처럼 영구 변경된 맨손까지 전투가 끝날 때마다 초기화됐다.
-        await window.DX3rdUniversalHandler.clearItemGrants(actor);
-        await window.DX3rdUniversalHandler.restoreFistItems(actor);
-        const tempItemText = game.i18n.localize('DX3rd.TemporaryItem');
-        const tempItems = actor.items.filter(item => {
-          if (!['weapon', 'protect', 'vehicle'].includes(item.type)) return false;
-          return item.name.endsWith(tempItemText);
-        });
-        if (tempItems.length > 0) {
-          const itemIds = tempItems.map(item => item.id);
-          await actor.deleteEmbeddedDocuments('Item', itemIds);
-        }
+  // Preserve the old active-scene sweep, but also include combatants when the combat scene differs.
+  const cleanupActors = collectCombatActors(combat);
+  for (const actor of cleanupActors) {
+    // Fist reset and temporary-item deletion are for characters only
+    if (actor.type === 'character') {
+      // An equipment change's lifetime is held by its marker (an AE) — deleting the marker makes the
+      // delete hook restore the fist and remove the created weapon. Rewriting that restore logic here
+      // would make two copies, which would inevitably diverge. The restoreFistItems call that follows
+      // is for older data left behind with no marker.
+      // This spot used to find every weapon named "fist" and overwrite it with the -5/0 literals, which
+      // reset both hand-tuned fists and permanently changed ones (Cyber Arm) at the end of every combat.
+      await window.DX3rdUniversalHandler.clearItemGrants(actor);
+      await window.DX3rdUniversalHandler.restoreFistItems(actor);
+      const tempItemText = game.i18n.localize('DX3rd.TemporaryItem');
+      const tempItems = actor.items.filter(item => {
+        if (!['weapon', 'protect', 'vehicle'].includes(item.type)) return false;
+        return item.name.endsWith(tempItemText);
+      });
+      if (tempItems.length > 0) {
+        const itemIds = tempItems.map(item => item.id);
+        await actor.deleteEmbeddedDocuments('Item', itemIds);
       }
-      
-      // 행동 상태 초기화 (캐릭터 + 에너미 공통)
-      const updates = {
-        'system.conditions.action_end.active': false,
-        'system.conditions.action_delay.active': false,
-        'system.conditions.action_delay.value': 0
-      };
-      
-      // 추가 행동 value를 max 값으로 초기화
-      const extraTurnMax = actor.system?.conditions?.['extra-turn']?.max ?? 0;
-      if (extraTurnMax > 0) {
-        updates['system.conditions.extra-turn.value'] = extraTurnMax;
-      }
-      
-      await actor.update(updates);
     }
-  } else {
-    console.warn('DX3rd | No active scene found, skipping Fist and action state reset');
+
+    // Reset the action state (characters and enemies alike)
+    const updates = {
+      'system.conditions.action_end.active': false,
+      'system.conditions.action_delay.active': false,
+      'system.conditions.action_delay.value': 0
+    };
+
+    // Restore the extra-turn value to its max
+    const extraTurnMax = actor.system?.conditions?.['extra-turn']?.max ?? 0;
+    if (extraTurnMax > 0) {
+      updates['system.conditions.extra-turn.value'] = extraTurnMax;
+    }
+
+    await actor.update(updates);
   }
   
-  // 전투 종료 시 disable hooks 실행 (roll, major, reaction, main, round, scene)
+  // Run the disable hooks at combat end (roll, major, reaction, main, round, scene)
   if (typeof DX3rdDisableHooks !== 'undefined') {
     const timings = ['roll', 'major', 'reaction', 'guard', 'main', 'round', 'scene'];
     for (const timing of timings) {
@@ -1438,21 +1435,18 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
     console.warn('DX3rd | DisableHooks not found, skipping cleanup');
   }
   
-  // 전투 종료 시 모든 컴배턴트의 상태이상 해제 (메시지 억제)
+  // Clear every combatant's conditions at combat end (messages suppressed)
   const conditionsToRemove = ['rigor', 'pressure', 'dazed', 'poisoned', 'hatred', 'fear', 'berserk', 'boarding', 'fly', 'stealth'];
   
-  // 조건 맵 초기화
+  // Initialize the condition map
   if (!window.DX3rdConditionTriggerMap) {
     window.DX3rdConditionTriggerMap = new Map();
   }
   
-  for (const combatant of combat.combatants) {
-    const actor = combatant.actor;
-    if (!actor) continue;
-    
+  for (const actor of collectCombatActors(combat, {combatantsOnly: true})) {
     for (const condition of conditionsToRemove) {
       if (actor.effects.find(e => e.statuses.has(condition))) {
-        // 메시지 제어 플래그 설정
+        // Set the message-control flag
         const mapKey = `${actor.id}:${condition}`;
         window.DX3rdConditionTriggerMap.set(mapKey, {
           triggerItemName: game.i18n.localize('DX3rd.CombatEnd'),
@@ -1462,54 +1456,54 @@ Hooks.on('deleteCombat', async (combat, options, userId) => {
         
         await actor.toggleStatusEffect(condition, { active: false });
         
-        // 맵 정리
+        // Tidy the map
         window.DX3rdConditionTriggerMap.delete(mapKey);
       }
     }
   }
 });
 
-// action_end/action_delay 변경 시 전원의 이니셔티브를 "즉시" 재계산하는 updateActor 훅이
-// 여기 있었다. 되살리지 말 것.
-// (당시 설계는 executeInitiativeProcess 가 매 액터의 메인 직전마다 전 컴배턴트를 다시
-//  굴리는 것이었다. 지금은 순서를 셋업에서 확정하고 라운드 도중에는 다시 굴리지 않는다.)
+// An updateActor hook that recomputed EVERYONE's initiative *immediately* on an action_end /
+// action_delay change used to live here. Do not reinstate it.
+// (The design then was that executeInitiativeProcess re-rolled every combatant just before each
+//  actor's main. Now the order is fixed at setup and never re-rolled mid-round.)
 //
-// 당시 advanceCombatState 는 "현 정렬 스냅샷의 배열 위치"로 다음 액터를 골랐다:
-//     if (currentIndex < turns.length - 1) 다음 = turns[currentIndex + 1]
-//     else                                cleanup
-// 대기자는 rollInitiative 에서 -(행동치)로 뒤집혀 맨 뒤로 밀리므로, 대기 선택 직후에
-// 재계산이 끼어들면 currentIndex 가 곧바로 마지막 칸이 되어 남은 액터를 전부 건너뛰고
-// 라운드가 끝났다. Hooks.on 은 async 콜백을 await 하지 않아 경쟁으로 나타났다.
+// Back then advanceCombatState picked the next actor by array position in the current sort snapshot:
+//     if (currentIndex < turns.length - 1) next = turns[currentIndex + 1]
+//     else                                 cleanup
+// A delaying actor is flipped to -(initiative stat) by rollInitiative and pushed to the back, so if a
+// recomputation cut in right after choosing to delay, currentIndex landed on the last slot, every
+// remaining actor was skipped, and the round ended. Hooks.on does not await async callbacks, so it
+// surfaced as a race.
+// Today the round-end test is the completed set (MAIN_DONE_FLAG) rather than a position, so it is
+// immune to reordering. Even so, do not reinstate a hook that reorders everyone mid-round.
+// (As of its removal that hook read `changes` only as a nested object, while every writer of
+//  action_end/action_delay used dot notation — so it never actually fired. If you need to handle
+//  both shapes, use DX3rdRuntimeUtils.updateTouchesPath.)
 //
-// 지금은 라운드 종료 판정이 위치가 아니라 완료 집합(MAIN_DONE_FLAG) 기준이라 재정렬
-// 시점에 영향받지 않는다. 그래도 라운드 도중에 전원을 재정렬하는 훅은 되살리지 말 것.
-// (제거 시점 기준으로 이 훅은 changes 를 중첩 객체로만 읽고 있었는데 action_end/action_delay
-//  기록자는 전부 점 표기여서, 사실상 발화하지 않는 상태였다. 형태 판별이 필요하면
-//  DX3rdRuntimeUtils.updateTouchesPath 를 쓸 것.)
-//
-// 아래 훅은 그것과 다르다. 셋업 프로세스일 때만, 갱신된 그 액터 하나만 다시 스냅샷한다.
-// 셋업은 액터가 행동하지 않는 정지 구간이라 상태 기계와 경쟁하지 않고, 순서 확정 자체가
-// 셋업의 일이다. 라운드 도중에는 이 훅이 아무것도 하지 않는다 — 그때의 재계산은
-// executeInitiativeProcess(상승 보류) 와 메인 종료 지점(보류 해제)이 담당한다.
-// 셋업에서는 상승도 즉시 통해야 한다. 행동치 변경 효과는 보통 셋업에 쓰이고,
-// 그 자리에서 순서가 바뀌는 것이 이 효과들의 용도이기 때문이다.
+// The hook below is a different thing. Only during the setup process, and only for the one actor that
+// changed, it re-snapshots the initiative. Setup is a still point where no actor is acting, so it does
+// not race the state machine — and fixing the order IS setup's job. Mid-round this hook does nothing;
+// the recomputation there belongs to executeInitiativeProcess (holding increases back) and to the
+// end-of-main point (releasing them).
+// During setup an increase must apply at once: initiative-changing effects are normally used in setup, and reordering on the spot is exactly what they are for.
 function syncInitiativeDuringSetup(actor) {
   if (!actor?.id || !game.user.isGM) return;
   const combat = game.combat;
   if (combat?.getFlag('dx3rd-emanim', 'currentProcess')?.type !== 'setup') return;
   const combatant = combat.combatants.find(entry => entry.actor?.id === actor.id);
   if (!combatant) return;
-  // 값이 그대로면 refreshCombatantInitiative 가 알아서 아무것도 하지 않는다.
+  // If the value is unchanged, refreshCombatantInitiative does nothing of its own accord.
   refreshCombatantInitiative(combat, combatant.id).catch(error => {
     console.error('DX3rd | 셋업 중 이니셔티브 갱신 실패', error);
   });
 }
 
-// 【행동치】는 파생값이라 액터 자체 갱신뿐 아니라 ActiveEffect(applied)·아이템 장착으로도 바뀐다.
+// The initiative stat is derived, so it changes not only on an actor update but also through ActiveEffects (applied) and equipment changes.
 Hooks.on('updateActor', actor => syncInitiativeDuringSetup(actor));
 for (const hook of ['createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect',
                     'createItem', 'updateItem', 'deleteItem']) {
   Hooks.on(hook, document => syncInitiativeDuringSetup(document?.parent));
 }
 
-// ========== AfterDamage 큐 시스템 ========== //
+// ========== The AfterDamage queue ========== //
