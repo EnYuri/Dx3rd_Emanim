@@ -582,6 +582,9 @@
     }
 
     function categorizeItem(actorData, item) {
+        // 사용한 즉석 콤보는 후속/지속 효과의 출처 문서로만 존속한다. 일반 콤보처럼 다시
+        // 선택하거나 편집할 수 있게 노출하면 같은 임시 문서를 별도 행동으로 재사용하게 된다.
+        if (window.DX3rdIsInstantCombo?.(item)) return;
         if (item.type === "works") actorData.workList.push(item);
         else if (item.type === "syndrome") actorData.syndromeList.push(item);
         else if (item.type === "combo") actorData.comboList.push(item);

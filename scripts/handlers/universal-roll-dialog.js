@@ -256,7 +256,7 @@
         }
 
         // Shared post-accuracy work (automatic hatred recovery + extension hooks)
-        await this.onAttackRollComplete(actor, item, targets, rollResult, isFumble);
+        await this.onAttackRollComplete(actor, item, targets, rollResult, isFumble, attackMessage);
 
         await this.maybeAutoRollDamage?.(attackMessage);
 
@@ -465,12 +465,15 @@
         // One-shot check context supplied by the caller (a book, a defense dialog) lives as long as
         // the temporary combo — an in-memory field hung on the document, never persisted.
         const hasMeta = options.originalItem || options.predefinedDifficulty || options.isBookDecipher
-          || options.afterRollCallback || options.afterUseCallback;
+          || options.afterRollCallback || options.afterUseCallback || isDefenseSeed;
         if (created && hasMeta) {
           created.meta = {
             originalItem: options.originalItem || null,
             predefinedDifficulty: options.predefinedDifficulty || null,
             isBookDecipher: !!options.isBookDecipher,
+            // This in-memory marker distinguishes a defense builder from an ordinary temporary
+            // combo whose saved getTarget=false must not suppress a member's real target gate.
+            defenseContext: isDefenseSeed,
             afterRollCallback: typeof options.afterRollCallback === 'function' ? options.afterRollCallback : null,
             afterUseCallback: typeof options.afterUseCallback === 'function' ? options.afterUseCallback : null
           };
@@ -1661,8 +1664,6 @@
         } else {
           attackMessage = await ChatMessage.create(messageData);
         }
-        if (isAttackRoll) await this.maybeAutoRollDamage?.(attackMessage);
-        
         // A failed urge check applies [Berserk] (after the message goes out)
         if (isUrgeTest && difficultyData.type === 'number') {
           // Rules: a fumble is an auto-fail, regardless of the roll.total that still carries skill level and modifiers.
@@ -2230,7 +2231,9 @@
 
         // Shared post-accuracy work on the combo/effect attack path: hatred recovery + extension hooks
         if (isAttackRoll) {
-          await this.onAttackRollComplete(actor, item, Array.from(game.user.targets), rollResult, isFumble);
+          await this.onAttackRollComplete(
+            actor, item, Array.from(game.user.targets), rollResult, isFumble, attackMessage);
+          await this.maybeAutoRollDamage?.(attackMessage);
         }
       } catch (e) {
         window.DX3rdDebug.log('DX3rd | Roll failed', e);

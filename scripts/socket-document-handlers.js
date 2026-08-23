@@ -96,34 +96,23 @@
 
   register('showDefenseDialog', async data => {
     const targetActor = game.actors.get(data.dialogData.targetActorId);
-    if (!targetActor?.isOwner) return;
-    if (game.user.isGM) {
-      if (!router.isResponsibleGM()) return;
-      const activePlayerOwner = game.users.some(user => !user.isGM && user.active
-        && targetActor.testUserPermission(user, 'OWNER'));
-      if (activePlayerOwner) return;
-    }
+    if (!router.isActorExecutorMessage(data, targetActor)) return;
     await window.DX3rdUniversalHandler?.showDefenseDialog?.({...data.dialogData});
   });
 
   register('applyItemAttributes', async data => {
-    const { sourceActorId, itemId, targetActorId, targetAttributes } = data.payload;
+    const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
     const sourceActor = game.actors.get(sourceActorId);
     const targetActor = game.actors.get(targetActorId);
-    if (!sourceActor || !targetActor?.isOwner) return;
-    if (game.user.isGM) {
-      if (!router.isResponsibleGM()) return;
-      const activePlayerOwner = game.users.some(user => !user.isGM && user.active
-        && targetActor.testUserPermission(user, 'OWNER'));
-      if (activePlayerOwner) return;
-    }
+    if (!sourceActor || !router.isActorExecutorMessage(data, targetActor)) return;
     const item = sourceActor.items.get(itemId);
     if (item) {
       await window.DX3rdUniversalHandler?._applyItemAttributes?.(
         sourceActor,
         item,
         targetActor,
-        targetAttributes
+        targetAttributes,
+        { preEvaluated }
       );
     }
   });

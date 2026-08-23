@@ -50,6 +50,23 @@ function dx3rdReadEncodedFormula(el, key) {
     }
 }
 
+function dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus) {
+    if (!preservedValues || !bonus) return preservedValues;
+    preservedValues.actorAttack = (Number(preservedValues.actorAttack) || 0) + (Number(bonus.attack) || 0);
+    preservedValues.actorAttackFormula = window.DX3rdUniversalHandler?.joinFormulaTerms
+        ? window.DX3rdUniversalHandler.joinFormulaTerms(preservedValues.actorAttackFormula, bonus.attackFormula)
+        : [preservedValues.actorAttackFormula, bonus.attackFormula].filter(Boolean).join(' + ');
+    preservedValues.actorPenetrate = Math.max(0,
+        (Number(preservedValues.actorPenetrate) || 0) + (Number(bonus.penetrate) || 0));
+    return preservedValues;
+}
+
+function dx3rdExpiredRollTimings(rollType) {
+    if (rollType === 'major') return ['roll', 'major'];
+    if (rollType === 'reaction' || rollType === 'dodge') return ['roll', 'reaction'];
+    return ['roll'];
+}
+
 // A damage result can be rerolled from the same attack card. That reroll repeats the attack's
 // follow-up processing, but it must not spend a registered weapon's attack count again. Persist
 // the spend marker on the ChatMessage because the card HTML is replaced after every damage roll.
@@ -552,26 +569,29 @@ window.DX3rdChatToggleManager = {
             
             const handler = window.DX3rdUniversalHandler;
             if (handler) {
-                // active.runTiming이 'afterSuccess'인 경우 활성화 (disable이 'notCheck'가 아닌 경우에만)
-                const activeDisable = item.system?.active?.disable ?? '-';
-                if (item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck') {
-                    await item.update({ 'system.active.state': true });
-                    console.log("DX3rd | Spell invoke - Active checked (afterSuccess timing)");
-                }
+                const successAction = window.DX3rdItemEffectAdapter?.eventAction?.(item, 'afterSuccess') || 'use';
+                // A successful invoke fires the authored use/attack bucket. Setting active.state
+                // directly would turn an onUse frozen modifier into an activation toggle and make
+                // the sheet's manifestation choice meaningless.
+                await handler.processAfterSuccessSelfModifiers?.(actor, item, {action: successAction});
                 
                 // 'afterSuccess' 매크로 실행 (50ms 딜레이)
                 await new Promise(resolve => setTimeout(resolve, 50));
-                await handler.executeMacros(item, 'afterSuccess');
+                await handler.executeMacros(item, 'afterSuccess', successAction);
                 
                 // 'afterSuccess' 타겟 효과 적용
-                await handler.applyToTargets(actor, item, 'afterSuccess');
+                await handler.applyToTargets(actor, item, 'afterSuccess', null, successAction);
                 
                 // afterSuccess 타이밍 heal/damage/condition 익스텐션을 handleSuccessButton과 동일하게 처리
                 const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
                 const selectedTargetIds = Array.from(game.user.targets).map(t => t.id);
+                const extensionMatches = (type, data) => !window.DX3rdItemEffectAdapter
+                    || window.DX3rdItemEffectAdapter.extensionActionMatches(
+                        item, type, data, successAction, 'afterSuccess');
                 
                 // heal afterSuccess
-                if (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterSuccess') {
+                if (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterSuccess'
+                    && extensionMatches('heal', itemExtend.heal)) {
                     const healDataWithTargets = {
                         ...itemExtend.heal,
                         selectedTargetIds,
@@ -600,7 +620,8 @@ window.DX3rdChatToggleManager = {
                 }
                 
                 // damage afterSuccess
-                if (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterSuccess') {
+                if (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterSuccess'
+                    && extensionMatches('damage', itemExtend.damage)) {
                     let damageDataWithTargets = {
                         ...itemExtend.damage,
                         selectedTargetIds,
@@ -623,7 +644,8 @@ window.DX3rdChatToggleManager = {
                 
                 // condition afterSuccess (conditions 배열 또는 기존 단일 형식)
                 const condEntries = handler._getConditionEntries?.(itemExtend.condition || {}) || [];
-                const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess');
+                const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess'
+                    && extensionMatches('condition', c));
                 for (const c of afterSuccessConds) {
                     const conditionDataWithTargets = {
                         ...c,
@@ -636,7 +658,7 @@ window.DX3rdChatToggleManager = {
 
                 const cardEntries = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
                     .filter(entry => !entry.legacy && entry.data?.activate && entry.data?.timing === 'afterSuccess'
-                        && window.DX3rdItemEffectAdapter.extensionActionMatches(item, entry.type, entry.data, null, 'afterSuccess'));
+                        && extensionMatches(entry.type, entry.data));
                 for (const entry of cardEntries) {
                     await handler.executeItemExtension(actor, entry.type, {
                         ...entry.data, selectedTargetIds, triggerItemName: item.name, triggerItemId: item.id
@@ -645,7 +667,7 @@ window.DX3rdChatToggleManager = {
                 
                 // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
                 if (item.system.active?.runTiming === 'afterSuccess') {
-                    await handler.registerAfterMainExtensions(actor, item, itemExtend);
+                    await handler.registerAfterMainExtensions(actor, item, itemExtend, successAction);
                 }
                 
                 console.log('DX3rd | Spell invoke - processed afterSuccess timing extensions');
@@ -765,19 +787,15 @@ window.DX3rdChatToggleManager = {
             // A temporary combo may no longer exist as an embedded Item.
             let item = null;
             if (itemId) {
-                // Prefer the serializable snapshot retained on the chat message.
+                // Prefer the retained embedded Item while its follow-ups are still live.
+                const embeddedItem = actor?.items?.get?.(itemId);
                 const tempComboItem = message.getFlag('dx3rd-emanim', 'tempComboItem');
-                if (tempComboItem && tempComboItem.id === itemId) {
-                    item = tempComboItem;
-                    // Rehydrate only the Item-like methods required by follow-up handlers.
-                    if (!item.getFlag) {
-                        item.getFlag = () => null;
-                        item.setFlag = () => {};
-                        item.unsetFlag = () => {};
-                    }
+                if (embeddedItem) {
+                    item = embeddedItem;
+                } else if (tempComboItem && tempComboItem.id === itemId) {
+                    item = window.DX3rdHydrateInstantCombo?.(tempComboItem, actor) || tempComboItem;
                 } else {
-                    // Ordinary embedded item.
-                    item = actor.items.get(itemId);
+                    item = null;
                 }
             }
             
@@ -810,10 +828,16 @@ window.DX3rdChatToggleManager = {
             // rest of this workflow, but the same shot does not consume another attack count.
             await dx3rdSpendWeaponAttacksOnce(message, actor, weaponIdsJson);
             
+            const expiredSuccessTimings = ['roll', 'major'];
+
             // A combo owns the merged afterSuccess pipeline.
             if (comboAfterSuccess && window.DX3rdUniversalHandler) {
                 // The combo snapshot carries its merged afterSuccess work.
-                await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
+                const bonus = await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess, {
+                    attackItem: item,
+                    expiredTimings: expiredSuccessTimings
+                });
+                dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus);
             }
             
             // Non-combo items process their own afterSuccess lifecycle.
@@ -823,8 +847,27 @@ window.DX3rdChatToggleManager = {
                     await window.DX3rdUniversalHandler.executeMacros(item, 'afterSuccess');
                 }
                 
-                const activeDisable = item.system?.active?.disable ?? '-';
-                const shouldActivate = item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck';
+                const adapter = window.DX3rdItemEffectAdapter;
+                const eventAction = adapter?.eventAction(item, 'afterSuccess');
+                const candidateSelfActions = new Set(eventAction ? [eventAction] : []);
+                // Optional equipment authored on the use channel (Shotgun) asks after its own hit.
+                // It is a use decision attached to an attack result, not an automatic attack bucket.
+                if ((item.type === 'weapon' || item.type === 'vehicle')
+                    && item.system?.active?.runTiming === 'afterSuccess') {
+                    candidateSelfActions.add(adapter?.channelAction(item, 'self'));
+                }
+                const selfActions = adapter
+                    ? adapter.modifierBuckets(item)
+                        .filter(bucket => bucket.channel === 'self'
+                            && candidateSelfActions.has(bucket.action)
+                            && adapter.selfFiresAt(item, bucket.action, 'afterSuccess'))
+                        .map(bucket => bucket.action)
+                    : [];
+                const shouldActivate = adapter
+                    ? selfActions.some(action => adapter.hasFrozenSelfBucket(item, action)
+                        || (adapter.selfToggleBucketMatches(item, action) && !item.system?.active?.state))
+                    : (item.system.active?.runTiming === 'afterSuccess'
+                        && !item.system.active?.state && (item.system?.active?.disable ?? '-') !== 'notCheck');
                 // Each target bucket owns its timing; do not substitute the channel-wide value.
                 const shouldApplyToTargets = window.DX3rdItemEffectAdapter
                     ? window.DX3rdItemEffectAdapter.targetFiresAt(item, null, 'afterSuccess')
@@ -846,20 +889,31 @@ window.DX3rdChatToggleManager = {
                             proceed = await window.DX3rdUniversalHandler.reportUsageExhausted(actor, item, detail);
                         }
                         if (proceed && window.DX3rdChatHandlers?.showAfterSuccessDialog) {
-                            await window.DX3rdChatHandlers.showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets);
+                            const accepted = await window.DX3rdChatHandlers.showAfterSuccessDialog(
+                                actor, item, shouldActivate, shouldApplyToTargets);
+                            if (accepted) {
+                                const updates = {};
+                                const currentUsedState = item.system?.used?.state || 0;
+                                updates['system.used.state'] = currentUsedState + 1;
+                                await item.update(updates);
+                                for (const action of selfActions) {
+                                    const bonus = await window.DX3rdUniversalHandler.processAfterSuccessSelfModifiers(
+                                        actor, item, { action, attackItem: item, expiredTimings: expiredSuccessTimings });
+                                    dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus);
+                                }
+                                if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
+                                    await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
+                                }
+                            }
                         }
                     } else {
-                        // Usage was already spent; only activation and target application remain.
-                        const updates = {};
-                        
-                        if (shouldActivate) {
-                            updates['system.active.state'] = true;
+                        // Usage was already spent; apply each authored self bucket through the same
+                        // action-aware path as combos, and carry current-damage-only bonuses in the snapshot.
+                        for (const action of selfActions) {
+                            const bonus = await window.DX3rdUniversalHandler.processAfterSuccessSelfModifiers(
+                                actor, item, { action, attackItem: item, expiredTimings: expiredSuccessTimings });
+                            dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus);
                         }
-                        
-                        if (Object.keys(updates).length > 0) {
-                            await item.update(updates);
-                        }
-                        
                         if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
                             await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
                         }
@@ -1005,6 +1059,7 @@ window.DX3rdChatToggleManager = {
             const itemId = button.dataset.itemId;
             const previousTokenId = button.dataset.previousTokenId;
             const weaponAttack = parseInt(button.dataset.weaponAttack) || 0;
+            const expiredTimings = dx3rdExpiredRollTimings(button.dataset.rollType);
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
 
             // Numeric success uses the same combo snapshot as opposed and attack rolls. Temporary
@@ -1013,9 +1068,10 @@ window.DX3rdChatToggleManager = {
             try {
                 if (window.DX3rdUniversalHandler) {
                     if (comboAfterSuccess) {
-                        await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
+                        await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess, { expiredTimings });
                     } else {
-                        await window.DX3rdUniversalHandler.handleSuccessButton(actorId, itemId, previousTokenId, weaponAttack);
+                        await window.DX3rdUniversalHandler.handleSuccessButton(
+                            actorId, itemId, previousTokenId, weaponAttack, { expiredTimings });
                     }
                 }
             } catch (e) {
@@ -1062,15 +1118,17 @@ window.DX3rdChatToggleManager = {
             const actorId = button.dataset.actorId;
             const itemId = button.dataset.itemId;
             const previousTokenId = button.dataset.previousTokenId;
+            const expiredTimings = dx3rdExpiredRollTimings(button.dataset.rollType);
             
             const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess');
             
             // Combo snapshots own merged follow-up work; ordinary items use the legacy handler.
             if (window.DX3rdUniversalHandler) {
                 if (comboAfterSuccess) {
-                    await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess);
+                    await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess, { expiredTimings });
                 } else {
-                    await window.DX3rdUniversalHandler.handleSuccessButton(actorId, itemId, previousTokenId);
+                    await window.DX3rdUniversalHandler.handleSuccessButton(
+                        actorId, itemId, previousTokenId, 0, { expiredTimings });
                 }
             }
             
@@ -1124,26 +1182,24 @@ window.DX3rdChatToggleManager = {
             // Resolve either a temporary combo snapshot or an embedded item.
             let item = null;
             if (itemId) {
+                const embeddedItem = actor?.items?.get?.(itemId);
                 const tempComboItem = message.getFlag('dx3rd-emanim', 'tempComboItem');
-                if (tempComboItem && tempComboItem.id === itemId) {
-                    item = tempComboItem;
-                    // Rehydrate only the Item-like methods required by follow-up handlers.
-                    if (!item.getFlag) {
-                        item.getFlag = () => null;
-                        item.setFlag = () => {};
-                        item.unsetFlag = () => {};
-                    }
+                if (embeddedItem) {
+                    item = embeddedItem;
+                } else if (tempComboItem && tempComboItem.id === itemId) {
+                    item = window.DX3rdHydrateInstantCombo?.(tempComboItem, actor) || tempComboItem;
                 } else {
-                    item = actor.items.get(itemId);
+                    item = null;
                 }
             }
             
             const comboAfterDamageData = message.getFlag('dx3rd-emanim', 'comboAfterDamage');
+            const attackAfterDamageRiders = message.getFlag('dx3rd-emanim', 'attackAfterDamageRiders') || [];
 
             // runDamageApply owns permission, token, target, hatred, and application checks. This
             // keeps manual card clicks aligned with automatic application after the damage dialog.
             const applied = await window.DX3rdUniversalHandler?.runDamageApply?.({
-                actor, item, damage, penetrate, attackResult, comboAfterDamageData
+                actor, item, damage, penetrate, attackResult, comboAfterDamageData, attackAfterDamageRiders
             });
             if (!applied) return;
 
@@ -1511,6 +1567,8 @@ window.DX3rdChatToggleManager = {
 // Chat-card dialog and item-list handlers.
 window.DX3rdChatHandlers = {
     async showAfterSuccessDialog(actor, item, shouldActivate, shouldApplyToTargets) {
+        let resolveChoice;
+        const choice = new Promise(resolve => { resolveChoice = resolve; });
         const dialogDiv = document.createElement("div");
         dialogDiv.className = "after-success-dialog";
         dialogDiv.style.position = "fixed";
@@ -1542,7 +1600,8 @@ window.DX3rdChatHandlers = {
         buttonContainer.style.flexDirection = "column";
         buttonContainer.style.gap = "8px";
         
-        // Apply the declared equipment effect and spend its use.
+        // Return the choice to the attack-card pipeline. It owns spending, bucket application,
+        // and the preserved damage snapshot, so damage cannot open before this decision finishes.
         const useBtn = document.createElement("button");
         const equipText = game.i18n.localize('DX3rd.Equipment');
         const appliedText = game.i18n.localize('DX3rd.Applied');
@@ -1557,29 +1616,9 @@ window.DX3rdChatHandlers = {
         useBtn.style.fontWeight = "bold";
         useBtn.style.fontSize = "0.9em";
         useBtn.style.cursor = "pointer";
-        useBtn.onclick = async () => {
-            const updates = {};
-            
-            const currentUsedState = item.system?.used?.state || 0;
-            updates['system.used.state'] = currentUsedState + 1;
-            
-            // notCheck explicitly disables the activation channel.
-            if (shouldActivate) {
-                const activeDisable = item.system?.active?.disable ?? '-';
-                if (activeDisable !== 'notCheck') {
-                    updates['system.active.state'] = true;
-                }
-            }
-            
-            if (Object.keys(updates).length > 0) {
-                await item.update(updates);
-            }
-            
-            if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
-                await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
-            }
-            
+        useBtn.onclick = () => {
             if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
+            resolveChoice(true);
         };
         buttonContainer.appendChild(useBtn);
         
@@ -1595,8 +1634,9 @@ window.DX3rdChatHandlers = {
         notUseBtn.style.fontWeight = "bold";
         notUseBtn.style.fontSize = "0.9em";
         notUseBtn.style.cursor = "pointer";
-        notUseBtn.onclick = async () => {
+        notUseBtn.onclick = () => {
             if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
+            resolveChoice(false);
         };
         buttonContainer.appendChild(notUseBtn);
         
@@ -1665,6 +1705,7 @@ window.DX3rdChatHandlers = {
         observer.observe(document.body, { childList: true });
         
         document.body.appendChild(dialogDiv);
+        return choice;
     },
     
     
@@ -1710,7 +1751,8 @@ window.DX3rdChatHandlers = {
             return;
         }
         
-        const comboItems = actor.items.filter(item => item.type === 'combo');
+        const comboItems = actor.items.filter(item => item.type === 'combo'
+            && !window.DX3rdIsInstantCombo?.(item));
         if (comboItems.length === 0) {
             return;
         }

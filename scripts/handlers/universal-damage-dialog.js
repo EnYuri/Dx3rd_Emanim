@@ -92,7 +92,8 @@
      * @param {ChatMessage|null} sourceMessage - 공격 판정 결과가 들어 있는 원본 채팅 메시지
      */
     async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null, sourceMessage = null) {
-      
+      const attackAfterDamageRiders = sourceMessage?.getFlag?.(
+        'dx3rd-emanim', 'attackAfterDamageRiders') || [];
       let weaponAttack, actorAttack, actorAttackFormula, actorPenetrate;
       
       if (preservedValues) {
@@ -118,7 +119,7 @@
       this.showDamageCalculationDialog(
         actor, item, weaponAttack, actorAttack, actorAttackFormula,
         actorPenetrate,
-        rollResult, comboAfterDamageData, sourceMessage
+        rollResult, comboAfterDamageData, sourceMessage, attackAfterDamageRiders
       );
     },
 
@@ -133,7 +134,7 @@
      * @param {Object} comboAfterDamageData - Combo afterDamage data (optional)
      * @param {ChatMessage|null} sourceMessage - 데미지 결과를 합칠 공격 판정 메시지
      */
-    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null) {
+    async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null, attackAfterDamageRiders = []) {
 
       const attackRollResult = rollResult;
       
@@ -301,7 +302,12 @@
               const penetrate = parseInt(form?.querySelector('#penetrate')?.value) || 0;
               const addResult = parseInt(form?.querySelector('#add-result')?.value) || 0;
               const addDamageRoll = parseInt(form?.querySelector('#add-damage-roll')?.value) || 0;
-              const addDamage = parseInt(form?.querySelector('#add-damage')?.value) || 0;
+              // Damage modifiers are Roll formulas, not numeric-only fields. Keep dice terms until
+              // the final damage Roll so `1d10`, `-1d10`, and item tokens are evaluated exactly once.
+              const addDamageInput = String(form?.querySelector('#add-damage')?.value ?? '').trim() || '0';
+              const addDamage = window.DX3rdFormulaEvaluator?.prepareRollFormula
+                ? window.DX3rdFormulaEvaluator.prepareRollFormula(addDamageInput, item, actor)
+                : addDamageInput;
               
               // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
               const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + addDamageRoll + madness6Bonus;
@@ -352,7 +358,7 @@
                 };
                 
                 // comboAfterDamage 데이터나 임시 콤보가 있는 경우에만 flags 초기화
-                if (comboAfterDamageData || window.DX3rdIsInstantCombo?.(item)) {
+                if (comboAfterDamageData || attackAfterDamageRiders.length > 0 || window.DX3rdIsInstantCombo?.(item)) {
                   messageData.flags = {
                     'dx3rd-emanim': {}
                 };
@@ -360,6 +366,9 @@
                 // comboAfterDamage 데이터가 있으면 플래그에 저장
                 if (comboAfterDamageData) {
                   messageData.flags['dx3rd-emanim'].comboAfterDamage = comboAfterDamageData;
+                }
+                if (attackAfterDamageRiders.length > 0) {
+                  messageData.flags['dx3rd-emanim'].attackAfterDamageRiders = attackAfterDamageRiders;
                 }
                 
                 // 임시 콤보인 경우 아이템 데이터도 복사
@@ -399,7 +408,8 @@
             damage: pendingApply.damage,
             penetrate: pendingApply.penetrate,
             attackResult: pendingApply.attackResult,
-            comboAfterDamageData
+            comboAfterDamageData,
+            attackAfterDamageRiders
           });
           if (applied) {
             await pendingApply.message?.setFlag('dx3rd-emanim', 'damageApplyCompleted', true);
@@ -467,7 +477,7 @@
      * 타겟은 호출 시점의 game.user.targets 를 읽는다(버튼 경로와 동일).
      * @returns {Promise<boolean>} 실제로 적용을 진행했으면 true (게이트에서 막히면 false)
      */
-    async runDamageApply({actor, item, damage, penetrate, attackResult = 0, comboAfterDamageData = null} = {}) {
+    async runDamageApply({actor, item, damage, penetrate, attackResult = 0, comboAfterDamageData = null, attackAfterDamageRiders = []} = {}) {
       if (!actor) return false;
 
       // 권한 체크
@@ -512,7 +522,8 @@
       // 증오 자동 회복은 명중판정 시점(onAttackRollComplete)으로 이관됨.
       // 룰상 성공 여부와 무관하게 회복되므로, 빗나가 데미지 버튼을 누르지 않는 경우도 커버해야 한다.
       // 위 hatred 대상 강제 체크는 잘못된 대상에 데미지 적용을 막는 안전망으로 유지.
-      await this.handleDamageApply(actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult);
+      await this.handleDamageApply(
+        actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult, attackAfterDamageRiders);
       restoreToken();
       return true;
     },
@@ -589,7 +600,7 @@
       return damagedActorIds;
     },
 
-    handleDamageApply: async function(actor, item, damage, penetrate, targets, comboAfterDamageData = null, attackResult = null) {
+    handleDamageApply: async function(actor, item, damage, penetrate, targets, comboAfterDamageData = null, attackResult = null, attackAfterDamageRiders = []) {
       if (!actor || !targets || targets.length === 0) {
         return;
       }
@@ -599,6 +610,9 @@
       const damageRequestId = window.DX3rdRuntimeUtils.createRequestId('afterDamage');
       const targetActorIds = targets.map(target => target.actor.id);
       const targetTokenIds = targets.map(target => target.id);
+      const pendingAttackRiders = Array.isArray(attackAfterDamageRiders)
+        ? foundry.utils.deepClone(attackAfterDamageRiders)
+        : [];
 
       // ===== 익스텐드 큐 등록 요청 (GM에게) =====
       // 콤보는 processComboAfterDamage에서 병합하여 처리하므로 제외
@@ -648,6 +662,7 @@
               targetActorIds: targetActorIds,
               targetTokenIds: targetTokenIds,
               damageReports: {},
+              hitReports: {},
               reportActorIds: {},
               reportCount: 0,
               extensions: {
@@ -750,16 +765,10 @@
         );
         const shouldExecuteMacro = !isCombo && (!!item.system?.macro || hasAfterDamageEmbeddedMacro);
 
-        // 콤보이거나, 활성화/대상 적용/매크로 중 하나라도 필요한 경우 등록
-        if (isCombo || shouldActivate || shouldApplyToTargets || shouldExecuteMacro) {
-          const usedDisable = item.system?.used?.disable || 'notCheck';
-          const usedState = item.system?.used?.state || 0;
-          const usedMax = item.system?.used?.max || 0;
-          
-          // 활성화/효과는 횟수 체크, 매크로는 항상 등록
-          const shouldRegister = shouldExecuteMacro || (usedDisable === 'notCheck' || usedState < usedMax);
-          
-          if (shouldRegister) {
+        // This is follow-up work for an action that already passed processItemUsageCost. Rechecking
+        // the now-incremented counter here suppresses max-1 effects, and a macro must not be a secret
+        // bypass around that gate. Register every accepted action uniformly.
+        if (isCombo || shouldActivate || shouldApplyToTargets || shouldExecuteMacro || pendingAttackRiders.length > 0) {
             const needsDialog = item.type === 'weapon' || item.type === 'vehicle';
             
             if (window.DX3rdSocketRouter.isResponsibleGM()) {
@@ -772,6 +781,7 @@
                 targetActorIds: targetActorIds,
                 targetTokenIds: targetTokenIds,
                 damageReports: {},
+                hitReports: {},
                 reportActorIds: {},
                 reportCount: 0,
                 shouldExecuteMacro: shouldExecuteMacro,
@@ -779,6 +789,7 @@
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
                 comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
+                pendingAttackRiders,
                 createdAt: Date.now()
               };
               this.scheduleAfterDamageRequestExpiry(damageRequestId);
@@ -803,7 +814,8 @@
                   shouldActivate: shouldActivate,
                   shouldApplyToTargets: shouldApplyToTargets,
                   needsDialog: needsDialog,
-                  comboAfterDamageData: comboAfterDamageData // 콤보 데이터 전달
+                  comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 전달
+                  pendingAttackRiders
                 }
               });
               window.DX3rdDebug.log('DX3rd | AfterDamage registration sent to GM:', {
@@ -814,7 +826,6 @@
                 hasComboData: !!comboAfterDamageData
               });
             }
-          }
         }
       }
 
@@ -846,10 +857,10 @@
           
           if (nonGMOwners.length > 0) {
             // 접속 중인 일반 소유자가 있으면 소켓 전송
-            window.DX3rdSocketRouter.emit({
+            window.DX3rdSocketRouter.emitToActorExecutor({
               type: 'showDefenseDialog',
               dialogData: payload  // payload → dialogData로 통일
-            });
+            }, targetActor);
             window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket to non-GM owner for:', targetActor.name);
           } else {
             // 접속 중인 일반 소유자가 없으면 GM이 직접 표시
@@ -858,10 +869,10 @@
           }
         } else {
           // 일반 유저: 항상 소켓 전송 (GM 백업 로직이 처리)
-          window.DX3rdSocketRouter.emit({
+          window.DX3rdSocketRouter.emitToActorExecutor({
             type: 'showDefenseDialog',
             dialogData: payload  // payload → dialogData로 통일
-          });
+          }, targetActor);
           window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
         }
       }
@@ -1153,7 +1164,8 @@
                   const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
                     targetTokenId,
                     targetActorId: targetActor.id,
-                    hpChange
+                    hpChange,
+                    attackHit: !reactionSuccess
                   });
 
                   window.DX3rdDebug.log('DX3rd | Extension damage report recorded:', {
@@ -1211,19 +1223,22 @@
                       
                       if (item && targetActor.isOwner) {
                         // GM이 타겟 소유자이므로 직접 적용
-                        await window.DX3rdUniversalHandler._applyItemAttributes(sourceActor, item, targetActor, applyRequest.targetAttributes);
+                        await window.DX3rdUniversalHandler._applyItemAttributes(
+                          sourceActor, item, targetActor, applyRequest.targetAttributes,
+                          { preEvaluated: applyRequest.preEvaluated === true });
                         window.DX3rdDebug.log('DX3rd | Target effect applied directly by GM');
                       } else {
                         // 타겟 소유자에게 적용 지시
-                        window.DX3rdSocketRouter.emit({
+                        window.DX3rdSocketRouter.emitToActorExecutor({
                           type: 'applyEffectToTarget',
                           payload: {
                             sourceActorId: applyRequest.sourceActorId,
                             itemId: applyRequest.itemId,
                             targetActorId: targetActor.id,
-                            targetAttributes: applyRequest.targetAttributes
+                            targetAttributes: applyRequest.targetAttributes,
+                            preEvaluated: applyRequest.preEvaluated === true
                           }
-                        });
+                        }, targetActor);
                         window.DX3rdDebug.log('DX3rd | Sent applyEffectToTarget to target owner');
                       }
                     } else {
@@ -1244,7 +1259,8 @@
                     const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(activationRequest, {
                       targetTokenId,
                       targetActorId: targetActor.id,
-                      hpChange
+                      hpChange,
+                      attackHit: !reactionSuccess
                     });
 
                     window.DX3rdDebug.log('DX3rd | Activation report recorded:', {
@@ -1265,6 +1281,12 @@
                       const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
                       const damagedTargets = [...new Set(damagedReports
                         .map(([tokenId]) => activationRequest.reportActorIds[tokenId])
+                        .filter(Boolean))];
+                      const hitTokenIds = Object.entries(activationRequest.hitReports || {})
+                        .filter(([, hit]) => hit === true)
+                        .map(([tokenId]) => tokenId);
+                      const hitTargets = [...new Set(hitTokenIds
+                        .map(tokenId => activationRequest.reportActorIds[tokenId])
                         .filter(Boolean))];
                       
                       const attacker = game.actors.get(attackerId);
@@ -1292,6 +1314,17 @@
                           }
                         }
                         await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
+                      } else if (comboData) {
+                        await window.DX3rdInstantComboRetention?.complete?.(attacker, itemId, 'afterDamage');
+                      }
+
+                      if (hitTargets.length > 0) {
+                        await window.DX3rdUniversalHandler.processPendingAttackRiders(
+                          attacker,
+                          activationRequest.pendingAttackRiders,
+                          hitTargets,
+                          hitTokenIds
+                        );
                       }
 
                       const attackerItem = attacker.items.get(itemId);
@@ -1319,10 +1352,10 @@
                               content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`
                             });
                           } else {
-                            window.DX3rdSocketRouter.emit({
+                            window.DX3rdSocketRouter.emitToActorExecutor({
                               type: 'showNoDamageNotification',
                               payload: { attackerId: attackerId }
-                            });
+                            }, attacker);
                           }
                         }
                         window.DX3rdDebug.log('DX3rd | Temporary combo afterDamage request removed from queue');
@@ -1337,35 +1370,22 @@
                           window.DX3rdDebug.log('DX3rd | AfterDamage macro executed directly by GM');
                         } else {
                           // 공격자 소유자에게 실행 지시
-                          window.DX3rdSocketRouter.emit({
+                          window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'executeAfterDamageMacro',
                             payload: {
                               attackerId: attackerId,
                               itemId: itemId,
                               hpChange: damagedTargets.length  // 데미지 받은 타겟 수 전달
                             }
-                          });
+                          }, attacker);
                           window.DX3rdDebug.log('DX3rd | AfterDamage macro sent via socket');
                         }
                       }
                       
-                      // 2️⃣ 활성화/효과 적용 처리
-                      // 최신 아이템 상태로 횟수 체크
+                      // 2️⃣ 활성화/효과 적용 처리. 사용 횟수는 원래 행동을 승인할 때 이미
+                      // 검사·소비했으므로, 후속 단계에서 현재 상태를 다시 게이트로 쓰지 않는다.
                       const currentItem = attacker.items.get(itemId);  // 최신 상태 다시 가져오기
                       const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
-                      const usedState = currentItem?.system?.used?.state || 0;
-                      const usedMax = currentItem?.system?.used?.max || 0;
-                      // 소진을 차단으로 이을지는 월드 설정이 정한다(기본: 잇지 않음).
-                      const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0
-                        && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false;
-
-                      window.DX3rdDebug.log('DX3rd | Usage check:', {
-                        itemName: currentItem.name,
-                        usedDisable: usedDisable,
-                        usedState: usedState,
-                        usedMax: usedMax,
-                        isExhausted: isUsageExhausted
-                      });
                       
                       // 공격자 소유자 중 접속 중인 non-GM 유저 확인
                       const attackerOwners = game.users.filter(user => 
@@ -1386,17 +1406,13 @@
                           window.DX3rdDebug.log('DX3rd | No damage notification shown directly by GM');
                         } else {
                           // 공격자 소유자에게 소켓 전송
-                          window.DX3rdSocketRouter.emit({
+                          window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
-                          });
+                          }, attacker);
                           window.DX3rdDebug.log('DX3rd | No damage notification sent via socket to player');
                         }
-                      } else if (isUsageExhausted && (activationRequest.shouldActivate || activationRequest.shouldApplyToTargets)) {
-                        // 횟수 소진: 활성화/적용 불가, 아무 작업도 하지 않음
-                        window.DX3rdDebug.log('DX3rd | Usage exhausted, skipping activation/effect application');
-                      } else {
-                        // 최소 한 명 데미지 받음 & 횟수 남음: 처리 지시
+                      } else if (activationRequest.shouldActivate || activationRequest.shouldApplyToTargets) {
                         const needsConfirmation = activationRequest.needsDialog && usedDisable !== 'notCheck';
                         
                         if (needsConfirmation) {
@@ -1407,7 +1423,7 @@
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog shown directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
-                            window.DX3rdSocketRouter.emit({
+                            window.DX3rdSocketRouter.emitToActorExecutor({
                               type: 'showAfterDamageDialog',
                               payload: {
                                 attackerId: attackerId,
@@ -1416,7 +1432,7 @@
                                 shouldActivate: activationRequest.shouldActivate,
                                 shouldApplyToTargets: activationRequest.shouldApplyToTargets
                               }
-                            });
+                            }, attacker);
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog sent via socket to player');
                           }
                         } else {
@@ -1427,7 +1443,7 @@
                             window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation executed directly by GM');
                           } else {
                             // 공격자 소유자에게 소켓 전송
-                            window.DX3rdSocketRouter.emit({
+                            window.DX3rdSocketRouter.emitToActorExecutor({
                               type: 'executeAfterDamageActivation',
                               payload: {
                                 actorId: attackerId,
@@ -1436,7 +1452,7 @@
                                 shouldActivate: activationRequest.shouldActivate,
                                 shouldApplyToTargets: activationRequest.shouldApplyToTargets
                               }
-                            });
+                            }, attacker);
                             window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation sent via socket to player');
                           }
                         }
@@ -1476,7 +1492,8 @@
                       damageRequestId,
                       targetActorId: targetActor.id,
                       targetTokenId,
-                      hpChange: hpChange
+                      hpChange: hpChange,
+                      attackHit: !reactionSuccess
                     }
                   });
                   window.DX3rdDebug.log('DX3rd | Damage result report sent to GM (activation):', {
@@ -1796,6 +1813,7 @@
           // Passing the combo's stored false here suppresses a member's target requirement.
           undefined,
           {
+            rollType: 'dodge',
             predefinedDifficulty: attackResultValue > 0 ? { type: 'number', value: attackResultValue } : null,
             afterRollCallback: ({ total }) => setReactionResult(total)
           }
@@ -1904,16 +1922,10 @@
       useBtn.style.cursor = "pointer";
       useBtn.onclick = async () => {
         const updates = {};
-        
-        // 1. system.used.state 증가 (notCheck가 아닌 경우)
-        const usedDisable = item.system?.used?.disable || 'notCheck';
-        if (usedDisable !== 'notCheck') {
-          const currentUsedState = item.system?.used?.state || 0;
-          updates['system.used.state'] = currentUsedState + 1;
-          window.DX3rdDebug.log('DX3rd | Used count increased on afterDamage:', currentUsedState, '→', currentUsedState + 1);
-        }
-        
-        // 2. 활성화 (shouldActivate가 true인 경우)
+
+        // The originating attack already consumed this item's usage count. This button confirms
+        // only the optional follow-up; incrementing here again made one attack spend two uses.
+        // 1. 활성화 (shouldActivate가 true인 경우)
         if (shouldActivate) {
           updates['system.active.state'] = true;
           window.DX3rdDebug.log('DX3rd | Item activated on afterDamage:', item.name);
@@ -1923,7 +1935,7 @@
           await item.update(updates);
         }
         
-        // 3. HP 데미지 받은 타겟에게만 효과 적용
+        // 2. HP 데미지 받은 타겟에게만 효과 적용
         if (shouldApplyToTargets) {
           for (const targetId of damagedTargets) {
             const targetActor = game.actors.get(targetId);
@@ -1933,21 +1945,7 @@
                 ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
                 : (item.system.effect?.attributes || {});
               
-              if (game.user.isGM) {
-                // GM이면 직접 적용
-                await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
-              } else {
-                // 일반 유저는 소켓 전송
-                window.DX3rdSocketRouter.emit({
-                  type: 'applyItemAttributes',
-                  payload: {
-                    sourceActorId: actor.id,
-                    itemId: item.id,
-                    targetActorId: targetId,
-                    targetAttributes: targetAttributes
-                  }
-                });
-              }
+              await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
               window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (dialog):', targetActor.name);
             }
           }
@@ -2058,21 +2056,7 @@
               ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
               : (item.system.effect?.attributes || {});
             
-            if (game.user.isGM) {
-              // GM이면 직접 적용
-              await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
-            } else {
-              // 일반 유저는 소켓 전송
-              window.DX3rdSocketRouter.emit({
-                type: 'applyItemAttributes',
-                payload: {
-                  sourceActorId: actor.id,
-                  itemId: item.id,
-                  targetActorId: targetId,
-                  targetAttributes: targetAttributes
-                }
-              });
-            }
+            await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
             window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (auto):', targetActor.name);
           }
         }
@@ -2221,11 +2205,15 @@
      * @param {Token[]} targets - 명중판정 대상 토큰 배열
      * @param {number} rollResult - 펌블 보정이 반영된 최종 달성치
      * @param {boolean} isFumble - 펌블 여부
+     * @param {ChatMessage|null} attackMessage - 이번 공격의 후속 상태를 귀속할 채팅 카드
      */
-    async onAttackRollComplete(actor, item, targets, rollResult, isFumble) {
+    async onAttackRollComplete(actor, item, targets, rollResult, isFumble, attackMessage = null) {
       try {
+        const attackAfterDamageRiders = await this.bindPendingAttackRiders(actor, attackMessage);
         // 확장점: 명중판정 완료 시점에 개입할 훅 (룰/이펙트 확장 대비)
-        Hooks.callAll('dx3rd.attackRollComplete', { actor, item, targets, rollResult, isFumble });
+        Hooks.callAll('dx3rd.attackRollComplete', {
+          actor, item, targets, rollResult, isFumble, attackMessage, attackAfterDamageRiders
+        });
 
         // 증오 자동 회복: 대상 중 hatred.target이 포함되어 있으면 해제
         const hatredActive = actor.system?.conditions?.hatred?.active || false;

@@ -25,7 +25,7 @@ window.DX3rdPsionicHandler = {
         }
 
         // 사이오닉 롤 타입 분기: '-'는 기본 로직, 그 외는 판정 처리
-        const rollType = item.system?.roll ?? '-';
+        const rollType = window.DX3rdUniversalHandler.resolveInvocationRollType(item, options);
         
         if (rollType === '-') {
             // 기본 처리: 침식률 증가 및 통합 메시지 출력 (instant는 universal-handler에서 이미 처리됨)

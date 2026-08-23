@@ -78,9 +78,11 @@
         }
 
         let targetActors = [];
+        const hasForcedTargets = Array.isArray(forcedTargets);
         
-        // forcedTargets가 있으면 우선 사용
-        if (forcedTargets && Array.isArray(forcedTargets) && forcedTargets.length > 0) {
+        // An array is an authoritative frozen target set even when it is empty. Treating [] as
+        // absent makes after-damage follow-ups wake up the executor's unrelated current UI targets.
+        if (hasForcedTargets) {
           targetActors = forcedTargets;
         }
         // scene이 체크되어 있으면 현재 씬의 모든 토큰 액터에 적용
@@ -111,9 +113,12 @@
         }
 
         // 타이밍에 따른 처리 분기
-        if (timing === 'afterDamage' && !forcedTargets) {
+        if (timing === 'afterDamage' && !hasForcedTargets) {
           // afterDamage: 등록 후 대기 (데미지 받은 타겟에게만 적용)
           // 단, forcedTargets가 있으면 즉시 적용 (이미 데미지 받은 타겟)
+          // Freeze sender-local runtime input and pre-use encroachment context before
+          // another client eventually writes the ActiveEffect document.
+          const transferredAttributes = this.freezeTransferredItemAttributes(actor, item, targetAttributes);
           for (const targetActor of targetActors) {
             if (game.user.isGM) {
               // GM은 직접 큐에 등록
@@ -122,7 +127,8 @@
                 sourceActorId: actor.id,
                 itemId: item.id,
                 targetActorId: targetActor.id,
-                targetAttributes: targetAttributes,
+                targetAttributes: transferredAttributes,
+                preEvaluated: true,
                 timestamp: Date.now()
               };
               window.DX3rdDebug.log('DX3rd | GM registered target apply (afterDamage):', {
@@ -137,7 +143,8 @@
                   sourceActorId: actor.id,
                   itemId: item.id,
                   targetActorId: targetActor.id,
-                  targetAttributes: targetAttributes
+                  targetAttributes: transferredAttributes,
+                  preEvaluated: true
                 }
               });
               window.DX3rdDebug.log('DX3rd | Target apply registration sent to GM (afterDamage):', targetActor.name);
@@ -155,6 +162,27 @@
     },
 
     /**
+     * Freeze target formulas in the initiating client's context before crossing a socket boundary.
+     * Runtime input and the pre-use encroachment level are transient Actor properties which the
+     * recipient cannot reconstruct. Roll-time dice formulas keep their dice after token substitution.
+     */
+    freezeTransferredItemAttributes(actor, item, attributes) {
+      const frozen = foundry.utils.deepClone(attributes || {});
+      const evaluator = window.DX3rdFormulaEvaluator;
+      for (const attr of Object.values(frozen)) {
+        if (!attr || attr.value === undefined || attr.value === null) continue;
+        if (typeof attr.value === 'boolean') continue;
+        const prepared = evaluator?.prepareRollFormula
+          ? evaluator.prepareRollFormula(attr.value, item, actor)
+          : String(attr.value ?? '0');
+        attr.value = evaluator?.isRollTimeKey?.(attr.key) && evaluator?.hasDice?.(prepared)
+          ? prepared
+          : (evaluator?.evaluate ? evaluator.evaluate(attr.value, item, actor) : Number(attr.value) || 0);
+      }
+      return frozen;
+    },
+
+    /**
      * 대상 액터에 아이템 어트리뷰트를 적용하되, 쓸 권한이 있는 클라이언트가 실행하게 한다.
      * 남의 액터에 AE 를 직접 만들면 권한 오류로 실패하므로, 쓸 수 없으면 소켓으로 넘긴다.
      * 반대로 내가 소유한 대상(자기 자신 포함)은 로컬에서 처리한다 — GM 이 접속해 있지 않아도
@@ -165,21 +193,25 @@
      * @param {Actor} targetActor - 적용 대상
      * @param {Object} targetAttributes - 적용할 어트리뷰트(원본 수식 그대로)
      */
-    async dispatchItemAttributes(actor, item, targetActor, targetAttributes) {
+    async dispatchItemAttributes(actor, item, targetActor, targetAttributes, {preEvaluated = false} = {}) {
       if (!targetActor) return;
       if (game.user.isGM || targetActor.isOwner) {
-        await this._applyItemAttributes(actor, item, targetActor, targetAttributes);
+        await this._applyItemAttributes(actor, item, targetActor, targetAttributes, {preEvaluated});
         return;
       }
-      window.DX3rdSocketRouter.emit({
+      const transferredAttributes = preEvaluated
+        ? foundry.utils.deepClone(targetAttributes || {})
+        : this.freezeTransferredItemAttributes(actor, item, targetAttributes);
+      window.DX3rdSocketRouter.emitToActorExecutor({
         type: 'applyItemAttributes',
         payload: {
           sourceActorId: actor.id,
           itemId: item.id,
           targetActorId: targetActor.id,
-          targetAttributes: targetAttributes
+          targetAttributes: transferredAttributes,
+          preEvaluated: true
         }
-      });
+      }, targetActor);
       window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
     },
 
@@ -189,8 +221,9 @@
      * @param {Item} item - The item being used
      * @param {Actor} targetActor - The target actor
      * @param {Object} targetAttributes - The attributes to apply
-     * @param {Object} [opts] - 선택 옵션. opts.disable 지정 시 applied 수명을 override
-     *   (사용 시 self 동결버프(applyMode='onUse')는 effect.disable이 아니라 active.disable이 수명이므로).
+     * @param {Object} [opts] - Optional overrides.
+     * @param {string} [opts.disable] - Override the applied lifecycle (self on-use freezes use active.disable).
+     * @param {boolean} [opts.preEvaluated=false] - Values were frozen by the initiating client; do not evaluate again.
      */
     async _applyItemAttributes(actor, item, targetActor, targetAttributes, opts = {}) {
       if (!targetActor) {
@@ -283,10 +316,14 @@
         // 피해·방어·판정 시점 굴림 필드는 대상 효과(AE)로 옮겨도 원 수식을 보존한다.
         // prepareData에서 수치 0으로 동결하면 안 되며, 각 소비부가 실제 행동 시 Roll로 한 번 굴린다.
         // 키 목록은 DX3rdFormulaEvaluator.ROLL_TIME_KEYS 단일 정의를 쓴다.
-        const prepared = window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, item, item.actor);
-        const evaluated = window.DX3rdFormulaEvaluator.isRollTimeKey(key) && window.DX3rdFormulaEvaluator.hasDice(prepared)
-          ? prepared
-          : window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, item.actor);
+        const prepared = opts.preEvaluated
+          ? attrData.value
+          : window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, item, actor);
+        const evaluated = opts.preEvaluated
+          ? attrData.value
+          : (window.DX3rdFormulaEvaluator.isRollTimeKey(key) && window.DX3rdFormulaEvaluator.hasDice(prepared)
+            ? prepared
+            : window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, actor));
         // 동일 key 의 서로 다른 label(fist/melee/ranged, 스킬별 stat_*)이 덮어쓰지 않도록 저장 키를 key:label 조합으로 사용
         const storageKey = rawLabel ? `${key}:${rawLabel}` : key;
         appliedEffect.attributes[storageKey] = {
@@ -322,6 +359,97 @@
     },
 
     /**
+     * 현재 공격의 명중 성공 뒤 발현한 자기 보정 중 데미지 단계가 소비할 몫을 계산한다.
+     * 명중 시점에 보존된 actorAttack/penetrate 에만 더하므로, 이미 들어간 메이저 보정을
+     * 다시 읽어 이중 가산하지 않는다.
+     */
+    async resolveAfterSuccessDamageBonus(actor, sourceItem, action, attackItem) {
+      const result = { attack: 0, attackFormula: '', penetrate: 0 };
+      const adapter = window.DX3rdItemEffectAdapter;
+      if (!actor || !sourceItem || !attackItem || !adapter) return result;
+
+      const attributes = adapter.selfBucketAttributes(sourceItem, action);
+      const attackType = this.resolveAttackType?.(attackItem) || null;
+      let fistAttack = false;
+      if (attackItem.type === 'weapon') {
+        fistAttack = !!this.isFistWeaponName?.(attackItem.name);
+      } else {
+        const weaponIds = Array.isArray(attackItem.system?.weapon) ? attackItem.system.weapon : [];
+        fistAttack = weaponIds.some(id => {
+          const weapon = window.DX3rdResolveWeapon?.(actor, id) || actor.items?.get?.(id);
+          return !!this.isFistWeaponName?.(weapon?.name);
+        });
+      }
+      const labelMatches = label => {
+        const normalized = String(label ?? '').trim();
+        if (!normalized || normalized === '-') return true;
+        if (normalized === 'melee' || normalized === 'ranged') return normalized === attackType;
+        if (normalized === 'fist') return fistAttack;
+        return true;
+      };
+
+      const evaluator = window.DX3rdFormulaEvaluator;
+      for (const entry of Object.values(attributes || {})) {
+        if (!entry || !labelMatches(entry.label)) continue;
+        const key = entry.key;
+        if (key !== 'attack' && key !== 'penetrate') continue;
+        const prepared = evaluator?.prepareRollFormula
+          ? evaluator.prepareRollFormula(String(entry.value ?? '0'), sourceItem, actor)
+          : String(entry.value ?? '0');
+        const hasDice = evaluator?.hasDice?.(prepared) === true;
+        if (key === 'attack') {
+          if (hasDice) {
+            result.attackFormula = this.joinFormulaTerms(result.attackFormula, prepared);
+          } else {
+            result.attack += Number(evaluator?.evaluate?.(entry.value, sourceItem, actor) ?? entry.value) || 0;
+          }
+          continue;
+        }
+
+        if (!hasDice) {
+          result.penetrate += Number(evaluator?.evaluate?.(entry.value, sourceItem, actor) ?? entry.value) || 0;
+          continue;
+        }
+        try {
+          const roll = await (new Roll(prepared)).evaluate();
+          result.penetrate += Number(roll.total) || 0;
+        } catch (error) {
+          console.warn(`DX3rd | afterSuccess penetrate roll failed: ${prepared}`, error);
+          ui.notifications.warn(`${game.i18n.localize('DX3rd.DamageRollFormulaInvalid')}: ${prepared}`);
+        }
+      }
+      return result;
+    },
+
+    /**
+     * 성공 뒤 자기 보정 하나를 처리한다. 이미 지나간 roll/major 수명은 액터에 남기지 않고,
+     * 현재 데미지에 필요한 공격력·장갑무시만 반환한다.
+     */
+    async processAfterSuccessSelfModifiers(actor, item, {
+      action = null, attackItem = null, expiredTimings = [], forceFrozen = false
+    } = {}) {
+      const empty = { attack: 0, attackFormula: '', penetrate: 0 };
+      const adapter = window.DX3rdItemEffectAdapter;
+      if (!actor || !item || !adapter) return empty;
+      const expected = action || adapter.channelAction(item, 'self');
+      if (!adapter.selfFiresAt(item, expected, 'afterSuccess')) return empty;
+
+      const hasFrozen = adapter.hasFrozenSelfBucket(item, expected);
+      const hasToggle = adapter.selfToggleBucketMatches(item, expected);
+      if (!hasFrozen && (!hasToggle || item.system?.active?.state === true)) return empty;
+
+      const contribution = await this.resolveAfterSuccessDamageBonus(actor, item, expected, attackItem);
+      const lifecycle = adapter.bucketLifecycle(item, 'self', expected);
+      if (!new Set(expiredTimings).has(lifecycle.disable)) {
+        await this.applySelfModifiers(actor, item, {
+          action: expected,
+          ...(forceFrozen ? { forceFrozen: true } : {})
+        });
+      }
+      return contribution;
+    },
+
+    /**
      * 사용 시 self 동결버프(applyMode='onUse') — 사용 시점에 item.system.attributes를 자신에게
      * 1회 동결 적용한다. 토글(active.state) 채널과 달리 재계산되지 않으므로 런타임 입력값
      * ([소비HP] 등, actor._dx3rdRuntimeInput)이 _applyItemAttributes의 동결 평가로 그대로 잡힌다.
@@ -352,14 +480,11 @@
      *     actor._dx3rdRuntimeInput이 이미 사라져 [소비HP] 등이 0으로 주저앉으므로,
      *     런타임 입력을 쓰는 버프는 이 채널이어야 한다.
      *
-     * afterSuccess/afterDamage 발동 지점(handleSuccessButton·processCombo* ·main.js 채팅 버튼)은
-     * 이 함수를 쓰지 않고 active.state 토글로 남겨둔다. 이유:
-     *   (1) 그 시점엔 handleItemUse가 이미 끝나 _dx3rdRuntimeInput이 지워졌으므로(finally 절)
-     *       동결로 바꿔도 [소비HP]는 똑같이 0이다 — 얻는 게 없다.
-     *   (2) spell/psionic/combo는 문서 스키마에 applyMode 필드가 아예 없어 'onUse'로 떨어지는데,
-     *       이들을 동결 채널로 보내면 active.state로 "지속 적용 중"을 판단하는 곳
-     *       (combo-data getPersistentEffectIds/calculateItemAttackBonus, 시트 활성 표시)이 어긋난다.
-     * runTiming/active.state/disable 게이트는 호출부가 미리 판정한다.
+     * afterSuccess/afterDamage 발동점도 이 함수를 통과한다. 그 시점에는 handleItemUse의
+     * _dx3rdRuntimeInput이 이미 정리됐으므로 [소비HP] 같은 값은 새로 동결할 수 없지만,
+     * 토글 타입과 동결 타입을 같은 규칙으로 나눠 이중 가산을 막는 편이 더 중요하다.
+     * 이미 종료된 roll/major 수명의 afterSuccess 보정은 processAfterSuccessSelfModifiers가
+     * 현재 데미지 스냅샷에만 합치고 이 함수는 호출하지 않는다.
      *
      * opts.forceToggle: applyMode 와 무관하게 토글 채널을 쓴다. 자기 보정의 액션이 '활성화'인
      *   아이템(상시 이펙트 등)을 직접 사용해 켜는 경로가 쓴다 — 이런 아이템은 컴펜디움 기본값이
@@ -375,25 +500,23 @@
      * @param {string|null} [opts.action=null]
      * @returns {boolean} active.state를 켰으면 true
      */
-    async applySelfModifiers(actor, item, { forceToggle = false, action = null } = {}) {
+    async applySelfModifiers(actor, item, { forceToggle = false, forceFrozen = false, action = null } = {}) {
       const active = item.system?.active || {};
       const applyMode = active.applyMode || 'onUse';
-      // 토글 타입(effect/spell/psionic/combo)의 자기 보정은 actor.js 자체계산에서 빠지고
-      // 토글 AE 로만 합산된다. 그런데 spell/psionic/combo 는 문서 스키마에 applyMode 필드가
-      // 아예 없어 기본값 'onUse'(동결)로 떨어졌다. 그 상태에서 뒤늦게 active.state 가 켜지면
-      // (spell-handler.ensureActivated — runTiming 게이트도 없다 / 채팅 발동 버튼) 같은 보정이
-      // toggle:<id> AE 로 한 번 더 생겨 그대로 이중 가산된다. 두 AE 는 키가 달라 upsert 로도
-      // 합쳐지지 않는다. → applyMode 를 저작할 수 없는 토글 타입은 토글 채널로 고정한다.
-      // 대가로 이 타입들은 [소비HP] 같은 런타임 입력을 동결하지 못하지만(재평가 시 0),
-      // 그건 원래 afterSuccess/afterDamage 발동점에서도 마찬가지다(applySelfFrozenBuff 주석 (1)).
-      const toggleTypes = window.DX3rdAppliedToggle?.TOGGLE_TYPES || ['effect', 'spell', 'psionic', 'combo'];
-      const toggleChannelOnly = toggleTypes.includes(item.type) && !('applyMode' in active);
       const adapter = window.DX3rdItemEffectAdapter;
+      // A serialized instant-combo body has no Document state left to toggle. Preserve the authored
+      // bucket as a normal frozen AE with the same lifecycle, so post-cleanup chat rerolls remain
+      // meaningful without inventing a non-existent active.state update.
+      if (forceFrozen) {
+        const attrs = adapter?.selfBucketAttributes?.(item, action) || item.system?.attributes || {};
+        await this._applyItemAttributes(actor, item, actor, attrs, {channel: 'self'});
+        return false;
+      }
       // 항목별 「발현 액션」 때문에 한 아이템이 활성화 버킷과 동결 버킷을 동시에 가질 수 있다.
       // 두 버킷은 서로 다른 AE(toggle:<id> / applied_self_<id>)에 저장되고 항목이 겹치지
       // 않으므로(selfFrozenAttributes / appliesWhileActive) 이중 가산 없이 함께 걸린다.
       const hasActivationBucket = adapter ? adapter.hasExplicitBucket(item, 'self', 'activation') : false;
-      if (!forceToggle && !toggleChannelOnly && applyMode === 'onUse') {
+      if (!forceToggle && applyMode === 'onUse') {
         // active.state 는 '활성화' 채널의 상태다. 동결 채널을 타는 아이템이 그걸 켜고 있으면
         // 잔재다(구버전 장착 훅이 켜 둔 선언형 장비, 시트 체크박스). 그대로 두면 같은 보정이
         // 두 번 센다 — 장비는 actor.js activeItems 자체계산이, 이펙트류는 toggle:<id> AE 가
@@ -702,6 +825,7 @@
       const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
       const items = [];
       for (const item of actor.items) {
+        if (window.DX3rdIsInstantCombo?.(item)) continue;
         const compendiumItem = compendiumIndex.get(this._cleanDefenseReactionName(item.name));
         if (!this._isDefenseReactionCandidate(item, compendiumItem)) continue;
         const exhausted = window.DX3rdItemExhausted?.isItemExhausted(item) || false;

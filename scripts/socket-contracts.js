@@ -46,7 +46,7 @@
     'executeAfterDamageActivation',
     'showNoDamageNotification',
     'applyEffectToTarget'
-  ], { senderRole: 'gm', validate: hasObject('payload') });
+  ], { senderRole: 'gm', validate: data => hasObject('payload')(data) && isId(data.executorUserId) });
 
   // Owner-to-GM state requests.
   contract('actionTrackerConsume', {
@@ -81,16 +81,23 @@
     validate: data => isObject(data.payload) && isId(data.payload.attackerId)
       && isId(data.payload.itemId) && isId(data.payload.damageRequestId)
       && isIdArray(data.payload.targetActorIds) && isIdArray(data.payload.targetTokenIds)
-      && data.payload.targetActorIds.length === data.payload.targetTokenIds.length,
+      && data.payload.targetActorIds.length === data.payload.targetTokenIds.length
+      && (data.payload.pendingAttackRiders === undefined
+        || (Array.isArray(data.payload.pendingAttackRiders)
+          && data.payload.pendingAttackRiders.every(rider => isObject(rider)
+            && isId(rider.itemId) && isObject(rider.targetAttributes)
+            && rider.preEvaluated === true))),
     authorize: ownsActor('payload.attackerId')
   });
   contract('registerTargetApply', {
     validate: data => isObject(data.payload) && isId(data.payload.sourceActorId)
-      && isId(data.payload.targetActorId) && isId(data.payload.itemId),
+      && isId(data.payload.targetActorId) && isId(data.payload.itemId)
+      && (data.payload.preEvaluated === undefined || typeof data.payload.preEvaluated === 'boolean'),
     authorize: ownsActor('payload.sourceActorId')
   });
   contract(['reportDamageForApply', 'reportDamageForActivation'], {
     validate: data => isObject(data.payload) && isId(data.payload.targetActorId) && isId(data.payload.itemId)
+      && (data.payload.attackHit === undefined || typeof data.payload.attackHit === 'boolean')
       && (data.type === 'reportDamageForApply'
         || (isId(data.payload.damageRequestId) && isId(data.payload.targetTokenId))),
     authorize: ownsActor('payload.targetActorId')
@@ -98,7 +105,7 @@
   contract('showDefenseDialog', {
     validate: data => isObject(data.dialogData) && isId(data.dialogData.attackerId)
       && isId(data.dialogData.targetActorId) && isId(data.dialogData.targetTokenId)
-      && isId(data.dialogData.damageRequestId),
+      && isId(data.dialogData.damageRequestId) && isId(data.executorUserId),
     authorize: ownsActor('dialogData.attackerId')
   });
   contract('cancelAfterDamageRequest', {
@@ -109,7 +116,9 @@
   });
   contract('applyItemAttributes', {
     validate: data => isObject(data.payload) && isId(data.payload.sourceActorId)
-      && isId(data.payload.targetActorId) && isId(data.payload.itemId),
+      && isId(data.payload.targetActorId) && isId(data.payload.itemId)
+      && (data.payload.preEvaluated === undefined || typeof data.payload.preEvaluated === 'boolean')
+      && isId(data.executorUserId),
     authorize: ownsActor('payload.sourceActorId')
   });
   contract('addToAfterMainQueue', {

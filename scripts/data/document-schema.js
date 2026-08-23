@@ -28,8 +28,10 @@
  * 읽고 있었다. 선언이 사라지면서 그 처리가 조용히 0건이 됐고 — 사독(클린업 HP 감소)만
  * 남고 회복(클린업 HP 증가)이 없는 비대칭이 됐다 — 그래서 되살렸다. 빼지 말 것.
  *
- * spell/psionic/combo 에 `active.applyMode` 가 없는 것은 실수가 아니다 — 없어야
- * universal-apply 가 'onUse' 로 떨어진다(runtime-core.test.mjs 가 검증). 채우지 말 것.
+ * 지속 효과 카드를 그리는 활성 아이템 타입은 카드의 두 축을 모두 저장해야 한다.
+ * `active.action`/`applyMode` 는 자기 보정의 발현 액션·적용 채널을, `effect.action` 은
+ * 대상 보정의 발현 액션을 보존한다. 이 필드가 없으면 시트에서는 바뀐 것처럼 보여도
+ * DataModel 정리에서 사라지고, 적용기가 타입 폴백으로 다른 채널을 실행하게 된다.
  */
 (function () {
   // template.json 과 같은 모양이다(types / templates / 타입별 정의). 도구가 그대로 읽는다.
@@ -187,14 +189,14 @@
         reaction: {},
         dodge: {},
         weapon: [],
-        active: { state: false, disable: '-', runTiming: 'instant' },
+        active: { state: false, disable: '-', runTiming: 'instant', action: '', applyMode: 'onUse' },
         attributes: {},
         weaponSelect: false,
         getTarget: false,
         scene: false,
         macro: '',
         macros: [],
-        effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
+        effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
         // 실측 보강: 콤보 구성 UI 가 쓰는 3필드(월드 72건). effectIds 는 구성 이펙트의 정본이다.
         effectIds: [],
         effectTmp: '-',
@@ -207,8 +209,8 @@
         invoke: { value: '0' },
         evocation: { value: '-' },
         encroach: { value: '0' },
-        effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
-        active: { state: false, disable: '-', runTiming: 'instant' },
+        effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
+        active: { state: false, disable: '-', runTiming: 'instant', action: '', applyMode: 'onUse' },
         attributes: {},
         getTarget: false,
         scene: false,
@@ -237,8 +239,8 @@
         // 실측 보강: psionic-sheet-v2 가 level.value 와 무기 선택 3필드를 쓴다(이펙트와 동형).
         level: { init: 1, max: 1, value: 0, upgrade: true },
         exp: { own: true, upgrade: true },
-        effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
-        active: { state: false, disable: '-', runTiming: 'instant' },
+        effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
+        active: { state: false, disable: '-', runTiming: 'instant', action: '', applyMode: 'onUse' },
         used: { state: 0, max: 0, level: false, disable: 'notCheck' },
         attributes: {},
         getTarget: false,

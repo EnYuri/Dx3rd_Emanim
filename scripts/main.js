@@ -937,6 +937,7 @@ Hooks.once('ready', async function() {
               targetActorIds: targetActorIds,
               targetTokenIds: targetTokenIds,
               damageReports: {},
+              hitReports: {},
               reportActorIds: {},
               reportCount: 0,
               extensions: extensions,
@@ -958,21 +959,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 현재 유저가 공격자의 소유자인지 확인
-            if (!attacker.isOwner) {
-                return;
-            }
-            
-            // GM이 아닌 소유자가 있는지 확인
-            const nonGMOwners = game.users.filter(user => 
-                !user.isGM && 
-                attacker.testUserPermission(user, 'OWNER')
-            );
-            
-            // GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
-                return;
-            }
+            if (!socketRouter.isActorExecutorMessage(data, attacker)) return;
             
             const item = attacker.items.get(itemId);
             if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.executeMacros) {
@@ -987,7 +974,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            const { attackerId, itemId, damageRequestId, targetActorIds, targetTokenIds, shouldExecuteMacro, shouldActivate, shouldApplyToTargets, needsDialog, comboAfterDamageData } = data.payload;
+            const { attackerId, itemId, damageRequestId, targetActorIds, targetTokenIds, shouldExecuteMacro, shouldActivate, shouldApplyToTargets, needsDialog, comboAfterDamageData, pendingAttackRiders } = data.payload;
             const queueKey = damageRequestId;
 
             window.DX3rdAfterDamageActivationQueue[queueKey] = {
@@ -997,6 +984,7 @@ Hooks.once('ready', async function() {
                 targetActorIds: targetActorIds,
                 targetTokenIds: targetTokenIds,
                 damageReports: {},
+                hitReports: {},
                 reportActorIds: {},
                 reportCount: 0,
                 shouldExecuteMacro: shouldExecuteMacro,
@@ -1004,6 +992,7 @@ Hooks.once('ready', async function() {
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
                 comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
+                pendingAttackRiders: Array.isArray(pendingAttackRiders) ? pendingAttackRiders : [],
                 createdAt: Date.now()
             };
             window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
@@ -1016,7 +1005,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            const { attackerId, itemId, damageRequestId, targetActorId, targetTokenId, hpChange } = data.payload;
+            const { attackerId, itemId, damageRequestId, targetActorId, targetTokenId, hpChange, attackHit } = data.payload;
             const queueKey = damageRequestId;
             const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[queueKey];
             const extensionMatches = extensionRequest
@@ -1026,7 +1015,8 @@ Hooks.once('ready', async function() {
                 const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
                     targetTokenId,
                     targetActorId,
-                    hpChange
+                    hpChange,
+                    attackHit
                 });
                 if (report.accepted && report.complete && !extensionRequest.processing) {
                     extensionRequest.processing = true;
@@ -1050,7 +1040,8 @@ Hooks.once('ready', async function() {
                 const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
                     targetTokenId,
                     targetActorId,
-                    hpChange
+                    hpChange,
+                    attackHit
                 });
 
                 // 모든 타겟이 보고했는지 확인.
@@ -1067,16 +1058,16 @@ Hooks.once('ready', async function() {
                     const damagedTargets = [...new Set(damagedReports
                         .map(([tokenId]) => request.reportActorIds[tokenId])
                         .filter(Boolean))];
+                    const hitTokenIds = Object.entries(request.hitReports || {})
+                        .filter(([, hit]) => hit === true)
+                        .map(([tokenId]) => tokenId);
+                    const hitTargets = [...new Set(hitTokenIds
+                        .map(tokenId => request.reportActorIds[tokenId])
+                        .filter(Boolean))];
                     
-                    // 최신 아이템 상태로 횟수 체크
                     const attacker = game.actors.get(attackerId);
                     const currentItem = attacker?.items.get(itemId);
                     const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
-                    const usedState = currentItem?.system?.used?.state || 0;
-                    const usedMax = currentItem?.system?.used?.max || 0;
-                    // 소진을 차단으로 이을지는 월드 설정이 정한다(기본: 잇지 않음).
-                    const isUsageExhausted = usedDisable !== 'notCheck' && usedState >= usedMax && usedMax > 0
-                        && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false;
 
                     // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
                     const comboData = request.comboAfterDamageData;
@@ -1093,36 +1084,44 @@ Hooks.once('ready', async function() {
                         if (window.DX3rdUniversalHandler) {
                             await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
                         }
+                    } else if (comboData) {
+                        // The afterDamage trigger did not fire, but the hidden source no longer has
+                        // pending work for this attack. Release it just like a completed trigger.
+                        await window.DX3rdInstantComboRetention?.complete?.(attacker, itemId, 'afterDamage');
+                    }
+
+                    if (hitTargets.length > 0) {
+                        await window.DX3rdUniversalHandler?.processPendingAttackRiders?.(
+                            attacker, request.pendingAttackRiders, hitTargets, hitTokenIds);
                     }
                     
                     // 1️⃣ 매크로 실행 (한 명이라도 HP 데미지 받았으면)
                     if (request.shouldExecuteMacro && damagedTargets.length > 0) {
-                        window.DX3rdSocketRouter.emit({
+                        window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'executeAfterDamageMacro',
                             payload: {
                                 attackerId: attackerId,
                                 itemId: itemId,
                                 hpChange: damagedTargets.length
                             }
-                        });
+                        }, attacker);
                     }
                     
                     // 2️⃣ 활성화/효과 적용 처리
                     if (damagedTargets.length === 0) {
                         // 아무도 데미지 안 받음: NoDamage 알림
-                        window.DX3rdSocketRouter.emit({
+                        window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
-                        });
-                    } else if (isUsageExhausted && (request.shouldActivate || request.shouldApplyToTargets)) {
-                        // 횟수 소진: 활성화/적용 불가, 아무 작업도 하지 않음
-                    } else {
-                        // 최소 한 명 데미지 받음 & 횟수 남음: 처리 지시
+                        }, attacker);
+                    } else if (request.shouldActivate || request.shouldApplyToTargets) {
+                        // The originating action already passed the usage gate and spent its count.
+                        // This confirmation controls only the optional after-damage effect.
                         const needsConfirmation = request.needsDialog && usedDisable !== 'notCheck';
                         
                         if (needsConfirmation) {
                             // 무기/비클 + 횟수 제한 있음: 다이얼로그
-                            window.DX3rdSocketRouter.emit({
+                            window.DX3rdSocketRouter.emitToActorExecutor({
                                 type: 'showAfterDamageDialog',
                                 payload: {
                                     attackerId: attackerId,
@@ -1131,10 +1130,10 @@ Hooks.once('ready', async function() {
                                     shouldActivate: request.shouldActivate,
                                     shouldApplyToTargets: request.shouldApplyToTargets
                                 }
-                            });
+                            }, attacker);
                         } else {
                             // 나머지 (무기/비클 notCheck 포함): 자동 활성화
-                            window.DX3rdSocketRouter.emit({
+                            window.DX3rdSocketRouter.emitToActorExecutor({
                                 type: 'executeAfterDamageActivation',
                                 payload: {
                                     actorId: attackerId,
@@ -1143,7 +1142,7 @@ Hooks.once('ready', async function() {
                                     shouldActivate: request.shouldActivate,
                                     shouldApplyToTargets: request.shouldApplyToTargets
                                 }
-                            });
+                            }, attacker);
                         }
                     }
                     
@@ -1163,7 +1162,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            const { sourceActorId, itemId, targetActorId, targetAttributes } = data.payload;
+            const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
             const queueKey = `${targetActorId}_${itemId}`;
             
             window.DX3rdTargetApplyQueue[queueKey] = {
@@ -1171,6 +1170,7 @@ Hooks.once('ready', async function() {
                 itemId: itemId,
                 targetActorId: targetActorId,
                 targetAttributes: targetAttributes,
+                preEvaluated,
                 timestamp: Date.now()
             };
         } else if (data.type === 'reportDamageForApply') {
@@ -1189,15 +1189,17 @@ Hooks.once('ready', async function() {
             if (applyRequest) {
                 if (hpChange >= 1) {
                     // HP 감소했으면 타겟에게 효과 적용 지시
-                    window.DX3rdSocketRouter.emit({
+                    const targetActor = game.actors.get(targetActorId);
+                    window.DX3rdSocketRouter.emitToActorExecutor({
                         type: 'applyEffectToTarget',
                         payload: {
                             sourceActorId: applyRequest.sourceActorId,
                             itemId: applyRequest.itemId,
                             targetActorId: targetActorId,
-                            targetAttributes: applyRequest.targetAttributes
+                            targetAttributes: applyRequest.targetAttributes,
+                            preEvaluated: applyRequest.preEvaluated === true
                         }
-                    });
+                    }, targetActor);
                 }
                 
                 // 요청 삭제 (HP 감소 여부 무관)
@@ -1213,10 +1215,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 현재 유저가 공격자 소유자인지 확인
-            if (!actor.isOwner) {
-                return;
-            }
+            if (!socketRouter.isActorExecutorMessage(data, actor)) return;
             
             const item = actor.items.get(itemId);
             if (!item) {
@@ -1238,10 +1237,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 현재 유저가 공격자 소유자인지 확인
-            if (!actor.isOwner) {
-                return;
-            }
+            if (!socketRouter.isActorExecutorMessage(data, actor)) return;
             
             const item = actor.items.get(itemId);
             if (!item) {
@@ -1275,16 +1271,8 @@ Hooks.once('ready', async function() {
                             // GM이면 직접 적용
                             await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
                         } else {
-                            // 일반 유저는 소켓 전송
-                            window.DX3rdSocketRouter.emit({
-                                type: 'applyItemAttributes',
-                                payload: {
-                                    sourceActorId: actor.id,
-                                    itemId: item.id,
-                                    targetActorId: targetId,
-                                    targetAttributes: targetAttributes
-                                }
-                            });
+                            // 일반 유저는 사용 클라이언트에서 수식을 동결한 뒤 대상 소유자에게 넘긴다.
+                            await window.DX3rdUniversalHandler.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
                         }
                     }
                 }
@@ -1296,10 +1284,7 @@ Hooks.once('ready', async function() {
             const actor = game.actors.get(attackerId);
             if (!actor) return;
             
-            // 현재 유저가 공격자 소유자인지 확인
-            if (!actor.isOwner) {
-                return;
-            }
+            if (!socketRouter.isActorExecutorMessage(data, actor)) return;
             
             // 알림 다이얼로그 표시
             new foundry.applications.api.DialogV2({
@@ -1316,7 +1301,7 @@ Hooks.once('ready', async function() {
             }).render(true);
         } else if (data.type === 'applyEffectToTarget') {
             // 타겟 소유자: GM으로부터 효과 적용 명령 받음
-            const { sourceActorId, itemId, targetActorId, targetAttributes } = data.payload;
+            const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
             
             const sourceActor = game.actors.get(sourceActorId);
             const targetActor = game.actors.get(targetActorId);
@@ -1326,26 +1311,12 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 현재 유저가 타겟 액터의 소유자인지 확인
-            if (!targetActor.isOwner) {
-                return;
-            }
-            
-            // 접속 중인 GM이 아닌 소유자가 있는지 확인
-            const nonGMOwners = game.users.filter(user => 
-                !user.isGM && 
-                user.active &&  // 접속 중인 유저만
-                targetActor.testUserPermission(user, 'OWNER')
-            );
-            
-            // 접속 중인 GM이 아닌 소유자가 있으면 GM은 무시
-            if (game.user.isGM && (!socketRouter.isResponsibleGM() || nonGMOwners.length > 0)) {
-                return;
-            }
+            if (!socketRouter.isActorExecutorMessage(data, targetActor)) return;
             
             const item = sourceActor.items.get(itemId);
             if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._applyItemAttributes) {
-                await window.DX3rdUniversalHandler._applyItemAttributes(sourceActor, item, targetActor, targetAttributes);
+                await window.DX3rdUniversalHandler._applyItemAttributes(
+                    sourceActor, item, targetActor, targetAttributes, { preEvaluated });
             }
         }
     });
@@ -1584,7 +1555,9 @@ window.DX3rdInstantComboCleanup = {
     audit() {
         const rows = [];
         for (const actor of game.actors) {
-            const items = actor.items.filter(item => window.DX3rdIsInstantCombo?.(item));
+            // Retained instant combos are live sources for delayed/persistent effects, not orphans.
+            const items = actor.items.filter(item => window.DX3rdIsInstantCombo?.(item)
+                && !window.DX3rdInstantComboRetention?.isRetained?.(item));
             if (items.length) rows.push({ actor, items });
         }
         return { actors: rows.length, items: rows.reduce((count, row) => count + row.items.length, 0), rows };

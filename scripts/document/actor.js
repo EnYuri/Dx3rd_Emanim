@@ -251,7 +251,7 @@
             
             // Enemies hold combos and effects only
             if (isEnemy) {
-                this.comboList = items.filter(i => i.type === "combo");
+                this.comboList = items.filter(i => i.type === "combo" && !window.DX3rdIsInstantCombo?.(i));
                 this.effectList = items.filter(i => i.type === "effect");
                 // The rest stay empty
                 this.workList = [];
@@ -282,6 +282,7 @@
                 this.loisList = [];
                 this.recordList = [];
                 for (const it of items) {
+                    if (window.DX3rdIsInstantCombo?.(it)) continue;
                     switch (it.type) {
                         case "works": this.workList.push(it); break;
                         case "syndrome": this.syndromeList.push(it); break;
@@ -1314,6 +1315,7 @@
          *    finalized stats — the original timing is preserved.
          *  - Evaluator arguments follow the documented signature evaluate(formula, item, actor), fixing
          *    the swapped-argument quirk of the old hp/init loops. NaN is absorbed to 0.
+         */
         _makeContribReader(activeItems, appliedByKey) {
             const actor = this;
             const ev = (v, item) => Number(window.DX3rdFormulaEvaluator.evaluate(v, item, actor)) || 0;

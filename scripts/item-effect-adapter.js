@@ -250,6 +250,25 @@
     return lifecycle.runTiming === '-' || lifecycle.runTiming === timing;
   }
 
+  /** 그 발현 액션에 속한 자기 보정 전부. 토글/동결 여부는 적용 시점에서 따로 결정한다. */
+  function selfBucketAttributes(item, action = null) {
+    const expected = normalizeAction(action) || channelAction(item, 'self');
+    const out = {};
+    for (const [key, entry] of attributeEntries(attributeMap(item, 'self'))) {
+      if (attributeAction(item, 'self', entry) === expected) out[key] = entry;
+    }
+    return out;
+  }
+
+  /** 그 자기 보정 버킷이 이 타이밍에 발현하는가(버킷 자체 수명 기준). */
+  function selfFiresAt(item, action = null, timing = 'instant') {
+    const expected = normalizeAction(action) || eventAction(item, timing);
+    const lifecycle = bucketLifecycle(item, 'self', expected);
+    if (lifecycle.disable === 'notCheck') return false;
+    if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== timing) return false;
+    return hasUsableEntries(selfBucketAttributes(item, expected));
+  }
+
   function hasExplicitBucket(item, channel, action) {
     const expected = normalizeAction(action);
     if (!expected) return false;
@@ -265,10 +284,7 @@
   function selfChannelIsToggle(item) {
     if (!item) return false;
     if (channelAction(item, 'self') === 'activation') return true;
-    // applyMode 를 저작할 수 없는 토글 타입(spell/psionic/combo)은 토글 채널로 고정된다.
-    const toggleTypes = window.DX3rdAppliedToggle?.TOGGLE_TYPES || ['effect', 'spell', 'psionic', 'combo'];
     const active = item.system?.active || {};
-    if (toggleTypes.includes(item.type) && !('applyMode' in active)) return true;
     return (active.applyMode || 'onUse') === 'toggle';
   }
 
@@ -908,6 +924,18 @@
       .some(card => card.active && card.action === expected);
   }
 
+  /**
+   * A combo member normally keeps its own use/attack role. If the combo's action differs and the
+   * member explicitly owns a live bucket for that action, honor the authored bucket instead.
+   * Activation is never inherited from combo inclusion.
+   */
+  function comboMemberAction(item, parentAction = null) {
+    const intrinsic = invocationAction(item);
+    const parent = normalizeAction(parentAction);
+    if (!parent || parent === 'activation' || parent === intrinsic) return intrinsic;
+    return hasActionEffects(item, parent) ? parent : intrinsic;
+  }
+
   /** 채널 자체의 발현 액션을 옮기는 갱신 데이터(기본 버킷을 옮길 때만 쓴다). */
   function channelActionUpdates(channel, action) {
     if (channel === 'self') {
@@ -1390,13 +1418,13 @@
     declaresActivationSelfModifiers, usesActivationSelfChannel, useMeansActivation, selfModifiersPending,
     collectImmediate, collectPersistent, prepareSheetContext, conditionEntries,
     extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, requiresAnyTarget, extensionEntries,
-    hasActionEffects, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,
+    hasActionEffects, comboMemberAction, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,
     directTitle, isConfiguredCondition,
     // 지속 효과 버킷(카드 = 채널 × 발현 액션, 카드마다 자기 발현·소멸 타이밍)
     channelAction, attributeAction, selfChannelIsToggle, appliesWhileActive, hasExplicitBucket,
     selfToggleBucketMatches,
-    selfFrozenAttributes, hasFrozenSelfBucket, targetBucketAttributes, modifierBuckets, actionLabel,
-    bucketLifecycle, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
+    selfFrozenAttributes, selfBucketAttributes, hasFrozenSelfBucket, targetBucketAttributes, modifierBuckets, actionLabel,
+    bucketLifecycle, selfFiresAt, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
     addModifierBucket, deleteModifierBucket, moveModifierToBucket, updateModifierChannel
   };
 })();

@@ -43,7 +43,7 @@
     };
   }
 
-  function recordAfterDamageReport(request, { targetTokenId, targetActorId, hpChange } = {}) {
+  function recordAfterDamageReport(request, { targetTokenId, targetActorId, hpChange, attackHit } = {}) {
     if (!request || !targetTokenId || !targetActorId) {
       return { accepted: false, complete: false, reportCount: 0, targetCount: 0 };
     }
@@ -59,8 +59,15 @@
       };
     }
     request.damageReports ||= {};
+    request.hitReports ||= {};
     request.reportActorIds ||= {};
-    request.damageReports[targetTokenId] = Number(hpChange) || 0;
+    const normalizedHpChange = Number(hpChange) || 0;
+    request.damageReports[targetTokenId] = normalizedHpChange;
+    // Older senders did not report hit state. Their safest compatible meaning is
+    // the former trigger condition: actual HP loss implies a hit.
+    request.hitReports[targetTokenId] = typeof attackHit === 'boolean'
+      ? attackHit
+      : normalizedHpChange > 0;
     request.reportActorIds[targetTokenId] = targetActorId;
     request.reportCount = Object.keys(request.damageReports).length;
     return {

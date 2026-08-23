@@ -25,7 +25,7 @@ window.DX3rdEffectHandler = {
         }
 
         // 이펙트 롤 타입 분기: '-'는 기본 로직, 그 외는 판정 처리
-        const rollType = item.system?.roll ?? '-';
+        const rollType = window.DX3rdUniversalHandler.resolveInvocationRollType(item, options);
         // attackRoll(백병/사격)이 설정된 자체공격 이펙트는 roll이 '-'라도 공격 판정으로 라우팅한다.
         // (자동 기계화가 roll을 '-'로 둔 케이스의 안전망이며, 향후 공격 이펙트도 자동 커버한다.)
         const hasAttackRoll = item.system?.attackRoll && item.system.attackRoll !== '-';

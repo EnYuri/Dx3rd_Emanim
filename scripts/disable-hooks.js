@@ -40,6 +40,7 @@
             let deactivatedCount = 0;
             let removedAppliedCount = 0;
             let resetUsageCount = 0;
+            let clearedPendingRiderCount = 0;
 
             for (const actor of actors) {
                 const updates = {};
@@ -47,13 +48,31 @@
                 const itemsToResetUsage = [];
                 const appliedToRemove = [];
 
+                // Prepared ammunition and similar effects belong to one main process. If no attack
+                // claimed them, discard the actor-side pending snapshot at that process boundary.
+                if (timing === 'main') {
+                    const pendingRiders = actor.getFlag?.('dx3rd-emanim', 'pendingAttackRiders');
+                    if (Array.isArray(pendingRiders) && pendingRiders.length > 0) {
+                        await actor.unsetFlag('dx3rd-emanim', 'pendingAttackRiders');
+                        clearedPendingRiderCount += pendingRiders.length;
+                    }
+                }
+
                 // 액터의 모든 아이템 확인
                 for (const item of actor.items) {
                     let shouldDeactivate = false;
                     let shouldResetUsage = false;
 
-                    // active.disable 확인
-                    if (item.system.active?.state && item.system.active?.disable === timing) {
+                    // active.state 는 자기 보정의 「활성화」 버킷 상태다. 사용/공격 버킷이
+                    // 채널 기본 버킷인 혼합 아이템에서는 system.active.disable 이 그쪽 수명이고,
+                    // 활성화 버킷은 buckets.activation.disable 로 별도 수명을 가질 수 있다.
+                    // 평탄 필드만 보면 첫 사용 버킷이 끝날 때 상시 버킷까지 꺼져, 같은 조합을
+                    // 다시 쓸 때 콤보가 활성화 버킷을 재점등하지 않는 정상 규칙과 맞물려 보정이 사라진다.
+                    const adapter = window.DX3rdItemEffectAdapter;
+                    const activeDisable = adapter?.usesActivationSelfChannel?.(item)
+                        ? adapter.bucketLifecycle(item, 'self', 'activation').disable
+                        : item.system.active?.disable;
+                    if (item.system.active?.state && activeDisable === timing) {
                         shouldDeactivate = true;
                     }
 
@@ -124,14 +143,28 @@
                 }
 
                 // 아이템 비활성화
+                const deactivatedItems = [];
                 for (const item of itemsToDeactivate) {
                     try {
                         await item.update({ 'system.active.state': false });
+                        deactivatedItems.push(item);
                         deactivatedCount++;
                         window.DX3rdDebug.log(`DX3rd | DisableHooks - Deactivated item: ${item.name} (${item.type}) on actor ${actor.name}`);
                     } catch (error) {
                         console.error(`DX3rd | DisableHooks - Failed to deactivate item ${item.name}:`, error);
                     }
+                }
+
+                // Effect-like toggle modifiers live in toggle:<itemId> AEs, not on the item itself.
+                // The general updateItem synchronizer is debounced by 50 ms, so remove these derived
+                // AEs before returning; subsequent automation may read actor data immediately.
+                const toggleTypes = new Set(window.DX3rdAppliedToggle?.TOGGLE_TYPES
+                    || ['effect', 'spell', 'psionic', 'combo']);
+                const expiredToggleKeys = deactivatedItems
+                    .filter(item => toggleTypes.has(item.type))
+                    .map(item => `toggle:${item.id}`);
+                if (expiredToggleKeys.length) {
+                    await window.DX3rdAppliedEffects.removeMany(actor, expiredToggleKeys);
                 }
 
                 // 익스텐션으로 부여한 코어 상태 AE는 출처별 수명만 종료한다.
@@ -171,7 +204,17 @@
                 }
             }
 
-            window.DX3rdDebug.log(`DX3rd | DisableHooks - ${timing} hook completed. Actors: ${actors.length}, Deactivated: ${deactivatedCount}, Reset Usage: ${resetUsageCount}, Removed Applied: ${removedAppliedCount}`);
+            // Hidden instant combos own their toggle AE until the authored lifecycle ends. Settle the
+            // toggle projection first, then remove source documents that have no pending or applied work.
+            const retainedActors = Array.from(game.actors || []).filter(actor =>
+                Array.from(actor.items || []).some(item =>
+                    window.DX3rdInstantComboRetention?.isRetained?.(item)));
+            for (const actor of retainedActors) {
+                await window.DX3rdAppliedToggle?.sync?.(actor);
+            }
+            await window.DX3rdInstantComboRetention?.sweep?.();
+
+            window.DX3rdDebug.log(`DX3rd | DisableHooks - ${timing} hook completed. Actors: ${actors.length}, Deactivated: ${deactivatedCount}, Reset Usage: ${resetUsageCount}, Removed Applied: ${removedAppliedCount}, Cleared Pending Riders: ${clearedPendingRiderCount}`);
         }
 
         /**

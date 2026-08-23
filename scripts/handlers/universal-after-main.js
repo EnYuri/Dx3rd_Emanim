@@ -201,6 +201,7 @@
       }
 
       await game.settings.set('dx3rd-emanim', SETTING, failedEntries);
+      await window.DX3rdInstantComboRetention?.sweep?.();
       if (newFailures) {
         ui.notifications.error(game.i18n.format('DX3rd.AfterMainQueueFailed', { count: newFailures }));
       }
@@ -213,6 +214,7 @@
     if (!socketRouter.isResponsibleGM()) return Promise.resolve(false);
     return withQueueLock(async () => {
       await game.settings.set('dx3rd-emanim', SETTING, []);
+      await window.DX3rdInstantComboRetention?.sweep?.();
       window.DX3rdDebug.log('DX3rd | AfterMain queue manually cleared');
       return true;
     });
@@ -243,6 +245,7 @@
         await executeQueueEntry(entry);
         queue.splice(index, 1);
         await game.settings.set('dx3rd-emanim', SETTING, queue);
+        await window.DX3rdInstantComboRetention?.sweep?.();
         return { found: true, processed: true };
       } catch (error) {
         queue[index] = {
@@ -266,6 +269,7 @@
       const next = queue.filter(entry => entry.queueId !== queueId);
       if (next.length === queue.length) return false;
       await game.settings.set('dx3rd-emanim', SETTING, next);
+      await window.DX3rdInstantComboRetention?.sweep?.();
       return true;
     });
   };

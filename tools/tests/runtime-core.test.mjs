@@ -146,6 +146,30 @@ test('basic encroachment sums the shared encroach.init field on every non-record
   );
 });
 
+test('actor preparation helpers are real prototype methods, not swallowed by comments', () => {
+  class ActorMock {
+    prepareData() {}
+    async _preUpdate() {}
+    importFromJSON() {}
+  }
+  const context = baseContext({
+    foundry: {
+      documents: { Actor: ActorMock },
+      utils: {}
+    },
+    Actor: ActorMock,
+    CONFIG: { Actor: {} },
+    game: { settings: { get: () => '-' } }
+  });
+  load(context, 'scripts/document/actor.js');
+
+  const prototype = context.CONFIG.Actor.documentClass.prototype;
+  assert.equal(typeof prototype._prepareActorEnc, 'function',
+    '침식률 준비 메서드가 없으면 모든 캐릭터 prepareData가 첫 단계에서 중단된다');
+  assert.equal(typeof prototype._makeContribReader, 'function',
+    '보정치 리더가 없으면 캐릭터와 에너미의 파생 어트리뷰트를 계산할 수 없다');
+});
+
 test('saving points are recalculated from the current maximum and owned item costs', () => {
   class ActorMock {
     prepareData() {}
@@ -277,10 +301,12 @@ test('the document schema declares every field live documents and sheets actuall
   assert.equal(merged('Item', 'spell').roll, '-', 'spell.roll — 판정 종류(-/CastingRoll)');
   assert.equal(merged('Item', 'connection').macro, '', 'connection.macro');
 
-  // 없어야 하는 것. 이 세 타입에 applyMode 가 생기면 universal-apply 가 동결 채널로 보낸다.
+  // 지속 효과 UI를 공유하는 타입은 카드 축을 실제 문서에 보존해야 한다. 이 필드가 없으면
+  // 기본 버킷의 드롭다운만 바뀐 것처럼 보이고 다음 DataModel 정리에서 원래 값으로 돌아간다.
   for (const type of ['spell', 'psionic', 'combo']) {
-    assert.ok(!('applyMode' in merged('Item', type).active),
-      `${type}.active.applyMode 는 없어야 'onUse' 로 떨어진다`);
+    assert.equal(merged('Item', type).active.action, '', `${type}.active.action`);
+    assert.equal(merged('Item', type).active.applyMode, 'onUse', `${type}.active.applyMode`);
+    assert.equal(merged('Item', type).effect.action, '', `${type}.effect.action`);
   }
 
   // 버킷은 저작 전에는 없어야 한다 — 기본값으로 빈 객체를 채우면 「버킷이 있는가」 판정이 흔들린다.
@@ -403,6 +429,110 @@ test('effect level includes active effect_level bonuses and ignores disabled eff
   assert.deepEqual(result, { normal: 5, upgraded: 7, bonus: 2 });
 });
 
+test('a preparation item freezes onto one attack card and reaches only actors that were hit', async () => {
+  const flags = new Map();
+  const sourceItem = {
+    id: 'ammo1', name: '항 레니게이드 탄', type: 'once',
+    system: {
+      attackRoll: '-',
+      active: {state: false, disable: '-', runTiming: 'instant', action: ''},
+      effect: {
+        disable: 'round', runTiming: 'afterDamage',
+        attributes: {penalty: {key: 'dice', label: '-', value: '[level]'}}
+      }
+    },
+    getFlag: () => ({})
+  };
+  const actor = {
+    id: 'attacker', name: '공격자', type: 'character',
+    items: new Map([[sourceItem.id, sourceItem]]),
+    getFlag: (_scope, key) => flags.get(key),
+    setFlag: async (_scope, key, value) => { flags.set(key, structuredClone(value)); },
+    unsetFlag: async (_scope, key) => { flags.delete(key); }
+  };
+  const target = {id: 'target', name: '대상'};
+  const tokens = new Map([['token1', {id: 'token1', actor: target}]]);
+  const context = baseContext({
+    game: {
+      actors: new Map([[actor.id, actor], [target.id, target]]),
+      user: {isGM: true, targets: new Set()}, macros: {getName: () => null},
+      scenes: {active: null}, settings: {get: () => false},
+      i18n: {localize: key => key, format: key => key}
+    },
+    canvas: {tokens: {get: id => tokens.get(id), placeables: [], controlled: []}},
+    ui: {notifications: {warn: () => {}, error: () => {}, info: () => {}}, windows: {}},
+    Hooks: {once: () => {}, on: () => {}, callAll: () => {}},
+    CONFIG: {statusEffects: []},
+    foundry: {utils: {
+      deepClone: value => structuredClone(value),
+      getProperty: () => undefined
+    }}
+  });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula: () => '7', evaluate: () => 7,
+    isRollTimeKey: () => false, hasDice: () => false
+  };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+
+  const handler = context.DX3rdUniversalHandler;
+  assert.equal(await handler.armPendingAttackRider(actor, sourceItem, 'use'), true);
+  assert.equal(flags.get('pendingAttackRiders')[0].targetAttributes.penalty.value, 7,
+    '다음 클라이언트가 복원할 수 없는 사용 시점 수식은 대기 전에 동결해야 한다');
+
+  const messageFlags = new Map();
+  const attackMessage = {
+    getFlag: (_scope, key) => messageFlags.get(key),
+    setFlag: async (_scope, key, value) => { messageFlags.set(key, structuredClone(value)); }
+  };
+  const bound = await handler.bindPendingAttackRiders(actor, attackMessage);
+  assert.equal(bound.length, 1);
+  assert.equal(flags.has('pendingAttackRiders'), false, '한 공격에 귀속된 대기 효과가 다음 공격에도 남으면 안 된다');
+
+  const applied = [];
+  handler.dispatchItemAttributes = async (_source, item, appliedActor, attrs, options) => {
+    applied.push({item: item.id, actor: appliedActor.id, value: attrs.penalty.value, options});
+  };
+  await handler.processPendingAttackRiders(actor, bound, [target.id], ['token1']);
+  assert.deepEqual(plain(applied), [{
+    item: sourceItem.id, actor: target.id, value: 7, options: {preEvaluated: true}
+  }]);
+});
+
+test('accepted after-damage work is never rejected by the already-spent usage counter', () => {
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  const main = source('scripts/main.js').replace(/\s+/g, ' ');
+  assert.ok(damage.includes(
+    'shouldExecuteMacro || pendingAttackRiders.length > 0) { const needsDialog'),
+    '매크로 유무와 무관하게 선행 효과를 같은 damageRequestId 큐에 등록해야 한다');
+  assert.doesNotMatch(damage, /const shouldRegister = shouldExecuteMacro/,
+    '매크로가 횟수 게이트의 숨은 우회 조건이면 안 된다');
+  assert.doesNotMatch(damage, /isUsageExhausted/,
+    '승인·소비가 끝난 행동의 후속 단계에서 현재 횟수를 다시 검사하면 max 1 효과가 죽는다');
+  assert.doesNotMatch(main, /isUsageExhausted/,
+    '원격 GM 보고 경로도 같은 승인 계약을 따라야 한다');
+  assert.doesNotMatch(damage, /Used count increased on afterDamage/,
+    '후속 확인 버튼에서 횟수를 두 번째로 소비하면 안 된다');
+  assert.match(damage, /attackHit:\s*!reactionSuccess/,
+    '방어창은 HP 변화와 별도로 명중 여부를 보고해야 한다');
+  assert.ok(damage.includes('Object.entries(activationRequest.hitReports || {})')
+    && damage.includes('activationRequest.pendingAttackRiders, hitTargets, hitTokenIds'),
+  '로컬 명중 라이더는 HP 피해 목록이 아니라 명중 목록을 사용해야 한다');
+  assert.ok(main.includes('Object.entries(request.hitReports || {})')
+    && main.includes('request.pendingAttackRiders, hitTargets, hitTokenIds'),
+  '원격 GM 경로도 같은 명중 목록을 사용해야 한다');
+
+  const roll = source('scripts/handlers/universal-roll-dialog.js');
+  const combo = source('scripts/handlers/combo-handler.js');
+  assert.match(roll,
+    /onAttackRollComplete\(actor, item, targets, rollResult, isFumble, attackMessage\);[\s\S]{0,120}maybeAutoRollDamage/,
+    '일반 무기 공격은 선행 효과를 카드에 귀속한 뒤 자동 데미지를 시작해야 한다');
+  assert.match(combo,
+    /onAttackRollComplete\([\s\S]{0,180}attackMessage\);[\s\S]{0,120}maybeAutoRollDamage/,
+    '고정 달성치 공격도 같은 순서를 따라야 한다');
+});
+
 function socketContext() {
   let ready;
   let listener;
@@ -473,17 +603,36 @@ test('after-damage completion counts tokens even when they share one actor', () 
     targetActorIds: ['same-actor', 'same-actor'],
     targetTokenIds: ['token-1', 'token-2'],
     damageReports: {},
+    hitReports: {},
     reportActorIds: {}
   };
   const first = context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
-    targetTokenId: 'token-1', targetActorId: 'same-actor', hpChange: 3
+    targetTokenId: 'token-1', targetActorId: 'same-actor', hpChange: 0, attackHit: true
   });
   const second = context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
-    targetTokenId: 'token-2', targetActorId: 'same-actor', hpChange: 4
+    targetTokenId: 'token-2', targetActorId: 'same-actor', hpChange: 0, attackHit: false
   });
   assert.equal(first.complete, false);
   assert.equal(second.complete, true);
   assert.equal(second.reportCount, 2);
+  assert.deepEqual(plain(request.hitReports), {'token-1': true, 'token-2': false},
+    '명중 여부는 HP 감소 여부와 독립적으로 보존되어야 한다');
+});
+
+test('legacy after-damage reports infer hits only from actual HP loss', () => {
+  const context = baseContext();
+  load(context, 'scripts/core/runtime-utils.js');
+  const request = {
+    targetActorIds: ['actor-1', 'actor-2'],
+    targetTokenIds: ['token-1', 'token-2']
+  };
+  context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+    targetTokenId: 'token-1', targetActorId: 'actor-1', hpChange: 0
+  });
+  context.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+    targetTokenId: 'token-2', targetActorId: 'actor-2', hpChange: 2
+  });
+  assert.deepEqual(plain(request.hitReports), {'token-1': false, 'token-2': true});
 });
 
 test('an empty frozen after-damage target never falls back to the current UI targets', async () => {
@@ -725,15 +874,245 @@ test('combo follow-up target modifiers use each bucket lifecycle and preserve it
   assert.ok(combo.includes("window.DX3rdItemEffectAdapter.targetFiresAt(item, action, 'afterSuccess')"));
   assert.ok(combo.includes("window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterSuccess')"));
   assert.ok(combo.includes("window.DX3rdItemEffectAdapter.targetFiresAt(item, 'attack', 'afterDamage')"));
-  assert.ok(combo.includes("result.applies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction })"),
+  assert.ok(combo.includes("action: memberAction, ...frozenTargetData(memberItem)"),
     '성공 후 적용을 실행할 때 수집 당시 멤버 액션을 잃으면 다른 버킷이 적용될 수 있다');
 
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
-  assert.ok(handler.includes("for (const { itemId, itemName, action = null } of applies)"));
-  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterSuccess', null, action)"));
+  assert.ok(handler.includes("for (const { itemId, itemName, action = null, selectedTargetIds = null } of applies)"));
+  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action)"));
   assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action)"));
   assert.ok(!handler.includes("if (item && item.system?.effect?.runTiming === 'afterDamage')"),
     '실행 단계에서 평탄 runTiming을 다시 확인하면 하위 버킷이 또 누락된다');
+});
+
+test('combo after-damage self modifiers use the attack bucket lifecycle', async () => {
+  const context = baseContext({
+    game: {
+      user: { targets: new Set() },
+      macros: { getName: () => null },
+      i18n: { localize: key => key, format: key => key }
+    },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } },
+    DX3rdUniversalHandler: {
+      comboMemberItems: () => [],
+      groupExtensionsByKey: () => new Map(),
+      mergeGroupedExtensionBuckets: () => []
+    }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+
+  const makeCombo = bucketDisable => ({
+    id: `combo-${bucketDisable}`,
+    name: `combo-${bucketDisable}`,
+    type: 'combo',
+    system: {
+      attackRoll: 'melee',
+      active: {
+        state: false,
+        action: 'use',
+        disable: bucketDisable === 'round' ? 'notCheck' : 'round',
+        runTiming: 'afterDamage',
+        buckets: { attack: { disable: bucketDisable } }
+      },
+      attributes: { attack: { key: 'attack', value: '3', action: 'attack' } },
+      effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }
+    },
+    getFlag: () => ({})
+  });
+
+  const enabled = makeCombo('round');
+  assert.equal(context.DX3rdItemEffectAdapter.selfFiresAt(enabled, 'attack', 'afterDamage'), true);
+  assert.equal((await context.DX3rdComboHandler.collectAfterDamageData({ id: 'actor' }, enabled)).activations.length, 1,
+    '명시 attack 버킷이 root notCheck를 덮어썼으면 데미지 후 자기 보정을 예약해야 한다');
+
+  const disabled = makeCombo('notCheck');
+  assert.equal(context.DX3rdItemEffectAdapter.selfFiresAt(disabled, 'attack', 'afterDamage'), false);
+  assert.equal((await context.DX3rdComboHandler.collectAfterDamageData({ id: 'actor' }, disabled)).activations.length, 0,
+    '명시 attack 버킷의 notCheck를 root disable로 덮어 적용하면 안 된다');
+});
+
+test('combo after-success target modifiers keep the targets selected at use time', async () => {
+  const useActor = { id: 'target-at-use', name: '사용 시 대상', isOwner: true, effects: [] };
+  const clickActor = { id: 'target-at-click', name: '클릭 시 대상', isOwner: true, effects: [] };
+  const useToken = { id: 'token-at-use', actor: useActor };
+  const clickToken = { id: 'token-at-click', actor: clickActor };
+  const tokens = new Map([[useToken.id, useToken], [clickToken.id, clickToken]]);
+  const context = baseContext({
+    game: {
+      user: { targets: new Set([useToken]), isGM: true },
+      macros: { getName: () => null },
+      actors: new Map(),
+      scenes: { active: null },
+      i18n: { localize: key => key, format: key => key }
+    },
+    canvas: { tokens: { get: id => tokens.get(id), placeables: [...tokens.values()], controlled: [] } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} }, windows: {} },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  context.DX3rdUniversalHandler.comboMemberItems = () => [];
+  context.DX3rdUniversalHandler.groupExtensionsByKey = () => new Map();
+  context.DX3rdUniversalHandler.mergeGroupedExtensionBuckets = () => [];
+
+  const combo = {
+    id: 'combo', name: 'combo', type: 'combo',
+    system: {
+      attackRoll: 'melee', getTarget: true, scene: false,
+      active: { state: false, disable: 'notCheck', runTiming: 'instant' },
+      attributes: {}, macro: '', macros: [],
+      effect: {
+        disable: 'round', runTiming: 'afterSuccess',
+        attributes: { dice: { key: 'dice', value: '1' } }
+      }
+    },
+    getFlag: () => ({})
+  };
+  const actor = { id: 'caster', items: new Map([[combo.id, combo]]) };
+  context.game.actors.set(actor.id, actor);
+  const comboData = await context.DX3rdComboHandler.collectAfterSuccessData(actor, combo);
+  assert.deepEqual(plain(comboData.applies[0].selectedTargetIds), [useToken.id]);
+
+  const applied = [];
+  context.DX3rdUniversalHandler.dispatchItemAttributes = async (_source, _item, target) => applied.push(target.id);
+  context.game.user.targets = new Set([clickToken]);
+  await context.DX3rdUniversalHandler.processComboAfterSuccess({ actorId: actor.id, ...comboData });
+  assert.deepEqual(applied, [useActor.id], '성공 버튼을 누를 때의 UI 타겟으로 바뀌면 안 된다');
+});
+
+test('combo follow-up macros reserve once and execute legacy and embedded rows once each', async () => {
+  const executions = { A: 0, B: 0, C: 0 };
+  const worldMacros = new Map([
+    ['A', { getFlag: () => 'afterSuccess', execute: async () => { executions.A += 1; } }],
+    ['B', { getFlag: () => 'afterSuccess', execute: async () => { executions.B += 1; } }],
+    // Embedded kind:'macro' rows own their timing; this world flag is intentionally irrelevant.
+    ['C', { getFlag: () => 'instant', execute: async () => { executions.C += 1; } }]
+  ]);
+  const context = baseContext({
+    game: {
+      user: { targets: new Set(), isGM: true },
+      macros: { getName: name => worldMacros.get(name) || null },
+      actors: new Map(),
+      i18n: { localize: key => key, format: key => key }
+    },
+    canvas: { tokens: { controlled: [], placeables: [], get: () => null } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} }, windows: {} },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: {
+      utils: {
+        deepClone: value => structuredClone(value),
+        getProperty: () => undefined,
+        AsyncFunction: Object.getPrototypeOf(async function () {}).constructor
+      }
+    }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  context.DX3rdUniversalHandler.comboMemberItems = () => [];
+  context.DX3rdUniversalHandler.groupExtensionsByKey = () => new Map();
+  context.DX3rdUniversalHandler.mergeGroupedExtensionBuckets = () => [];
+
+  const combo = {
+    id: 'combo-macros', name: 'macro combo', type: 'combo', actor: null,
+    system: {
+      attackRoll: 'melee',
+      active: { state: false, disable: 'notCheck', runTiming: 'instant' },
+      attributes: {},
+      effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
+      macro: '[A][B]',
+      macros: [{ timing: 'afterSuccess', action: 'attack', kind: 'macro', macroName: 'C' }]
+    },
+    getFlag: () => ({})
+  };
+  const actor = { id: 'caster', items: new Map([[combo.id, combo]]) };
+  context.game.actors.set(actor.id, actor);
+
+  const collected = await context.DX3rdComboHandler.collectAfterSuccessData(actor, combo);
+  assert.equal(collected.macros.length, 1,
+    '레거시 두 행과 내장 한 행이 있어도 아이템 실행 예약은 하나여야 한다');
+  assert.equal('macroName' in collected.macros[0], false,
+    '새 페이로드는 실행기가 무시하는 개별 매크로 이름을 직렬화하지 않는다');
+  await context.DX3rdUniversalHandler.processComboAfterSuccess({ actorId: actor.id, ...collected });
+  assert.deepEqual(executions, { A: 1, B: 1, C: 1 });
+
+  executions.A = executions.B = executions.C = 0;
+  await context.DX3rdUniversalHandler.processComboAfterSuccess({
+    actorId: actor.id,
+    comboItemId: combo.id,
+    // Compatibility: old cards serialized one entry per legacy name.
+    macros: [
+      { itemId: combo.id, itemName: combo.name, macroName: 'A', timing: 'afterSuccess', action: 'attack' },
+      { itemId: combo.id, itemName: combo.name, macroName: 'B', timing: 'afterSuccess', action: 'attack' }
+    ]
+  });
+  assert.deepEqual(executions, { A: 1, B: 1, C: 1 },
+    '구형 카드의 중복 예약도 같은 아이템 실행을 한 번만 호출해야 한다');
+
+  combo.system.macro = '';
+  combo.system.macros = [{ timing: 'afterDamage', action: 'attack', kind: 'macro', macroName: 'C' }];
+  const afterDamage = await context.DX3rdComboHandler.collectAfterDamageData(actor, combo);
+  assert.equal(afterDamage.macros.length, 1, '내장 매크로만 있어도 데미지 후 실행을 예약해야 한다');
+  executions.C = 0;
+  await context.DX3rdUniversalHandler.processComboAfterDamage(
+    { actorId: actor.id, ...afterDamage }, [], []);
+  assert.equal(executions.C, 1, '데미지 후 내장 매크로도 정확히 한 번 실행돼야 한다');
+});
+
+test('legacy instant macros remain timing-only while embedded macros keep their action', async () => {
+  const executions = { legacy: 0, use: 0, activation: 0 };
+  const worldMacros = new Map([
+    ['Legacy', { getFlag: () => 'instant', execute: async () => { executions.legacy += 1; } }],
+    ['Use', { getFlag: () => 'instant', execute: async () => { executions.use += 1; } }],
+    ['Activation', { getFlag: () => 'instant', execute: async () => { executions.activation += 1; } }]
+  ]);
+  const context = baseContext({
+    game: {
+      user: { targets: new Set() },
+      macros: { getName: name => worldMacros.get(name) || null },
+      i18n: { localize: key => key, format: key => key }
+    },
+    canvas: { tokens: { controlled: [], placeables: [] } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} }, windows: {} },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+
+  const item = {
+    id: 'always-effect', name: '상시 이펙트', type: 'effect', actor: null,
+    system: {
+      timing: 'always', attackRoll: '-', macro: '[Legacy]',
+      active: { state: false, applyMode: 'toggle', action: 'activation' },
+      attributes: { dice: { key: 'dice', value: '1' } },
+      effect: { attributes: {} },
+      macros: [
+        { timing: 'instant', action: 'use', kind: 'macro', macroName: 'Use' },
+        { timing: 'instant', action: 'activation', kind: 'macro', macroName: 'Activation' }
+      ]
+    }
+  };
+
+  assert.equal(context.DX3rdUniversalHandler.hasExecutableMacros(item, 'instant', 'activation'), true);
+  await context.DX3rdUniversalHandler.executeMacros(item, 'instant', 'activation');
+  assert.deepEqual(executions, { legacy: 1, use: 0, activation: 1 },
+    '활성화에서는 레거시 즉시 매크로와 activation 내장 행만 실행돼야 한다');
+
+  executions.legacy = executions.use = executions.activation = 0;
+  await context.DX3rdUniversalHandler.executeMacros(item, 'instant', 'use');
+  assert.deepEqual(executions, { legacy: 1, use: 1, activation: 0 },
+    '사용에서는 같은 레거시 매크로와 use 내장 행만 실행돼야 한다');
 });
 
 test('combo after-damage extensions preserve authored targets at immediate and after-main stages', () => {
@@ -782,22 +1161,98 @@ test('registered reaction combos cannot suppress member target requirements', ()
 
 test('a rejected instant combo stays open instead of deleting the builder document', () => {
   const sheet = source('scripts/sheets/combo-sheet-v2.js').replace(/\s+/g, ' ');
-  assert.ok(sheet.includes("const used = await handler.handleItemUse(actor.id, this.item.id, 'combo', null, undefined)"));
-  assert.ok(sheet.includes("if (used === true) await this.close()"),
-    '실패 여부와 무관하게 close하면 instantCombo 문서와 작성 내용이 삭제된다');
+  assert.match(sheet, /const used = await handler\.handleItemUse\( actor\.id, this\.item\.id, 'combo', null,/,
+    '즉석 콤보 실행 결과를 받아 성공 여부를 판정해야 한다');
+  assert.match(sheet, /if \(used === true\) \{ .*?InstantComboRetention\?\.retain.*?await this\.close\(\)/,
+    '성공한 즉석 콤보만 숨김 출처로 보존한 뒤 시트를 닫아야 한다');
+  assert.match(sheet, /const discard = .*?DX3rdIsInstantCombo.*?InstantComboRetention\?\.isRetained/,
+    '거절/취소한 작성 문서는 삭제하고, 사용한 숨김 출처는 닫을 때 삭제하면 안 된다');
+});
+
+test('a hidden instant combo survives pending and applied work, then cleans itself up', async () => {
+  const helpers = source('scripts/helpers.js');
+  const marker = helpers.indexOf('window.DX3rdIsInstantCombo = function');
+  const start = helpers.lastIndexOf('(function()', marker);
+  const end = helpers.indexOf('// A non-modal picker replacing', start);
+  assert.ok(marker >= 0 && start >= 0 && end > start);
+
+  const applied = {};
+  const context = baseContext({
+    foundry: { utils: { deepClone: value => structuredClone(value) } },
+    game: {
+      actors: [],
+      settings: { get: () => [] }
+    }
+  });
+  context.DX3rdAppliedEffects = { collect: () => applied };
+  vm.runInContext(helpers.slice(start, end), context, {filename: 'instant-combo-retention.js'});
+
+  const actor = {id: 'a1', items: new Map()};
+  context.game.actors.push(actor);
+  let deleted = false;
+  const item = {
+    id: 'c1', _id: 'c1', type: 'combo', name: '[콤보]', actor,
+    flags: {'dx3rd-emanim': {instantCombo: true}},
+    system: {active: {state: false}},
+    getFlag(scope, key) { return this.flags?.[scope]?.[key]; },
+    async update(changes) {
+      for (const [path, value] of Object.entries(changes)) {
+        const keys = path.split('.');
+        let cursor = this;
+        while (keys.length > 1) cursor = cursor[keys.shift()] ??= {};
+        cursor[keys[0]] = structuredClone(value);
+      }
+    },
+    async delete() { deleted = true; actor.items.delete(this.id); }
+  };
+  actor.items.set(item.id, item);
+
+  const retention = context.DX3rdInstantComboRetention;
+  await retention.retain(item, {afterSuccess: true});
+  assert.equal(retention.isRetained(item), true);
+  assert.equal(await retention.tryCleanup(item), false, '후속 실행 대기 중에는 삭제하면 안 된다');
+
+  item.system.active.state = true;
+  await retention.complete(actor, item.id, 'afterSuccess');
+  assert.equal(deleted, false, '자기 지속 효과가 활성인 동안 출처 Item이 남아야 한다');
+
+  item.system.active.state = false;
+  applied.buff = {itemId: item.id};
+  assert.equal(await retention.tryCleanup(item), false, '적용 효과가 남아 있는 동안 출처 Item이 남아야 한다');
+  delete applied.buff;
+  assert.equal(await retention.tryCleanup(item), true);
+  assert.equal(deleted, true);
+});
+
+test('instant combo body follow-ups use the embedded source first and a serialized fallback later', () => {
+  const combo = source('scripts/handlers/combo-handler.js').replace(/\s+/g, ' ');
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  const apply = source('scripts/handlers/universal-apply.js').replace(/\s+/g, ' ');
+  const actorData = source('scripts/sheets/actor-sheet-data.js').replace(/\s+/g, ' ');
+
+  assert.match(combo, /comboItemSnapshot: window\.DX3rdIsInstantCombo/,
+    '후속 데이터 자체가 콤보 본체 스냅샷을 운반해야 소켓/재굴림 경로도 복원된다');
+  assert.match(handler, /const embedded = actor\?\.items\?\.get\?\.\(itemId\).*?comboItemSnapshot.*?DX3rdHydrateInstantCombo/,
+    '존속 중에는 실제 Document를, 정리 뒤에는 스냅샷을 사용해야 한다');
+  assert.ok((handler.match(/resolveComboFollowupItem\(actor, comboData, itemId\)/g) || []).length >= 6,
+    '자기 보정·매크로·대상 보정의 성공 후/데미지 후 경로가 모두 같은 복원기를 써야 한다');
+  assert.match(apply, /if \(forceFrozen\) \{ .*?selfBucketAttributes.*?_applyItemAttributes/,
+    '삭제 뒤 자기 보정은 존재하지 않는 active.state 대신 같은 수명의 동결 AE로 남겨야 한다');
+  assert.match(actorData, /if \(window\.DX3rdIsInstantCombo\?\.\(item\)\) return/,
+    '숨김 출처가 액터 시트의 일반 콤보 목록에 나타나면 안 된다');
 });
 
 test('item handler failures and static roll errors are rejected before completion', () => {
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
   const preflight = handler.indexOf('if (!this.validateItemUsePreflight(actor, item, itemType, action))');
-  const cost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, {action})', preflight);
+  const cost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, { action,', preflight);
   assert.ok(preflight >= 0 && cost > preflight,
     '판정 설정 오류는 침식치·HP·사용 횟수를 쓰기 전에 거절해야 한다');
   assert.ok(handler.includes('if (handlerResult === false) return false;'),
     '타입 핸들러의 명시적 실패를 채팅 완료 표시와 임시 콤보 정리까지 전파해야 한다');
 
   const modeChoice = handler.indexOf("if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined)");
-  const firstCost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, {action})');
+  const firstCost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, { action,');
   assert.ok(modeChoice >= 0 && firstCost > modeChoice,
     '커넥션/마도서의 취소·콤보 선택은 비용 지불 전에 끝나야 한다');
 });
@@ -818,7 +1273,7 @@ test('numeric success buttons execute serialized combo after-success data', () =
   const end = chat.indexOf("dx3rdRegisterGlobalListener('dx3rd-win-check'", start);
   const handler = chat.slice(start, end).replace(/\s+/g, ' ');
   assert.ok(handler.includes("const comboAfterSuccess = message.getFlag('dx3rd-emanim', 'comboAfterSuccess')"));
-  assert.ok(handler.includes('await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess)'),
+  assert.ok(handler.includes('await window.DX3rdUniversalHandler.processComboAfterSuccess(comboAfterSuccess,'),
     '삭제된 임시 콤보를 itemId로 다시 찾으면 멤버 성공 후 효과가 사라진다');
 });
 
@@ -847,6 +1302,19 @@ test('damage rolls replace the attack card slot instead of creating a second car
     'Roll.render 결과를 dice-roll로 중첩하면 데미지 결과 폭과 툴팁 배치가 깨진다');
   assert.ok(damage.includes("'flags.dx3rd-emanim.damageRollMerged': true"),
     '재굴림 시 Roll 배열을 끝없이 늘리지 않도록 병합 상태를 기록해야 한다');
+});
+
+test('the damage dialog accepts a dice formula as its damage modifier', () => {
+  const template = source('templates/dialog/damage-calc-dialog.html').replace(/\s+/g, ' ');
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+
+  assert.match(template, /<input type="text" id="add-damage" value="0">/,
+    'HTML number inputs reject Roll formulas such as 1d10');
+  assert.doesNotMatch(damage, /parseInt\(form\?\.querySelector\('#add-damage'\)/,
+    'the confirmation path must not truncate 1d10 to 1');
+  assert.match(damage,
+    /prepareRollFormula\(addDamageInput, item, actor\)[\s\S]*joinFormulaTerms\(totalDamageAddFormula, addDamage\)/,
+    'the entered formula must be prepared and joined into the one final damage Roll');
 });
 
 test('attack and damage automation settings preserve the same card workflow', () => {
@@ -988,8 +1456,13 @@ test('a combo preview does not count activation buckets its members never fire',
     { state: false, disable: 'major', runTiming: 'instant', applyMode: 'toggle', action: 'activation' });
   const onUse = member('use', { a0: { key: 'add', value: '3' } },
     { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: '' });
+  const onAttack = member('attack', { a0: { key: 'add', value: '4' } },
+    { state: false, disable: 'major', runTiming: 'instant', applyMode: 'onUse', action: 'attack' });
 
-  const actor = { items: new Map([[activationOnly.id, activationOnly], [onUse.id, onUse]]), effects: [] };
+  const actor = {
+    items: new Map([[activationOnly.id, activationOnly], [onUse.id, onUse], [onAttack.id, onAttack]]),
+    effects: []
+  };
   actor.items[Symbol.iterator] = function* () { yield* this.values(); };
 
   const rollContext = { rollType: 'major', isAbility: false, skillKey: 'melee', effectiveBaseKey: 'body' };
@@ -1003,6 +1476,9 @@ test('a combo preview does not count activation buckets its members never fire',
   assert.equal(preview(['use']), 3, '발현하는 보정은 그대로 세야 한다');
   assert.equal(preview(['act']), 0, '발현하지 않는 활성화 버킷을 미리보기가 더하면 안 된다');
   assert.equal(preview(['act', 'use']), 3, '섞여 있어도 발현분만 센다');
+  assert.equal(context.DX3rdComboData
+    .calculateRegisteredEffectRollBonus(actor, ['attack'], rollContext, 10, 'attack').add, 4,
+  '명시한 공격 버킷은 공격 콤보의 미리보기와 런타임에서 함께 발현해야 한다');
 });
 
 test('a combo preview never counts the target channel against the caster', () => {
@@ -1543,6 +2019,173 @@ test('responsible GM selection is deterministic with multiple active GMs', () =>
   assert.equal(context.DX3rdSocketRouter.isResponsibleGM(), true);
 });
 
+test('actor-owned socket work elects one active owner with a responsible GM fallback', () => {
+  const fixture = socketContext();
+  const { context, users } = fixture;
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/socket-router.js');
+
+  const shared = {
+    id: 'shared',
+    testUserPermission: user => user.id === users.player1.id || user.id === users.player2.id || user.isGM
+  };
+  users.player2.character = { id: shared.id };
+  assert.equal(context.DX3rdSocketRouter.getResponsibleActorExecutor(shared).id, users.player2.id,
+    '자기 캐릭터로 지정한 활성 OWNER를 공유 OWNER보다 우선해야 한다');
+
+  users.player2.character = null;
+  assert.equal(context.DX3rdSocketRouter.getResponsibleActorExecutor(shared).id, users.player1.id,
+    '지정 캐릭터가 없으면 사용자 ID 순서로 한 OWNER만 선택해야 한다');
+  users.player1.active = false;
+  assert.equal(context.DX3rdSocketRouter.getResponsibleActorExecutor(shared).id, users.player2.id,
+    '접속하지 않은 OWNER는 실행자로 뽑으면 안 된다');
+  users.player2.active = false;
+  assert.equal(context.DX3rdSocketRouter.getResponsibleActorExecutor(shared).id, users.gm1.id,
+    '활성 플레이어 OWNER가 없으면 책임 GM이 처리해야 한다');
+});
+
+test('actor-owned socket work uses local loopback for the sender and broadcast for a remote executor', async () => {
+  const fixture = socketContext();
+  const { context, users } = fixture;
+  const emitted = [];
+  context.game.socket.emit = (...args) => emitted.push(args);
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/socket-router.js');
+  let handled = 0;
+  let loopbackData;
+  context.DX3rdSocketRouter.registerType('actorOwnedProbe', () => {}, {
+    contract: true,
+    validate: data => data.payload?.value === 1
+  });
+  context.DX3rdSocketRouter.registerType('actorOwnedProbe', data => {
+    handled++;
+    loopbackData = data;
+  }, { consume: true });
+
+  const shared = {
+    id: 'shared',
+    testUserPermission: user => user.id === users.player1.id || user.id === users.player2.id || user.isGM
+  };
+  users.player2.character = { id: shared.id };
+  context.game.user = users.player2;
+  const requestId = context.DX3rdSocketRouter.emitToActorExecutor(
+    { type: 'actorOwnedProbe', payload: { value: 1 } },
+    shared
+  );
+  await new Promise(resolvePromise => setImmediate(resolvePromise));
+
+  assert.match(requestId, /^actorOwnedProbe:/);
+  assert.equal(emitted.length, 0, '발신자가 실행자이면 다른 클라이언트로 broadcast하면 안 된다');
+  assert.equal(handled, 1, '로컬 루프백도 계약과 typed dispatch를 통과해 한 번 실행되어야 한다');
+  assert.equal(loopbackData.executorUserId, users.player2.id);
+  assert.equal(context.DX3rdSocketRouter.isActorExecutorMessage(loopbackData, shared), true);
+
+  context.DX3rdSocketRouter.emitToActorExecutor(
+    { type: 'actorOwnedProbe', payload: { value: 0 } },
+    shared
+  );
+  await new Promise(resolvePromise => setImmediate(resolvePromise));
+  assert.equal(handled, 1, '로컬 루프백도 잘못된 페이로드를 계약 단계에서 거부해야 한다');
+
+  context.game.user = users.player1;
+  assert.equal(context.DX3rdSocketRouter.isActorExecutorMessage(loopbackData, shared), false,
+    '권한이 있는 다른 공동 OWNER라도 지정 실행자가 아니면 실행하면 안 된다');
+
+  context.game.user = users.gm1;
+  const remoteRequestId = context.DX3rdSocketRouter.emitToActorExecutor(
+    { type: 'actorOwnedProbe', payload: { value: 1 } },
+    shared
+  );
+  assert.match(remoteRequestId, /^actorOwnedProbe:/);
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].length, 2, '원격 실행자는 v13/v14 공통 일반 broadcast로 보내야 한다');
+  assert.equal(emitted[0][0], 'system.dx3rd-emanim');
+  assert.equal(emitted[0][1].executorUserId, users.player2.id);
+});
+
+test('actor-executor socket contracts require the sender-selected user id', async () => {
+  const fixture = socketContext();
+  const { context, users } = fixture;
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/socket-router.js');
+  load(context, 'scripts/socket-contracts.js');
+  let handled = 0;
+  context.DX3rdSocketRouter.register(() => { handled++; });
+  fixture.ready();
+
+  const envelope = extra => vm.runInContext(
+    `DX3rdRuntimeUtils.createSocketEnvelope(${JSON.stringify({
+      type: 'executeAfterDamageMacro',
+      payload: { attackerId: 'a1', itemId: 'i1' },
+      ...extra
+    })}, {senderId:${JSON.stringify(users.gm1.id)}})`,
+    context
+  );
+  await fixture.listener(envelope());
+  await fixture.listener(envelope({ executorUserId: users.player1.id }));
+  assert.equal(handled, 1, '실행자 ID가 없는 actor-owned 명령은 계약 단계에서 거부해야 한다');
+});
+
+test('every actor-owned socket route uses sender selection and receiver validation', () => {
+  assert.doesNotMatch(source('scripts/socket-router.js'), /\{\s*recipients\s*:/,
+    'actor executor routing must not depend on Foundry server-internal recipients');
+  const typed = source('scripts/socket-document-handlers.js');
+  const main = source('scripts/main.js');
+  const registeredBranch = (type, nextType) => {
+    const start = typed.indexOf(`register('${type}'`);
+    const end = nextType ? typed.indexOf(`register('${nextType}'`, start + 1) : typed.length;
+    assert.ok(start >= 0 && end > start, `typed socket branch not found: ${type}`);
+    return typed.slice(start, end);
+  };
+  for (const [type, nextType] of [
+    ['showDefenseDialog', 'applyItemAttributes'],
+    ['applyItemAttributes', 'userTyping']
+  ]) {
+    assert.match(registeredBranch(type, nextType), /isActorExecutorMessage\(data, targetActor\)/,
+      `${type} must validate the sender-selected target owner`);
+  }
+
+  const genericBranch = type => {
+    const marker = `data.type === '${type}'`;
+    const start = main.indexOf(marker);
+    const end = main.indexOf("data.type === '", start + marker.length);
+    assert.ok(start >= 0, `generic socket branch not found: ${type}`);
+    return main.slice(start, end >= 0 ? end : main.length);
+  };
+  for (const [type, actorName] of [
+    ['executeAfterDamageMacro', 'attacker'],
+    ['showAfterDamageDialog', 'actor'],
+    ['executeAfterDamageActivation', 'actor'],
+    ['showNoDamageNotification', 'actor'],
+    ['applyEffectToTarget', 'targetActor']
+  ]) {
+    assert.match(genericBranch(type), new RegExp(`isActorExecutorMessage\\(data, ${actorName}\\)`),
+      `${type} must validate the sender-selected actor owner`);
+  }
+
+  const ownerTypes = new Set([
+    'executeAfterDamageMacro',
+    'showAfterDamageDialog',
+    'executeAfterDamageActivation',
+    'showNoDamageNotification',
+    'applyEffectToTarget',
+    'showDefenseDialog',
+    'applyItemAttributes'
+  ]);
+  const emissionSource = [
+    source('scripts/main.js'),
+    source('scripts/handlers/universal-apply.js'),
+    source('scripts/handlers/universal-damage-dialog.js')
+  ].join('\n');
+  const emissions = [...emissionSource.matchAll(
+    /DX3rdSocketRouter\.(emitToActorExecutor|emit)\(\{\s*type:\s*'([^']+)'/g
+  )].filter(match => ownerTypes.has(match[2]));
+  assert.equal(emissions.length, 14, 'actor-owned emission 목록이 바뀌면 새 경로도 명시적으로 분류해야 한다');
+  for (const [, method, type] of emissions) {
+    assert.equal(method, 'emitToActorExecutor', `${type} must use actor-executor routing`);
+  }
+});
+
 test('typed GM boundary consumes messages on non-responsible clients', async () => {
   const fixture = socketContext();
   const { context, users } = fixture;
@@ -1575,7 +2218,7 @@ test('every emitted literal socket type has a registered contract', () => {
   load(context, 'scripts/socket-contracts.js');
   const registered = new Set(JSON.parse(vm.runInContext('JSON.stringify(DX3rdSocketContracts.types)', context)));
   const emitted = new Set();
-  const pattern = /(?:DX3rdSocketRouter|socketRouter)\.emit\(\{\s*type:\s*['"]([^'"]+)['"]/g;
+  const pattern = /(?:DX3rdSocketRouter|socketRouter)\.emit(?:ToActorExecutor)?\(\{\s*type:\s*['"]([^'"]+)['"]/g;
   for (const path of walkJs(resolve(root, 'scripts'))) {
     const text = readFileSync(path, 'utf8');
     for (const match of text.matchAll(pattern)) emitted.add(match[1]);
@@ -2022,6 +2665,19 @@ test('applied toggle writes all toggled effects in one batched call', async () =
   assert.equal(batches.length, 1, 'AE 쓰기는 1회 왕복이어야 한다');
   assert.deepEqual(plain(batches[0].keys).sort(), ['toggle:e1', 'toggle:e2', 'toggle:e3']);
   assert.deepEqual(plain(fixture.appliedKeys()), ['toggle:e1', 'toggle:e2', 'toggle:e3']);
+});
+
+test('a stale active flag does not project an on-use item onto the toggle channel', async () => {
+  const fixture = toggleContext();
+  const { context, addItem } = fixture;
+  load(context, 'scripts/item-effect-adapter.js');
+  addItem('frozen', {state: true, attributes: {a0: {key: 'add', value: '2'}}})
+    .system.active.applyMode = 'onUse';
+
+  await context.DX3rdAppliedToggle.sync(fixture.actor);
+
+  assert.deepEqual(plain(fixture.appliedKeys()), [],
+    '이전 버전이 남긴 active.state 때문에 사용 시 보정이 활성화 보정으로 되살아나면 안 된다');
 });
 
 test('always-on effects imported from a compendium are activated on creation', async () => {
@@ -2476,10 +3132,40 @@ function applyHandlerContext({ isGM = true } = {}) {
     set: (actor, key, payload) => { writes.push({ actor, key, payload }); return payload; },
     remove: (actor, key) => { writes.push({ actor, key, payload: null }); return true; }
   };
-  context.DX3rdSocketRouter = { emit: message => emitted.push(message) };
+  context.DX3rdSocketRouter = {
+    emit: message => emitted.push(message),
+    emitToActorExecutor: message => emitted.push(message)
+  };
   load(context, 'scripts/handlers/universal-apply.js');
   return { context, handler: context.DX3rdUniversalHandler, writes, emitted };
 }
+
+test('an empty forced target list never falls back to current UI targets', async () => {
+  const { context, handler } = applyHandlerContext();
+  const wrongTarget = { id: 'wrong-target', name: '현재 UI 대상', isOwner: true, effects: [] };
+  context.game.user.targets = new Set([{ id: 'wrong-token', actor: wrongTarget }]);
+  const applied = [];
+  handler.dispatchItemAttributes = async (_source, _item, target) => applied.push(target.id);
+
+  await handler.applyToTargets(
+    { id: 'caster', name: '시전자' },
+    {
+      id: 'effect', name: '데미지 후 대상 보정', type: 'effect',
+      system: {
+        getTarget: true,
+        effect: {
+          disable: 'round', runTiming: 'afterDamage',
+          attributes: { dice: { key: 'dice', value: '1' } }
+        }
+      }
+    },
+    'afterDamage',
+    [],
+    'attack'
+  );
+
+  assert.deepEqual(applied, [], '고정된 피해 대상이 0명이면 현재 UI 타겟에 적용하면 안 된다');
+});
 
 test('a serialized target buff keeps the sub-bucket label instead of the key', async () => {
   // label 을 key 로 덮어쓰면 actor.js bucket 이 '_'(무한정)으로 흘려보낸다 →
@@ -2522,6 +3208,50 @@ test('a target you cannot write is handed to the GM, one you own is applied loca
   await handler.dispatchItemAttributes(caster, item, { id: 't2', name: '나', isOwner: true, effects: [] }, attrs);
   assert.equal(emitted.length, 1, '소유한 대상은 GM 이 없어도 로컬에서 적용돼야 한다');
   assert.equal(writes.length, 1);
+});
+
+test('a remote target receives runtime and usage-level formulas frozen by the using client', async () => {
+  const { context, handler, writes, emitted } = applyHandlerContext({ isGM: false });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula(value, _item, actor) {
+      return String(value ?? '')
+        .replace(/\[소비HP\*3\]/g, String((Number(actor?._dx3rdRuntimeInput) || 0) * 3))
+        .replace(/\[level\]/gi, String(Number(actor?._dx3rdUsageEncLevel) || 0));
+    },
+    isRollTimeKey: () => false,
+    hasDice: () => false,
+    evaluate(value, item, actor) {
+      return Number(this.prepareRollFormula(value, item, actor)) || 0;
+    }
+  };
+
+  const caster = {
+    id: 'a1', name: '시전자', _dx3rdRuntimeInput: 4, _dx3rdUsageEncLevel: 2
+  };
+  const item = {
+    id: 'i1', name: '선혈의 연주자', img: 'x.png', actor: caster,
+    system: { effect: { disable: 'round' } }
+  };
+  const attrs = {
+    a0: { key: 'attack', value: '[소비HP*3]' },
+    a1: { key: 'init', value: '[level]' }
+  };
+  const target = { id: 't1', name: '다른 소유자의 대상', isOwner: false, effects: [] };
+
+  await handler.dispatchItemAttributes(caster, item, target, attrs);
+  const payload = emitted[0]?.payload;
+  assert.equal(payload?.preEvaluated, true);
+  assert.equal(payload?.targetAttributes?.a0?.value, 12,
+    '소비 HP는 사용 클라이언트의 일시 문맥에서 동결되어야 한다');
+  assert.equal(payload?.targetAttributes?.a1?.value, 2,
+    '사용 전 침식률 단계도 소켓을 넘기 전에 동결되어야 한다');
+
+  delete caster._dx3rdRuntimeInput;
+  delete caster._dx3rdUsageEncLevel;
+  await handler._applyItemAttributes(caster, item, target, payload.targetAttributes, { preEvaluated: true });
+  assert.equal(writes[0]?.payload?.attributes?.attack?.value, 12,
+    '수신 클라이언트는 동결값을 자기 문맥으로 재평가하면 안 된다');
+  assert.equal(writes[0]?.payload?.attributes?.init?.value, 2);
 });
 
 test('the sheet apply button uses the same target pipeline as item use', async () => {
@@ -2763,6 +3493,17 @@ test('combo members preserve prior use and attack behavior while blocking activa
   assert.equal(combo.comboMemberAction({ type: 'weapon', system: {} }, 'weapon'), 'attack');
   assert.equal(combo.comboMemberAction({ type: 'etc', system: {} }), 'use');
   assert.equal(combo.comboMemberAction({ type: 'once', system: {} }), 'use');
+  const attackAuthored = {
+    type: 'effect',
+    system: {
+      attributes: {a0: {key: 'add', value: '2'}},
+      active: {state: false, disable: 'major', runTiming: 'instant', action: 'attack', applyMode: 'onUse'}
+    }
+  };
+  assert.equal(combo.comboMemberAction(attackAuthored, 'attack'), 'attack',
+    '비공격 이펙트라도 명시한 공격 버킷은 공격 콤보에서 발현해야 한다');
+  assert.equal(combo.comboMemberAction(attackAuthored, 'activation'), 'use',
+    '콤보 포함이 활성화 액션을 물려주면 안 된다');
   assert.equal(combo.memberSelfModifiersFireAt(base, 'use', 'instant'), false,
     '활성화 전용 카드는 콤보로 켜지면 안 된다');
   const split = structuredClone(base);
@@ -2807,15 +3548,13 @@ test('every use message includes its item description as smaller chat text', () 
   assert.match(styles, /\.dx3rd-item-chat \.dx3rd-usage-description\s*\{[^}]*font-size:\s*0\.82em/s);
 });
 
-test('a toggle-type item without an authored applyMode never takes the frozen channel', async () => {
-  // spell/psionic/combo 는 문서 스키마에 applyMode 필드가 없어 기본값 'onUse'(동결)로
-  // 떨어졌다. 그 뒤 active.state 가 켜지면 toggle:<id> AE 가 따로 생겨 같은 자기 보정이
-  // 두 번 합산된다(actor.js 는 이 타입들을 자체계산에서 빼고 AE 만 본다).
+test('effect-like items use the authored self channel instead of a type-forced toggle', async () => {
+  // effect/spell/psionic/combo 모두 actor.js의 자체계산에서는 빠지지만, 적용 방식까지 토글로
+  // 고정되는 것은 아니다. onUse는 동결 AE, toggle은 active.state + toggle AE를 사용한다.
   const cases = [
-    { type: 'spell', active: { runTiming: 'instant', disable: 'scene' }, toggled: true },
-    { type: 'psionic', active: { runTiming: 'instant', disable: 'scene' }, toggled: true },
-    { type: 'combo', active: { runTiming: 'instant', disable: 'scene' }, toggled: true },
-    // effect 는 스키마에 applyMode 가 있으므로 저작값을 그대로 따른다(동결 유지).
+    { type: 'spell', active: { runTiming: 'instant', disable: 'scene', applyMode: 'onUse' }, toggled: false },
+    { type: 'psionic', active: { runTiming: 'instant', disable: 'scene', applyMode: 'onUse' }, toggled: false },
+    { type: 'combo', active: { runTiming: 'instant', disable: 'scene', applyMode: 'onUse' }, toggled: false },
     { type: 'effect', active: { runTiming: 'instant', disable: 'scene', applyMode: 'onUse' }, toggled: false }
   ];
 
@@ -2867,7 +3606,78 @@ test('every activation gate refuses notCheck and a later runTiming', () => {
   // ensureActivated 는 runTiming 게이트가 없어 afterSuccess 저작을 캐스팅 시점에 켰다.
   const handlerText = readFileSync(resolve(root, 'scripts/handlers/universal-handler.js'), 'utf8');
   const ensure = handlerText.match(/async ensureActivated[\s\S]{0,1300}?\n    },/);
-  assert.match(ensure[0], /runTiming === 'instant'/, 'ensureActivated 도 runTiming 을 봐야 한다');
+  assert.match(ensure[0], /runTiming (?:===|!==) 'instant'/, 'ensureActivated 도 runTiming 을 봐야 한다');
+  assert.match(ensure[0], /usesActivationSelfChannel/,
+    'ensureActivated가 사용/공격 버킷을 active.state 토글로 바꾸면 안 된다');
+  assert.doesNotMatch(ensure[0], /item\.update\(\{\s*'system\.active\.state': true/,
+    '활성화는 공용 채널 적용기를 거쳐야 한다');
+
+  const chat = source('scripts/chat/chat-ui.js');
+  const invoke = chat.match(/Spell invoke[\s\S]{0,2500}?processAfterSuccessSelfModifiers[\s\S]{0,600}?applyToTargets/)
+    || chat.match(/const successAction = window\.DX3rdItemEffectAdapter[\s\S]{0,1000}?applyToTargets/);
+  assert.ok(invoke, '스펠 성공 발동 경로를 찾지 못했다');
+  assert.doesNotMatch(invoke[0], /'system\.active\.state': true/,
+    '스펠 성공도 사용 시 버킷을 활성화 토글로 바꾸면 안 된다');
+  assert.match(chat, /const extensionMatches =[\s\S]{0,300}?successAction, 'afterSuccess'/,
+    '스펠 성공 익스텐션도 저작한 발현 액션을 따라야 한다');
+  assert.match(chat, /registerAfterMainExtensions\(actor, item, itemExtend, successAction\)/,
+    '스펠의 afterMain 예약에서 발현 액션을 잃으면 안 된다');
+});
+
+test('a use-bucket expiry does not switch off a longer-lived activation bucket', async () => {
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    Hooks: { once: () => {}, on: () => {} },
+    CONFIG: { statusEffects: [] }
+  });
+  const removals = [];
+  context.DX3rdAppliedEffects = {
+    collect: () => ({}),
+    removeMany: async (_actor, keys) => { removals.push([...keys]); return keys.length; }
+  };
+  context.DX3rdConditionSources = { clearByTiming: async () => 0 };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/disable-hooks.js');
+
+  const updates = [];
+  const item = {
+    id: 'mixed', type: 'effect',
+    system: {
+      active: {
+        state: true,
+        action: 'use',
+        applyMode: 'onUse',
+        disable: 'roll',
+        runTiming: 'instant',
+        buckets: { activation: { disable: 'scene' } }
+      },
+      used: { state: 0, disable: 'notCheck' },
+      attributes: {
+        onUse: { key: 'stat_add', label: 'body', value: '1d10' },
+        always: { key: 'stat_add', label: 'body', value: '8', action: 'activation' }
+      }
+    },
+    update: async data => {
+      updates.push(data);
+      if (data['system.active.state'] === false) item.system.active.state = false;
+    }
+  };
+  const actor = {
+    id: 'a1', name: '혼합 버킷 액터', type: 'character',
+    items: [item], effects: [], system: { attributes: { applied: {} } }
+  };
+
+  await context.DX3rdDisableHooks.executeDisableHook('roll', actor);
+  assert.deepEqual(plain(updates), [],
+    '사용 버킷의 판정 수명이 끝나도 활성화 버킷은 꺼지면 안 된다');
+  assert.equal(item.system.active.state, true,
+    '두 번째 임시 콤보도 이미 켜진 활성화 보정을 이어받아야 한다');
+
+  await context.DX3rdDisableHooks.executeDisableHook('scene', actor);
+  assert.deepEqual(plain(updates), [{ 'system.active.state': false }],
+    '활성화 버킷 자신의 수명에는 정상적으로 꺼져야 한다');
+  assert.deepEqual(plain(removals), [['toggle:mixed']],
+    '수명 종료는 디바운스 훅을 기다리지 않고 파생 토글 AE까지 삭제해야 한다');
 });
 
 // ---------------------------------------------------------------------------
@@ -3654,6 +4464,72 @@ test('only equipped, on-use, unspent equipment is offered for declaration', () =
   assert.equal(mod.collect(declared, 'attack').length, 0);
   // 남의 액터에는 버튼을 내주지 않는다(방어 다이얼로그는 GM 화면에도 뜬다).
   assert.equal(mod.collect({ ...actorWith([ok]), isOwner: false }, 'attack').length, 0);
+
+  // 명중 뒤 고르는 장비는 판정 전 선언과 별개다. 양쪽에 모두 나오면 선언 때는 타이밍
+  // 게이트로 적용되지 않고, 데미지 버튼에서 같은 장비를 다시 묻게 된다.
+  const afterSuccess = declarableItem({
+    name: '샷건', key: 'attack', value: '+2',
+    active: { runTiming: 'afterSuccess', disable: 'major' },
+    used: { disable: 'notCheck' }
+  });
+  assert.equal(mod.collect(actorWith([afterSuccess]), 'attack').length, 0,
+    'afterSuccess 장비는 판정 전 선언 목록에 나오면 안 된다');
+});
+
+test('after-success major damage bonuses affect only the preserved attack snapshot', async () => {
+  const context = baseContext({
+    game: { i18n: { localize: key => key } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { on: () => {}, once: () => {} },
+    foundry: {
+      utils: {
+        deepClone: value => structuredClone(value),
+        getProperty: (object, path) => path.split('.').reduce((node, key) => node?.[key], object),
+        randomID: () => 'k1'
+      }
+    }
+  });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula: value => String(value),
+    hasDice: value => /d\d+/i.test(value),
+    evaluate: value => Number(value)
+  };
+  context.DX3rdUniversalHandler = {
+    resolveAttackType: item => item.system?.type || null,
+    isFistWeaponName: () => false,
+    joinFormulaTerms: (...terms) => terms.filter(Boolean).join(' + ')
+  };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+
+  const applied = [];
+  context.DX3rdUniversalHandler.applySelfModifiers = async (_actor, _item, options) => applied.push(options);
+  const shotgun = {
+    id: 'shotgun', name: '샷건', type: 'weapon',
+    system: {
+      type: 'ranged',
+      active: { state: false, disable: 'major', runTiming: 'afterSuccess', applyMode: 'onUse', action: 'use' },
+      attributes: { a0: { key: 'attack', label: 'ranged', value: '+2' } },
+      effect: { attributes: {} }
+    }
+  };
+  const actor = { id: 'a1', items: new Map([['shotgun', shotgun]]) };
+
+  const current = await context.DX3rdUniversalHandler.processAfterSuccessSelfModifiers(actor, shotgun, {
+    action: 'use', attackItem: shotgun, expiredTimings: ['roll', 'major']
+  });
+  assert.deepEqual(plain(current), { attack: 2, attackFormula: '', penetrate: 0 },
+    '명중 뒤 고른 공격력은 현재 데미지 스냅샷에 들어가야 한다');
+  assert.deepEqual(applied, [],
+    '이미 끝난 major 수명의 보정을 액터에 붙이면 다음 판정으로 샌다');
+
+  shotgun.system.active.disable = 'round';
+  await context.DX3rdUniversalHandler.processAfterSuccessSelfModifiers(actor, shotgun, {
+    action: 'use', attackItem: shotgun, expiredTimings: ['roll', 'major']
+  });
+  assert.deepEqual(plain(applied), [{ action: 'use' }],
+    '아직 끝나지 않은 수명은 정상적으로 액터에 남아야 한다');
 });
 
 test('exhausted equipment stays on the list but is marked, unless the world blocks it', () => {
@@ -3846,6 +4722,57 @@ test('reaction dialog offers every auto-action item without keyword filtering', 
     '오토 액션 타이밍은 방어 키워드가 없어도 리액션 드롭다운 후보여야 한다');
   assert.ok(!apply.includes('const autoDefense ='),
     '오토 액션을 설명의 방어 키워드로 다시 거르면 안 된다');
+});
+
+test('a major/reaction item uses the dodge profile when invoked from the defense dialog', () => {
+  const context = baseContext();
+  load(context, 'scripts/handlers/universal-handler.js');
+  const resolveRoll = context.DX3rdUniversalHandler.resolveInvocationRollType;
+
+  const dualTiming = {system: {timing: 'major-reaction', roll: 'major'}};
+  assert.equal(resolveRoll(dualTiming, {rollType: 'dodge'}), 'dodge',
+    'the defense context must select dodge instead of the item\'s stored major profile');
+  assert.equal(resolveRoll(dualTiming, {}), 'major', 'ordinary use keeps the authored roll profile');
+  assert.equal(resolveRoll({system: {timing: 'major', roll: 'major'}}, {rollType: 'dodge'}), 'major',
+    'a major-only item cannot be turned into a reaction by the caller');
+  assert.equal(resolveRoll({system: {timing: 'major-reaction', roll: '-'}}, {rollType: 'dodge'}), '-',
+    'a modifier-only item must remain no-roll');
+
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  assert.match(damage,
+    /useRegisteredReaction[\s\S]*handleItemUse\([\s\S]*rollType: 'dodge',[\s\S]*predefinedDifficulty/,
+    'registered defense items must receive the same dodge context as temporary defense combos');
+
+  for (const path of [
+    'scripts/handlers/effect-handler.js',
+    'scripts/handlers/psionic-handler.js',
+    'scripts/handlers/combo-handler.js'
+  ]) {
+    assert.match(source(path), /resolveInvocationRollType\(item, options\)/,
+      `${path} must honor the invocation roll context`);
+  }
+});
+
+test('a defense-built temporary combo neither asks for a target nor turns into activation', () => {
+  const builder = source('scripts/handlers/universal-roll-dialog.js').replace(/\s+/g, ' ');
+  const sheet = source('scripts/sheets/combo-sheet-v2.js').replace(/\s+/g, ' ');
+
+  assert.match(builder, /defenseContext: isDefenseSeed/,
+    'the defense-only context must survive on the temporary combo document');
+  assert.match(sheet, /isDefenseCombo \? false : undefined/,
+    'only a defense temporary combo may bypass member target selection');
+  assert.match(sheet, /const selectedDefenseRoll = this\.item\.system\?\.roll/,
+    'the defense combo must use the roll type currently selected on its sheet');
+  assert.match(sheet, /action: 'use',[\s\S]*\['reaction', 'dodge'\]\.includes\(selectedDefenseRoll\)[\s\S]*rollType: selectedDefenseRoll/,
+    'reaction/dodge profiles are contextual, while a no-roll guard combo stays no-roll');
+
+  // Registered reaction combos deliberately retain the normal member target gate. The defense
+  // dropdown must therefore keep this argument undefined; the exception belongs only to the
+  // temporary combo sheet above.
+  const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
+  assert.match(damage,
+    /useRegisteredReaction[\s\S]*handleItemUse\( targetActor\.id, itemId, item\.type, null,[^\S\r\n]*\/\/[\s\S]*?undefined,/,
+    'saved reaction combos must still honor target-requiring members');
 });
 
 test('an effect with no skill applies its modifiers instead of refusing to run', () => {

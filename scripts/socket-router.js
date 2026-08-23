@@ -20,6 +20,26 @@
     return Boolean(game.user.isGM && (!responsibleGM || game.user.id === responsibleGM.id));
   }
 
+  /**
+   * Choose exactly one active client to perform an actor-owned socket action.
+   * Prefer the player who assigned this actor as their character, then choose a
+   * stable active non-GM owner, and finally fall back to the responsible active GM.
+   */
+  function getResponsibleActorExecutor(actor) {
+    if (!actor) return null;
+    const activeOwners = Array.from(game.users || [])
+      .filter(user => user.active && !user.isGM
+        && actor.testUserPermission?.(user, 'OWNER'))
+      // Compare code points directly. localeCompare can elect different users when
+      // clients run with different OS/browser locales.
+      .sort((a, b) => String(a.id) < String(b.id) ? -1 : (String(a.id) > String(b.id) ? 1 : 0));
+    const assignedOwner = activeOwners.find(user => user.character?.id === actor.id);
+    if (assignedOwner) return assignedOwner;
+    if (activeOwners.length) return activeOwners[0];
+    const responsibleGM = getResponsibleGM();
+    return responsibleGM?.active ? responsibleGM : null;
+  }
+
   function register(handler) {
     if (typeof handler !== 'function') {
       throw new TypeError('DX3rd socket handler must be a function.');
@@ -95,11 +115,49 @@
     return envelope.requestId;
   }
 
+  /**
+   * Elect the actor's executor on the sending client. Foundry's ordinary custom
+   * socket broadcast excludes the sender, so a sender elected for its own actor
+   * must loop through the exact same validation and dispatch pipeline locally.
+   * Remote executors receive an ordinary broadcast and filter on executorUserId.
+   */
+  function emitToActorExecutor(message, actor) {
+    const executor = getResponsibleActorExecutor(actor);
+    if (!executor?.id) {
+      console.warn(`DX3rd | No active executor for actor-owned socket message: ${message?.type || 'unknown'}`);
+      return null;
+    }
+    const envelope = window.DX3rdRuntimeUtils.createSocketEnvelope(
+      {...message, executorUserId: executor.id},
+      { senderId: game.user.id }
+    );
+    if (executor.id === game.user.id) {
+      void receiveEnvelope(envelope).catch(error => {
+        console.error(`DX3rd | Local socket loopback failed (${envelope.type}):`, error);
+      });
+    } else {
+      game.socket.emit(CHANNEL, envelope);
+    }
+    return envelope.requestId;
+  }
+
   function canUserControlActor(senderId, actor) {
     const user = senderId ? game.users.get(senderId) : null;
     if (!user || !actor) return false;
     if (user.isGM) return true;
     return Boolean(actor.testUserPermission?.(user, 'OWNER'));
+  }
+
+  /**
+   * Verify that this recipient is the sender-selected executor and still has
+   * permission to control the actor. Do not re-elect here: active-user views can
+   * differ briefly between clients, and an ordinary broadcast omits its sender.
+   */
+  function isActorExecutorMessage(data, actor) {
+    return Boolean(actor
+      && data?.executorUserId
+      && data.executorUserId === game.user?.id
+      && canUserControlActor(game.user.id, actor));
   }
 
   function cleanProcessedRequests(now = Date.now()) {
@@ -148,42 +206,50 @@
     return Array.from(typeHandlers.keys()).sort();
   }
 
+  /**
+   * Process both network messages and local loopback through one trust boundary.
+   */
+  async function receiveEnvelope(rawData) {
+    const data = window.DX3rdRuntimeUtils.normalizeSocketEnvelope(rawData);
+    const validation = window.DX3rdRuntimeUtils.validateSocketEnvelope(data);
+    if (!validation.valid) {
+      console.warn(`DX3rd | Invalid socket message ignored: ${validation.error}`);
+      return;
+    }
+    if (!await validateTypeContract(data)) return;
+    if (!acceptRequest(data)) return;
+
+    let consumed = false;
+    try {
+      consumed = await dispatchTyped(data);
+    } catch (error) {
+      console.error(`DX3rd | Typed socket handler failed (${data.type}):`, error);
+    }
+    if (consumed) return;
+    for (const handler of handlers) {
+      try {
+        await handler(data);
+      } catch (error) {
+        console.error('DX3rd | Socket handler failed:', error);
+      }
+    }
+  }
+
   window.DX3rdSocketRouter = {
     CHANNEL,
     register,
     registerType,
     emit,
+    emitToActorExecutor,
     getResponsibleGM,
     isResponsibleGM,
+    getResponsibleActorExecutor,
+    isActorExecutorMessage,
     canUserControlActor,
     registeredTypes
   };
 
   Hooks.once('ready', () => {
-    game.socket.on(CHANNEL, async rawData => {
-      const data = window.DX3rdRuntimeUtils.normalizeSocketEnvelope(rawData);
-      const validation = window.DX3rdRuntimeUtils.validateSocketEnvelope(data);
-      if (!validation.valid) {
-        console.warn(`DX3rd | Invalid socket message ignored: ${validation.error}`);
-        return;
-      }
-      if (!await validateTypeContract(data)) return;
-      if (!acceptRequest(data)) return;
-
-      let consumed = false;
-      try {
-        consumed = await dispatchTyped(data);
-      } catch (error) {
-        console.error(`DX3rd | Typed socket handler failed (${data.type}):`, error);
-      }
-      if (consumed) return;
-      for (const handler of handlers) {
-        try {
-          await handler(data);
-        } catch (error) {
-          console.error('DX3rd | Socket handler failed:', error);
-        }
-      }
-    });
+    game.socket.on(CHANNEL, receiveEnvelope);
   });
 })();

@@ -117,8 +117,13 @@
       if (!Object.keys(payload.attributes).length) return;
       desired.set(key, payload);
     };
+    const adapter = window.DX3rdItemEffectAdapter;
     const toggled = (actor.items || []).filter(i =>
-      i.system?.active?.state === true && TOGGLE_TYPES.includes(i.type));
+      i.system?.active?.state === true
+      && TOGGLE_TYPES.includes(i.type)
+      // Old versions could leave active.state on for an onUse channel. That stale flag must remove
+      // its old toggle AE, not keep projecting a modifier whose authored channel is now frozen.
+      && (!adapter?.usesActivationSelfChannel || adapter.usesActivationSelfChannel(i)));
     for (const item of toggled) {
       add(item);
     }

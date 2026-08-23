@@ -69,10 +69,36 @@
         ui.notifications.error(game.i18n.localize('DX3rd.HandlerNotFound'));
         return;
       }
-      const used = await handler.handleItemUse(actor.id, this.item.id, 'combo', null, undefined);
+      const isDefenseCombo = this.item.meta?.defenseContext === true;
+      // A defense builder starts on dodge, but it can also author a no-roll guard use or switch to
+      // reaction. Read the sheet's current value at execution time instead of pinning the seed.
+      const selectedDefenseRoll = this.item.system?.roll;
+      const defenseOptions = isDefenseCombo
+        ? {
+            action: 'use',
+            ...(['reaction', 'dodge'].includes(selectedDefenseRoll)
+              ? {rollType: selectedDefenseRoll}
+              : {})
+          }
+        : {};
+      const used = await handler.handleItemUse(
+        actor.id,
+        this.item.id,
+        'combo',
+        null,
+        // The attacker is already fixed by the defense dialog. Only this in-memory defense marker
+        // may suppress member target requirements; saved/ordinary combos still pass undefined.
+        isDefenseCombo ? false : undefined,
+        defenseOptions
+      );
       // 대상 미선택·비용 게이트·판정 설정 오류라면 사용은 시작되지 않았다.
-      // 시트를 닫으면 instantCombo 문서가 삭제되므로, 실패 시에는 작성 내용을 그대로 둔다.
-      if (used === true) await this.close();
+      // 성공한 즉석 콤보는 후속 효과가 끝날 때까지 숨김 Item으로 남긴다. 문서를 바로 지우면
+      // 성공 후/데미지 후의 콤보 본체 효과가 삭제된 id를 찾지 못한다.
+      if (used === true) {
+        await window.DX3rdInstantComboRetention?.retain?.(this.item);
+        await this.close();
+        await window.DX3rdInstantComboRetention?.tryCleanup?.(this.item);
+      }
     }
 
     async _saveInstantCombo(event) {
@@ -97,7 +123,8 @@
     static async _onCancelInstantCombo(event) { await this._cancelInstantCombo(event); }
 
     async close(options = {}) {
-      const discard = window.DX3rdIsInstantCombo?.(this.item) === true;
+      const discard = window.DX3rdIsInstantCombo?.(this.item) === true
+        && window.DX3rdInstantComboRetention?.isRetained?.(this.item) !== true;
       const result = await super.close(options);
       // AppV2의 내부 _onClose 호출 순서와 무관하게, 창 닫기 자체를 삭제 보장 지점으로 삼는다.
       if (discard && this.item.actor?.items?.has(this.item.id)) await this.item.delete();

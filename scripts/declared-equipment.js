@@ -84,7 +84,14 @@
    */
   function declaredAttributes(item) {
     const adapter = window.DX3rdItemEffectAdapter;
-    if (adapter) return adapter.selfFrozenAttributes(item, 'use');
+    if (adapter) {
+      const lifecycle = adapter.bucketLifecycle(item, 'self', 'use');
+      // afterSuccess 장비(샷건처럼 명중 뒤 현재 데미지만 보정하는 장비)는 판정 전 선언물이
+      // 아니다. 여기에도 내보내면 선언 시점에는 runTiming 게이트로 적용되지 않고, 명중 뒤
+      // 같은 장비를 다시 묻는 이중 UI가 된다.
+      if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== 'instant') return {};
+      return adapter.selfFrozenAttributes(item, 'use');
+    }
     return (item?.system?.active?.applyMode === 'onUse') ? (item?.system?.attributes || {}) : {};
   }
 

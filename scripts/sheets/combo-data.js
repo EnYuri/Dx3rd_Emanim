@@ -880,12 +880,14 @@
    *   (켜져 있으면 forEachInactiveRegisteredEffect 가 애초에 제외하므로 그때는 맞았다.)
    */
   /** 구성 멤버 자격의 합산에 넘기는 옵션(콤보 본체는 기본값 그대로 — 직접 사용은 활성화를 겸한다). */
-  const COMBO_MEMBER = {asComboMember: true};
+  const comboMemberOptions = parentAction => ({asComboMember: true, parentAction});
 
-  function bucketFilter(sourceItem, channel, {asComboMember = false} = {}) {
+  function bucketFilter(sourceItem, channel, {asComboMember = false, parentAction = null} = {}) {
     const adapter = window.DX3rdItemEffectAdapter;
     if (!adapter || !sourceItem) return () => true;
-    const action = adapter.invocationAction(sourceItem);
+    const action = asComboMember
+      ? (adapter.comboMemberAction?.(sourceItem, parentAction) || adapter.invocationAction(sourceItem))
+      : adapter.invocationAction(sourceItem);
     const fallback = adapter.channelAction(sourceItem, channel);
     const split = ['use', 'attack'].some(candidate => adapter.hasExplicitBucket(sourceItem, channel, candidate));
     const activationFires = !asComboMember;
@@ -1045,12 +1047,14 @@
     }
   }
 
-  function calculateRegisteredEffectRollBonus(actor, effectIds, rollContext, criticalMin) {
+  function calculateRegisteredEffectRollBonus(actor, effectIds, rollContext, criticalMin, parentAction = null) {
     const bonus = createRollBonus(criticalMin);
 
     // 구성 멤버 자격으로 발현하는 보정만 센다(활성화 버킷 제외 — bucketFilter 주석 참조).
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
-      addMainAttributeBonuses(bonus, effectItem.system?.attributes, effectItem, actor, rollContext, COMBO_MEMBER);
+      addMainAttributeBonuses(
+        bonus, effectItem.system?.attributes, effectItem, actor, rollContext, comboMemberOptions(parentAction)
+      );
     });
 
     return bonus;
@@ -1171,7 +1175,7 @@
     let attackBonus = 0;
 
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
-      attackBonus += addMainAttackBonuses(effectItem, actor, attackRoll, COMBO_MEMBER);
+      attackBonus += addMainAttackBonuses(effectItem, actor, attackRoll, comboMemberOptions('attack'));
     });
 
     return attackBonus;
@@ -1250,7 +1254,11 @@
       }
 
       // 이펙트 attributes 보너스 추가 (활성화되지 않은 것만)
-      const effectBonus = calculateRegisteredEffectRollBonus(actor, data.system.effectIds, rollContext, criticalMin);
+      const comboAction = window.DX3rdItemEffectAdapter?.invocationAction?.(item)
+        || (isAttackCombo ? 'attack' : 'use');
+      const effectBonus = calculateRegisteredEffectRollBonus(
+        actor, data.system.effectIds, rollContext, criticalMin, comboAction
+      );
       ({dice, add, critical, criticalMin} = applyRollBonus({dice, add, critical, criticalMin}, effectBonus));
     }
 

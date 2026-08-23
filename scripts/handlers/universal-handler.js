@@ -70,6 +70,23 @@
     },
 
     /**
+     * Resolve the roll profile for this invocation.
+     *
+     * A major/reaction item stores one roll type, but a defense-dialog invocation already knows
+     * that the same item is being used as the defender's dodge. Use that contextual profile only
+     * when the authored timing actually permits a reaction; ordinary sheet/chat uses keep the
+     * stored roll type, and no-roll items stay no-roll.
+     */
+    resolveInvocationRollType(item, options = {}) {
+      const stored = item?.system?.roll ?? '-';
+      const requested = options?.rollType;
+      if (stored === '-' || !['reaction', 'dodge'].includes(requested)) return stored;
+
+      const timing = item?.system?.timing || '-';
+      return ['reaction', 'dodge', 'major-reaction'].includes(timing) ? requested : stored;
+    },
+
+    /**
      * Resolve the roll stat and its display label from the item's system.skill.
      * Handles attributes (body/sense/mind/social), syndrome, and normal/custom skills.
      * Shared by effect/psionic — psionic held two stale inline copies that were missing
@@ -260,7 +277,7 @@
         const berserkTypesToBlock = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
 
         if (berserkActive && berserkTypesToBlock.includes(berserkType)) {
-          const rollTiming = item.system?.roll || '-';
+          const rollTiming = this.resolveInvocationRollType(item, options);
           if (rollTiming === 'reaction' || rollTiming === 'dodge') {
             if (!window.DX3rdUsageGates?.conditionExempt?.(item, 'berserk')) {
               const detail = `${game.i18n.localize('DX3rd.Berserk')}: ${game.i18n.localize('DX3rd.BerserkReactionBlocked')}`;
@@ -702,8 +719,9 @@
     },
 
     /**
-     * Ensure an item becomes active when allowed by its disable setting.
-     * Rule: if system.active.disable !== 'notCheck' then set system.active.state = true
+     * Ensure an item's activation channel becomes active when allowed by its lifecycle.
+     * A use/attack channel is represented by a frozen AE and must never be converted into
+     * active.state merely because a spell reached its invoke step.
      * Optionally re-render the owning actor sheet.
      * @param {Item} item
      * @param {Actor} [actor]
@@ -717,12 +735,15 @@
         // afterSuccess/afterDamage got switched on at cast time. Each timing has its own activation
         // point (chat-ui's fire button, processCombo*, handleSuccessButton).
         const runTiming = item?.system?.active?.runTiming ?? 'instant';
-        if (runTiming === 'instant' && activeDisable !== 'notCheck' && !skipToggle) {
-          await item.update({ 'system.active.state': true });
-          if (actor?.sheet?.rendered) actor.sheet.render(true);
-        }
+        const adapter = window.DX3rdItemEffectAdapter;
+        if (runTiming !== 'instant' || activeDisable === 'notCheck' || skipToggle
+          || !adapter?.usesActivationSelfChannel?.(item) || item.system?.active?.state) return false;
+        await this.applySelfModifiers(actor, item, {forceToggle: true, action: 'activation'});
+        if (actor?.sheet?.rendered) actor.sheet.render(true);
+        return true;
       } catch (e) {
         console.error('DX3rd | UniversalHandler.ensureActivated failed', e);
+        return false;
       }
     },
 
@@ -732,24 +753,54 @@
      * @param {Item} item
      * @param {string} timing - execution timing ('instant', 'afterSuccess', 'afterHits', 'afterDamage')
      */
+    macroExecutionPlan(item, timing = 'instant', action = null) {
+      const macroField = item.system?.macro;
+      const macroMatches = (macroField && typeof macroField === 'string')
+        ? (macroField.match(/\[([^\]]+)\]/g) || []) : [];
+      const adapter = window.DX3rdItemEffectAdapter;
+      const legacyEntries = macroMatches.map(match => {
+        const macroName = match.slice(1, -1);
+        return { macroName, macro: game.macros?.getName(macroName) || null };
+      });
+      // Legacy system.macro rows have no authored action. They historically followed only the
+      // world macro's runTiming flag, including when an always-on item fired through the separate
+      // activation route. Applying the embedded-row action inference here turns that legacy
+      // `use` fallback into a silent mismatch with action='activation'.
+      const legacyHits = legacyEntries.filter(({ macro }) => macro
+        && (macro.getFlag('dx3rd-emanim', 'runTiming') || 'instant') === timing);
+
+      // Embedded macros: system.macros = [{ timing, kind, command, macroName, disabled? }, ...]
+      //  - kind:'code' (default): run command inline (self-contained in the compendium, no name lookup)
+      //  - kind:'macro': run a world macro by macroName (the folded-in legacy system.macro field)
+      const embedded = Array.isArray(item.system?.macros) ? item.system.macros : [];
+      const embeddedHits = embedded.filter(m => {
+        if (!m || m.disabled) return false;
+        const macroTiming = adapter?.inferAction?.(item, 'macro', m) === 'activation'
+          ? 'instant'
+          : (m.timing || 'instant');
+        if (macroTiming !== timing) return false;
+        if (adapter && !adapter.macroActionMatches(item, m, action, timing)) return false;
+        return (m.kind === 'macro') ? !!m.macroName : !!m.command;
+      });
+      return {
+        legacyHits,
+        embeddedHits,
+        missingLegacyNames: legacyEntries.filter(({ macro }) => !macro).map(({ macroName }) => macroName)
+      };
+    },
+
+    hasExecutableMacros(item, timing = 'instant', action = null) {
+      const plan = this.macroExecutionPlan(item, timing, action);
+      return plan.legacyHits.length > 0 || plan.embeddedHits.length > 0;
+    },
+
     async executeMacros(item, timing = 'instant', action = null) {
       try {
-        const macroField = item.system?.macro;
-        const macroMatches = (macroField && typeof macroField === 'string') ? (macroField.match(/\[([^\]]+)\]/g) || []) : [];
-        // Embedded macros: system.macros = [{ timing, kind, command, macroName, disabled? }, ...]
-        //  - kind:'code' (default): run command inline (self-contained in the compendium, no name lookup)
-        //  - kind:'macro': run a world macro by macroName (the folded-in legacy system.macro field)
-        const embedded = Array.isArray(item.system?.macros) ? item.system.macros : [];
-        const embeddedHits = embedded.filter(m => {
-          if (!m || m.disabled) return false;
-          const macroTiming = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'macro', m) === 'activation'
-            ? 'instant'
-            : (m.timing || 'instant');
-          if (macroTiming !== timing) return false;
-          if (window.DX3rdItemEffectAdapter && !window.DX3rdItemEffectAdapter.macroActionMatches(item, m, action, timing)) return false;
-          return (m.kind === 'macro') ? !!m.macroName : !!m.command;
-        });
-        if (macroMatches.length === 0 && embeddedHits.length === 0) return;
+        const { legacyHits, embeddedHits, missingLegacyNames } = this.macroExecutionPlan(item, timing, action);
+        for (const macroName of missingLegacyNames) {
+          console.warn(`DX3rd | UniversalHandler macro not found: ${macroName}`);
+        }
+        if (legacyHits.length === 0 && embeddedHits.length === 0) return;
 
         // Select the owning actor's token
         const ownerActor = item.actor;
@@ -768,24 +819,11 @@
         }
 
         // (1) World macros referenced by name (legacy behavior)
-        for (const match of macroMatches) {
-          const macroName = match.slice(1, -1); // [name] -> name
-          const macro = game.macros?.getName(macroName);
-          if (macro) {
-            // Read the macro's execution timing from its flags
-            const macroTiming = macro.getFlag('dx3rd-emanim', 'runTiming') || 'instant';
-
-            // Run only when the timing matches
-            if (macroTiming === timing) {
-              try {
-                await macro.execute();
-              } catch (e) {
-                console.error(`DX3rd | UniversalHandler macro execution failed: ${macroName}`, e);
-              }
-            } else {
-            }
-          } else {
-            console.warn(`DX3rd | UniversalHandler macro not found: ${macroName}`);
+        for (const { macroName, macro } of legacyHits) {
+          try {
+            await macro.execute();
+          } catch (e) {
+            console.error(`DX3rd | UniversalHandler macro execution failed: ${macroName}`, e);
           }
         }
 
@@ -1058,37 +1096,79 @@
      * Handle a combo's merged afterSuccess payload
      * @param {Object} comboData - { actorId, comboItemId, activations, macros, applies, extensions }
      */
-    async processComboAfterSuccess(comboData) {
+    resolveComboFollowupItem(actor, comboData, itemId) {
+      const embedded = actor?.items?.get?.(itemId);
+      if (embedded) return embedded;
+      if (itemId !== comboData?.comboItemId || !comboData?.comboItemSnapshot) return null;
+      return window.DX3rdHydrateInstantCombo?.(comboData.comboItemSnapshot, actor) || null;
+    },
+
+    /** Resolve a serialized token-id snapshot. null means an older card with no frozen targets. */
+    resolveComboFollowupTargets(targetTokenIds) {
+      if (!Array.isArray(targetTokenIds)) return null;
+      const seen = new Set();
+      const actors = [];
+      for (const tokenId of targetTokenIds) {
+        if (!tokenId || seen.has(tokenId)) continue;
+        seen.add(tokenId);
+        const token = canvas.tokens?.get?.(tokenId)
+          || canvas.tokens?.placeables?.find?.(candidate => candidate.id === tokenId);
+        if (token?.actor) actors.push(token.actor);
+      }
+      return actors;
+    },
+
+    async processComboAfterSuccess(comboData, options = {}) {
       
       const { actorId, comboItemId, activations = [], macros = [], applies = [], extensions = [], afterMainExtensions = [] } = comboData;
       const actor = game.actors.get(actorId);
-      if (!actor) return;
+      const damageBonus = { attack: 0, attackFormula: '', penetrate: 0 };
+      if (!actor) return damageBonus;
+      const mergeDamageBonus = bonus => {
+        damageBonus.attack += Number(bonus?.attack) || 0;
+        damageBonus.attackFormula = this.joinFormulaTerms(damageBonus.attackFormula, bonus?.attackFormula);
+        damageBonus.penetrate += Number(bonus?.penetrate) || 0;
+      };
       
       // 1. Self modifiers. New combo data stores the action, so only the member's "use"
       // bucket fires. Older chat cards without an action fall back to the legacy activation.
       for (const { itemId, itemName, action = null } of activations) {
-        const item = actor.items.get(itemId);
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (!item) continue;
         if (action) {
-          await this.applySelfModifiers(actor, item, { action });
+          if (this.processAfterSuccessSelfModifiers) {
+            mergeDamageBonus(await this.processAfterSuccessSelfModifiers(actor, item, {
+              action,
+              attackItem: options.attackItem || null,
+              expiredTimings: options.expiredTimings || [],
+              ...(item._dx3rdInstantSnapshot === true ? { forceFrozen: true } : {})
+            }));
+          } else {
+            await this.applySelfModifiers(actor, item, { action });
+          }
         } else if (item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state) {
           await item.update({ 'system.active.state': true });
         }
       }
       
       // 2. Macros
+      const executedMacroRuns = new Set();
       for (const { itemId, itemName, macroName, timing, action = null } of macros) {
-        const item = actor.items.get(itemId);
+        const macroRunKey = JSON.stringify([itemId, timing || 'afterSuccess', action]);
+        if (executedMacroRuns.has(macroRunKey)) continue;
+        executedMacroRuns.add(macroRunKey);
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
-          await this.executeMacros(item, timing, action);
+          await this.executeMacros(item, timing || 'afterSuccess', action);
         }
       }
       
       // 3. Applied effects
-      for (const { itemId, itemName, action = null } of applies) {
-        const item = actor.items.get(itemId);
+      for (const { itemId, itemName, action = null, selectedTargetIds = null } of applies) {
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
-          await this.applyToTargets(actor, item, 'afterSuccess', null, action);
+          const forcedTargets = this.resolveComboFollowupTargets(selectedTargetIds);
+          await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action);
         }
       }
       
@@ -1124,7 +1204,7 @@
           });
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
-            const sourceItem = actor.items.get(source.itemId);
+            const sourceItem = this.resolveComboFollowupItem(actor, comboData, source.itemId);
             await this.executeStatusClearExtension(actor, {
               ...(source.raw?.extensionData || {}),
               target: bucket.target,
@@ -1169,7 +1249,7 @@
           await this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
-            const sourceItem = actor.items.get(source.itemId);
+            const sourceItem = this.resolveComboFollowupItem(actor, comboData, source.itemId);
             await this.addToAfterMainQueue(actor, {
               ...(source.raw?.extensionData || {}),
               target: bucket.target,
@@ -1179,7 +1259,8 @@
           }
         }
       }
-      
+      await window.DX3rdInstantComboRetention?.complete?.(actor, comboItemId, 'afterSuccess');
+      return damageBonus;
     },
 
     /**
@@ -1207,10 +1288,13 @@
       
       // 1. Self modifiers. A member only fires the serialized "use" action.
       for (const { itemId, itemName, action = null } of activations) {
-        const item = actor.items.get(itemId);
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (!item) continue;
         if (action) {
-          await this.applySelfModifiers(actor, item, { action });
+          await this.applySelfModifiers(actor, item, {
+            action,
+            ...(item._dx3rdInstantSnapshot === true ? { forceFrozen: true } : {})
+          });
         } else {
           // Compatibility with older chat cards that carry no action
           const activeDisable = item.system?.active?.disable ?? '-';
@@ -1221,11 +1305,15 @@
       }
       
       // 2. Macros
+      const executedMacroRuns = new Set();
       for (const { itemId, itemName, macroName, timing, action = null } of macros) {
-        const item = actor.items.get(itemId);
+        const macroRunKey = JSON.stringify([itemId, timing || 'afterDamage', action]);
+        if (executedMacroRuns.has(macroRunKey)) continue;
+        executedMacroRuns.add(macroRunKey);
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
           try {
-            await this.executeMacros(item, timing, action);
+            await this.executeMacros(item, timing || 'afterDamage', action);
           } catch (e) {
             console.warn(`DX3rd | Combo afterDamage - Macro execution failed: ${itemName}`, e);
           }
@@ -1234,7 +1322,7 @@
       
       // 3. Applied effects
       for (const { itemId, itemName, action = 'attack' } of applies) {
-        const item = actor.items.get(itemId);
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
           // Pass damagedActors through as forcedTargets
           await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action);
@@ -1275,7 +1363,7 @@
           });
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
-            const sourceItem = actor.items.get(source.itemId);
+            const sourceItem = this.resolveComboFollowupItem(actor, comboData, source.itemId);
             const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
             const targetData = window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
               originalTarget, damagedTokenIds, bucket.selectedTargetIds || []);
@@ -1327,7 +1415,7 @@
           await this.addToAfterMainQueue(actor, conditionData, null, 'condition');
         } else if (bucket.type === 'statusClear') {
           for (const source of bucket.sources || []) {
-            const sourceItem = actor.items.get(source.itemId);
+            const sourceItem = this.resolveComboFollowupItem(actor, comboData, source.itemId);
             const originalTarget = bucket.target || source.raw?.extensionData?.target || 'self';
             const targetData = window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
               originalTarget, damagedTokenIds, bucket.selectedTargetIds || []);
@@ -1339,6 +1427,7 @@
           }
         }
       }
+      await window.DX3rdInstantComboRetention?.complete?.(actor, comboItemId, 'afterDamage');
       
     },
 
@@ -1348,7 +1437,7 @@
      * @param {string} itemId - item id
      * @param {string} previousTokenId - id of the previously selected token
      */
-    async handleSuccessButton(actorId, itemId, previousTokenId = null, weaponAttack = 0) {
+    async handleSuccessButton(actorId, itemId, previousTokenId = null, weaponAttack = 0, options = {}) {
       try {
         if (!actorId) return;
         
@@ -1386,10 +1475,20 @@
             // 0. Run 'afterSuccess' macros
             await this.executeMacros(item, 'afterSuccess', successAction);
             
-            // 1. Activate when active.runTiming is 'afterSuccess' (and disable is not 'notCheck')
-            const activeDisable = item.system?.active?.disable ?? '-';
-            if (actionMatches('selfModifiers', item.system?.active || {}) && item.system.active?.runTiming === 'afterSuccess' && !item.system.active?.state && activeDisable !== 'notCheck') {
-              await item.update({ 'system.active.state': true });
+            // 1. Apply the matching self bucket. A roll/major lifetime already ended before this
+            // button existed, so it must not be left on the actor for the next check.
+            if (this.processAfterSuccessSelfModifiers) {
+              await this.processAfterSuccessSelfModifiers(actor, item, {
+                action: successAction,
+                expiredTimings: options.expiredTimings || []
+              });
+            } else {
+              const activeDisable = item.system?.active?.disable ?? '-';
+              if (actionMatches('selfModifiers', item.system?.active || {})
+                && item.system.active?.runTiming === 'afterSuccess'
+                && !item.system.active?.state && activeDisable !== 'notCheck') {
+                await item.update({ 'system.active.state': true });
+              }
             }
             
             // 2. Apply target effects for 'afterSuccess' (effect.runTiming === 'afterSuccess')
@@ -1586,6 +1685,91 @@
         return window.DX3rdComboHandler.validateUse(actor, item) !== false;
       }
       return true;
+    },
+
+    /**
+     * A non-attack item may prepare an on-hit target modifier for the next attack
+     * (for example, special ammunition used during the minor process). The item-use client owns
+     * the transient formula inputs, so freeze the target bucket now and persist only that snapshot.
+     */
+    async armPendingAttackRider(actor, item, action = 'use') {
+      const adapter = window.DX3rdItemEffectAdapter;
+      if (!actor || !item || action !== 'use' || adapter?.isAttackItem?.(item)) return false;
+      if (adapter && !adapter.targetFiresAt(item, 'attack', 'afterDamage')) return false;
+      if (!adapter && item.system?.effect?.runTiming !== 'afterDamage') return false;
+
+      const targetAttributes = adapter
+        ? adapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+        : (item.system?.effect?.attributes || {});
+      if (!this.hasUsableAttribute(targetAttributes)) return false;
+
+      const rider = {
+        itemId: item.id,
+        itemName: item.name,
+        targetAttributes: this.freezeTransferredItemAttributes(actor, item, targetAttributes),
+        preEvaluated: true,
+        armedAt: Date.now()
+      };
+      const pending = foundry.utils.deepClone(actor.getFlag?.('dx3rd-emanim', 'pendingAttackRiders') || []);
+      const riders = Array.isArray(pending) ? pending.filter(entry => entry?.itemId !== item.id) : [];
+      riders.push(rider);
+      await actor.setFlag('dx3rd-emanim', 'pendingAttackRiders', riders);
+      window.DX3rdDebug.log('DX3rd | Armed after-damage rider for the next attack:', item.name);
+      return true;
+    },
+
+    /** Move every prepared rider onto one concrete attack card, then clear the actor-side pending state. */
+    async bindPendingAttackRiders(actor, attackMessage) {
+      if (!actor || !attackMessage) return [];
+      const pending = foundry.utils.deepClone(actor.getFlag?.('dx3rd-emanim', 'pendingAttackRiders') || []);
+      if (!Array.isArray(pending) || pending.length === 0) {
+        return attackMessage.getFlag?.('dx3rd-emanim', 'attackAfterDamageRiders') || [];
+      }
+
+      const existing = foundry.utils.deepClone(
+        attackMessage.getFlag?.('dx3rd-emanim', 'attackAfterDamageRiders') || []);
+      const byItem = new Map((Array.isArray(existing) ? existing : [])
+        .filter(entry => entry?.itemId)
+        .map(entry => [entry.itemId, entry]));
+      for (const rider of pending) {
+        if (rider?.itemId) byItem.set(rider.itemId, rider);
+      }
+      const bound = [...byItem.values()];
+      await attackMessage.setFlag('dx3rd-emanim', 'attackAfterDamageRiders', bound);
+      await actor.unsetFlag('dx3rd-emanim', 'pendingAttackRiders');
+      window.DX3rdDebug.log('DX3rd | Bound pending after-damage riders to attack card:', bound.length);
+      return bound;
+    },
+
+    /** Apply attack-card rider snapshots to the token-correlated actors that the attack hit. */
+    async processPendingAttackRiders(attacker, riders, hitActorIds = [], hitTokenIds = []) {
+      if (!attacker || !Array.isArray(riders) || riders.length === 0) return;
+      const hitActors = (hitTokenIds || [])
+        .map(tokenId => canvas.tokens.get(tokenId)?.actor)
+        .filter(Boolean);
+      for (const actorId of hitActorIds || []) {
+        const targetActor = game.actors.get(actorId);
+        if (targetActor && !hitActors.some(candidate => candidate.id === targetActor.id)) {
+          hitActors.push(targetActor);
+        }
+      }
+
+      for (const rider of riders) {
+        const sourceItem = attacker.items.get(rider?.itemId);
+        if (!sourceItem) {
+          console.warn('DX3rd | Pending attack rider item not found:', rider?.itemId);
+          continue;
+        }
+        for (const targetActor of hitActors) {
+          await this.dispatchItemAttributes(
+            attacker,
+            sourceItem,
+            targetActor,
+            rider.targetAttributes || {},
+            {preEvaluated: rider.preEvaluated === true}
+          );
+        }
+      }
     },
 
     /**
@@ -1795,7 +1979,10 @@
         && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);
 
       if (!declarationOnly) {
-        const usageAllowed = await this.processItemUsageCost(actor, item, {action});
+        const usageAllowed = await this.processItemUsageCost(actor, item, {
+          action,
+          rollType: options.rollType
+        });
         if (!usageAllowed) {
           window.DX3rdDebug.log('DX3rd | handleItemUse - Usage blocked by cost');
           return false;
@@ -1920,6 +2107,10 @@
       } else if (!effectOnlyUse) {
         console.warn(`DX3rd | handleItemUse - No handler registered for itemType: ${itemType}`);
       }
+
+      // A standalone preparation item can carry its after-damage target bucket into the next
+      // concrete attack. Arm it only after the type handler has completed successfully.
+      await this.armPendingAttackRider(actor, item, action);
 
       // Completed successfully
       return true;

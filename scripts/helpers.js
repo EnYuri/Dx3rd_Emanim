@@ -1671,8 +1671,9 @@
     // Other existing helpers follow…
 })(); 
 
-// A temporary combo may have its document removed right after use, yet the chat card's follow-up
-// must keep working. So the chat flags hold only a serializable snapshot, never a Document instance.
+// A used temporary combo remains as a hidden embedded Item while it owns pending or persistent work.
+// Chat flags also carry a serializable snapshot so old cards and post-cleanup rerolls never retain a
+// Document instance or fail merely because the hidden source has since reached its cleanup point.
 (function() {
     const FLAG_SCOPE = 'dx3rd-emanim';
     const FLAG_KEY = 'instantCombo';
@@ -1693,6 +1694,110 @@
         snapshot.flags[FLAG_SCOPE] ??= {};
         snapshot.flags[FLAG_SCOPE][FLAG_KEY] = true;
         return snapshot;
+    };
+
+    /**
+     * Rehydrate the small Item surface used by serialized combo follow-up handlers. The snapshot is
+     * deliberately not a Document: updates cannot be persisted once the hidden source was cleaned up.
+     */
+    window.DX3rdHydrateInstantCombo = function(snapshot, actor = null) {
+        if (!snapshot) return null;
+        snapshot.id ??= snapshot._id;
+        snapshot.actor ??= actor;
+        snapshot._dx3rdInstantSnapshot = true;
+        snapshot.getFlag ??= (scope, key) => snapshot.flags?.[scope]?.[key];
+        snapshot.setFlag ??= async () => null;
+        snapshot.unsetFlag ??= async () => null;
+        return snapshot;
+    };
+
+    const RETAIN_FLAG = 'instantComboRetained';
+    const PENDING_FLAG = 'instantComboPending';
+    const followupKeys = ['afterSuccess', 'afterDamage'];
+    const hasFollowupWork = data => ['activations', 'macros', 'applies', 'extensions', 'afterMainExtensions']
+        .some(key => Array.isArray(data?.[key]) && data[key].length > 0);
+
+    function retained(item) {
+        return window.DX3rdIsInstantCombo(item)
+            && (item.getFlag?.(FLAG_SCOPE, RETAIN_FLAG) === true
+                || item.flags?.[FLAG_SCOPE]?.[RETAIN_FLAG] === true);
+    }
+
+    function pending(item) {
+        return item?.getFlag?.(FLAG_SCOPE, PENDING_FLAG)
+            || item?.flags?.[FLAG_SCOPE]?.[PENDING_FLAG]
+            || {};
+    }
+
+    function hasAppliedReference(itemId) {
+        if (!itemId || !game?.actors) return false;
+        for (const actor of game.actors) {
+            const applied = window.DX3rdAppliedEffects?.collect
+                ? window.DX3rdAppliedEffects.collect(actor)
+                : (actor.system?.attributes?.applied || {});
+            if (Object.values(applied || {}).some(data => data?.itemId === itemId)) return true;
+        }
+        return false;
+    }
+
+    function hasAfterMainReference(itemId) {
+        if (!itemId) return false;
+        try {
+            const queue = game.settings.get('dx3rd-emanim', 'afterMainQueue') || [];
+            return queue.some(entry => entry?.itemId === itemId || entry?.data?.triggerItemId === itemId);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    window.DX3rdInstantComboRetention = {
+        RETAIN_FLAG,
+        PENDING_FLAG,
+        isRetained: retained,
+        hasFollowupWork,
+
+        async retain(item, stages = {}) {
+            if (!window.DX3rdIsInstantCombo(item) || !item.update) return false;
+            const nextPending = {...pending(item)};
+            for (const key of followupKeys) {
+                if (key in stages) nextPending[key] = !!stages[key];
+            }
+            await item.update({
+                [`flags.${FLAG_SCOPE}.${RETAIN_FLAG}`]: true,
+                [`flags.${FLAG_SCOPE}.${PENDING_FLAG}`]: nextPending
+            });
+            return true;
+        },
+
+        async tryCleanup(item) {
+            if (!retained(item) || !item?.actor?.items?.has?.(item.id)) return false;
+            if (followupKeys.some(key => pending(item)[key] === true)) return false;
+            if (item.system?.active?.state === true) return false;
+            if (hasAppliedReference(item.id) || hasAfterMainReference(item.id)) return false;
+            await item.delete();
+            window.DX3rdDebug.log('DX3rd | Hidden instant combo cleaned up:', item.name, item.id);
+            return true;
+        },
+
+        async complete(actorOrId, itemId, stage) {
+            const actor = typeof actorOrId === 'string' ? game.actors.get(actorOrId) : actorOrId;
+            const item = actor?.items?.get?.(itemId);
+            if (!retained(item) || !followupKeys.includes(stage)) return false;
+            const nextPending = {...pending(item), [stage]: false};
+            await item.update({[`flags.${FLAG_SCOPE}.${PENDING_FLAG}`]: nextPending});
+            return this.tryCleanup(item);
+        },
+
+        async sweep(actor = null) {
+            const actors = actor ? [actor] : Array.from(game?.actors || []);
+            let removed = 0;
+            for (const owner of actors) {
+                for (const item of Array.from(owner?.items || []).filter(retained)) {
+                    if (await this.tryCleanup(item)) removed++;
+                }
+            }
+            return removed;
+        }
     };
 })();
 

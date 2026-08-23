@@ -3550,7 +3550,8 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     width: 60px;
 }
 
-.damage-dialog .calc-dialog input[type="number"] {
+.damage-dialog .calc-dialog input[type="number"],
+.damage-dialog .calc-dialog input[type="text"] {
     width: 90px;
     padding: 4px;
     border: 1px solid #ccc;
