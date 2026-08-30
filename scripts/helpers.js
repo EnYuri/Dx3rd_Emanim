@@ -1450,7 +1450,12 @@
             resurrect: 'allowResurrectViolation',
             encroachLimit: 'allowEncroachLimitViolation',
             berserk: 'allowBerserkViolation',
-            pressure: 'allowPressureViolation'
+            pressure: 'allowPressureViolation',
+            // "가드를 실행할 수 없다" is the attack's own rules text rather than a table option, but it
+            // reaches the defender the same way every other gate does — as an input that goes dead. So it
+            // is switchable on the same terms: allowed (the default) means the blocked inputs only *look*
+            // locked and whatever the defender enters still counts, with a warning and a chat record left behind.
+            defenseBypass: 'allowDefenseBypassViolation'
         },
 
         /**

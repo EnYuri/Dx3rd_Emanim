@@ -8,28 +8,28 @@
 
 // HP damage extension implementation.
 /**
- * HP 데미지 익스텐션 실행
- * @param {Actor} actor - 사용자 액터
- * @param {Object} damageData - 데미지 데이터
- * @param {Item} item - 연동된 아이템 (옵션)
+ * Run an HP damage extension
+ * @param {Actor} actor - the using actor
+ * @param {Object} damageData - the damage data
+ * @param {Item} item - the linked item (optional)
  */
 handler.executeDamageExtension = async function(actor, damageData, item = null) {
   window.DX3rdDebug.log('DX3rd | executeDamageExtension called', { actor: actor.name, damageData, item: item?.name });
   
   const { timing } = damageData;
   
-  // afterMain, afterDamage, afterSuccess는 각 버튼/호출 지점에서 직접 큐에 등록하므로 여기서는 처리 안 함
+  // afterMain, afterDamage and afterSuccess register on the queue at their own button / call site, so they are not handled here
   if (timing === 'afterMain' || timing === 'afterDamage' || timing === 'afterSuccess') {
     window.DX3rdDebug.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
     return;
   }
   
-  // instant 타이밍이면 즉시 실행
+  // With the instant timing, run it right away
   await this.executeDamageExtensionNow(actor, damageData, item);
 };
 
 /**
- * HP 데미지 조건부 공식 입력 다이얼로그 (호출한 클라이언트에만 표시)
+ * The conditional formula input dialog for HP damage (shown only on the calling client)
  * @returns {Promise<{dice: string, add: string}|null>}
  */
 handler.promptConditionalDamageFormula = async function() {
@@ -102,14 +102,14 @@ handler.promptConditionalDamageFormula = async function() {
 };
 
 /**
- * HP 데미지 익스텐션 즉시 실행
- * @param {Actor} actor - 사용자 액터
- * @param {Object} damageData - 데미지 데이터
- * @param {Item} item - 연동된 아이템 (옵션)
- * @param {Object} options - 옵션 (skipDialog: 확인 다이얼로그 건너뛰기)
+ * Run an HP damage extension immediately
+ * @param {Actor} actor - the using actor
+ * @param {Object} damageData - the damage data
+ * @param {Item} item - the linked item (optional)
+ * @param {Object} options - options (skipDialog: skip the confirmation dialog)
  */
 handler.executeDamageExtensionNow = async function(actor, damageData, item = null, options = {}) {
-  // actor 유효성 검사
+  // Validate the actor
   if (!actor || !actor.id) {
     console.error('DX3rd | executeDamageExtensionNow: Invalid actor', actor);
     ui.notifications.error('액터 정보가 유효하지 않습니다.');
@@ -125,22 +125,22 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
   let { formulaDice, formulaAdd, target, ignoreReduce, selectedTargetIds, targetsFrozen = false, triggerItemName, conditionalFormula } = damageData;
   const { skipDialog = false } = options;
   
-  // conditionalFormula가 체크되어 있으면 공식 입력 다이얼로그 표시 (호출한 클라이언트에만)
+  // With conditionalFormula checked, show the formula input dialog (on the calling client only)
   if (conditionalFormula) {
     const customFormula = await this.promptConditionalDamageFormula();
     
     if (!customFormula) {
       window.DX3rdDebug.log('DX3rd | Conditional formula input cancelled');
-      return; // 취소 시 데미지 적용 중단
+      return; // cancelling stops the damage from being applied
     }
     
-    // 입력받은 공식으로 덮어쓰기
+    // Overwrite with the formula that was entered
     formulaDice = customFormula.dice;
     formulaAdd = customFormula.add;
     window.DX3rdDebug.log('DX3rd | Custom damage formula applied:', { formulaDice, formulaAdd });
   }
   
-  // 대상 수집
+  // Collect the targets
   const targets = [];
   
   if (target === 'self' || target === 'targetAll') {
@@ -173,7 +173,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     return;
   }
   
-  // 아이템의 레벨 가져오기 (없으면 1)
+  // Get the item's level (1 when absent)
   const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;
   const itemForFormula = {
     type: item?.type || 'effect',
@@ -186,14 +186,14 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
   
   window.DX3rdDebug.log(`DX3rd | Using item level for formula: ${itemLevel} (item: ${item?.name || 'none'})`);
   
-  // 공식 평가 (액터의 능력치/기능치 참조)
+  // Evaluate the formula (referencing the actor's attributes / skills)
   let evaluatedDice = 0;
   let evaluatedAdd = 0;
   
   if (formulaDice) {
     const diceFormula = String(formulaDice).trim();
     if (diceFormula && diceFormula !== '0') {
-      // NdM은 수량식이 아니라 Foundry Roll 수식으로 뒤에서 그대로 굴린다.
+      // NdM is not a count expression; it is rolled as a Foundry Roll formula later, as-is.
       evaluatedDice = window.DX3rdFormulaEvaluator.hasDice(diceFormula)
         ? 0
         : window.DX3rdFormulaEvaluator.evaluate(diceFormula, itemForFormula, actor);
@@ -203,14 +203,14 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
   if (formulaAdd) {
     const addFormula = String(formulaAdd).trim();
     if (addFormula && addFormula !== '0') {
-      // 다이스식은 승인 뒤 GM이 굴린다. 여기서는 숫자식만 미리 계산한다.
+      // A dice formula is rolled by the GM after approval. Only numeric expressions are precomputed here.
       evaluatedAdd = window.DX3rdFormulaEvaluator.hasDice(addFormula)
         ? 0
         : window.DX3rdFormulaEvaluator.evaluate(addFormula, itemForFormula, actor);
     }
   }
   
-  // 참조를 치환한 원문 수식을 GM에게 넘겨 승인 뒤 한 번만 굴린다.
+  // The original formula, with its references substituted, is handed to the GM and rolled exactly once after approval.
   const resolvedAddFormula = window.DX3rdFormulaEvaluator.prepareRollFormula(formulaAdd || '0', itemForFormula, actor);
   const rawDiceFormula = String(formulaDice || '').trim();
   const resolvedDiceFormula = window.DX3rdFormulaEvaluator.hasDice(rawDiceFormula)
@@ -222,7 +222,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
 
   window.DX3rdDebug.log(`DX3rd | Damage formula evaluated - Dice: ${formulaDice} → ${evaluatedDice}, Add: ${formulaAdd} → ${evaluatedAdd}`);
   
-  // 사용자가 결과를 한 번 굴린다. 소유 대상과 GM 중계 대상에 같은 결과를 적용한다.
+  // The user rolls the result once. The same result is applied to owned targets and GM-relayed targets alike.
   const requestData = {
     userId: game.user.id,
     actorId: actor.id,
@@ -233,7 +233,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     rollFormula,
     ignoreReduce: ignoreReduce || false,
     triggerItemName: (triggerItemName || item?.name || null),
-    skipDialog: skipDialog  // 구 저장 데이터 호환용
+    skipDialog: skipDialog  // for compatibility with older stored data
   };
 
   if (window.DX3rdFormulaEvaluator.hasDice(rollFormula)) {
@@ -244,7 +244,7 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
     requestData.resolvedAmount = window.DX3rdFormulaEvaluator.evaluate(rollFormula);
   }
 
-  // 자신의 액터는 즉시 갱신하고, 수정 권한이 없는 대상만 GM이 조용히 중계한다.
+  // Your own actor is updated immediately; only targets you cannot modify are relayed quietly by the GM.
   const localTargets = targets.filter(targetActor => game.user.isGM || targetActor.isOwner);
   const remoteTargets = targets.filter(targetActor => !localTargets.includes(targetActor));
   if (localTargets.length) {
@@ -259,32 +259,32 @@ handler.executeDamageExtensionNow = async function(actor, damageData, item = nul
 };
 
 /**
- * HP 데미지 적용. 소유 대상은 사용자 클라이언트가, 그 외 대상은 대표 GM이 호출한다.
+ * Apply the HP damage. Owned targets are handled by the using client, the rest by the representative GM.
  */
 handler.handleDamageRequest = async function(requestData) {
   
   window.DX3rdDebug.log('DX3rd | handleDamageRequest called with:', requestData);
   
-  // requestData가 undefined인 경우 체크
+  // Guard against requestData being undefined
   if (!requestData) {
     console.error('DX3rd | handleDamageRequest - requestData is undefined!');
     return;
   }
   
-  // afterSuccess에서 온 경우: damageData가 있음
+  // Coming from afterSuccess: damageData is present
   if (requestData.damageData) {
     const actor = game.actors.get(requestData.actorId);
     const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
     
-    // executeDamageExtensionNow 직접 호출
+    // Call executeDamageExtensionNow directly
     await this.executeDamageExtensionNow(actor, requestData.damageData, item);
     return;
   }
   
-  // instant에서 온 경우: 기존 로직
+  // Coming from instant: the existing logic
   const { userId, actorId, actorName, targets, formulaDice, formulaAdd, rollFormula, ignoreReduce, triggerItemName } = requestData;
   
-  // 데미지 계산 (다이스롤은 한 번만 실행)
+  // Compute the damage (the dice roll runs exactly once)
   let damageAmount = Number(requestData.resolvedAmount);
   let rollMessage = requestData.rollMessage || '';
   
@@ -292,7 +292,7 @@ handler.handleDamageRequest = async function(requestData) {
     const roll = await new Roll(rollFormula || `${formulaDice}d10 + ${formulaAdd}`).roll();
     damageAmount = roll.total;
     
-    // 롤 결과를 HTML로 변환
+    // Render the roll result as HTML
     const rollHTML = await roll.render();
     rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
     
@@ -302,7 +302,7 @@ handler.handleDamageRequest = async function(requestData) {
     window.DX3rdDebug.log(`DX3rd | HP damage (no dice): ${damageAmount}`);
   }
   
-  // 각 대상에게 데미지 적용
+  // Apply the damage to each target
   for (const targetData of targets) {
     const targetActor = game.actors.get(targetData.id);
     if (!targetActor) continue;
@@ -310,20 +310,20 @@ handler.handleDamageRequest = async function(requestData) {
     const currentHP = targetActor.system.attributes.hp?.value || 0;
     const reduce = targetActor.system.attributes.reduce?.value || 0;
     
-    // 실제 데미지 = 롤 데미지 - 데미지 경감 (경감 무시가 아닌 경우)
-    // armor는 기본적으로 무시, reduce만 고려
+    // The actual damage = the rolled damage - the damage reduction (unless reduction is ignored)
+    // armor is ignored by default; only reduce is taken into account
     const actualDamage = ignoreReduce 
       ? damageAmount 
       : Math.max(0, damageAmount - reduce);
     
     const newHP = Math.max(0, currentHP - actualDamage);
-    const actualHpLoss = currentHP - newHP;  // 실제 HP 감소량
+    const actualHpLoss = currentHP - newHP;  // the actual HP loss
     await targetActor.update({ 'system.attributes.hp.value': newHP });
     
-    // 데미지 메시지 출력 (해당 액터 스피커로, 시스템 메시지로 처리)
+    // Print the damage message (as that actor's speaker, handled as a system message)
     let damageText = `HP ${actualHpLoss} 데미지`;
     
-    // triggerItemName이 있으면 표시 (afterMain에서 온 경우)
+    // Show triggerItemName when present (coming from afterMain)
     if (triggerItemName) {
       const cleanItemName = triggerItemName.split('||')[0];
       damageText = `HP ${actualHpLoss} 데미지 (${cleanItemName})`;

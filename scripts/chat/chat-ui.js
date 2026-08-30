@@ -256,14 +256,14 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
         }
     }
     
-    // invoke-spell 버튼 완료 상태 복원
+    // Restore the completed state of the invoke-spell button
     const invokeCompleted = message.getFlag('dx3rd-emanim', 'invokeCompleted');
     if (invokeCompleted === true) {
         const button = html.querySelector('.invoke-spell');
         if (button) {
             const currentText = button.textContent.trim();
             
-            // 이미 "완료"가 포함되어 있으면 중복 추가 방지
+            // Avoid appending twice when "완료" is already present
             if (!currentText.includes(completeText)) {
                 const itemDataStr = button.getAttribute('data-item-data');
                 let itemName = game.i18n.localize('DX3rd.Spell');
@@ -273,7 +273,7 @@ Hooks.on('renderChatMessageHTML', (message, html, data) => {
                         const itemData = JSON.parse(itemDataStr);
                         itemName = itemData.name || itemName;
                     } catch (e) {
-                        // 파싱 실패 시 무시
+                        // Ignore a parse failure
                     }
                 }
                 
@@ -439,7 +439,7 @@ window.DX3rdChatToggleManager = {
                 }
                 return;
             } else if (target.classList.contains('book-toggle-btn')) {
-                // 마도서 토글 버튼의 경우, 다이얼로그 표시
+                // For the grimoire toggle button, show the dialog
                 const section = target.dataset.bookSection;
                 if (window.DX3rdChatHandlers && window.DX3rdChatHandlers.showBookItemsDialog) {
                     window.DX3rdChatHandlers.showBookItemsDialog(messageElement, section);
@@ -463,18 +463,18 @@ window.DX3rdChatToggleManager = {
             window.DX3rdChatHandlers.initializeExistingMessages();
         }
         
-        // 술식 발동 버튼 클릭 리스너 등록
+        // Register the click listener for the spell invocation button
         dx3rdRegisterGlobalListener('dx3rd-invoke-spell', 'click', async (event) => {
             const button = event.target.closest('.invoke-spell');
             if (!button) return;
             event.preventDefault();
             event.stopPropagation();
 
-            // getTarget 정보 읽기 (data 속성에서)
+            // Read the getTarget information (from the data attribute)
             const getTargetAttr = button.dataset.getTarget;
             const getTarget = getTargetAttr === true || getTargetAttr === 'true';
             
-            // getTarget이 체크되어 있으면 타겟 확인
+            // With getTarget checked, verify the target
             if (getTarget) {
                 const targets = Array.from(game.user.targets);
                 if (targets.length === 0) {
@@ -483,7 +483,7 @@ window.DX3rdChatToggleManager = {
                 }
             }
             
-            // 메시지 찾기
+            // Find the message
             const messageElement = button.closest('.message');
             const messageId = messageElement?.dataset?.messageId;
             const message = game.messages.get(messageId);
@@ -495,12 +495,12 @@ window.DX3rdChatToggleManager = {
 
             const isCompleted = message.getFlag('dx3rd-emanim', 'invokeCompleted') === true;
 
-            // 원본 텍스트 저장 (처음 한 번만)
+            // Store the original text (only the first time)
             if (!button.dataset.originalText) {
                 button.dataset.originalText = button.textContent.trim();
             }
 
-            // 이미 완료된 버튼을 클릭한 경우 롤백
+            // Roll back when an already completed button is clicked
             if (isCompleted) {
                 await message.unsetFlag('dx3rd-emanim', 'invokeCompleted');
                 return;
@@ -521,13 +521,13 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 권한 체크
+            // Permission check
             if (!actor.isOwner && !game.user.isGM) {
                 console.warn('DX3rd | User lacks permission to use this actor\'s actions');
                 return;
             }
             
-            // 저장된 아이템 데이터 파싱
+            // Parse the stored item data
             let itemData = null;
             if (itemDataStr) {
                 try {
@@ -537,7 +537,7 @@ window.DX3rdChatToggleManager = {
                 }
             }
             
-            // 아이템 데이터가 없으면 실제 아이템에서 가져오기
+            // With no item data, take it from the real item
             if (!itemData && itemId) {
                 const item = actor.items.get(itemId);
                 if (item) {
@@ -560,7 +560,7 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 실제 아이템 가져오기 (최신 상태)
+            // Get the real item (its latest state)
             const item = actor.items.get(itemId);
             if (!item) {
                 ui.notifications.error('아이템을 찾을 수 없습니다.');
@@ -575,14 +575,14 @@ window.DX3rdChatToggleManager = {
                 // the sheet's manifestation choice meaningless.
                 await handler.processAfterSuccessSelfModifiers?.(actor, item, {action: successAction});
                 
-                // 'afterSuccess' 매크로 실행 (50ms 딜레이)
+                // Run the 'afterSuccess' macros (with a 50 ms delay)
                 await new Promise(resolve => setTimeout(resolve, 50));
                 await handler.executeMacros(item, 'afterSuccess', successAction);
                 
-                // 'afterSuccess' 타겟 효과 적용
+                // Apply the 'afterSuccess' target effects
                 await handler.applyToTargets(actor, item, 'afterSuccess', null, successAction);
                 
-                // afterSuccess 타이밍 heal/damage/condition 익스텐션을 handleSuccessButton과 동일하게 처리
+                // afterSuccess-timing heal/damage/condition extensions are handled exactly as in handleSuccessButton
                 const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
                 const selectedTargetIds = Array.from(game.user.targets).map(t => t.id);
                 const extensionMatches = (type, data) => !window.DX3rdItemEffectAdapter
@@ -599,7 +599,7 @@ window.DX3rdChatToggleManager = {
                         triggerItemId: item.id
                     };
                     
-                    // GM이면 직접 처리만 (소켓 전송 안 함)
+                    // A GM only handles it directly (no socket send)
                     if (game.user.isGM) {
                         await handler.handleHealRequest({
                             actorId: actor.id,
@@ -607,7 +607,7 @@ window.DX3rdChatToggleManager = {
                             itemId: item.id
                         });
                     } else {
-                        // 플레이어면 소켓 전송만
+                        // A player only sends over the socket
                         window.DX3rdSocketRouter.emit({
                             type: 'healRequest',
                             requestData: {
@@ -629,7 +629,7 @@ window.DX3rdChatToggleManager = {
                         triggerItemId: item.id
                     };
                     
-                    // GM이면 직접 처리만 (소켓 전송 안 함)
+                    // A GM only handles it directly (no socket send)
                     if (game.user.isGM) {
                         await handler.handleDamageRequest({
                             actorId: actor.id,
@@ -637,12 +637,12 @@ window.DX3rdChatToggleManager = {
                             itemId: item.id
                         });
                     } else {
-                        // 플레이어: 조건부 공식 입력은 본인 클라이언트에서만 → 확정 후 GM 소켓 처리
+                        // A player: the conditional formula input happens on their own client → the GM handles it over the socket once settled
                         await _dx3rdEmitDamageRequestAsPlayer(actor, item, damageDataWithTargets);
                     }
                 }
                 
-                // condition afterSuccess (conditions 배열 또는 기존 단일 형식)
+                // condition afterSuccess (the conditions array, or the older single form)
                 const condEntries = handler._getConditionEntries?.(itemExtend.condition || {}) || [];
                 const afterSuccessConds = condEntries.filter(c => c.timing === 'afterSuccess'
                     && extensionMatches('condition', c));
@@ -665,7 +665,7 @@ window.DX3rdChatToggleManager = {
                     }, item);
                 }
                 
-                // runTiming이 afterSuccess인 경우, afterMain 익스텐드를 큐에 등록
+                // When runTiming is afterSuccess, register the afterMain extensions on the queue
                 if (item.system.active?.runTiming === 'afterSuccess') {
                     await handler.registerAfterMainExtensions(actor, item, itemExtend, successAction);
                 }
@@ -673,18 +673,18 @@ window.DX3rdChatToggleManager = {
                 console.log('DX3rd | Spell invoke - processed afterSuccess timing extensions');
             }
             
-            // 발동 시 메이저 비활성화 훅 실행
+            // Run the major deactivation hooks on firing
             if (window.DX3rdDisableHooks) {
                 await window.DX3rdDisableHooks.executeDisableHook('major', actor);
             }
             
-            // 플래그 설정 (메시지에 저장)
+            // Set the flag (stored on the message)
             await message.setFlag('dx3rd-emanim', 'invokeCompleted', true);
             
-            // 버튼 완료 상태로 표시
+            // Mark the button as completed
             button.textContent = `${itemData.name} ${game.i18n.localize('DX3rd.Invoking')} ${game.i18n.localize('DX3rd.Complete')}`;
             
-            // 채팅 메시지 출력 (굴림이 있는 경우는 굴림 실행 시 이미 메시지가 생성되므로 여기서는 생성하지 않음)
+            // Print the chat message (when there is a roll, the message was already created at roll time, so none is created here)
             const rollType = item.system?.roll ?? '-';
             if (rollType !== 'CastingRoll') {
                 const chatContent = `${item.name} ${game.i18n.localize('DX3rd.Invoking')}`;
@@ -696,7 +696,7 @@ window.DX3rdChatToggleManager = {
             }
         });
         
-        // 마술 폭주 버튼 클릭 리스너 등록
+        // Register the click listener for the magic disaster button
         dx3rdRegisterGlobalListener('dx3rd-spell-overflow', 'click', async (event) => {
             const button = event.target.closest('.spell-overflow');
             if (!button) return;
@@ -719,16 +719,16 @@ window.DX3rdChatToggleManager = {
                 return;
             }
             
-            // 권한 체크
+            // Permission check
             if (!actor.isOwner && !game.user.isGM) {
                 console.warn('DX3rd | User lacks permission to use this actor\'s actions');
                 return;
             }
             
-            // 아이템 가져오기 (선택사항)
+            // Get the item (optional)
             const item = itemId ? actor.items.get(itemId) : null;
             
-            // SpellHandler의 handleDisasterButton 호출
+            // Call SpellHandler's handleDisasterButton
             if (window.DX3rdSpellHandler) {
                 await window.DX3rdSpellHandler.handleDisasterButton(actor, item, disasterType, overflowCount);
             } else {
@@ -1911,7 +1911,7 @@ window.DX3rdChatHandlers = {
     },
     
     showBookItemsDialog(messageElement, section) {
-        // 메시지에서 액터 정보 추출
+        // Extract the actor information from the message
         let actorId = null;
         try {
             const messageData = messageElement?.[0] || messageElement;
@@ -1937,16 +1937,16 @@ window.DX3rdChatHandlers = {
             return;
         }
         
-        // 마도서 아이템 찾기
+        // Find the grimoire item
         const bookItems = actor.items.filter(item => item.type === 'book');
         if (bookItems.length === 0) {
             return;
         }
         
-        // 첫 번째 마도서 아이템 사용 (여러 개가 있다면 가장 최근에 생성된 것)
+        // Use the first grimoire item (the most recently created one when there are several)
         const bookItem = bookItems[0];
         
-        // 섹션에 따른 아이템 수집
+        // Collect the items by section
         let items = [];
         let sectionName = '';
         
@@ -1960,7 +1960,7 @@ window.DX3rdChatHandlers = {
             return;
         }
         
-        // 다이얼로그 표시
+        // Show the dialog
         this.createBookItemsDialog(sectionName, items, bookItem.name, actor);
     },
     
@@ -1969,11 +1969,11 @@ window.DX3rdChatHandlers = {
         if (bookItem.system.spells && Array.isArray(bookItem.system.spells)) {
             for (const spellId of bookItem.system.spells) {
                 if (spellId && spellId !== '-') {
-                    // 공용 아이템에서 조회
+                    // Look it up among the shared items
                     const spell = game.items.get(spellId);
                     
                     if (spell && spell.type === 'spell') {
-                        // 액터가 같은 이름의 술식을 가지고 있는지 확인
+                        // Check whether the actor has a spell of the same name
                         const actorSpell = actor.items.find(item => 
                             item.type === 'spell' && item.name === spell.name
                         );
@@ -2043,7 +2043,7 @@ window.DX3rdChatHandlers = {
         content += `</ol>`;
         content += `</div>`;
         
-        // 다이얼로그 생성
+        // Create the dialog
         new foundry.applications.api.DialogV2({
             window: { title: `${bookName} - ${sectionName}` },
             content: content,

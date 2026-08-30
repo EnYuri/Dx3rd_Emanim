@@ -1,13 +1,34 @@
-// Effect 아이템 핸들러
+// The Effect item handler
 (function() {
 window.DX3rdEffectHandler = {
     /**
-     * 이펙트의 system.skill로부터 판정용 stat과 라벨을 해석한다.
-     * 실제 로직은 UniversalHandler 가 psionic 과 공유한다.
+     * Resolve the roll's stat and label from the effect's system.skill.
+     * The actual logic lives in UniversalHandler, shared with psionic.
      * @returns {{stat: object|null, label: string}}
      */
     resolveStatAndLabel(actor, item) {
         return window.DX3rdUniversalHandler.resolveStatAndLabel(actor, item);
+    },
+
+    /**
+     * The stat and label this roll actually uses.
+     *  - 기능 authored and resolvable → that stat.
+     *  - 기능 '-' → an empty pool ("기능 -, 난이도 대결"): the dialog opens with 0 dice for the player to fill in.
+     *  - 기능 authored but unresolvable → a warning and no roll. The authored intent exists there, so rolling an
+     *    empty pool would hide a data error instead of reporting it.
+     * @returns {{stat: object|null, label: string}} stat null = the caller stops.
+     */
+    resolveRollStat(actor, item) {
+        const skillKey = item.system?.skill;
+        if (!skillKey || skillKey === '-') {
+            return { stat: window.DX3rdUniversalHandler.blankRollStat(), label: '-' };
+        }
+        const resolved = this.resolveStatAndLabel(actor, item);
+        if (!resolved.stat) {
+            ui.notifications.warn(game.i18n.localize('DX3rd.SkillDataNotFound'));
+            return { stat: null, label: '' };
+        }
+        return resolved;
     },
 
     async handle(actorId, itemId, getTarget, options = {}) {
@@ -17,24 +38,47 @@ window.DX3rdEffectHandler = {
             return; 
         }
         
-        // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
+        // Look on the actor's items first, then in game.items
         const item = actor.items.get(itemId) || game.items.get(itemId);
         if (!item) { 
             ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
             return; 
         }
 
-        // 이펙트 롤 타입 분기: '-'는 기본 로직, 그 외는 판정 처리
+        // Branch on the effect's roll type: '-' is the default logic, anything else is a roll
         const rollType = window.DX3rdUniversalHandler.resolveInvocationRollType(item, options);
-        // attackRoll(백병/사격)이 설정된 자체공격 이펙트는 roll이 '-'라도 공격 판정으로 라우팅한다.
-        // (자동 기계화가 roll을 '-'로 둔 케이스의 안전망이며, 향후 공격 이펙트도 자동 커버한다.)
+        // A self-attacking effect with attackRoll (melee/ranged) set is routed to an attack roll even when roll is '-'.
+        // (A safety net for cases where the automatic mechanization left roll as '-'; it also covers future attack effects.)
         const hasAttackRoll = item.system?.attackRoll && item.system.attackRoll !== '-';
 
+        // The 난이도 field decides whether there is anything to roll. 자동성공 and '-'/blank both say the use
+        // simply happens, so the roll is skipped and it goes through as a plain use — cost, activation,
+        // self/target modifiers, macros and extensions all ran in handleItemUse before this handler was
+        // reached, so nothing is lost with it.
+        //
+        // 기능 does NOT decide. "기능 -, 난이도 대결" is a real authored shape (a contest the effect names
+        // without naming a stat), and it rolls with an empty pool the player fills in from the dialog
+        // (blankRollStat). Only a difficulty that names nothing turns the roll off.
+        //
+        // An attack effect is the one exception in the other direction: attackRoll is what produces the
+        // accuracy roll and the damage step behind it, so a use that carries one keeps rolling regardless
+        // of its difficulty (14 measured world attack effects have a blank difficulty, and dropping their
+        // roll would leave them with no way to deal damage at all).
+        const skipsRoll = !hasAttackRoll && window.DX3rdUniversalHandler.skipsRollByDifficulty(item);
+
+        if (skipsRoll) {
+            window.DX3rdDebug?.log(`DX3rd | ${item.name}: 판정 없이 효과만 적용`, {
+                skill: item.system?.skill, difficulty: item.system?.difficulty, roll: rollType
+            });
+            await this.handleBasicEffect(actor, item);
+            return;
+        }
+
         if (rollType === '-' && !hasAttackRoll) {
-            // 기본 처리: 침식률 증가 및 통합 메시지 출력 (instant는 universal-handler에서 이미 처리됨)
+            // The default handling: raise the encroachment and print the combined message (instant is already handled in universal-handler)
             await this.handleBasicEffect(actor, item);
         } else {
-            // 판정 처리: major/reaction/dodge. roll이 '-'인 공격 이펙트는 판정 종류를 timing에서 유추한다.
+            // Roll handling: major/reaction/dodge. For an attack effect whose roll is '-', the roll kind is inferred from the timing.
             let effectiveRoll = rollType;
             if (rollType === '-') {
                 const timing = item.system?.timing;
@@ -45,16 +89,16 @@ window.DX3rdEffectHandler = {
     },
     
     /**
-     * 기본 이펙트 처리 (system.roll === '-')
-     * 침식률/활성화/익스텐션은 이미 handleItemUse에서 처리됨
+     * The default effect handling (system.roll === '-')
+     * The encroachment / activation / extensions are already handled in handleItemUse
      */
     async handleBasicEffect(actor, item) {
-        // 특별한 처리 없음 - 모든 것이 UniversalHandler에서 처리됨
+        // Nothing special — everything is handled in UniversalHandler
     },
     
     /**
-     * 판정 이펙트 처리 (system.roll !== '-')
-     * 침식률/활성화는 이미 handleItemUse에서 처리됨
+     * The roll effect handling (system.roll !== '-')
+     * The encroachment / activation are already handled in handleItemUse
      */
     async handleEffectRoll(actor, item, rollType, getTarget, options = {}) {
         const handler = window.DX3rdUniversalHandler;
@@ -63,38 +107,38 @@ window.DX3rdEffectHandler = {
             console.error("DX3rd | UniversalHandler not found");
             return;
         }
-        // 직접 공격 이펙트는 무기 없이도 자신의 수정치/공격력을 공격 운반값으로 제공한다.
+        // A direct attack effect supplies its own modifiers / attack power as the attack payload, with no weapon.
         //
-        // 콤보와 같은 기준(includeComboModifiers)으로 읽는다. 예전에는 이 호출만 플래그가 없어
-        // `!isAttackItem(item)` 게이트에 걸렸고, 그래서 attackRoll 없는 판정 이펙트의
-        // system.add 가 **콤보에서는 걸리고 단독 사용에서는 조용히 무시되는** 비대칭이 있었다.
-        // (팩 실측: roll≠'-' 41건은 전부 attackRoll 을 가져 지금 동작이 바뀌는 문서는 0건이다.
-        //  이펙트 시트의 수정치/공격력 칸은 attackRoll 과 무관하게 늘 노출되므로 저작은 가능하다.)
-        // 공격력이 데미지 굴림 없는 판정에 딸려 오는 것은 판정창 안내 줄이 isAttackRoll 로
-        // 가려 준다 — 데이터를 막아서 표시 문제를 피하지 않는다.
+        // It is read on the same criterion as a combo (includeComboModifiers). This call alone used to lack the flag,
+        // so it was caught by the `!isAttackItem(item)` gate, giving the asymmetry where a roll effect with no
+        // attackRoll had its system.add **counted in a combo but silently ignored in standalone use**.
+        // (Measured in the packs: all 41 documents with roll≠'-' carry an attackRoll, so no document changes behaviour.
+        //  The effect sheet's modifier / attack power fields are always shown regardless of attackRoll, so authoring is possible.)
+        // Attack power riding along on a roll with no damage roll is hidden by the roll window's guidance line, which
+        // is gated on isAttackRoll — a display problem is not avoided by blocking the data.
         const ownAttackBonus = adapter?.effectAttackBonus?.(item, actor, {includeComboModifiers: true}) || null;
         
-        // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
+        // With weapon selection enabled, show the weapon selection dialog
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
             await this.showWeaponSelectionForAttack(actor, item, rollType, options, ownAttackBonus);
             return;
         }
         
-        // 무기 선택이 비활성화되어 있지만 공격 판정인 경우, 등록된 무기 보너스 적용
+        // With weapon selection disabled but the roll being an attack, apply the registered weapon bonuses
         if (!item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
             const registeredWeaponBonus = this.calculateRegisteredWeaponBonus(actor, item);
             
-            // 등록된 무기 중 사용 가능한 무기가 하나라도 있으면 보너스 적용
+            // Apply the bonus when at least one registered weapon is still usable
             const hasAvailableWeapons = registeredWeaponBonus.weaponIds.length > 0;
             
             if (hasAvailableWeapons) {
-                // 이펙트 자체 수치와 등록 무기를 한 번씩만 합산한다.
+                // The effect's own values and the registered weapons are summed exactly once each.
                 const weaponBonus = adapter?.mergeAttackBonuses?.(ownAttackBonus, registeredWeaponBonus)
                     || registeredWeaponBonus;
                 await this.handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options);
                 return;
             }
-            // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
+            // With weaponSelect false, no weapon selection dialog opens and it proceeds as an ordinary roll
         }
 
         if (ownAttackBonus) {
@@ -102,25 +146,11 @@ window.DX3rdEffectHandler = {
             return;
         }
         
-        // 아이템의 스킬로 stat 데이터 가져오기
-        const skillKey = item.system?.skill;
-        // 기능이 없는 판정 타이밍 이펙트는 "굴리지 않고 효과만 거는" 이펙트다
-        // (리액션 창에서 고르는 다이스/가드 보정 이펙트가 대표적). 코스트·활성화·익스텐션은
-        // 이미 handleItemUse 가 처리했으므로 판정만 건너뛰고 성공으로 끝낸다.
-        if (!skillKey || skillKey === '-') {
-            window.DX3rdDebug?.log(`DX3rd | ${item.name}: 기능 미지정 → 판정 없이 효과만 적용`);
-            return;
-        }
+        // Get the skill or attribute data (attributes / syndromes / custom skills all handled the same way)
+        const { stat, label } = this.resolveRollStat(actor, item);
+        if (!stat) return;
 
-        // 스킬 또는 능력치 데이터 가져오기 (능력치/신드롬/커스텀 스킬 공통 처리)
-        const { stat, label } = this.resolveStatAndLabel(actor, item);
-
-        if (!stat) {
-            ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
-            return;
-        }
-
-        // 판정 다이얼로그 표시 (특정 타입만)
+        // Show the roll dialog (for certain types only)
         handler.showStatRollDialog(
             actor,
             stat,
@@ -139,25 +169,25 @@ window.DX3rdEffectHandler = {
     },
     
     /**
-     * 공격용 무기 선택 다이얼로그 표시
+     * Show the weapon selection dialog for an attack
      */
     async showWeaponSelectionForAttack(actor, item, rollType, options = {}, ownAttackBonus = null) {
         const attackRollType = item.system.attackRoll;
         
-        // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
+        // Get all of the actor's weapons plus vehicles (the type filtering was removed)
         const allWeapons = actor.items.filter(w => w.type === 'weapon' || w.type === 'vehicle');
-        // 「무기 없음」 한 장을 맨 위에 노출 - 무기가 하나도 없어도 판정으로 넘어갈 수 있게.
+        // Expose the single "no weapon" row at the top, so the roll can proceed even with no weapons at all.
         const virtualWeapons = window.DX3rdVirtualWeapons?.list?.(attackRollType) || [];
         const weapons = [...virtualWeapons, ...allWeapons];
 
-        // 무기 선택 다이얼로그 표시
+        // Show the weapon selection dialog
         new window.DX3rdWeaponForAttackDialog({
             actor: actor,
             weapons: weapons,
             attackRoll: attackRollType,
             title: game.i18n.localize('DX3rd.WeaponSelection'),
             callback: async (weaponBonus) => {
-                // 선택 무기와 이펙트 자체 수치를 함께 적용한다.
+                // The selected weapon and the effect's own values are applied together.
                 const combined = window.DX3rdItemEffectAdapter?.mergeAttackBonuses?.(ownAttackBonus, weaponBonus)
                     || weaponBonus || ownAttackBonus;
                 await this.handleEffectRollWithWeapon(actor, item, rollType, combined, options);
@@ -166,37 +196,24 @@ window.DX3rdEffectHandler = {
     },
     
     /**
-     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만).
-     * 실제 로직은 UniversalHandler 가 psionic 과 공유한다.
+     * Compute the bonuses of the weapons registered on the weapon tab (only those with attacks left).
+     * The actual logic lives in UniversalHandler, shared with psionic.
      */
     calculateRegisteredWeaponBonus(actor, item) {
         return window.DX3rdUniversalHandler.calculateRegisteredWeaponBonus(actor, item);
     },
 
     /**
-     * 무기 보너스를 적용한 판정 처리
+     * Roll handling with the weapon bonuses applied
      */
     async handleEffectRollWithWeapon(actor, item, rollType, weaponBonus, options = {}) {
         const handler = window.DX3rdUniversalHandler;
 
-        // 아이템의 스킬로 stat 데이터 가져오기
-        const skillKey = item.system?.skill;
-        // 위와 같다 — 기능이 없으면 판정 없이 효과만 적용한다. 무기/자체 공격 수치는
-        // 굴릴 판정이 없으므로 이번 사용에서는 실리지 않는다.
-        if (!skillKey || skillKey === '-') {
-            window.DX3rdDebug?.log(`DX3rd | ${item.name}: 기능 미지정 → 판정 없이 효과만 적용(공격 수치 미사용)`);
-            return;
-        }
+        // Get the skill or attribute data (attributes / syndromes / custom skills all handled the same way)
+        const { stat, label } = this.resolveRollStat(actor, item);
+        if (!stat) return;
 
-        // 스킬 또는 능력치 데이터 가져오기 (능력치/신드롬/커스텀 스킬 공통 처리)
-        const { stat, label } = this.resolveStatAndLabel(actor, item);
-
-        if (!stat) {
-            ui.notifications.warn('기능 데이터를 찾을 수 없습니다.');
-            return;
-        }
-
-        // 무기 보너스를 적용하여 판정 다이얼로그 표시
+        // Show the roll dialog with the weapon bonuses applied
         handler.showStatRollDialog(
             actor,
             stat,

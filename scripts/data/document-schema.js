@@ -1,40 +1,40 @@
 /**
- * DX3rd 문서 스키마 — 폐기된 template.json 을 대신한다.
+ * The DX3rd document schema — it replaces the retired template.json.
  *
- * Foundry 는 V14 에서 template.json 을 deprecate 했고 V16 에서 읽지 않는다. 대체 경로는
- * system.json 의 `documentTypes`(서브타입 선언) + `CONFIG.<Document>.dataModels`(스키마)다.
+ * Foundry deprecated template.json in V14 and stops reading it in V16. The replacement path is system.json's
+ * `documentTypes` (declaring the subtypes) plus `CONFIG.<Document>.dataModels` (the schema).
  *
- * ── 옮기면서 지켜야 했던 것 ─────────────────────────────────────────────────────
- * template.json 경로는 스키마가 아니라 **기본값 병합**이었다(`TypeDataField._cleanType` 의
- * `mergeObject(template, value, {insertKeys})`). 그래서 두 가지가 공짜였다:
- *   ① 선언에 없는 키도 저장되고 살아남았다.
- *   ② 값의 타입을 아무도 강제하지 않았다 — `attack: 0` 으로 선언된 자리에 `"4+[level]"` 이
- *      들어 있어도 그대로 보존됐다.
- * DataModel 은 둘 다 하지 않는다. 미선언 키는 정리 단계에서 **지워지고**, NumberField 는
- * 수식 문자열을 삼킨다. 그래서 이 파일은:
- *   ① 라이브 팩 2745건 + 월드 2개(액터 122·임베드 아이템 803)를 전수 실측해 나온
- *      미선언 저장 경로를 전부 선언에 담았고(아래 「실측 보강」 주석),
- *   ② 원시값은 **타입을 강제하지 않는** DX3rdLooseField 로 받는다. 불리언만 BooleanField 다.
- * 즉 template.json 의 병합 의미를 그대로 재현하되, 어떤 키가 존재하는지만 선언한다.
+ * ── What had to be preserved while moving ──────────────────────────────────────
+ * The template.json path was not a schema but a **defaults merge** (`TypeDataField._cleanType`'s
+ * `mergeObject(template, value, {insertKeys})`). Two things therefore came for free:
+ *   ① Keys absent from the declaration were still stored and survived.
+ *   ② Nobody enforced a value's type — a slot declared `attack: 0` holding `"4+[level]"` was preserved
+ *      exactly as it was.
+ * A DataModel does neither. An undeclared key is **erased** during cleaning, and a NumberField swallows a
+ * formula string. So this file:
+ *   ① took a full census of the live data (2745 pack documents + 2 worlds: 122 actors, 803 embedded items) and
+ *      put every undeclared storage path it found into the declaration (the "measured addition" comments below),
+ *   ② and receives primitives through DX3rdLooseField, which does **not** enforce a type. Only booleans are BooleanField.
+ * That is, it reproduces template.json's merge semantics exactly while declaring only which keys exist.
  *
- * 실측에서 미선언으로 잡혔으나 **일부러 넣지 않은 것**은 죽은 필드뿐이다 —
- * `system.system`/`system.name`/`system.type`/`system.img`(마이그레이션 v1·v2 가 지우는
- * 중첩 사본), `conditions.lostHP`(v3), `system.roll-check`
- * (combo-data 가 지운다). DataModel 이 로드 시점에 자동으로 떨궈 주므로 결과는 같고,
- * 그만큼 마이그레이션이 잡을 대상이 줄어들 뿐이다.
+ * The only things the census flagged as undeclared that were **deliberately left out** are dead fields —
+ * `system.system`/`system.name`/`system.type`/`system.img` (the nested copies migrations v1 and v2 delete),
+ * `conditions.lostHP` (v3), and `system.roll-check`
+ * (combo-data deletes it). The DataModel drops them automatically at load time, so the outcome is the same;
+ * there is simply that much less for the migration to catch.
  *
- * `conditions.healing` 은 한때 그 목록에 있었으나 **오진이었다.** v3 는 「읽는 코드가
- * 전무하다」는 근거로 지웠는데, 클린업 프로세스의 회복 처리(combat.js)가 그때도 이 값을
- * 읽고 있었다. 선언이 사라지면서 그 처리가 조용히 0건이 됐고 — 사독(클린업 HP 감소)만
- * 남고 회복(클린업 HP 증가)이 없는 비대칭이 됐다 — 그래서 되살렸다. 빼지 말 것.
+ * `conditions.healing` was once on that list, but that was **a misdiagnosis**. v3 deleted it on the grounds that
+ * "no code reads it", yet the cleanup process's healing handling (combat.js) was reading it even then. With the
+ * declaration gone, that handling silently became a no-op — leaving the asymmetry of poison (a cleanup HP loss)
+ * with no healing (a cleanup HP gain) — so it was restored. Do not take it out.
  *
- * 지속 효과 카드를 그리는 활성 아이템 타입은 카드의 두 축을 모두 저장해야 한다.
- * `active.action`/`applyMode` 는 자기 보정의 발현 액션·적용 채널을, `effect.action` 은
- * 대상 보정의 발현 액션을 보존한다. 이 필드가 없으면 시트에서는 바뀐 것처럼 보여도
- * DataModel 정리에서 사라지고, 적용기가 타입 폴백으로 다른 채널을 실행하게 된다.
+ * An active item type that draws a persistent-effect card has to store both of the card's axes.
+ * `active.action`/`applyMode` preserve the self modifiers' firing action and application channel, and
+ * `effect.action` preserves the target modifiers' firing action. Without these fields the sheet looks as though
+ * it changed, but the value disappears in the DataModel cleaning and the applier runs a different channel.
  */
 (function () {
-  // template.json 과 같은 모양이다(types / templates / 타입별 정의). 도구가 그대로 읽는다.
+  // The same shape as template.json (types / templates / per-type definitions). The tools read it directly.
   const DEFAULTS = {
     Actor: {
       types: ['character', 'enemy'],
@@ -42,7 +42,7 @@
       character: {
         actorType: 'NPC',
         codeName: '',
-        // 실측 보강: 액터 시트의 프로즈미러 약력(2개 월드 42건). template.json 에 없었다.
+        // Measured addition: the actor sheet's ProseMirror biography (42 documents across 2 worlds). It was absent from template.json.
         description: '',
         emotions: {},
         attributes: {},
@@ -57,7 +57,7 @@
         },
         conditions: {
           poisoned: { active: false, value: 0 },
-          // 사독의 짝. 클린업 프로세스에서 HP 를 value 만큼 회복한다(combat.js).
+          // The counterpart of poison. The cleanup process restores HP by value (combat.js).
           healing: { active: false, value: 0 },
           hatred: { active: false, target: '' },
           fear: { active: false, target: '' },
@@ -106,7 +106,22 @@
         base: {
           description: '',
           skillTmp: 'melee',
-          skills: {}
+          skills: {},
+          // Attacker side — "this attack ignores the target's armor / guard / reaction".
+          // Kept separate from `penetrate`, which is a *numeric* armor reduction that some rules
+          // ask for specifically (e.g. 《플래시 스팅어》 "장갑치를 [LVx8]만큼 무시"). These three are
+          // the all-or-nothing form, and they live on `base` because weapons, etc items and
+          // D-Lois carry them as often as effects do (레일 건, 브레이커, No.59 잊을 수 없는 사람).
+          bypassDefense: { armor: false, guard: false, reaction: false },
+          // Defender side — the counter the rules actually print for each of the above.
+          // `armor`: 《이지스 링》 "「장갑치를 무시하고 데미지를 산출하는」 이펙트의 효과를 무시".
+          // `guard`: 《마그넷 체인》《비호하는 짐승》《에너지 실드》 "「리액션을 실행할 수 없다」거나
+          //   「가드를 실행할 수 없다」는 효과를 가진 공격에 대해서도 가드를 실행할 수 있다" — either
+          //   bypassed axis opens the *guard*, and it never opens the reaction.
+          // `reaction`: 《전지의 파편》 "「리액션을 실행할 수 없다」 혹은 「닷지를 실행할 수 없다」는 효과를
+          //   가진 공격에 대해서도 닷지를 실행할 수 있다" — the separate counter that does give the
+          //   reaction back. The two are not interchangeable, which is why they are separate flags.
+          restoreDefense: { armor: false, guard: false, reaction: false }
         },
         item: {
           saving: { value: 0, difficulty: '0', acquisition: 'permanent' },
@@ -134,8 +149,8 @@
         attackAchievement: '-',
         encroach: { init: 0, value: '' },
         hp: { value: '' },
-        // 실측 보강: level.value 는 이펙트 1937건(팩 1578 + 월드 359) 전부가 저장한다.
-        // document/item.js 가 채팅 카드에 쓰고 compendium-sync 가 갱신한다.
+        // Measured addition: level.value is stored by all 1937 effects (1578 in the packs + 359 in the worlds).
+        // document/item.js writes it on the chat card, and compendium-sync updates it.
         level: { init: 1, max: 1, value: 0, upgrade: true },
         exp: { own: true, upgrade: true },
         effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
@@ -146,7 +161,7 @@
         scene: false,
         macro: '',
         macros: [],
-        // 실측 보강: 무기 선택 UI(effect-workspace-sheet-v2.html)가 쓰는 3필드. 233건.
+        // Measured addition: the 3 fields used by the weapon-selection UI (effect-workspace-sheet-v2.html). 233 documents.
         weaponSelect: false,
         weaponTmp: '-',
         weapon: [],
@@ -159,10 +174,10 @@
           label: '-',
           disable: 'main'
         },
-        // [중압]/[폭주] 예외. 원문에 「[중압] 중에도 사용할 수 있다」류의 명시가 있는
-        // 이펙트만 켠다 — 확장 도구의 「이펙트 상세 설정」에서 저작하고,
-        // DX3rdUsageGates.conditionExempt 가 읽는다. 두 상태이상은 막는 타이밍이 서로 달라
-        // (중압=오토 / 폭주=리액션·닷지) 한 칸으로 합치지 않았다.
+        // The [pressure]/[berserk] exemption. Only effects whose rules text explicitly says something like "it can be
+        // used even while in [pressure]" are turned on — authored in the extend tool's "effect detail settings", and
+        // read by DX3rdUsageGates.conditionExempt. The two conditions block at different timings
+        // (pressure = auto / berserk = reaction and dodge), so they were not merged into one field.
         conditionExempt: { pressure: false, berserk: false }
       },
       combo: {
@@ -197,7 +212,7 @@
         macro: '',
         macros: [],
         effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
-        // 실측 보강: 콤보 구성 UI 가 쓰는 3필드(월드 72건). effectIds 는 구성 이펙트의 정본이다.
+        // Measured addition: the 3 fields used by the combo composition UI (72 documents across the worlds). effectIds is the canonical list of member effects.
         effectIds: [],
         effectTmp: '-',
         weaponTmp: '-'
@@ -216,11 +231,11 @@
         scene: false,
         macro: '',
         macros: [],
-        // 실측 보강: 판정 종류(`-` 또는 `CastingRoll`). spell-sheet-v2.html 의 select 와
-        // 캐스팅 판정 체크박스(`update({'system.roll': …})`)가 저작한다. template.json 에는
-        // 선언이 없었고 병합 경로가 미선언 키를 보존해 준 덕에 동작했다.
+        // Measured addition: the roll kind (`-` or `CastingRoll`). It is authored by the select in spell-sheet-v2.html
+        // and by the casting-roll checkbox (`update({'system.roll': …})`). template.json never declared it, and it
+        // worked only because the merge path preserved undeclared keys.
         roll: '-',
-        // 실측 보강: spell-sheet-v2 의 임시 주문 체크박스.
+        // Measured addition: the temporary-spell checkbox in spell-sheet-v2.
         temporarySpell: false
       },
       psionic: {
@@ -236,7 +251,7 @@
         attackRoll: '-',
         attackAchievement: '-',
         hp: { value: '' },
-        // 실측 보강: psionic-sheet-v2 가 level.value 와 무기 선택 3필드를 쓴다(이펙트와 동형).
+        // Measured addition: psionic-sheet-v2 uses level.value and the 3 weapon-selection fields (the same shape as an effect).
         level: { init: 1, max: 1, value: 0, upgrade: true },
         exp: { own: true, upgrade: true },
         effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
@@ -280,7 +295,7 @@
         used: { state: 0, max: 0, level: false, disable: 'notCheck' },
         effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
         attributes: {},
-        // 실측 보강: HP 소비 방어구 1건(팩). 다른 활성 타입과 같은 모양이다.
+        // Measured addition: 1 HP-consuming piece of armor (in the packs). The same shape as the other active types.
         hp: { value: '' },
         getTarget: false,
         scene: false,
@@ -311,10 +326,10 @@
         attributes: {},
         getTarget: false,
         effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} },
-        // 실측 보강: connection-sheet-v2 가 사용 횟수를 저작한다(팩 17건).
+        // Measured addition: connection-sheet-v2 authors the use count (17 documents in the packs).
         used: { state: 0, max: 0, level: false, disable: 'notCheck' },
-        // 실측 보강: connection-sheet-v2.html 의 매크로 칸. 임베드 매크로 목록(`macros`)을
-        // 쓰는 타입은 아니고 단일 매크로만 저작한다(item-sheet.js 의 embedMacroTypes 참조).
+        // Measured addition: the macro field in connection-sheet-v2.html. This type does not use the embedded macro
+        // list (`macros`); it authors a single macro only (see embedMacroTypes in item-sheet.js).
         macro: ''
       },
       book: {
@@ -324,10 +339,10 @@
         decipher: 0,
         macro: '',
         macros: [],
-        // 실측 보강: 마법서에 등재한 스펠 id 목록. template.json 은 이것을 선언한 적이 없고
-        // 병합 경로가 미선언 키를 보존해 준 덕에 동작했다(book-sheet-v2 의 addSpell/removeSpell 이
-        // `system.spells` 를 통째로 갱신한다). 선언하지 않으면 등재가 조용히 사라진다.
-        // 팩·월드 실측으로는 잡히지 않았다 — 아직 스펠을 담은 마법서 문서가 없었을 뿐이다.
+        // Measured addition: the list of spell ids registered in a spellbook. template.json never declared it and it
+        // worked only because the merge path preserved undeclared keys (book-sheet-v2's addSpell/removeSpell replace
+        // `system.spells` wholesale). Without the declaration, a registration silently disappears.
+        // The pack / world census did not catch it — there simply was no spellbook document holding a spell yet.
         spells: [],
         used: { state: 0, max: 0, level: true, disable: 'notCheck' }
       },
@@ -354,7 +369,7 @@
         used: { state: 0, max: 0, level: false, disable: 'notCheck' },
         effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} },
         attributes: {},
-        // 실측 보강: HP 를 소비하는 기타 아이템 4건(팩).
+        // Measured addition: 4 miscellaneous items that consume HP (in the packs).
         hp: { value: '' },
         getTarget: false,
         scene: false
@@ -391,19 +406,19 @@
         attributes: {},
         active: { state: false, disable: '-', runTiming: 'instant' },
         used: { state: 0, max: 0, level: false, disable: 'notCheck' },
-        // 실측 보강: 침식치를 가진 D로이스 4건(팩). 다른 아이템과 같은 encroach 모양이다.
+        // Measured addition: 4 D-Lois with an encroachment value (in the packs). The same encroach shape as other items.
         encroach: { init: 0, value: '' }
       },
       record: {
         templates: ['base'],
         exp: 0,
-        // 실측 보강: record-sheet-v2 의 침식률 입력(월드 13건).
+        // Measured addition: the encroachment rate input in record-sheet-v2 (13 documents across the worlds).
         encroachment: 0
       }
     }
   };
 
-  /** 타입 하나의 최종 기본값(템플릿 병합 결과). */
+  /** The final defaults for one type (the result of merging its templates). */
   function mergeType(kind, type) {
     const def = DEFAULTS[kind]?.[type];
     if (!def) return null;
@@ -419,9 +434,9 @@
   }
 
   /**
-   * 타입을 강제하지 않는 필드. template.json 병합이 값에 손대지 않던 것을 그대로 재현한다.
-   * 수치 칸에 수식(`4+[level]`)이나 `-`/`불가` 같은 표기가 들어 있는 문서가 실제로 있어서
-   * NumberField 로 옮기면 그 값들이 사라진다.
+   * A field that does not enforce a type. It reproduces exactly how the template.json merge left values alone.
+   * Documents really do hold a formula (`4+[level]`) or a notation such as `-` / `불가` in a numeric slot, so moving
+   * to a NumberField would make those values disappear.
    */
   let LooseField = null;
   function looseFieldClass() {
@@ -437,18 +452,18 @@
   }
 
   /**
-   * 기본값 하나를 필드로 옮긴다.
-   * - 빈 객체 = 자유 맵(applied 버킷, 보정 행, 스킬 등) → ObjectField
-   * - 그 밖의 객체 → SchemaField (재귀)
-   * - 그 밖의 값 → 불리언만 BooleanField, 나머지는 LooseField
+   * Turn a single default value into a field.
+   * - an empty object = a free map (applied buckets, modifier rows, skills, …) → ObjectField
+   * - any other object → SchemaField (recursively)
+   * - any other value → BooleanField for booleans only, LooseField for the rest
    */
   function toField(value, context) {
     const fields = foundry.data.fields;
     const Loose = looseFieldClass();
 
     if (Array.isArray(value)) {
-      // 배열도 LooseField 로 받는다 — 레거시 문서가 배열 자리에 객체를 넣어 둔 경우가 있고
-      // (universal-extensions 의 effect 배열 폴백), ArrayField 는 그것을 기본값으로 날린다.
+      // Arrays are received through LooseField too — a legacy document sometimes holds an object where an array
+      // belongs (the effect array fallback in universal-extensions), and an ArrayField would blow that away to its default.
       return new Loose({ initial: () => structuredClone(value) });
     }
     if (value && typeof value === 'object') {
@@ -456,11 +471,11 @@
         return new fields.ObjectField({ required: true, initial: () => ({}) });
       }
       const schema = {};
-      // 버킷은 채널 그룹 바로 아래에만 붙는다. 하위 그룹까지 따라 내려가면 안 된다.
+      // Buckets attach directly under a channel group only. They must not follow down into subgroups.
       for (const [key, child] of Object.entries(value)) schema[key] = toField(child, { buckets: false });
-      // 지속 효과 버킷은 저작했을 때만 생긴다(`system.<active|effect>.buckets.<action>`).
-      // 선언하지 않으면 정리 단계에서 지워지고, 기본값을 주면 없던 문서에도 빈 객체가 생겨
-      // `버킷이 있는가` 판정이 흔들린다. 그래서 initial 없이 선택 필드로만 둔다.
+      // A persistent-effect bucket comes into existence only when authored (`system.<active|effect>.buckets.<action>`).
+      // Leaving it undeclared would have the cleaning step erase it, while giving it a default would create an empty
+      // object even on documents that never had one, shaking the "is there a bucket" test. Hence an optional field with no initial.
       if (context.buckets && !('buckets' in schema)) {
         schema.buckets = new fields.ObjectField({ required: false, nullable: true, initial: undefined });
       }
@@ -472,20 +487,20 @@
     return new Loose({ initial: value === undefined ? null : value });
   }
 
-  /** 타입 하나의 DataModel 스키마. */
+  /** The DataModel schema for one type. */
   function buildSchema(kind, type) {
     const merged = mergeType(kind, type);
     if (!merged) return null;
     const schema = {};
     for (const [key, value] of Object.entries(merged)) {
-      // 버킷을 붙일 곳은 자기 채널(active)과 대상 채널(effect) 두 그룹뿐이다.
+      // Buckets attach to exactly two groups: the self channel (active) and the target channel (effect).
       const buckets = (kind === 'Item') && (key === 'active' || key === 'effect');
       schema[key] = toField(value, { buckets });
     }
     return schema;
   }
 
-  /** 기본값이 불리언인 잎의 경로 목록(맵 하위는 타입이 없으므로 제외). */
+  /** The paths of the leaves whose default is a boolean (map descendants are excluded, having no type). */
   const booleanPathCache = new Map();
   function booleanPaths(kind, type) {
     const cacheKey = `${kind}.${type}`;
@@ -505,13 +520,13 @@
   }
 
   /**
-   * 체크박스가 남긴 문자열을 불리언으로 되돌린다.
+   * Turn the string a checkbox left behind back into a boolean.
    *
-   * template.json 경로는 값을 검사하지 않았으므로, `data-dtype` 없이 제출된 체크박스의
-   * 원시값 `"on"` 이 그대로 저장된 문서가 있다(실측: getTarget 38건). BooleanField 는
-   * 문자열을 `value === "true"` 로만 참으로 보므로 `"on"` 이 **false 로 뒤집힌다** —
-   * 대상 지정이 필요한 이펙트가 조용히 대상을 묻지 않게 되는 회귀다. 정리 직전에 도는
-   * migrateData 에서 되돌려 둔다.
+   * The template.json path never inspected values, so there are documents storing the raw `"on"` a checkbox submitted
+   * without `data-dtype` (measured: 38 getTarget documents). A BooleanField only treats a string as true when
+   * `value === "true"`, so `"on"` **flips to false** — a regression in which an effect that needs a target silently
+   * stops asking for one. It is reversed in migrateData, which runs right before the cleaning step,
+   * so the stored value is restored first.
    */
   const FALSY_STRINGS = new Set(['', 'false', 'off', '0', 'null', 'undefined']);
   function repairLegacyCheckboxes(kind, type, source) {

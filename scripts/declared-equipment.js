@@ -1,22 +1,22 @@
 /**
- * 선언형 장비(applyMode='onUse') 를 판정·데미지·방어 다이얼로그 안에서 바로 선언하게 해 주는 공용 부품.
+ * The shared part that lets declaration equipment (applyMode='onUse') be declared right inside the roll, damage
+ * and defense dialogs.
  *
- * 왜 필요한가: 「이 무기에 의한 사격공격의 명중판정을 실행하기 직전에 선언할 것」(로켓 런처) 같은
- * 장비는 발동점이 공격이 아니라 선언이라 시트에서 이름 클릭 → 「사용」을 먼저 눌러야 했다.
- * 콤보로 공격하는 흐름에서 완전히 벗어나 있어서, 실제로는 아무도 쓰지 않는 기능이 된다.
- * 콤보 경로는 등록된 무기의 attack-used 만 올릴 뿐 handleItemUse 를 부르지 않으므로
- * (combo-handler.js), 콤보에 무기를 넣는 것만으로는 이 보정이 절대 붙지 않는다.
+ * Why it is needed: equipment such as "declare it immediately before making the accuracy roll of a ranged attack
+ * with this weapon" (the rocket launcher) fires on the declaration rather than on the attack, so it used to require
+ * clicking the name on the sheet and pressing "use" first. That is completely outside the flow of attacking with a
+ * combo, so in practice it became a feature nobody used. The combo path only increments the registered weapon's
+ * attack-used and never calls handleItemUse (combo-handler.js), so putting a weapon in a combo can never apply it.
  *
- * 설계 두 가지:
- *  1) **토글이고, 실제 사용은 판정을 확정할 때 일어난다.** 누르는 즉시 handleItemUse 를 돌리면
- *     창을 닫기만 해도 회수·침식이 날아간다 — 굴리지 않은 판정에 값을 치르는 셈이라 곤란하다.
- *     그래서 토글은 「이번 판정에 쓰겠다」는 표시만 남기고, 굴림 버튼이 commit() 을 부르는
- *     시점에 비로소 handleItemUse(action:'use') 가 돌아 회수·침식이 정산되고 AE 가 붙는다.
- *     계산 경로는 여전히 실제 파이프라인 하나뿐이라 이중 가산이 생길 자리가 없다 — 표시 수치를
- *     다이얼로그가 직접 더하면 actor.prepareData 와 어긋나므로 그 방식은 쓰지 않는다.
- *     대신 commit() 이 끝난 뒤 호출측이 판정치를 다시 읽어 표시와 굴림에 반영한다.
- *  2) **문맥별로 나눠 보여준다.** 명중 보정과 관통은 필요한 시점이 다르므로, 지금 이 창에서
- *     의미 있는 항목만 낸다. 아무것도 없으면 섹션 자체를 그리지 않는다.
+ * Two design points:
+ *  1) **It is a toggle, and the actual use happens when the roll is committed.** Running handleItemUse the moment
+ *     it is pressed would burn the use count and the encroachment merely by closing the window — paying for a roll
+ *     that never happened. So the toggle only records "I intend to use this for this roll", and only when the roll
+ *     button calls commit() does handleItemUse(action:'use') run, settling the uses and encroachment and attaching
+ *     the AE. The calculation still goes through the one real pipeline, so there is no place for double counting —
+ *     the caller re-reads the roll values after commit() rather than having the dialog add the numbers itself.
+ *  2) **They are shown split by context.** An accuracy modifier and penetration are needed at different moments, so
+ *     only entries that mean something in this window are listed. With none, the section is not drawn at all.
  */
 (function() {
   const SCOPE = 'dx3rd-emanim';
@@ -24,7 +24,7 @@
 
   const localize = key => game.i18n?.localize?.(key) ?? key;
 
-  // 보정 키 → 표시 라벨. 여기 없는 키는 원문 그대로 보여준다(저작 오류를 숨기지 않기 위해).
+  // Modifier key → display label. A key absent here is shown verbatim (so as not to hide an authoring error).
   const KEY_LABELS = {
     dice: 'DX3rd.Dice', add: 'DX3rd.Add', critical: 'DX3rd.Critical', critical_min: 'DX3rd.CriticalMin',
     stat_dice: 'DX3rd.StatDice', stat_add: 'DX3rd.StatAdd', effect_level: 'DX3rd.EffectLevelBonus',
@@ -43,16 +43,16 @@
   const DAMAGE_KEYS = ['attack', 'penetrate'];
 
   /**
-   * 문맥별로 「지금 이 창에서 의미 있는」 보정 키.
-   * 아무 장비나 늘어놓으면 지금 고를 수 없는 버튼만 늘어난다.
-   * 닷지/리액션 다이스는 방어 다이얼로그가 아니라 그 뒤 판정 창에서 굴리므로 roll 쪽이다.
+   * The modifier keys that are "meaningful in this window" per context.
+   * Listing every piece of equipment would only pile up buttons that cannot be chosen right now.
+   * Dodge / reaction dice are rolled in the roll window that follows, not in the defense dialog, so they belong to roll.
    *
-   * 공격력·데미지 롤·장갑무시는 데미지 산출 창이 아니라 **명중판정 창**('attack')에 낸다.
-   * 룰이 「이 무기에 의한 사격공격의 명중판정을 실행하기 직전에 선언할 것」(로켓 런처)이라,
-   * 맞은 걸 보고 나서 고르게 하면 빗나갔을 때 회수를 아끼는 자리가 생긴다 — 이 계열은
-   * 대부분 사용 횟수 제한이 있어서 그 차이가 그대로 이득이 된다.
-   * 굴림보다 앞서 선언하면 그 보정은 actorAttack/actorPenetrate 산출에 자연히 들어가므로,
-   * 데미지 창 쪽에서 표시 수치를 따로 손볼 일도 없어진다.
+   * Attack power, the damage roll and armor-ignoring are offered in the **accuracy roll window** ('attack') rather
+   * than in the damage window. The rule says "declare it immediately before making the accuracy roll of a ranged
+   * attack with this weapon" (the rocket launcher), and letting the choice come after seeing the hit would create a
+   * place to save uses when the attack missed — most of this family is use-limited, so that difference is a straight gain.
+   * Declaring ahead of the roll also folds the modifier naturally into the actorAttack/actorPenetrate computation,
+   * so there is nothing to patch up in the damage window's displayed numbers either.
    */
   const CONTEXT_KEYS = {
     roll: new Set(ROLL_KEYS),
@@ -61,12 +61,12 @@
   };
 
   /**
-   * 대상 채널 보정 중 이 창에서 의미가 있는 키 — **그 공격에 대한 방어측 판정**을 깎는 것뿐.
+   * The target-channel modifier keys that mean something in this window — only the ones that cut **the defending
+   * roll against that attack**.
    *
-   * 자기 채널과 같은 목록을 쓰면 안 된다. 「당신 이외의 캐릭터가 판정을 실행하기 직전에
-   * 선언하여 그 판정에 다이스 +3」(커맨드 모빌) 같은 **남을 돕는** 대상 보정까지 명중판정
-   * 창에 올라오는데, 그건 내 공격의 상대에게 걸어 봐야 뜻이 반대가 된다. 선언자가 굴리는
-   * 판정의 상대가 받는 것 = 리액션·닷지·가드·장갑 계열만 남긴다.
+   * The self-channel list must not be reused here. A helping modifier such as "declare it immediately before another
+   * character makes a roll, giving that roll dice +3" (Command Mobile) would then show up in the accuracy window, and
+   * applying it to my target inverts its meaning. Only what the opponent of the declarer's roll receives is kept.
    */
   const TARGET_CONTEXT_KEYS = {
     attack: new Set(['reaction_dice', 'reaction_add', 'reaction_critical',
@@ -78,17 +78,17 @@
     .filter(entry => entry?.key && entry.key !== '-');
 
   /**
-   * 선언(action:'use')으로 걸리는 자기 보정만. 「장비하고 있는 동안 …」(활성화 버킷)은
-   * 장착이 상태의 원본이라 선언이라는 개념이 없으므로 제외된다. 한 장비가 두 버킷을
-   * 동시에 가질 수 있으므로(항목별 발현 액션) 판정·요약 모두 이 목록을 써야 한다.
+   * Only the self modifiers that fire on a declaration (action:'use'). "While equipped …" (the activation bucket) is
+   * excluded, because being equipped is the source of that state and there is no notion of declaring it. One piece of
+   * equipment can hold both buckets at once (a per-row firing action), so both the test and the summary must use this list.
    */
   function declaredAttributes(item) {
     const adapter = window.DX3rdItemEffectAdapter;
     if (adapter) {
       const lifecycle = adapter.bucketLifecycle(item, 'self', 'use');
-      // afterSuccess 장비(샷건처럼 명중 뒤 현재 데미지만 보정하는 장비)는 판정 전 선언물이
-      // 아니다. 여기에도 내보내면 선언 시점에는 runTiming 게이트로 적용되지 않고, 명중 뒤
-      // 같은 장비를 다시 묻는 이중 UI가 된다.
+      // afterSuccess equipment (a shotgun and the like, which modifies only the current damage after a hit) is not
+      // something declared before the roll. Exposing it here too would mean it is not applied at declaration time
+      // because of the runTiming gate, and the same equipment is asked about again after the hit — a duplicated UI.
       if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== 'instant') return {};
       return adapter.selfFrozenAttributes(item, 'use');
     }
@@ -96,24 +96,24 @@
   }
 
   /**
-   * 선언으로 **대상에게** 걸리는 보정(대상 채널의 'use' 버킷).
+   * The modifiers a declaration applies **to the target** (the target channel's 'use' bucket).
    *
-   * 선언형 장비에는 자기 보정이 아니라 상대를 깎는 것도 있다 — 폴른 피스톨의 「그 공격에
-   * 대한 리액션의 크리티컬치 +1」, 발리스틱 나이프의 「그 공격에 대한 닷지에 다이스 -4」.
-   * 이 계열은 자기 채널이 비어 있어서 예전에는 선언 목록에 아예 뜨지 않았고, 그래서 대상
-   * 채널의 기본 액션 폴백(공격 아이템 → 'attack')대로 **공격할 때마다 자동으로** 붙었다.
-   * 회수 제한이 있는 것(폴른 피스톨: 시나리오 3회)조차 값을 치르지 않았다.
+   * Some declaration equipment cuts the opponent rather than buffing the self — the Fallen Pistol's "the reaction
+   * against that attack gets critical +1", the Ballistic Knife's "the dodge against that attack gets dice -4".
+   * This family has an empty self channel, so it never appeared in the declaration list at all, and therefore it
+   * applied **automatically on every attack** through the target channel's default action fallback (an attack item →
+   * 'attack'). Even a use-limited one (the Fallen Pistol: three per scenario) paid nothing for it.
    *
-   * 적용 경로는 이미 있다 — commit() → handleItemUse(action:'use') →
-   * universal-handler 의 applyToTargets(actor, item, 'instant', null, 'use') 가
-   * targetBucketAttributes 로 이 버킷을 그대로 집어 game.user.targets 에 건다.
-   * 빠져 있던 것은 「선언 목록에 넣을 자격」 판정뿐이라 여기서 자기 보정과 합친다.
+   * The application path already exists — commit() → handleItemUse(action:'use') → universal-handler's
+   * applyToTargets(actor, item, 'instant', null, 'use') picks this bucket up through targetBucketAttributes and
+   * applies it to game.user.targets. What was missing was only the test for "does it qualify for the declaration
+   * list", so it is merged with the self modifiers here.
    */
   function declaredTargetAttributes(item) {
     const adapter = window.DX3rdItemEffectAdapter;
     if (!adapter) return {};
-    // 채널 기본이 'use' 인 것과 행에 'use' 를 명시 저작한 것 양쪽을 집는다 —
-    // 이 함수가 채널 기본만 보면 「풀 오토 샷 건」처럼 행 단위로 나눈 저작이 빠진다.
+    // Pick up both the ones whose channel default is 'use' and the ones whose rows explicitly author 'use' —
+    // looking only at the channel default would miss per-row authoring such as the Full Auto Shotgun.
     const attributes = adapter.targetBucketAttributes(item, 'use', 'instant');
     if (!attributeEntries(attributes).length) return {};
     const lifecycle = adapter.bucketLifecycle(item, 'target', 'use');
@@ -122,21 +122,21 @@
     return attributes;
   }
 
-  /** 선언 시 걸릴 보정 전부. 채널을 달고 다니는 이유는 요약 문구를 나누기 위해서다. */
+  /** Every modifier a declaration would apply. The channel is carried along in order to split the summary wording. */
   function declaredEntries(item) {
     const self = attributeEntries(declaredAttributes(item)).map(entry => ({entry, channel: 'self'}));
     const target = attributeEntries(declaredTargetAttributes(item)).map(entry => ({entry, channel: 'target'}));
     return [...self, ...target];
   }
 
-  /** 아이템 하나가 선언형 장비인가(장착 중 · 선언 버킷에 걸 보정 있음). */
+  /** Is a single item declaration equipment (equipped, with a modifier in the declaration bucket)? */
   function isDeclarable(item) {
     if (!item || !EQUIPMENT_TYPES.includes(item.type)) return false;
     if (item.system?.equipment !== true) return false;
     const entries = declaredEntries(item);
     if (!entries.length) return false;
-    // active.disable='notCheck' 는 **자기 채널**을 쓰지 않겠다는 표시다. 대상 보정을 거는
-    // 선언은 그 필드와 무관하므로(수명은 system.effect 쪽이다) 제외 근거가 되지 않는다.
+    // active.disable='notCheck' marks an intent not to use the **self channel**. A declaration that applies target
+    // modifiers is unrelated to that field (its lifetime lives on system.effect), so it is not grounds for exclusion.
     if ((item.system?.active?.disable ?? '-') === 'notCheck') {
       return entries.some(({channel}) => channel === 'target');
     }
@@ -144,12 +144,12 @@
   }
 
   /**
-   * 사용 횟수가 남았는가.
-   * 기준은 handleItemUse 가 실제로 세는 것과 같아야 한다 — 그쪽은 used.disable 이 'notCheck'
-   * 가 아닐 때만 used.state 를 올린다. 그리고 helpers 의 isItemExhausted 와 마찬가지로
-   * **max 가 0이면 무제한이 아니라 소진**이다(횟수 체크를 켜 두고 상한을 안 적은 것).
-   * 소진돼도 목록에서 지울지는 월드 설정(allowExhaustedUse)이 정한다 — 지우지 않을 때도
-   * 잔여 회수 표시는 그대로 두어, 「0회 남음」을 보고 누르는 것이 되게 한다.
+   * Are there uses left?
+   * The criterion has to match what handleItemUse actually counts — that path increments used.state only when
+   * used.disable is not 'notCheck'. And, as in helpers' isItemExhausted, **a max of 0 means exhausted, not unlimited**
+   * (the use check was turned on without an upper bound being entered).
+   * Whether an exhausted item is dropped from the list is decided by the world setting (allowExhaustedUse) — when it
+   * is not dropped the remaining-uses display stays, so pressing it is a decision made while seeing "0 left".
    */
   function usesLeft(item) {
     const used = item.system?.used || {};
@@ -160,12 +160,12 @@
   }
 
   /**
-   * 이번에 이미 선언해 자기 보정 AE 가 붙어 있는가.
+   * Has it already been declared this time, with a self-modifier AE attached?
    *
-   * 자기 보정이 없는(대상 채널 전용) 장비에는 이 자물쇠가 없다 — 걸리는 AE 가 상대에게
-   * 붙으므로 `applied_self_*` 는 영영 생기지 않아 판정 근거가 되지 못한다. 그리고 그쪽은
-   * 판정마다 다시 선언하는 것이 원문이고(「명중판정을 실행하기 직전에 선언할 것」),
-   * 회수도 그때마다 정산되므로 중복 방지는 창 안의 버튼 잠금으로 충분하다.
+   * Equipment with no self modifiers (target channel only) has no such lock — the AE it applies lands on the opponent,
+   * so `applied_self_*` never comes into existence and cannot serve as the test. And for that family, re-declaring on
+   * every roll is what the rules say ("declare it immediately before making the accuracy roll"), and the uses are
+   * settled each time, so locking the button inside the window is enough to prevent duplicates.
    */
   function alreadyDeclared(actor, item) {
     if (!attributeEntries(declaredAttributes(item)).length) return false;
@@ -173,7 +173,7 @@
     return (actor?.effects || []).some(effect => effect.getFlag?.(SCOPE, 'appliedKey') === key);
   }
 
-  /** 이 문맥에서 낼 항목인가. 채널마다 의미 있는 키가 다르다. */
+  /** Is this an entry to show in this context? Different keys mean something in different channels. */
   function entryInContext({entry, channel}, context) {
     if (!context) return true;
     const keys = channel === 'target' ? TARGET_CONTEXT_KEYS[context] : CONTEXT_KEYS[context];
@@ -186,7 +186,7 @@
       .filter(candidate => entryInContext(candidate, context))
       .map(({entry, channel}) => {
         const name = KEY_LABELS[entry.key] ? localize(KEY_LABELS[entry.key]) : entry.key;
-        // 대상에게 걸리는 것은 같은 키라도 의미가 반대라, 붙이지 않으면 자기 강화로 읽힌다.
+        // What is applied to the target means the opposite even for the same key, so without a prefix it reads as a self buff.
         const label = channel === 'target' ? `${targetPrefix} ${name}` : name;
         const value = String(entry.value ?? '').trim();
         return value ? `${label} ${value}` : label;
@@ -195,14 +195,14 @@
   }
 
   /**
-   * 지금 선언할 수 있는 장비 목록.
+   * The equipment that can be declared right now.
    * @param {Actor} actor
    * @param {'roll'|'damage'|'defense'} context
    */
   function collect(actor, context) {
     if (!actor || !CONTEXT_KEYS[context]) return [];
-    // 남의 액터에는 선언 버튼을 내주지 않는다 — handleItemUse 가 아이템을 갱신하므로
-    // 소유권이 없으면 눌러도 실패한다(방어 다이얼로그는 GM 화면에도 뜰 수 있다).
+    // The declaration button is not offered on someone else's actor — handleItemUse updates the item, so without
+    // ownership pressing it just fails (the defense dialog can appear on the GM's screen too).
     if (actor.isOwner === false) return [];
     const allowExhausted = window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
     return (actor.items || [])
@@ -225,14 +225,14 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   /**
-   * 섹션 HTML. 후보가 없으면 빈 문자열 — 호출측이 조건 분기를 다시 쓰지 않아도 되도록.
-   * 템플릿 문자열로 조립하는 판정 창과 Handlebars 로 렌더한 창 양쪽에 같은 마크업을 쓴다.
+   * The section HTML. An empty string when there are no candidates, so the caller does not repeat the conditional.
+   * The same markup serves the roll window assembled from template strings and the Handlebars-rendered window.
    */
   function sectionHtml(entries) {
     if (!entries.length) return '';
     const rows = entries.map(entry => {
-      // 소진된 것도(설정이 허용하면) 목록에 남는다. 「소진」을 붙여 두어, 눌러도 되지만
-      // 원래는 못 쓰는 것이라는 사실이 버튼 위에서 바로 보이게 한다.
+      // An exhausted entry stays in the list too (when the setting allows). "Exhausted" is attached so that the fact
+      // that it may be pressed but is not normally usable is visible right on the button.
       const count = entry.exhausted
         ? `<span class="dx3rd-declare-uses is-exhausted">${localize('DX3rd.Exhausted')}</span>`
         : (entry.limited
@@ -251,13 +251,13 @@
   }
 
   /**
-   * 토글 배선. 클릭은 선택/해제만 하고, 실제 사용은 commit() 에서 일어난다.
-   * @param {HTMLElement} root  섹션을 포함하는 DOM
+   * The toggle wiring. A click only selects / deselects; the actual use happens in commit().
+   * @param {HTMLElement} root  the DOM containing the section
    * @param {Actor} actor
-   * @param {Function} [onToggle]  선택이 바뀔 때마다 호출(선택된 item 배열을 받는다).
+   * @param {Function} [onToggle]  called whenever the selection changes (receives the array of selected items).
    * @returns {{selected: Function, commit: Function, hasPending: Function}}
-   *   commit() 은 선택된 항목을 차례로 실제 사용하고, 사용에 성공한 item 배열을 돌려준다.
-   *   판정을 굴리지 않고 창을 닫으면 commit() 이 불리지 않으므로 아무것도 소모되지 않는다.
+   *   commit() uses the selected entries in turn and returns the array of items that were used successfully.
+   *   Closing the window without rolling never calls commit(), so nothing is consumed.
    */
   function bind(root, actor, onToggle) {
     const chosen = new Map();
@@ -271,7 +271,7 @@
       button.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
-        // commit 이 끝난 버튼은 잠긴다 — 같은 판정에서 두 번 소모되지 않도록.
+        // A button whose commit has finished is locked — so it is not consumed twice in the same roll.
         if (button.disabled) return;
         const item = actor.items.get(button.dataset.itemId);
         if (!item) return;
@@ -285,9 +285,9 @@
     }
 
     /**
-     * 선택한 장비를 실제로 사용한다. 판정 확정 시점에 한 번만 부른다.
-     * 한 항목이 실패해도 나머지는 계속 시도한다 — 이미 값을 치른 항목을 되돌릴 수는 없으므로,
-     * 중간에 멈추면 "일부만 적용된" 상태가 조용히 남는다. 실패는 개별로 알린다.
+     * Actually use the selected equipment. Called exactly once, when the roll is committed.
+     * One entry failing does not stop the rest — an entry that has already paid cannot be undone, so stopping
+     * midway would silently leave a "partly applied" state. Failures are reported individually.
      */
     async function commit() {
       const applied = [];
@@ -295,11 +295,11 @@
         const button = buttons.find(b => b.dataset.itemId === id);
         if (button) button.disabled = true;
         try {
-          // 자기 보정만 거는 것은 타겟이 필요 없다(요구하면 여기서 막힌다). 대상 보정을
-          // 거는 것은 반대로 **요구해야** 한다 — 타겟 없이 통과시키면 아무 데도 걸리지
-          // 않은 채 회수·침식만 빠져나간다(폴른 피스톨은 시나리오 3회뿐이다).
+          // Something that applies self modifiers only needs no target (requiring one would block here). Something
+          // that applies target modifiers must, conversely, **require** one — letting it through with no target
+          // drains the uses and encroachment while applying to nothing (the Fallen Pistol has only three per scenario).
           const needsTarget = declaredEntries(item).some(({channel}) => channel === 'target');
-          // comboMode='normal': 무기의 공격/콤보 선택 메뉴를 건너뛴다.
+          // comboMode='normal': skip the weapon's attack / combo selection menu.
           const used = await window.DX3rdUniversalHandler?.handleItemUse(
             actor.id, item.id, item.type, undefined, needsTarget, {action: 'use', comboMode: 'normal'});
           if (used === false) {

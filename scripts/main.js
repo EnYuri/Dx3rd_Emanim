@@ -1,19 +1,19 @@
 /**
- * Double Cross 3rd 시스템의 메인 스크립트
+ * The main script of the Double Cross 3rd system
  */
 
 /**
- * 충동 판정 / 공포 판정 실행. 두 판정은 로컬라이즈 키와 판정 플래그만 다르고 절차가 동일하다.
- * 의지 기능으로 판정하되 없으면 정신 능력치로 대체하고, 판정 후 2d10만큼 침식률을 올린다.
- * @param {'urge'|'panic'} kind        판정 종류
- * @param {Actor} fallbackCharacter    선택된 토큰이 없을 때 사용할 액터
+ * Run an urge check / panic check. The two differ only in localization keys and the check flag; the procedure is identical.
+ * The check uses the Will skill, falling back to the Mind attribute when absent, and raises encroachment by 2d10 afterwards.
+ * @param {'urge'|'panic'} kind        which check
+ * @param {Actor} fallbackCharacter    the actor to use when no token is selected
  */
 
 
-// 시스템 설정 샘플
+// Sample system settings
 Hooks.once('init', async function() {
     
-    // 설정 등록: Pressure 예외 아이템 목록 (타이밍 오토인 아이템도 채팅 메시지 출력 가능)
+    // Setting: the Pressure exception item list (an item with the auto timing can still emit a chat message)
     game.settings.register('dx3rd-emanim', 'DX3rd.PressureExceptionItems', {
         name: 'DX3rd.PressureExceptionItems',
         hint: 'DX3rd.PressureExceptionItemsHint',
@@ -25,7 +25,7 @@ Hooks.once('init', async function() {
         }
     });
     
-    // 설정 등록: 폭주 reaction 예외 아이템 목록 (타이밍 reaction인 아이템도 사용 가능)
+    // Setting: the berserk reaction exception item list (an item with the reaction timing can still be used)
     game.settings.register('dx3rd-emanim', 'DX3rd.BerserkReactionExceptionItems', {
         name: 'DX3rd.BerserkReactionExceptionItems',
         hint: 'DX3rd.BerserkReactionExceptionItemsHint',
@@ -37,7 +37,7 @@ Hooks.once('init', async function() {
         }
     });
 
-    // 아이템 채팅 카드의 상세 정보/설명 초기 표시 상태
+    // The initial display state of an item chat card's details / description
     game.settings.register('dx3rd-emanim', 'expandChatItemCards', {
         name: 'DX3rd.ExpandChatItemCards',
         hint: 'DX3rd.ExpandChatItemCardsHint',
@@ -54,8 +54,8 @@ Hooks.once('init', async function() {
         }
     });
 
-    // 공격 자동화는 사용자별 플레이 감각에 가까우므로 클라이언트 설정으로 둔다.
-    // 명중 자동 굴림을 끄면 장비 공격 시 먼저 카드만 만들고, 카드의 명중 굴림 버튼으로 진행한다.
+    // Attack automation is closer to a per-user feel for play, so it is a client setting.
+    // With the automatic accuracy roll off, using a weapon creates only the card first and the card's accuracy-roll button proceeds.
     game.settings.register('dx3rd-emanim', 'autoAttackRoll', {
         name: 'DX3rd.AutoAttackRoll',
         hint: 'DX3rd.AutoAttackRollHint',
@@ -65,8 +65,8 @@ Hooks.once('init', async function() {
         default: true
     });
 
-    // 켜면 명중 결과 카드가 만들어진 직후 데미지 산출 창을 연다.
-    // 산출 확정 뒤의 실제 적용은 수동 데미지 버튼과 같은 공용 경로를 사용한다.
+    // When on, the damage calculation dialog opens right after the accuracy result card is created.
+    // The actual application after that is confirmed uses the same shared path as the manual damage button.
     game.settings.register('dx3rd-emanim', 'autoDamageRoll', {
         name: 'DX3rd.AutoDamageRoll',
         hint: 'DX3rd.AutoDamageRollHint',
@@ -76,10 +76,10 @@ Hooks.once('init', async function() {
         default: false
     });
     
-    // 사용 횟수를 다 쓴 아이템·이펙트를 막을 것인가.
-    // 기본은 **막지 않는다** — 자동화가 아직 다듬어지는 중이라, 컴펜디움의 횟수 하나가
-    // 틀렸다는 이유로 그 자리에서 이펙트를 못 쓰게 되면 세션이 멈춘다.
-    // 대신 경고와 소진 표시는 그대로 남겨 GM 이 사실을 놓치지 않게 한다.
+    // Should an item / effect whose uses are spent be blocked?
+    // The default is **not to block** — the automation is still being refined, and being unable to use an effect
+    // on the spot because one use count in the compendium is wrong would stop the session.
+    // The warning and the exhausted marking still remain, so the GM does not miss the fact.
     game.settings.register('dx3rd-emanim', 'allowExhaustedUse', {
         name: 'DX3rd.AllowExhaustedUse',
         hint: 'DX3rd.AllowExhaustedUseHint',
@@ -89,10 +89,10 @@ Hooks.once('init', async function() {
         default: true
     });
 
-    // 사용 조건 게이트 — 소진 게이트와 같은 기준이다(기본은 막지 않고 경고만).
-    // 판독은 helpers 의 DX3rdUsageGates 가, 보고·차단은 universal-handler 의
-    // reportUsageGate 가 한 곳에서 한다. 여기에 설정을 더하면 그 두 곳에도 반드시
-    // 키를 등록할 것 — 설정만 있고 읽는 곳이 없으면 「설정이 안 먹는다」가 된다.
+    // The usage condition gates — the same basis as the exhaustion gate (the default warns rather than blocks).
+    // Reading is done in one place by helpers' DX3rdUsageGates and reporting / blocking by universal-handler's
+    // reportUsageGate. Adding a setting here means the key MUST be registered in both of those too —
+    // a setting with nowhere reading it becomes "the setting does not work".
     game.settings.register('dx3rd-emanim', 'allowResurrectViolation', {
         name: 'DX3rd.AllowResurrectViolation',
         hint: 'DX3rd.AllowResurrectViolationHint',
@@ -129,20 +129,29 @@ Hooks.once('init', async function() {
         default: true
     });
 
-    // 설정 등록: AfterMain 큐 (월드에 저장)
-    // v13/v14 호환: type: Array는 v14에서 경고가 발생할 수 있으므로 방어적으로 처리
+    game.settings.register('dx3rd-emanim', 'allowDefenseBypassViolation', {
+        name: 'DX3rd.AllowDefenseBypassViolation',
+        hint: 'DX3rd.AllowDefenseBypassViolationHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
+    // Setting: the AfterMain queue (stored in the world)
+    // v13/v14 compatibility: type: Array can warn in v14, so it is handled defensively
     game.settings.register('dx3rd-emanim', 'afterMainQueue', {
         scope: 'world',
-        config: false, // UI에 표시하지 않음
+        config: false, // not shown in the UI
         type: Array,
         default: []
     });
     
-    // Combat 클래스 등록
+    // Register the Combat class
     CONFIG.Combat.documentClass = DX3rdCombat;
     CONFIG.Combatant.documentClass = DX3rdCombatant;
     
-    // Handlebars 헬퍼 등록 (helpers.js에서 이미 등록된 것들은 제외)
+    // Register the Handlebars helpers (excluding those already registered in helpers.js)
     Handlebars.registerHelper('spelltype', function(type) {
         if (type === "-") {
             return type;
@@ -155,22 +164,22 @@ Hooks.once('init', async function() {
             return '-';
         }
         
-        // notCheck는 애초에 applied 되지 않아야 하는 값이므로 예외 처리
+        // notCheck should never have been applied in the first place, so it is special-cased
         if (disable === 'notCheck') {
             return game.i18n.localize('DX3rd.NotCheck');
         }
         
-        // 로컬라이징 키 생성 (After 접두사 사용)
+        // Build the localization key (with the After prefix)
         // afterRoll → AfterRoll, afterMajor → AfterMajor
         const disableKey = `DX3rd.After${disable.charAt(0).toUpperCase() + disable.slice(1)}`;
         
-        // 로컬라이징 시도
+        // Try to localize
         const localized = game.i18n.localize(disableKey);
         
-        // 로컬라이징이 실패한 경우 (키가 없으면 원본 키가 반환됨)
+        // Localization failed (a missing key returns the key itself)
         if (localized === disableKey) {
             console.warn(`DX3rd | Disable localization key not found: ${disableKey}`);
-            return disable; // 원본 값 반환
+            return disable; // return the original value
         }
         
         return localized;
@@ -183,7 +192,7 @@ Hooks.once('init', async function() {
         return game.i18n.localize(`DX3rd.${type.charAt(0).toUpperCase() + type.slice(1)}`);
     });
 
-    // Attributes 옵션을 위한 헬퍼 함수
+    // The helper for the Attributes options
     Handlebars.registerHelper('attributeOptions', function(selectedValue) {
         const options = [
             { value: "-", label: "-" },
@@ -219,12 +228,12 @@ Hooks.once('init', async function() {
             { value: "cast_add", label: "DX3rd.CastingAdd" }
         ];
 
-        // stageCRC 설정 확인
+        // Check the stageCRC setting
         const stageCRCEnabled = game.settings.get("dx3rd-emanim", "stageCRC");
 
         let html = '';
         options.forEach(option => {
-            // stageCRC가 비활성화되어 있고, cast_dice 또는 cast_add인 경우 건너뛰기
+            // Skip cast_dice and cast_add when stageCRC is disabled
             if (!stageCRCEnabled && (option.value === 'cast_dice' || option.value === 'cast_add')) {
                 return;
             }
@@ -244,11 +253,11 @@ Hooks.once('init', async function() {
         return combo && combo.system && combo.system.used && combo.system.used.state >= combo.system.used.max;
     });
     
-    // 아이템 사용 횟수 완전 소진 여부 확인 (무기는 used + attack-used 모두 체크, 콤보는 포함된 이펙트 체크)
+    // Are an item's uses fully spent? (a weapon checks both used and attack-used; a combo checks its included effects)
     Handlebars.registerHelper('isItemExhausted', function(item, actor) {
-        // 템플릿 데이터에서 액터 정보를 아이템에 임시로 설정
+        // Temporarily attach the actor info from the template data to the item
         if (actor && !item.actor) {
-            // Foundry 액터 객체로 변환
+            // Convert to a Foundry actor object
             let foundryActor = null;
             if (actor.id) {
                 foundryActor = game.actors.get(actor.id);
@@ -257,7 +266,7 @@ Hooks.once('init', async function() {
             }
             
             if (foundryActor) {
-                // 원본 객체를 수정하지 않기 위해 복사본 생성
+                // Work on a copy so the original object is not modified
                 const itemCopy = foundry.utils.deepClone(item);
                 itemCopy.actor = foundryActor;
                 return window.DX3rdItemExhausted?.isItemExhausted(itemCopy) || false;
@@ -270,13 +279,13 @@ Hooks.once('init', async function() {
         return used && used.max ? used.max : max;
     });
 
-    // 숫자 값을 안전하게 변환하는 헬퍼
+    // A helper that converts a numeric value safely
     Handlebars.registerHelper('safeNumber', function(value) {
         const num = Number(value);
         return isNaN(num) ? 0 : num;
     });
 
-    // 두 값을 더하는 헬퍼
+    // A helper that adds two values
     Handlebars.registerHelper('add', function(value1, value2) {
         const num1 = Number(value1) || 0;
         const num2 = Number(value2) || 0;
@@ -304,8 +313,8 @@ Hooks.once('init', async function() {
         return (arg1 != arg2) ? options.fn(this) : options.inverse(this);
     });
 
-    // 템플릿에서 Works 스킬 표시를 위해 actorSkills/skills에서 안전하게 속성 조회
-    // 사용법: {{attrSkill actorSkills skills key 'name'}}
+    // Safely read a property from actorSkills / skills for the Works skill display in a template
+    // Usage: {{attrSkill actorSkills skills key 'name'}}
     Handlebars.registerHelper('attrSkill', function(actorSkills, skills, key, prop) {
         try {
             const itemSkills = skills || {};
@@ -316,21 +325,21 @@ Hooks.once('init', async function() {
             if (!source) return '';
             let value = source[prop];
             
-            // name 속성인 경우 customSkills 설정 확인
+            // For the name property, check the customSkills setting
             if (prop === 'name' && typeof value === 'string' && value.startsWith('DX3rd.')) {
-                // 스킬 키 추출 (예: "DX3rd.rc" -> "rc")
+                // Extract the skill key (e.g. "DX3rd.rc" -> "rc")
                 const skillKey = value.replace('DX3rd.', '');
                 
-                // customSkills 설정에서 커스텀 이름 확인
+                // Look for a custom name in the customSkills setting
                 const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
                 
-                // 커스텀 이름이 있으면 우선 사용
+                // A custom name wins when present
                 if (customSkills[skillKey]) {
                     value = typeof customSkills[skillKey] === 'object' 
                         ? customSkills[skillKey].name 
                         : customSkills[skillKey];
                 } else {
-                    // 커스텀 이름이 없으면 기본 로컬라이징
+                    // With no custom name, fall back to the default localization
                     value = game.i18n.localize(value);
                 }
             }
@@ -341,14 +350,14 @@ Hooks.once('init', async function() {
         }
     });
 
-    // 템플릿 헬퍼 등록
+    // Register the template helpers
     Handlebars.registerHelper('eq', function(a, b) {
         return a === b;
     });
     
-    // 시스템 설정 등록
+    // Register the system settings
     
-    // 스킬 설정 메뉴
+    // The skill settings menu
     game.settings.registerMenu('dx3rd-emanim', 'skillsSettingsMenu', {
         name: 'DX3rd.SkillsSettings',
         label: 'DX3rd.ManageSkills',
@@ -358,9 +367,9 @@ Hooks.once('init', async function() {
         restricted: true
     });
     
-    // 공식 데이터가 지정한 그룹스킬 카테고리(정보/지식/운전/예술)를 표준 정의로 시드.
-    // 키 컨벤션: 그룹접두사_로마자(snake_case) — _source/mechanics.mjs CATEGORY_KEY와 동기 유지.
-    // base: 정보=social, 지식=mind, 운전=body, 예술=sense (skills-settings-dialog 플레이스홀더 매핑과 일치).
+    // Seed the group-skill categories the official data defines (info / knowledge / driving / art) as standard definitions.
+    // Key convention: groupPrefix_romanization (snake_case) — kept in sync with CATEGORY_KEY in _source/mechanics.mjs.
+    // base: info=social, knowledge=mind, driving=body, art=sense (matching the skills-settings-dialog placeholder mapping).
     const DEFAULT_CATEGORY_SKILLS = {
         info_web:        { name: '정보: 웹',        base: 'social' },
         info_police:     { name: '정보: 경찰',      base: 'social' },
@@ -433,7 +442,7 @@ Hooks.once('init', async function() {
         default: false
     });
 
-    // 상세 디버그 로그. 평시에는 꺼두고, 아이템 사용/데미지 흐름을 추적할 때만 켠다.
+    // Verbose debug logging. Kept off normally; turned on only to trace an item use / damage flow.
     game.settings.register('dx3rd-emanim', 'debugLogging', {
         name: 'DX3rd.DebugLogging',
         hint: '아이템 사용·확장·데미지 처리 과정의 상세 로그를 콘솔에 출력합니다. 문제 추적용이며 평소에는 꺼두세요.',
@@ -444,7 +453,7 @@ Hooks.once('init', async function() {
         onChange: () => window.DX3rdDebug?.invalidate()
     });
 
-    // 장면 개막 번호 (GM용, 설정 UI에는 미노출)
+    // The scene-opening number (for the GM, not exposed in the settings UI)
     game.settings.register('dx3rd-emanim', 'sceneOpenNumber', {
         scope: 'world',
         config: false,
@@ -502,15 +511,15 @@ Hooks.once('init', async function() {
         default: false
     });
 
-    // 채팅 폰트 설정 - ready 훅에서 폰트 목록을 가져온 후 등록
+    // The chat font setting — registered in the ready hook, after the font list is available
 
     Handlebars.registerHelper('startsWith', function(str, prefix) {
         return typeof str === 'string' && str.startsWith(prefix);
     });
 
-    // v13 {{#select}} 경고 억제용 커스텀 헬퍼
-    // 기본 동작: 블록 내부 option들 중 선택값과 일치하는 value에 selected 주입
-    // 주의: Foundry 코어의 경고 로거를 호출하지 않도록 별도 구현
+    // A custom helper that suppresses the v13 {{#select}} warning.
+    // Default behavior: inject selected into the option inside the block whose value matches the selection
+    // Note: implemented separately so Foundry core's warning logger is never called
     try {
         Handlebars.unregisterHelper && Handlebars.unregisterHelper('select');
     } catch (e) {}
@@ -526,12 +535,12 @@ Hooks.once('init', async function() {
         }
     });
 
-    // ProseMirror 「저장」 버튼의 코어 오류 방어.
-    // toggled 편집기는 destroyOnSave 라 저장이 곧 view.destroy() 인데,
-    // ProseMirrorMenu._onAction 은 커맨드를 실행한 뒤 무조건 this.view.focus() 를 부른다.
-    // 파괴된 view 는 docView 가 null 이라 selectionToDOM 에서 TypeError 가 난다 —
-    // 저장 자체는 이미 끝난 뒤라 동작에 영향은 없지만 콘솔에 매번 오류가 찍힌다.
-    // 파괴된 view 일 때만 삼키고, 살아 있는 편집기의 오류는 그대로 던진다.
+    // Guard against a core error from ProseMirror's "save" button.
+    // A toggled editor is destroyOnSave, so saving IS view.destroy(), yet
+    // ProseMirrorMenu._onAction unconditionally calls this.view.focus() after running the command.
+    // A destroyed view has a null docView, so selectionToDOM throws a TypeError —
+    // the save itself has already finished so nothing breaks, but the error is logged every time.
+    // It is swallowed only for a destroyed view; an error from a live editor is rethrown as-is.
     const ProseMirrorMenu = foundry.prosemirror?.ProseMirrorMenu || globalThis.ProseMirror?.ProseMirrorMenu;
     if (ProseMirrorMenu?.prototype?._onAction) {
         const onAction = ProseMirrorMenu.prototype._onAction;
@@ -546,16 +555,16 @@ Hooks.once('init', async function() {
     }
 });
 
-// Scene Control 버튼 추가
+// Add the Scene Control buttons
 Hooks.on('preCreateActor', (document, data, options, userId) => {
-    // character, enemy 타입만 처리
+    // Handle the character and enemy types only
     if (data.type !== 'character' && data.type !== 'enemy') {
         return;
     }
     
     const updates = {};
     
-    // 0. 에너미 타입일 때 actorType을 Troop으로 설정 (다이얼로그 옵션 값과 일치)
+    // 0. For the enemy type, set actorType to Troop (matching the dialog's option value)
     if (data.type === 'enemy') {
         const currentActorType = foundry.utils.getProperty(data, 'system.actorType');
         if (!currentActorType || currentActorType === 'NPC' || currentActorType === 'PlayerCharacter') {
@@ -563,7 +572,7 @@ Hooks.on('preCreateActor', (document, data, options, userId) => {
         }
     }
     
-    // 1. prototypeToken 설정 (actorLink 기본 true)
+    // 1. Set up prototypeToken (actorLink defaults to true)
     if (data.prototypeToken?.actorLink === undefined) {
         updates['prototypeToken.actorLink'] = true;
         updates['prototypeToken.bar1'] = { attribute: 'attributes.hp' };
@@ -572,7 +581,7 @@ Hooks.on('preCreateActor', (document, data, options, userId) => {
         }
     }
     
-    // 2. 기본 스킬 필수 속성 보장
+    // 2. Guarantee the required properties of the default skills
     const defaultSkillBases = {
         melee: 'body', evade: 'body',
         ranged: 'sense', perception: 'sense',
@@ -585,7 +594,7 @@ Hooks.on('preCreateActor', (document, data, options, userId) => {
         const existingSkill = foundry.utils.getProperty(data, skillPath);
         
         if (existingSkill) {
-            // 필수 속성 확인
+            // Check the required properties
             if (existingSkill.point === undefined) {
                 updates[`${skillPath}.point`] = 0;
             }
@@ -609,12 +618,12 @@ Hooks.on('preCreateActor', (document, data, options, userId) => {
     }
 });
 
-// 시트·다이얼로그 템플릿 선반입.
-// 원격 호스팅(Forge 등)에서는 템플릿을 처음 쓸 때의 fetch가 그대로 네트워크 왕복이라,
-// 시트나 다이얼로그를 처음 여는 순간에 눈에 띄는 지연이 된다. 미리 받아두면 그 지연이 사라진다.
-// 일부러 await 하지 않는다 — 월드 기동을 붙잡지 않고 배경에서 채우며, 아직 안 받힌 템플릿은
-// 기존대로 그 자리에서 로드되므로 실패해도 기능에 영향이 없다.
-// 새 템플릿을 추가하면 이 목록에도 넣을 것(item-effect-adapter.js의 PARTIALS와 같은 규약).
+// Preload the sheet and dialog templates.
+// On remote hosting (the Forge and the like) the fetch on a template's first use is a real network round trip,
+// so it becomes a visible delay the first time a sheet or dialog opens. Preloading removes that delay.
+// Deliberately not awaited — it fills in the background without holding up world startup, and a template not yet
+// fetched still loads on demand as before, so a failure here has no effect on functionality.
+// Add any new template to this list too (the same convention as PARTIALS in item-effect-adapter.js).
 const DX3RD_PRELOAD_TEMPLATES = [
     'systems/dx3rd-emanim/templates/actor/actor-sheet-v2.html',
     'systems/dx3rd-emanim/templates/item/active-item-sheet-v2.html',
@@ -640,7 +649,7 @@ const DX3RD_PRELOAD_TEMPLATES = [
     'systems/dx3rd-emanim/templates/dialog/spell-selection-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/sublimation-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/weapon-for-attack-dialog.html',
-    // 아래는 코드에서 경로를 변수로 조립하는 것들(actor-edit-dialogs / enemy-stat-dialogs).
+    // Below are the ones whose paths the code assembles from variables (actor-edit-dialogs / enemy-stat-dialogs).
     'systems/dx3rd-emanim/templates/dialog/ability-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/actor-type-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/armor-dialog.html',
@@ -657,10 +666,10 @@ Hooks.once('ready', () => {
         .catch(e => console.warn('DX3rd | Template preload skipped:', e));
 });
 
-// 스크립트 로딩 체크
+// Script loading check
 Hooks.once('ready', async function() {
-    // 기존 월드가 customSkills를 이미 저장한 경우 setting.default 변경만으로 새 표준 기능이
-    // 추가되지 않는다. 사용자 정의 항목은 보존하고 누락된 공식 키만 GM이 보충한다.
+    // When an existing world has already stored customSkills, changing setting.default alone does not add the new
+    // standard skills. User-defined entries are preserved and only the missing official keys are filled in by the GM.
     if (game.user.isGM && window.DX3rdDefaultCategorySkills) {
         const current = game.settings.get('dx3rd-emanim', 'customSkills') || {};
         const merged = {...window.DX3rdDefaultCategorySkills, ...current};
@@ -678,26 +687,26 @@ Hooks.once('ready', async function() {
         ui.notifications.error('Double Cross 3rd | 시스템 초기화 중 오류가 발생했습니다.');
     }
     
-    // GM 전용: afterDamage 관련 저장소 초기화
+    // GM only: initialize the afterDamage storage
     if (game.user.isGM) {
         window.DX3rdTargetApplyQueue = {};
         window.DX3rdAfterDamageActivationQueue = {};
-        window.DX3rdAfterDamageExtensionQueue = {};  // 익스텐드 큐 초기화
+        window.DX3rdAfterDamageExtensionQueue = {};  // initialize the extension queue
     }
     
-    // 전역 채팅 토글 리스너 등록
+    // Register the global chat toggle listener
     DX3rdChatToggleManager.initialize();
     
-    // Disable Hooks 채팅 명령어 등록
+    // Register the Disable Hooks chat commands
     
-    // 채팅 메시지 생성 전, 설정에 맞춰 스피커 보정
+    // Before a chat message is created, adjust the speaker according to the settings
     Hooks.on('preCreateChatMessage', (doc, data) => {
         try {
-            // 현재 클라이언트에서 생성하는 메시지에만 적용
+            // Applies only to messages created on this client
             if (data.author && data.author !== game.user.id) return;
             
             const content = data.content || '';
-            // flags 우선. 기존/외부 메시지는 콘텐츠 판별 후 신규 문서에 구조화 flag를 백필한다.
+            // Flags come first. Existing / external messages are identified by content and the structured flag is backfilled onto the new document.
             const messageTypes = window.DX3rdChatMessageTypes;
             const messageType = messageTypes.ensureFlag(doc, data);
             if ([
@@ -709,16 +718,16 @@ Hooks.once('ready', async function() {
                 return;
             }
 
-            // 롤 타입 메시지 또는 시스템 버튼이 포함된 메시지이고 
-            // 이미 액터가 스피커로 명시적으로 설정된 경우 변경 무시
-            // (어택 롤, 스탯 롤, 데미지 롤, 데미지 롤 버튼, 데미지 적용 버튼 등)
+            // For a roll-type message, or one containing a system button, where the actor is already
+            // explicitly set as the speaker, the change is ignored
+            // (attack rolls, stat rolls, damage rolls, the damage-roll button, the apply-damage button, …)
             const isRollMessage = messageType === messageTypes.TYPES.ROLL || data.rolls?.length > 0;
             const hasSystemButton = messageType === messageTypes.TYPES.SYSTEM_ACTION;
             
             if ((isRollMessage || hasSystemButton) && data.speaker && data.speaker.actor) {
                 const speakerActor = game.actors.get(data.speaker.actor);
                 if (speakerActor) {
-                    return; // 이미 설정된 액터 스피커 유지
+                    return; // keep the actor speaker already set
                 }
             }
 
@@ -728,7 +737,7 @@ Hooks.once('ready', async function() {
     });
 
 
-    // 장면 개막 시 체크된 유저에게 "장면 등장" 전용 다이얼로그 표시 (충동/공포 버튼 없음)
+    // On scene opening, show the dedicated "scene entry" dialog to the checked users (no urge / panic buttons)
     function showSceneEnterDialogOnly() {
         const dialog = document.createElement("div");
         dialog.id = "dx3rd-scene-enter-dialog";
@@ -741,8 +750,8 @@ Hooks.once('ready', async function() {
                 <button type="button" id="dx3rd-scene-enter-cancel" class="dx3rd-urge-dialog-button dx3rd-urge-dialog-cancel">${game.i18n.localize("DX3rd.Cancel")}</button>
             </div>
         `;
-        // 장면 개막이 두 번 오면 다이얼로그가 겹치고 id가 중복된다.
-        // 그러면 아래 조회가 옛 다이얼로그의 버튼을 잡아 위에 보이는 쪽이 먹통이 되므로 먼저 치운다.
+        // A second scene opening would stack the dialogs and duplicate the id.
+        // The lookup below would then grab the old dialog's button and the visible one would go dead, so it is cleared first.
         document.querySelectorAll("#dx3rd-scene-enter-dialog").forEach(el => el.remove());
         document.body.appendChild(dialog);
 
@@ -755,7 +764,7 @@ Hooks.once('ready', async function() {
             await dx3rdApplyEntryEncroachment(character);
         };
 
-        // 조회 범위를 이 다이얼로그로 한정한다(document 전역 조회 금지).
+        // Scope the lookup to this dialog (never query the whole document).
         dialog.querySelector("#dx3rd-scene-enter-ok").addEventListener("click", async () => {
             dialog.remove();
             await runEnterScene();
@@ -763,7 +772,7 @@ Hooks.once('ready', async function() {
         dialog.querySelector("#dx3rd-scene-enter-cancel").addEventListener("click", () => dialog.remove());
     }
 
-    // 소켓 처리기 등록: 실제 system socket 수신은 DX3rdSocketRouter가 한 번만 맡는다.
+    // Register the socket handlers: the actual system socket reception is owned solely by DX3rdSocketRouter.
     const socketRouter = window.DX3rdSocketRouter;
     if (!socketRouter) {
         console.error('DX3rd | Socket router is unavailable.');
@@ -773,7 +782,7 @@ Hooks.once('ready', async function() {
         || canvas.tokens?.placeables?.find(token => token.actor?.id === actorId)?.actor
         || null;
     const isAuthorizedActorRequest = (data, actorId) => {
-        if (!data.senderId) return true; // 구버전 클라이언트 호환
+        if (!data.senderId) return true; // compatibility with older clients
         const actor = findSocketActor(actorId);
         const authorized = Boolean(actor && socketRouter.canUserControlActor(data.senderId, actor));
         if (!authorized) console.warn(`DX3rd | Unauthorized socket request ignored: ${data.type} (${data.senderId} → ${actorId})`);
@@ -789,7 +798,7 @@ Hooks.once('ready', async function() {
         }
 
         if (data.type === 'spellRoisSelectRequest') {
-            // 로이스 선택 요청 (GM만 처리)
+            // A Lois selection request (handled by the GM only)
             if (!socketRouter.isResponsibleGM()
                 || !window.DX3rdSpellHandler
                 || !data.requestData
@@ -805,7 +814,7 @@ Hooks.once('ready', async function() {
             
             const item = itemId ? actor.items.get(itemId) : null;
             
-            // GM이 다이얼로그 표시
+            // The GM shows the dialog
             const roisItems = (Array.isArray(availableRois) ? availableRois : [])
                 .map(reference => actor.items.get(reference?.id))
                 .filter(rois => {
@@ -875,14 +884,14 @@ Hooks.once('ready', async function() {
                                 return;
                             }
 
-                            // 선택한 로이스와 같은 이름의 액터 찾기
+                            // Find the actor whose name matches the chosen Lois
                             const targetActor = window.DX3rdSpellHandler.findActorByRoisName(selectedRois.name);
                             if (!targetActor) {
                                 ui.notifications.error(`"${selectedRois.name}"와 같은 이름을 가진 액터를 찾을 수 없습니다.`);
                                 return;
                             }
 
-                            // 요청 타입에 따라 처리
+                            // Handle it according to the request type
                             if (requestType === 'spellDisaster4') {
                                 await window.DX3rdSpellHandler.rollSpellDisaster(targetActor, item);
                             } else if (requestType === 'spellCalamity8') {
@@ -917,7 +926,7 @@ Hooks.once('ready', async function() {
         }
 
         if (data.type === 'registerAfterDamageExtension') {
-            // AfterDamage 익스텐드 큐 등록 요청 (GM만 처리)
+            // A request to register an AfterDamage extension queue entry (handled by the GM only)
             if (!socketRouter.isResponsibleGM()
                 || !data.payload
                 || !isAuthorizedActorRequest(data, data.payload.attackerId)
@@ -950,7 +959,7 @@ Hooks.once('ready', async function() {
         }
         
         if (data.type === 'executeAfterDamageMacro') {
-            // afterDamage 매크로 실행 요청
+            // A request to run an afterDamage macro
             const { attackerId, itemId, targetName, hpChange } = data.payload;
             
             const attacker = game.actors.get(attackerId);
@@ -966,7 +975,7 @@ Hooks.once('ready', async function() {
                 await window.DX3rdUniversalHandler.executeMacros(item, 'afterDamage');
             }
         } else if (data.type === 'registerAfterDamageActivation') {
-            // GM 전용: afterDamage 활성화 요청 등록
+            // GM only: register an afterDamage activation request
             if (!socketRouter.isResponsibleGM()
                 || !data.payload
                 || !isAuthorizedActorRequest(data, data.payload.attackerId)
@@ -991,14 +1000,14 @@ Hooks.once('ready', async function() {
                 shouldActivate: shouldActivate,
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
-                comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
+                comboAfterDamageData: comboAfterDamageData, // store the combo data
                 pendingAttackRiders: Array.isArray(pendingAttackRiders) ? pendingAttackRiders : [],
                 createdAt: Date.now()
             };
             window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
             
         } else if (data.type === 'reportDamageForActivation') {
-            // GM 전용: 타겟의 HP 변화 보고 수집
+            // GM only: collect the targets' HP change reports
             if (!socketRouter.isResponsibleGM()
                 || !data.payload
                 || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
@@ -1044,14 +1053,14 @@ Hooks.once('ready', async function() {
                     attackHit
                 });
 
-                // 모든 타겟이 보고했는지 확인.
-                // **세는 것은 보고 횟수가 아니라 보고한 타겟의 수다.** 같은 타겟이 두 번 보고하면
-                // (재전송·중복 클릭) 카운터만 앞질러 `===` 가 영원히 성립하지 않고, 그 요청은
-                // 큐에 남아 다음 등록까지 막았다.
+                // Have every target reported?
+                // **What is counted is the number of targets that reported, not the number of reports.** When the same
+                // target reports twice (a resend, a double click) the counter runs ahead and `===` never holds, leaving
+                // that request in the queue and blocking the next registration.
                 if (report.accepted && report.complete && !request.processing) {
                     request.processing = true;
                     try {
-                    // HP 데미지를 받은 타겟 목록
+                    // The targets that took HP damage
                     const damagedReports = Object.entries(request.damageReports)
                         .filter(([, hp]) => hp > 0);
                     const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
@@ -1069,10 +1078,10 @@ Hooks.once('ready', async function() {
                     const currentItem = attacker?.items.get(itemId);
                     const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
 
-                    // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
+                    // Combo afterDamage handling (after the HP damage happened)
                     const comboData = request.comboAfterDamageData;
                     if (comboData && damagedTargets.length > 0) {
-                        // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
+                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
                         const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
                             .filter(Boolean);
                         for (const actorId of damagedTargets) {
@@ -1095,7 +1104,7 @@ Hooks.once('ready', async function() {
                             attacker, request.pendingAttackRiders, hitTargets, hitTokenIds);
                     }
                     
-                    // 1️⃣ 매크로 실행 (한 명이라도 HP 데미지 받았으면)
+                    // 1. Run the macros (if at least one target took HP damage)
                     if (request.shouldExecuteMacro && damagedTargets.length > 0) {
                         window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'executeAfterDamageMacro',
@@ -1107,9 +1116,9 @@ Hooks.once('ready', async function() {
                         }, attacker);
                     }
                     
-                    // 2️⃣ 활성화/효과 적용 처리
+                    // 2. Activation / effect application
                     if (damagedTargets.length === 0) {
-                        // 아무도 데미지 안 받음: NoDamage 알림
+                        // Nobody took damage: the NoDamage notification
                         window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
@@ -1120,7 +1129,7 @@ Hooks.once('ready', async function() {
                         const needsConfirmation = request.needsDialog && usedDisable !== 'notCheck';
                         
                         if (needsConfirmation) {
-                            // 무기/비클 + 횟수 제한 있음: 다이얼로그
+                            // Weapon / vehicle with a use limit: show a dialog
                             window.DX3rdSocketRouter.emitToActorExecutor({
                                 type: 'showAfterDamageDialog',
                                 payload: {
@@ -1132,7 +1141,7 @@ Hooks.once('ready', async function() {
                                 }
                             }, attacker);
                         } else {
-                            // 나머지 (무기/비클 notCheck 포함): 자동 활성화
+                            // Everything else (weapon / vehicle notCheck included): activate automatically
                             window.DX3rdSocketRouter.emitToActorExecutor({
                                 type: 'executeAfterDamageActivation',
                                 payload: {
@@ -1154,7 +1163,7 @@ Hooks.once('ready', async function() {
                 }
             }
         } else if (data.type === 'registerTargetApply') {
-            // GM 전용: afterDamage 타이밍의 타겟 효과 적용 요청 등록
+            // GM only: register a request to apply target effects at the afterDamage timing
             if (!socketRouter.isResponsibleGM()
                 || !data.payload
                 || !isAuthorizedActorRequest(data, data.payload.sourceActorId)
@@ -1174,7 +1183,7 @@ Hooks.once('ready', async function() {
                 timestamp: Date.now()
             };
         } else if (data.type === 'reportDamageForApply') {
-            // GM 전용: 타겟의 데미지 처리 결과 보고받음 (효과 적용용)
+            // GM only: receive a target's damage result report (for effect application)
             if (!socketRouter.isResponsibleGM()
                 || !data.payload
                 || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
@@ -1184,11 +1193,11 @@ Hooks.once('ready', async function() {
             const { targetActorId, itemId, hpChange } = data.payload;
             const queueKey = `${targetActorId}_${itemId}`;
             
-            // 저장된 요청 확인
+            // Look up the stored request
             const applyRequest = window.DX3rdTargetApplyQueue[queueKey];
             if (applyRequest) {
                 if (hpChange >= 1) {
-                    // HP 감소했으면 타겟에게 효과 적용 지시
+                    // HP went down, so tell the target to apply the effect
                     const targetActor = game.actors.get(targetActorId);
                     window.DX3rdSocketRouter.emitToActorExecutor({
                         type: 'applyEffectToTarget',
@@ -1202,11 +1211,11 @@ Hooks.once('ready', async function() {
                     }, targetActor);
                 }
                 
-                // 요청 삭제 (HP 감소 여부 무관)
+                // Drop the request (whether or not HP went down)
                 delete window.DX3rdTargetApplyQueue[queueKey];
             }
         } else if (data.type === 'showAfterDamageDialog') {
-            // 공격자: GM으로부터 afterDamage 다이얼로그 표시 명령 받음
+            // Attacker: told by the GM to show the afterDamage dialog
             const { attackerId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets } = data.payload;
             
             const actor = game.actors.get(attackerId);
@@ -1223,12 +1232,12 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 다이얼로그 표시
+            // Show the dialog
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._showAfterDamageDialog) {
                 await window.DX3rdUniversalHandler._showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets);
             }
         } else if (data.type === 'executeAfterDamageActivation') {
-            // 공격자: GM으로부터 자동 활성화 명령 받음
+            // Attacker: told by the GM to auto-activate
             const { actorId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets } = data.payload;
             
             const actor = game.actors.get(actorId);
@@ -1245,7 +1254,7 @@ Hooks.once('ready', async function() {
                 return;
             }
             
-            // 자동 활성화 처리
+            // Handle the auto-activation
             const updates = {};
             
             if (shouldActivate) {
@@ -1256,29 +1265,29 @@ Hooks.once('ready', async function() {
                 await item.update(updates);
             }
             
-            // HP 데미지 받은 타겟에게만 효과 적용
+            // Apply the effect only to targets that took HP damage
             if (shouldApplyToTargets) {
                 for (const targetId of damagedTargets) {
                     const targetActor = game.actors.get(targetId);
                     if (targetActor) {
-                        // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+                        // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
                         const targetAttributes = window.DX3rdItemEffectAdapter
                             ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
                             : (item.system.effect?.attributes || {});
 
                         if (game.user.isGM && !socketRouter.isResponsibleGM()) return;
                         if (game.user.isGM) {
-                            // GM이면 직접 적용
+                            // The GM applies it directly
                             await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
                         } else {
-                            // 일반 유저는 사용 클라이언트에서 수식을 동결한 뒤 대상 소유자에게 넘긴다.
+                            // An ordinary user freezes the formulas on the using client and hands them to the target's owner.
                             await window.DX3rdUniversalHandler.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
                         }
                     }
                 }
             }
         } else if (data.type === 'showNoDamageNotification') {
-            // 공격자: 아무도 데미지를 받지 않음 알림
+            // Attacker: the notification that nobody took damage
             const { attackerId } = data.payload;
             
             const actor = game.actors.get(attackerId);
@@ -1286,7 +1295,7 @@ Hooks.once('ready', async function() {
             
             if (!socketRouter.isActorExecutorMessage(data, actor)) return;
             
-            // 알림 다이얼로그 표시
+            // Show the notification dialog
             new foundry.applications.api.DialogV2({
                 window: { title: game.i18n.localize('DX3rd.NoDamage') },
                 content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`,
@@ -1300,7 +1309,7 @@ Hooks.once('ready', async function() {
                 ]
             }).render(true);
         } else if (data.type === 'applyEffectToTarget') {
-            // 타겟 소유자: GM으로부터 효과 적용 명령 받음
+            // Target owner: told by the GM to apply the effect
             const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
             
             const sourceActor = game.actors.get(sourceActorId);
@@ -1323,9 +1332,9 @@ Hooks.once('ready', async function() {
 });
 
 
-// 액터 생성 시 커스텀 스킬 및 cthulhu 스킬 추가
+// Add the custom skills and the Cthulhu skill when an actor is created
 Hooks.on('createActor', async (actor, options, userId) => {
-    // 액터를 생성한 사용자의 클라이언트에서만 실행
+    // Runs only on the client of the user that created the actor
     if (game.userId !== userId) {
         return;
     }
@@ -1333,13 +1342,13 @@ Hooks.on('createActor', async (actor, options, userId) => {
     if (actor.type === 'character') {
         const updates = {};
         
-        // cthulhu 스킬 추가 (stageCRC 설정이 활성화되어 있고, 삭제되지 않은 경우)
+        // Add the Cthulhu skill (when the stageCRC setting is on and it was not deleted)
         const stageCRCEnabled = game.settings.get("dx3rd-emanim", "stageCRC");
         const cthulhuDeleted = actor.getFlag('dx3rd-emanim', 'cthulhuDeleted') === true;
         const customSkills = game.settings.get("dx3rd-emanim", "customSkills") || {};
         
         if (stageCRCEnabled && !cthulhuDeleted && !actor.system.attributes.skills.cthulhu) {
-            // customSkills에 cthulhu 정보가 있으면 사용, 없으면 기본값
+            // Use the Cthulhu info from customSkills when present, otherwise the defaults
             const cthulhuData = customSkills.cthulhu;
             const cthulhuName = cthulhuData 
                 ? (typeof cthulhuData === 'object' ? cthulhuData.name : cthulhuData)
@@ -1361,18 +1370,18 @@ Hooks.on('createActor', async (actor, options, userId) => {
             };
         }
         
-        // 계통 기능치(운전/예술/지식/정보 등 customSkills)는 새 캐릭터에 자동 주입하지 않는다.
-        // 취득한 계통 기능치만 시트의 '+'(기능치 추가)로 그때그때 등록한다. 컴펜디움 콘텐츠는
-        // 판정 기능으로 계통 하위 기능치를 참조하지 않으며(build-effects SKILL_MAP), 혹시 참조하는
-        // 홈브루가 있어도 effect-handler 가 연결 능력치로 폴백해 판정이 진행된다.
-        // (cthulhu 만 stageCRC 규칙상 위에서 별도 시드)
+        // Group skills (driving / art / knowledge / info and other customSkills) are NOT auto-injected into a new character.
+        // Only the group skills actually acquired are registered on the fly through the sheet's '+' (add skill). Compendium
+        // content never references a group's sub-skill as a check skill (build-effects SKILL_MAP), and even if some homebrew
+        // did, effect-handler falls back to the linked attribute so the check still proceeds.
+        // (Only cthulhu is seeded separately above, per the stageCRC rule.)
 
         if (Object.keys(updates).length > 0) {
             await actor.update(updates);
         }
         
-        // 기본 무기 아이템(주먹) 추가
-        // 액터를 생성한 사용자의 클라이언트에서만 실행되므로, 권한이 있는 사용자만 실행됨
+        // Add the default weapon item (fist)
+        // Runs only on the client of the user that created the actor, so only a permitted user executes it
         const hasFist = actor.items.find(item => 
             item.type === 'weapon' && item.name === game.i18n.localize("DX3rd.Fist")
         );
@@ -1384,9 +1393,9 @@ Hooks.on('createActor', async (actor, options, userId) => {
                     type: 'weapon',
                     img: 'icons/skills/melee/unarmed-punch-fist-yellow-red.webp',
                     system: {
-                        // 기본치의 출처는 한 곳뿐이다(`universal-extensions.js` 의 defaultFistSystem).
-                        // 예전에는 이 리터럴이 복원 경로 3곳에도 복제돼 있었고, 그쪽이 복원이 아니라
-                        // 덮어쓰기로 동작해 손본 맨손을 전투마다 지웠다.
+                        // There is exactly one source for the defaults (defaultFistSystem in `universal-extensions.js`).
+                        // These literals used to be duplicated across three restore paths as well, and those acted as an
+                        // overwrite rather than a restore, wiping a hand-tuned fist after every combat.
                         ...window.DX3rdUniversalHandler.defaultFistSystem(),
                         description: game.i18n.localize("DX3rd.FistDescription"),
                         equipment: false,
@@ -1408,18 +1417,18 @@ Hooks.on('createActor', async (actor, options, userId) => {
                     }
                 }]);
             } catch (error) {
-                // 예상치 못한 에러만 로그 출력
+                // Log only unexpected errors
                 console.error('DX3rd | Failed to create fist item:', error);
             }
         }
     }
 });
 
-// 아이템 생성 시 기본 이미지 설정
+// Set the default image when an item is created
 Hooks.on('preCreateItem', async (item, data, options, userId) => {
     const defaultImg = 'icons/svg/item-bag.svg';
     
-    // img가 기본값이거나 설정되지 않은 경우에만 타입별 이미지 적용
+    // Apply the per-type image only when img is the default or unset
     if (!data.img || data.img === defaultImg) {
         const typeImages = {
             'combo': 'icons/svg/explosion.svg',
@@ -1443,9 +1452,9 @@ Hooks.on('preCreateItem', async (item, data, options, userId) => {
     }
 });
 
-// 컴펜디움 웍스를 액터에 추가할 때, 표에 지정된 전문 기능도 함께 만든다.
-// 〈운전:〉·〈지식:〉처럼 세부명이 비어 있는 기능은 사용자가 액터 시트에서
-// 이름을 정하면 되며, 여기서는 해당 웍스의 기능치 보너스가 즉시 적용되도록 한다.
+// When a compendium Works is added to an actor, also create the specialized skills its table specifies.
+// A skill whose detail name is blank — <Driving:>, <Knowledge:> — is named by the user on the actor sheet;
+// what matters here is that the Works' skill bonus applies immediately.
 Hooks.on('createItem', async (item, options, userId) => {
     const actor = item.actor;
     if (!actor || actor.type !== 'character' || item.type !== 'works') return;
@@ -1475,8 +1484,8 @@ Hooks.on('createItem', async (item, options, userId) => {
     }
 });
 
-// ========== AfterMain 큐 관리: 전투 시작 시 초기화 ========== //
-// 전투 종료 시 초기화는 combat.js의 deleteCombat 훅에서 처리
+// ========== AfterMain queue management: reset at the start of combat ========== //
+// The reset at the end of combat is handled by combat.js's deleteCombat hook
 Hooks.on('createCombat', async (combat, options, userId) => {
     if (!game.user.isGM) return;
     if (window.DX3rdUniversalHandler) {
@@ -1485,17 +1494,17 @@ Hooks.on('createCombat', async (combat, options, userId) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 열린 시트의 파생 표시값 실시간 갱신
+// Live refresh of the derived display values on open sheets
 //
-// 액터/이펙트의 데이터 계층은 이미 실시간이다(prepareData가 침식 레벨을 먼저 갱신하고
-// 활성 아이템 보너스를 매번 evaluate). 하지만 Foundry는 "자기 문서가 업데이트될 때만"
-// 시트를 다시 그리므로, 콤보/이펙트 시트를 열어둔 채 침식률이 오르거나(→ 레벨 상승)
-// 다른 곳에서 등록 이펙트를 수정하면 시트에 표시된 다이스/수정치/레벨이 옛 값으로 남는다.
-// 아래 훅이 의존 관계에 있는 "열려 있는" 시트만 골라 다시 그려 표시값을 실시간화한다.
-// (render(false)는 문서를 갱신하지 않으므로 재귀 렌더 루프가 없다.)
+// The actor / effect data layer is already live (prepareData updates the encroachment level first and evaluates
+// the active items' bonuses every time). But Foundry re-renders a sheet only "when its own document updates",
+// so with a combo / effect sheet left open, a rising encroachment (→ a level up) or an edit to a registered effect
+// elsewhere leaves the dice / modifier / level shown on the sheet at their old values.
+// The hooks below pick out only the "open" sheets that depend on the change and re-render them so the display is live.
+// (render(false) does not update the document, so there is no recursive render loop.)
 
-// 사용자가 지금 편집 중(포커스가 시트 안에 있음)인 시트는 재렌더하지 않는다.
-// 재렌더가 DOM을 교체해 입력 포커스/타이핑을 날리는 것을 막는다.
+// A sheet the user is currently editing (focus is inside it) is not re-rendered.
+// This prevents a re-render from replacing the DOM and losing the input focus or what is being typed.
 function _dx3rdRerenderSheetNow(app) {
     if (!app?.rendered) return;
     const active = document.activeElement;
@@ -1503,10 +1512,10 @@ function _dx3rdRerenderSheetNow(app) {
     app.render(false);
 }
 
-// 아이템 사용 한 번은 액터 업데이트를 연달아 일으킬 수 있고(HP·침식률·applied 등),
-// 그때마다 같은 시트를 다시 그리면 낭비다. 대기 집합에 모아 한 프레임 뒤 한 번만 그린다.
-// rendered/포커스 검사는 "그리는 시점"에 하므로, 대기 중 닫히거나 사용자가 입력을 시작한
-// 시트는 자연히 건너뛴다 — 즉시 실행보다 오히려 정확하다.
+// A single item use can cause several actor updates in a row (HP, encroachment, applied, …), and re-rendering the
+// same sheet each time is wasteful. They are collected in a pending set and drawn once, a frame later.
+// The rendered / focus checks happen "at draw time", so a sheet closed while pending, or one the user has started
+// typing into, is naturally skipped — which is more accurate than running immediately.
 const _dx3rdPendingRerenders = new Set();
 const _dx3rdFlushRerenders = foundry.utils.debounce(() => {
     const apps = [..._dx3rdPendingRerenders];
@@ -1515,25 +1524,25 @@ const _dx3rdFlushRerenders = foundry.utils.debounce(() => {
 }, 50);
 
 function _dx3rdRerenderSheet(app) {
-    if (!app) return;                          // 아직 열린 적 없는 시트는 생성하지 않는다
+    if (!app) return;                          // a sheet never opened is not created
     _dx3rdPendingRerenders.add(app);
     _dx3rdFlushRerenders();
 }
 
-// 침식률 등 액터 능력치가 바뀌면, 그 값을 표시/계산에 쓰는 열린 아이템 시트를 갱신.
+// When an actor attribute such as encroachment changes, refresh the open item sheets that display or compute from it.
 Hooks.on('updateActor', (actor, changed, options, userId) => {
     const hasAttributeChange = foundry.utils.hasProperty(changed, 'system.attributes') ||
         Object.keys(changed || {}).some(key => key.startsWith('system.attributes.'));
     if (!hasAttributeChange) return;
     for (const item of actor.items) {
         if (!['combo', 'effect', 'psionic'].includes(item.type)) continue;
-        _dx3rdRerenderSheet(item._sheet);      // 아직 열린 적 없으면 생성하지 않는다
+        _dx3rdRerenderSheet(item._sheet);      // never opened means never created
     }
 });
 
-// 액터 소유 아이템의 상비화 비용·획득 방식과 장착/활성 상태는 액터 파생값을 바꾼다.
-// 아이템 시트에서 편집하면 Foundry가 그 아이템 시트만 다시 그릴 수 있으므로, 열려 있는
-// 액터 시트도 갱신한다. 액터 시트의 장비 체크는 자체 핸들러가 즉시 렌더하고 이 훅은 병합된다.
+// The stock cost, acquisition method and the equipped / active state of an actor-owned item all change the actor's derived values.
+// Editing on the item sheet may make Foundry re-render only that item's sheet, so an open actor sheet is refreshed too.
+// The actor sheet's equip checkbox renders immediately through its own handler, and this hook merges with that.
 Hooks.on('updateItem', (item, changed, options, userId) => {
     const actor = item.actor;
     if (!actor) return;
@@ -1548,9 +1557,9 @@ Hooks.on('updateItem', (item, changed, options, userId) => {
     _dx3rdRerenderSheet(actor.sheet);
 });
 
-// 즉석 콤보는 저장 버튼을 누르기 전까지 월드 데이터가 아니다.
-// 브라우저 새로고침/비정상 창 종료로 남은 문서는 기동 중 자동 삭제하지 않는다.
-// 명시적으로 저장한 콤보는 instantCombo 플래그가 없으므로 절대 정리 대상이 아니다.
+// An instant combo is not world data until the save button is pressed.
+// A document left behind by a browser refresh or an abnormal window close is not auto-deleted at startup.
+// An explicitly saved combo has no instantCombo flag, so it is never a cleanup target.
 window.DX3rdInstantComboCleanup = {
     audit() {
         const rows = [];
@@ -1575,20 +1584,20 @@ window.DX3rdInstantComboCleanup = {
     }
 };
 
-// 이펙트가 바뀌면, 그 이펙트를 등록한 콤보의 저장 파생값도 같은 조합 규칙으로 동기화하고
-// 열린 콤보 시트를 갱신한다. 이펙트 자신의 시트는 Foundry가 updateItem 시 자동으로 다시 그린다.
+// When an effect changes, the stored derived values of the combos that registered it are synced by the same combination
+// rule and the open combo sheets refreshed. The effect's own sheet is re-rendered automatically by Foundry on updateItem.
 Hooks.on('updateItem', async (item, changed, options, userId) => {
     const actor = item.actor;
     if (!actor || item.type !== 'effect') return;
-    // 이름·이미지·정렬 변경은 콤보의 계산값에 영향이 없다.
-    // Foundry 버전/호출 경로에 따라 changes가 중첩 객체 또는 점 표기 키가 될 수 있다.
+    // A name, image or sort change has no effect on a combo's computed values.
+    // Depending on the Foundry version and the call path, changes may be a nested object or dot-notation keys.
     const hasSystemChange = foundry.utils.hasProperty(changed, 'system') ||
         Object.keys(changed || {}).some(key => key.startsWith('system.'));
     if (!hasSystemChange) return;
 
-    // 훅은 모든 접속 클라이언트에서 실행된다. 저장 동기화는 변경을 일으킨 본인이,
-    // 그것도 해당 액터에 쓰기 권한이 있을 때만 한 번 수행한다. 재렌더는 표시값 갱신이므로
-    // 쓰기가 아니고, 시트를 열어둔 모든 클라이언트에서 그대로 수행한다.
+    // Hooks run on every connected client. The stored sync is performed once, by the user that caused the change,
+    // and only when they have write permission on that actor. A re-render only refreshes the display, so it is not
+    // a write and is performed as-is on every client with the sheet open.
     const canSync = userId === game.user.id && actor.isOwner;
 
     const comboData = window.DX3rdComboData;

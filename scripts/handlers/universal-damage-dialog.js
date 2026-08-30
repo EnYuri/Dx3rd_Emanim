@@ -1,5 +1,5 @@
-// Universal handler - 데미지 롤 & 데미지 계산 다이얼로그 클러스터
-// universal-handler.js 에서 분리. 반드시 그 파일 뒤에 로드되어 동일 객체에 믹스인된다.
+// Universal handler - the damage roll & damage calculation dialog cluster
+// Split out of universal-handler.js. It MUST load after that file and mixes into the same object.
 // (handleDamageRoll / showDamageCalculationDialog / _showAfterDamageDialog /
 //  _executeAfterDamageActivation / onAttackRollComplete)
 (function() {
@@ -49,8 +49,8 @@
     },
 
     /**
-     * 채팅 카드가 DOM에 들어온 뒤 기존 데미지 굴림 버튼과 똑같은 클릭 경로를 실행한다.
-     * 이 경로를 공유해야 afterSuccess, 공격 횟수, 임시 콤보 플래그가 수동 굴림과 갈라지지 않는다.
+     * Once the chat card is in the DOM, run exactly the same click path as the damage-roll button.
+     * Sharing this path keeps afterSuccess, the attack count and the temporary-combo flags from drifting apart from a manual roll.
      */
     async maybeAutoRollDamage(message) {
       if (!message || game.settings.get('dx3rd-emanim', 'autoDamageRoll') !== true) return false;
@@ -61,8 +61,8 @@
         );
         if (button) {
           button.click();
-          // 자동 굴림은 산출 창을 열기만 하는 것이 아니라 기본 산출값으로 확정까지 한다.
-          // 이후의 방어/닷지 창은 대상 측 선택이므로 자동으로 건드리지 않는다.
+          // An auto roll does not merely open the calculation dialog — it confirms it with the default values.
+          // The defense / dodge dialogs that follow are the target's choice, so they are left alone.
           for (let dialogAttempt = 0; dialogAttempt < 20; dialogAttempt += 1) {
             const confirm = document.querySelector(
               '.damage-dialog button[data-action="confirm"]'
@@ -89,7 +89,7 @@
      * @param {Item} item - The weapon item
      * @param {number} rollResult - The result from the attack roll
      * @param {Object} preservedValues - Values preserved before disable hooks (optional)
-     * @param {ChatMessage|null} sourceMessage - 공격 판정 결과가 들어 있는 원본 채팅 메시지
+     * @param {ChatMessage|null} sourceMessage - the original chat message holding the attack-roll result
      */
     async handleDamageRoll(actor, item, rollResult = null, preservedValues = null, comboAfterDamageData = null, sourceMessage = null) {
       const attackAfterDamageRiders = sourceMessage?.getFlag?.(
@@ -97,25 +97,25 @@
       let weaponAttack, actorAttack, actorAttackFormula, actorPenetrate;
       
       if (preservedValues) {
-        // 보존된 값들 사용 (비활성화 훅 실행 전의 값)
+        // Use the preserved values (from before the disable hooks ran)
         weaponAttack = preservedValues.weaponAttackFormula ?? preservedValues.weaponAttack ?? 0;
         actorAttack = preservedValues.actorAttack || 0;
         actorAttackFormula = preservedValues.actorAttackFormula || '';
         actorPenetrate = preservedValues.actorPenetrate || 0;
       } else {
-        // 현재 값들 사용 (비활성화 훅 실행 후의 값)
+        // Use the current values (from after the disable hooks ran)
         weaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
         
-        // 공격 타입/액터 보너스 산출 (명중 판정 시점과 동일 경로)
-        // 명중 판정을 거치지 않고 바로 데미지를 굴리는 경로다. 관통 다이스식은
-        // 여기가 가장 이른 확정 시점이므로 여기서 굴려 숫자로 굳힌다.
+        // Derive the attack type and actor bonuses (the same path as at accuracy time).
+        // This path rolls damage without an accuracy check, so this is the earliest point at which
+        // the penetrate dice formula settles — it is rolled here and frozen to a number.
         const bonuses = await this.resolveAttackBonusesRolled(actor, item);
         actorAttack = bonuses.actorAttack;
         actorAttackFormula = bonuses.actorAttackFormula;
         actorPenetrate = bonuses.actorPenetrate;
       }
       
-      // 데미지 산출 다이얼로그 표시 (롤 결과와 보존된 값들 포함)
+      // Show the damage calculation dialog (with the roll result and the preserved values)
       this.showDamageCalculationDialog(
         actor, item, weaponAttack, actorAttack, actorAttackFormula,
         actorPenetrate,
@@ -132,20 +132,20 @@
      * @param {number} actorPenetrate - Actor penetrate value
      * @param {number} rollResult - Attack roll result
      * @param {Object} comboAfterDamageData - Combo afterDamage data (optional)
-     * @param {ChatMessage|null} sourceMessage - 데미지 결과를 합칠 공격 판정 메시지
+     * @param {ChatMessage|null} sourceMessage - the attack-roll message the damage result is merged into
      */
     async showDamageCalculationDialog(actor, item, weaponAttack, actorAttack, actorAttackFormula, actorPenetrate, rollResult, comboAfterDamageData = null, sourceMessage = null, attackAfterDamageRiders = []) {
 
       const attackRollResult = rollResult;
       
-      // 공포 패널티 확인
+      // Check the fear penalty
       let fearPenalty = 0;
       let fearTargetName = '';
       const fearActive = actor.system?.conditions?.fear?.active || false;
       const fearTarget = actor.system?.conditions?.fear?.target || '';
       
       if (fearActive && fearTarget) {
-        // 현재 타겟 중에 공포 대상이 있는지 확인
+        // Is the feared target among the current targets?
         const targets = Array.from(game.user.targets);
         const hasFearTarget = targets.some(t => {
           const targetName = t.actor?.name || t.name;
@@ -161,7 +161,7 @@
         }
       }
       
-      // 폭주 혐오, 의존, 편집증 패널티 (공격 시 적용된 패널티 표시용)
+      // Berserk distaste, dependency and paranoia penalties (displayed as applied at attack time)
       let distastePenalty = 0;
       let distasteTargetName = '';
       let dependencyPenalty = 0;
@@ -231,7 +231,7 @@
         }
       }
       
-      // Madness 6 (과대망상): 공격 판정 결과가 20 이상일 때 데미지 롤 +1
+      // Madness 6 (megalomania): damage roll +1 when the attack roll came out at 20 or more
       let madness6Bonus = 0;
       const madnessTypePrefix = game.i18n.localize('DX3rd.MadnessType');
       const madness6Name = madnessTypePrefix + ': ' + game.i18n.localize('DX3rd.Madness6');
@@ -240,7 +240,7 @@
         madness6Bonus = 1;
       }
       
-      // Madness 7 (트리거 해피): system.skill이 ranged인 공격(사격 기능)에 한해 데미지 롤 attack +5
+      // Madness 7 (trigger happy): damage roll attack +5, only for attacks whose system.skill is ranged
       let madness7Bonus = 0;
       const madness7Name = madnessTypePrefix + ': ' + game.i18n.localize('DX3rd.Madness7');
       const hasMadness7 = actor.items.some(i => i.type === 'effect' && i.name === madness7Name);
@@ -248,19 +248,19 @@
         madness7Bonus = 5;
       }
       
-      // 참조는 이미 명중 시점의 값으로 고정되어 있다. 공격력의 다이스식만 확정 버튼까지
-      // 남겨 두어, 산출 창에는 결과가 아닌 원 수식이 보이도록 한다.
+      // The references are already frozen to their values at accuracy time. Only the attack's dice
+      // formula is held back to the confirm button, so the dialog shows the formula rather than a result.
       const weaponAttackFormula = String(weaponAttack ?? 0).trim() || '0';
       const joinFormulaTerms = (...terms) => this.joinFormulaTerms(...terms);
       const baseDamageAddFormula = joinFormulaTerms(actorAttack, actorAttackFormula, weaponAttackFormula, fearPenalty);
       const totalDamageAddFormula = joinFormulaTerms(baseDamageAddFormula, madness7Bonus);
       
-      // 템플릿 데이터 준비 (과대망상·트리거 해피 각각 구분 표기)
+      // Prepare the template data (megalomania and trigger-happy shown separately)
       const dicePart = `[${attackRollResult} / 10 + 1${madness6Bonus ? ' + 1(' + game.i18n.localize('DX3rd.Madness6') + ')' : ''}]D10`;
       const addPart = `${baseDamageAddFormula}${madness7Bonus ? ' + 5(' + game.i18n.localize('DX3rd.Madness7') + ')' : ''}`;
-      // 선언형 장비(로켓 런처의 장갑무시 등)는 여기가 아니라 명중판정 창에서 선언한다.
-      // 룰이 「명중판정을 실행하기 직전에 선언할 것」이므로, 맞은 걸 본 뒤 고르게 하면
-      // 빗나갔을 때 회수를 아끼는 자리가 생긴다 — declared-equipment.js 의 'attack' 문맥 참조.
+      // Declaration equipment (a rocket launcher's armor-ignore, say) is declared in the accuracy dialog, not here.
+      // The rules say to declare it "immediately before making the accuracy check", so letting the player pick
+      // after seeing the hit would create a spot to save uses on a miss — see the 'attack' context in declared-equipment.js.
       const templateData = {
         formula: `${dicePart} + ${addPart}`,
         actorPenetrate: actorPenetrate,
@@ -272,7 +272,7 @@
         paranoiaPenalty
       };
       
-      // HTML 템플릿 렌더링
+      // Render the HTML template
       const dialogContent = await foundry.applications.handlebars.renderTemplate("systems/dx3rd-emanim/templates/dialog/damage-calc-dialog.html", templateData);
 
       const DialogV2 = foundry.applications?.api?.DialogV2;
@@ -281,9 +281,9 @@
         return;
       }
 
-      // 산출 창 확정이 곧 적용 확정이다 — 굴림 결과를 여기 담아두고 창이 닫힌 뒤 자동 적용한다.
-      // 다이얼로그 콜백 안에서 적용하면 방어 다이얼로그(GM이 대상 소유자인 경우)가
-      // 아직 열려 있는 산출 창 위에 겹쳐 뜬다.
+      // Confirming the calculation dialog IS confirming the application — the roll result is held here
+      // and applied automatically once the dialog closes. Applying inside the dialog callback would
+      // stack the defense dialog (when the GM owns the target) on top of the still-open calculation dialog.
       let pendingApply = null;
 
       await DialogV2.wait({
@@ -309,35 +309,35 @@
                 ? window.DX3rdFormulaEvaluator.prepareRollFormula(addDamageInput, item, actor)
                 : addDamageInput;
               
-              // 최종 주사위 개수 계산 (소수점 버림, 과대망상 보너스 포함)
+              // Final dice count (fraction dropped, megalomania bonus included)
               const finalDiceCount = Math.floor((attackRollResult + addResult) / 10) + 1 + addDamageRoll + madness6Bonus;
               
-              // 아이템 공격력의 다이스식은 바로 여기서 한 번만 확정한다.
+              // The item attack's dice formula is settled exactly once, right here.
               const finalDamageAddFormula = joinFormulaTerms(totalDamageAddFormula, addDamage);
               const finalDamageFormula = joinFormulaTerms(`${finalDiceCount}d10`, finalDamageAddFormula);
               
-              // 최종 장갑 무시 값 = 사용자가 입력한 값을 그대로 사용
+              // Final armor-ignore value = whatever the user typed
               const finalPenetrate = penetrate;
               
               
               try {
-                // 데미지 롤 실행
+                // Roll the damage
                 const damageRoll = await (new Roll(finalDamageFormula)).roll();
                 
-                // 롤 결과를 HTML로 변환
+                // Render the roll result as HTML
                 const rollHTML = await damageRoll.render();
-                // Roll.render()가 이미 .dice-roll 루트를 반환한다. 한 번 더 감싸면
-                // Midi-QOL식 세로 결과 구획에서 폭 계산과 툴팁 배치가 어긋난다.
+                // Roll.render() already returns a .dice-roll root. Wrapping it once more throws off
+                // the width calculation and tooltip placement in the Midi-QOL-style vertical result column.
                 const rollMessage = rollHTML;
                 
-                // 데미지 롤 정보 생성 (장갑 무시가 0이면 표시하지 않음)
+                // Build the damage-roll caption (armor-ignore is omitted when 0)
                 let damageRollInfo = game.i18n.localize('DX3rd.DamageRoll');
                 if (finalPenetrate > 0) {
                   damageRollInfo += ` (${game.i18n.localize('DX3rd.Penetrate')}: ${finalPenetrate})`;
                 }
                 
-                // 산출 확정이 곧 대상 적용이다. 결과 아래에는 중복 적용 버튼 대신
-                // 같은 공격을 다시 시작할 수 있는 명중 굴림 버튼만 남긴다.
+                // Confirming the calculation IS applying to the targets. Below the result there is no
+                // second apply button, only an accuracy-roll button to start the same attack again.
                 const damageApplyContent = `
                   <div class="dx3rd-damage-result">
                     <div class="dx3rd-roll-label">${damageRollInfo}</div>
@@ -357,13 +357,13 @@
                   rolls: [damageRoll]
                 };
                 
-                // comboAfterDamage 데이터나 임시 콤보가 있는 경우에만 flags 초기화
+                // Initialize flags only when there is comboAfterDamage data or a temporary combo
                 if (comboAfterDamageData || attackAfterDamageRiders.length > 0 || window.DX3rdIsInstantCombo?.(item)) {
                   messageData.flags = {
                     'dx3rd-emanim': {}
                 };
                 
-                // comboAfterDamage 데이터가 있으면 플래그에 저장
+                // Store the comboAfterDamage data in the flag when present
                 if (comboAfterDamageData) {
                   messageData.flags['dx3rd-emanim'].comboAfterDamage = comboAfterDamageData;
                 }
@@ -371,7 +371,7 @@
                   messageData.flags['dx3rd-emanim'].attackAfterDamageRiders = attackAfterDamageRiders;
                 }
                 
-                // 임시 콤보인 경우 아이템 데이터도 복사
+                // Copy the item data too for a temporary combo
                 if (window.DX3rdIsInstantCombo?.(item)) {
                   messageData.flags['dx3rd-emanim'].tempComboItem = window.DX3rdSerializeInstantCombo(item);
                   }
@@ -398,9 +398,9 @@
         classes: ["dx3rd-emanim", "damage-dialog"]
       });
 
-      // 데미지 롤 = 굴림 + 적용을 한 번에 실행한다.
-      // 호출부(handleDamageRoll)가 이 함수를 await 하지 않으므로 — afterSuccess 익스텐션이
-      // 산출 창을 기다리지 않게 하려는 기존 순서다 — 여기서 예외를 삼켜 unhandled rejection 을 막는다.
+      // A damage roll is one action: roll plus apply.
+      // The caller (handleDamageRoll) does not await this function — the existing ordering that keeps
+      // afterSuccess extensions from waiting on the dialog — so errors are swallowed here to avoid an unhandled rejection.
       if (pendingApply) {
         try {
           const applied = await this.runDamageApply({
@@ -422,8 +422,8 @@
     },
 
     /**
-     * 공격 판정 카드의 데미지 버튼 영역에 데미지 결과를 합친다.
-     * 재굴림이면 저장된 마지막 데미지 Roll도 교체하여 한 카드에 현재 결과만 유지한다.
+     * Merge the damage result into the damage-button area of the attack-roll card.
+     * On a reroll the stored last damage Roll is replaced too, so one card holds only the current result.
      */
     async mergeDamageRollIntoMessage(sourceMessage, damageApplyContent, damageRoll) {
       const root = document.createElement('div');
@@ -472,21 +472,21 @@
     },
 
     /**
-     * 데미지 적용 실행부(게이트 포함). 데미지 산출 창 확정 직후의 적용과
-     * 구형 채팅 카드의 '데미지 적용' 버튼이 같은 경로를 쓴다.
-     * 타겟은 호출 시점의 game.user.targets 를 읽는다(버튼 경로와 동일).
-     * @returns {Promise<boolean>} 실제로 적용을 진행했으면 true (게이트에서 막히면 false)
+     * The damage application path (gates included). Applying right after the calculation dialog is
+     * confirmed and the old chat card's 'apply damage' button share this one path.
+     * Targets are read from game.user.targets at call time (as the button path does).
+     * @returns {Promise<boolean>} true when the application actually proceeded (false when a gate blocked it)
      */
     async runDamageApply({actor, item, damage, penetrate, attackResult = 0, comboAfterDamageData = null, attackAfterDamageRiders = []} = {}) {
       if (!actor) return false;
 
-      // 권한 체크
+      // Permission check
       if (!actor.isOwner && !game.user.isGM) {
         console.warn('DX3rd | User lacks permission to use this actor\'s actions');
         return false;
       }
 
-      // 액터의 토큰 자동 선택
+      // Select the actor's token automatically
       const previousToken = canvas.tokens?.controlled?.[0] || null;
       const actorToken = canvas.tokens?.placeables.find(t => t.actor?.id === actor.id);
       if (actorToken) actorToken.control({ releaseOthers: true });
@@ -495,7 +495,7 @@
         if (previousToken && canvas.tokens) previousToken.control({ releaseOthers: true });
       };
 
-      // 타겟 체크
+      // Target check
       const targets = Array.from(game.user.targets);
       if (targets.length === 0) {
         ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
@@ -503,7 +503,7 @@
         return false;
       }
 
-      // Hatred 상태이상 체크 (타겟에 hatred.target이 포함되어야 함)
+      // Hatred status check (hatred.target must be among the targets)
       const hatredActive = actor.system?.conditions?.hatred?.active || false;
       const hatredTarget = actor.system?.conditions?.hatred?.target || '';
       if (hatredActive && hatredTarget) {
@@ -519,9 +519,9 @@
         }
       }
 
-      // 증오 자동 회복은 명중판정 시점(onAttackRollComplete)으로 이관됨.
-      // 룰상 성공 여부와 무관하게 회복되므로, 빗나가 데미지 버튼을 누르지 않는 경우도 커버해야 한다.
-      // 위 hatred 대상 강제 체크는 잘못된 대상에 데미지 적용을 막는 안전망으로 유지.
+      // Automatic hatred recovery moved to accuracy time (onAttackRollComplete).
+      // By the rules it recovers regardless of success, so a miss — where the damage button is never pressed — has to be covered too.
+      // The hatred target check above stays as a safety net against applying damage to the wrong target.
       await this.handleDamageApply(
         actor, item, damage, penetrate, targets, comboAfterDamageData, attackResult, attackAfterDamageRiders);
       restoreToken();
@@ -529,8 +529,8 @@
     },
 
     /**
-     * 데미지 적용 처리
-     * @param {Object} comboAfterDamageData - 콤보 afterDamage 데이터 (선택적)
+     * Apply the damage
+     * @param {Object} comboAfterDamageData - combo afterDamage data (optional)
      */
     async processAfterDamageExtensionRequest(request) {
       if (!request) return [];
@@ -614,13 +614,13 @@
         ? foundry.utils.deepClone(attackAfterDamageRiders)
         : [];
 
-      // ===== 익스텐드 큐 등록 요청 (GM에게) =====
-      // 콤보는 processComboAfterDamage에서 병합하여 처리하므로 제외
+      // ===== Request registration in the extension queue (to the GM) =====
+      // Combos are merged and handled in processComboAfterDamage, so they are excluded
       if (item && item.type !== 'combo') {
         const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
         const attackMatches = (kind, data) => !window.DX3rdItemEffectAdapter
           || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, 'attack', 'afterDamage');
-        // afterDamage 타이밍 체크
+        // Check the afterDamage timing
         const condEntries = window.DX3rdUniversalHandler?._getConditionEntries(itemExtend.condition || {}) || [];
         const condEntriesForAttack = condEntries.filter(c => attackMatches('condition', c));
         const cardEntriesForAttack = (window.DX3rdItemEffectAdapter?.extensionEntries?.(itemExtend) || [])
@@ -636,7 +636,7 @@
           (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterDamage' && attackMatches('statusClear', itemExtend.statusClear)) ||
           hasCondAfterDamage || queuedCards.some(entry => entry.data?.timing === 'afterDamage');
         
-        // 아이템의 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우도 체크
+        // Also check the case where the item's runTiming is afterDamage and the extension timing is afterMain
         const itemRunTiming = item.system.active?.runTiming;
         const hasAfterMainExtensionForAfterDamage = 
           itemRunTiming === 'afterDamage' && (
@@ -666,7 +666,7 @@
               reportActorIds: {},
               reportCount: 0,
               extensions: {
-                // afterDamage 타이밍 또는 (아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우)
+                // afterDamage timing, or (the item's runTiming is afterDamage and the extension timing is afterMain)
                 heal: itemExtend.heal?.activate && (
                   itemExtend.heal?.timing === 'afterDamage' || 
                   (itemRunTiming === 'afterDamage' && itemExtend.heal?.timing === 'afterMain')
@@ -689,7 +689,7 @@
                 cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
               },
               triggerItemName: item.name,
-              itemRunTiming: itemRunTiming,  // 아이템의 runTiming 저장
+              itemRunTiming: itemRunTiming,  // store the item's runTiming
               createdAt: Date.now()
             };
             this.scheduleAfterDamageRequestExpiry(damageRequestId);
@@ -703,7 +703,7 @@
               hasCondition: !!window.DX3rdAfterDamageExtensionQueue[queueKey].extensions.condition
             });
           } else {
-            // 플레이어: GM에게 큐 등록 요청
+            // A player asks the GM to register the queue entry
             window.DX3rdSocketRouter.emit({
               type: 'registerAfterDamageExtension',
               payload: {
@@ -713,7 +713,7 @@
                 targetActorIds: targetActorIds,
                 targetTokenIds: targetTokenIds,
                 extensions: {
-                  // afterDamage 타이밍 또는 (아이템 runTiming이 afterDamage이고 익스텐드 타이밍이 afterMain인 경우)
+                  // afterDamage timing, or (the item's runTiming is afterDamage and the extension timing is afterMain)
                   heal: itemExtend.heal?.activate && (
                     itemExtend.heal?.timing === 'afterDamage' || 
                     (item.system.active?.runTiming === 'afterDamage' && itemExtend.heal?.timing === 'afterMain')
@@ -745,17 +745,17 @@
         }
       }
 
-      // 활성화/매크로 요청 등록 (아이템이 있을 때만)
+      // Register the activation / macro request (only when there is an item)
       if (item?.id) {
         const isCombo = item.type === 'combo';
         
-        // 콤보는 comboAfterDamageData만 등록, 단일 아이템은 기존 로직
+        // A combo registers only comboAfterDamageData; a single item follows the original logic
         const activeDisable = item.system?.active?.disable ?? '-';
         const activeActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, 'attack', 'afterDamage');
         const targetActionMatches = !window.DX3rdItemEffectAdapter || window.DX3rdItemEffectAdapter.targetActionMatches(item, 'attack', 'afterDamage');
         const shouldActivate = !isCombo && activeActionMatches && (item.system.active?.runTiming === 'afterDamage' && !item.system.active?.state && activeDisable !== 'notCheck');
-        // 데미지 적용 후에 걸 대상 보정이 있는가. 채널 필드(effect.runTiming)가 아니라
-        // 「공격 시」 버킷 자기 타이밍을 본다 — 카드마다 발현 타이밍을 나눠 저작할 수 있다.
+        // Are there target modifiers to apply after the damage? This reads the "on attack" bucket's own
+        // timing rather than the channel field (effect.runTiming) — each card can author its own trigger timing.
         const shouldApplyToTargets = !isCombo && targetActionMatches && (window.DX3rdItemEffectAdapter
           ? window.DX3rdItemEffectAdapter.targetFiresAt(item, 'attack', 'afterDamage')
           : item.system.effect?.runTiming === 'afterDamage');
@@ -788,7 +788,7 @@
                 shouldActivate: shouldActivate,
                 shouldApplyToTargets: shouldApplyToTargets,
                 needsDialog: needsDialog,
-                comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 저장
+                comboAfterDamageData: comboAfterDamageData, // store the combo data
                 pendingAttackRiders,
                 createdAt: Date.now()
               };
@@ -801,7 +801,7 @@
                 hasComboData: !!comboAfterDamageData
               });
             } else {
-              // 일반 유저는 GM에게 등록 요청
+              // An ordinary user asks the GM to register it
               window.DX3rdSocketRouter.emit({
                 type: 'registerAfterDamageActivation',
                 payload: {
@@ -814,7 +814,7 @@
                   shouldActivate: shouldActivate,
                   shouldApplyToTargets: shouldApplyToTargets,
                   needsDialog: needsDialog,
-                  comboAfterDamageData: comboAfterDamageData, // 콤보 데이터 전달
+                  comboAfterDamageData: comboAfterDamageData, // pass the combo data along
                   pendingAttackRiders
                 }
               });
@@ -829,7 +829,11 @@
         }
       }
 
-      // 각 타겟에 대해 방어 다이얼로그 전달
+      // Frozen here, on the attacking client, for the same reason target modifiers are: the
+      // defender's client cannot resolve the attacker's combo members or registered weapons.
+      const bypassDefense = window.DX3rdItemEffectAdapter.attackBypassDefense(actor, item);
+
+      // Deliver the defense dialog to each target
       for (const target of targets) {
         const targetActor = target.actor;
         if (!targetActor) continue;
@@ -843,35 +847,36 @@
           attackerName: actor.name,
           attackerId: actor.id,
           itemId: item?.id || null,
+          bypassDefense,
           damageRequestId
         };
         
-        // 방어 다이얼로그 전송 (타겟 소유자 우선)
+        // Send the defense dialog (the target's owner first)
         if (game.user.isGM) {
-          // GM: 타겟에 일반 소유자가 있는지 확인
+          // GM: is there a non-GM owner for this target?
           const nonGMOwners = game.users.filter(user => 
             !user.isGM && 
-            user.active &&  // 접속 중인 유저만
+            user.active &&  // only users who are connected
             targetActor.testUserPermission(user, 'OWNER')
           );
           
           if (nonGMOwners.length > 0) {
-            // 접속 중인 일반 소유자가 있으면 소켓 전송
+            // With a connected non-GM owner, send it over the socket
             window.DX3rdSocketRouter.emitToActorExecutor({
               type: 'showDefenseDialog',
-              dialogData: payload  // payload → dialogData로 통일
+              dialogData: payload  // payload → dialogData, kept uniform
             }, targetActor);
             window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket to non-GM owner for:', targetActor.name);
           } else {
-            // 접속 중인 일반 소유자가 없으면 GM이 직접 표시
+            // With no connected non-GM owner, the GM shows it directly
             await this.showDefenseDialog(payload);
             window.DX3rdDebug.log('DX3rd | GM showing defense dialog directly (no active non-GM owner)');
           }
         } else {
-          // 일반 유저: 항상 소켓 전송 (GM 백업 로직이 처리)
+          // An ordinary user always sends it over the socket (the GM fallback handles it)
           window.DX3rdSocketRouter.emitToActorExecutor({
             type: 'showDefenseDialog',
-            dialogData: payload  // payload → dialogData로 통일
+            dialogData: payload  // payload → dialogData, kept uniform
           }, targetActor);
           window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
         }
@@ -881,10 +886,12 @@
     },
 
     /**
-     * 방어 다이얼로그 표시
+     * Show the defense dialog
      */
     showDefenseDialog: async function(payload) {
       const { targetActorId, targetTokenId, damage, penetrate, attackResult, attackerName, attackerId, itemId, damageRequestId } = payload;
+      // Older cards carry no snapshot; absent means nothing was bypassed.
+      const bypassDefense = window.DX3rdItemEffectAdapter.bypassDefense({ system: { bypassDefense: payload.bypassDefense } });
       
       const targetActor = game.actors.get(targetActorId);
       if (!targetActor) {
@@ -892,24 +899,24 @@
         return;
       }
       
-      // 권한 체크
+      // Permission check
       if (!targetActor.isOwner) {
         console.warn('DX3rd | User does not own this actor');
         return;
       }
       
-      // 방어 다이얼로그 데이터 준비
-      // 무기 가드치는 아이템 고유 필드(system.guard)라 어트리뷰트 채널을 안 탄다.
-      // 예전에는 템플릿 값을 그대로 parseInt 해서 "2d10"이면 2로 잘리고 "[레벨]"은 0이 됐다.
-      // 여기서 고정치와 다이스식으로 갈라 두고, 다이스는 확인 시 가드 굴림에 합류시킨다.
+      // Prepare the defense dialog data.
+      // A weapon's guard value is the item's own field (system.guard), so it never goes through the attribute channel.
+      // The template value used to be parseInt'd directly, truncating "2d10" to 2 and turning "[level]" into 0.
+      // It is split here into a fixed part and a dice formula; the dice join the guard roll on confirmation.
       const F = window.DX3rdFormulaEvaluator;
       const weaponList = targetActor.items.filter(item => item.type === 'weapon')
         .map(weapon => {
           const raw = weapon.system.guard;
           const prepared = F.prepareRollFormula(raw, weapon, targetActor);
           const isDice = F.hasDice(prepared);
-          // 「맨손의 가드치에 +N」 같은 버킷 보정은 그 무기로 가드할 때만 붙는다. 무기가
-          // 정해지는 곳이 여기뿐이므로, 액터가 버킷에 남겨 둔 몫을 여기서 합류시킨다.
+          // A bucket bonus like "+N to the guard value of a fist" applies only when guarding with that
+          // weapon. This is the one place the weapon is settled, so the actor's bucket share joins here.
           const bucket = window.DX3rdUniversalHandler.getWeaponGuardBonus(targetActor, weapon);
           const guardFixed = (isDice ? 0 : (Number(F.evaluate(raw, weapon, targetActor)) || 0))
             + bucket.fixed;
@@ -923,17 +930,17 @@
               .filter(Boolean).join(' + ')
           };
         })
-        // 가드치 높은 순(같으면 원래 순서 유지). 다이스식은 고정치가 0이라 뒤로 간다.
+        // Highest guard first (ties keep their original order). A dice formula has a fixed part of 0, so it sorts last.
         .sort((a, b) => b.guardFixed - a.guardFixed);
-      // 액터 시트의 guard.value는 장착 무기 가드까지 보여 주지만, 실제 방어에서는 아래
-      // 무기 선택값을 별도로 더한다. base에서 시작해야 장착 무기가 이중 적용되지 않는다.
+      // The actor sheet's guard.value already shows the equipped weapon's guard, but the real defense adds
+      // the weapon choice below separately. Starting from base is what keeps an equipped weapon from counting twice.
       const guard = targetActor.system.attributes.guard?.base
         ?? targetActor.system.attributes.guard?.value
         ?? 0;
       const armor = targetActor.system.attributes.armor?.value || 0;
       const reduce = targetActor.system.attributes.reduce?.value || 0;
-      // 발동형 수식은 방어 창을 열 때 굴리지 않는다. 원문만 표시하고 확정 시 한 번 굴린다.
-      // 일반 값 필드에 쓴 다이스식은 방어를 확정할 때 한 번만 굴린다.
+      // Trigger-time formulas are not rolled when the defense dialog opens: the source is displayed and rolled once on confirmation.
+      // A dice formula written into a plain value field is rolled exactly once, when the defense is confirmed.
       const deferredDefenseFormula = (attrKey) => {
         const attr = targetActor.system.attributes[attrKey] || {};
         return attr.valueFormula || '';
@@ -945,9 +952,9 @@
       const maxHP = targetActor.system.attributes.hp?.max || 0;
 
       /**
-       * 체크된 무기들의 가드치를 고정분/다이스식으로 갈라 읽는다.
-       * 실시간 표시(root)와 확정 계산(form)이 같은 규칙을 쓰게 한 곳에 둔다.
-       * @param {Element} scope - 조회 기준 요소
+       * Read the checked weapons' guard values, split into a fixed part and a dice formula.
+       * Kept in one place so the live display (root) and the final calculation (form) use the same rule.
+       * @param {Element} scope - the element to query from
        * @returns {{fixed: number, formula: string}}
        */
       const readCheckedWeaponGuard = (scope) => {
@@ -960,8 +967,8 @@
         return {fixed, formula: formulas.join(' + ')};
       };
 
-      // [폭주] 중 가드 금지 판정. 입력 비활성화(설정이 차단일 때)와 경고(허용일 때)가 같은
-      // 기준을 쓰도록 한 곳에 둔다 — 갈리면 「입력은 살아 있는데 경고가 안 뜬다」가 된다.
+      // Whether [berserk] forbids guarding. Kept in one place so disabling the input (when the setting blocks)
+      // and the warning (when it allows) use the same test — drifting apart gives "the input is live but no warning appears".
       const BERSERK_GUARD_TYPES = ['normal', 'slaughter', 'battlelust', 'delusion', 'fear', 'hatred'];
       const berserkBlocksGuard = () => {
         const berserk = targetActor.system?.conditions?.berserk;
@@ -969,28 +976,40 @@
       };
 
       /**
-       * 방어 계산 단일 정의. 실시간 표시와 확정 계산이 같은 식을 쓰도록 한 곳에 둔다.
-       * (확정 시 굴리는 다이스를 표시값에서 단순히 빼면 커버링 배수·가드 선언·장갑 관통
-       *  클램프를 통과하지 못해 실제 룰과 어긋난다.)
+       * The single definition of the defense calculation, so the live display and the final calculation use one formula.
+       * (Simply subtracting the confirmation-time dice from the displayed value would bypass the covering multiplier,
+       *  the guard declaration and the armor-penetration clamp, and diverge from the actual rules.)
        */
       const calcDefenseDamage = ({ guard: guardValue, weaponGuard = 0, guardChecked = true,
                                    armor: armorValue, reduce: reduceValue,
-                                   covering = 0, reactionSuccess = false }) => {
+                                   covering = 0, reactionSuccess = false,
+                                   armorIgnored = false, guardBlocked = false }) => {
         if (reactionSuccess) return 0;
-        const effectiveGuard = guardChecked ? (guardValue + weaponGuard) : 0;
-        // 장갑무시 적용: 장갑치는 음수가 될 수 없음
-        const effectiveArmor = Math.max(0, armorValue - penetrate);
+        const effectiveGuard = (guardChecked && !guardBlocked) ? (guardValue + weaponGuard) : 0;
+        // Total armor bypass is all-or-nothing and outranks the numeric penetration; the two are
+        // different rules ("장갑치를 무시" vs "장갑치를 [LVx8]만큼 무시") and must not stack into a
+        // negative. Otherwise the armor value can never go below zero either.
+        const effectiveArmor = armorIgnored ? 0 : Math.max(0, armorValue - penetrate);
         if (covering > 0) {
-          // 커버링: (데미지 - 가드 - 장갑) × (커버링수 + 1) - 경감
+          // Covering: (damage - guard - armor) × (covering count + 1) - reduction
           const intermediateDamage = Math.max(0, damage - effectiveGuard - effectiveArmor);
           return Math.max(0, (intermediateDamage * (covering + 1)) - reduceValue);
         }
-        // 일반 상황: 데미지 - 가드 - 장갑 - 경감
+        // The ordinary case: damage - guard - armor - reduction
         return Math.max(0, damage - effectiveGuard - effectiveArmor - reduceValue);
       };
 
-      // 실제 데미지 계산 (초기값) - 일반 상황 기준
-      const realDamage = calcDefenseDamage({ guard, armor, reduce });
+      // The counters the defender actually owns for what this attack bypassed.
+      const restoreItems = this.getDefenseRestoreItems(targetActor, bypassDefense);
+      // Nothing is declared yet, so the opening figure already reflects the full bypass.
+      const openingDefense = window.DX3rdItemEffectAdapter.resolveDefense(bypassDefense, {});
+
+      // The actual damage (initial value) — for the ordinary case
+      const realDamage = calcDefenseDamage({
+        guard, armor, reduce,
+        armorIgnored: openingDefense.armorIgnored,
+        guardBlocked: openingDefense.guardBlocked
+      });
       const attackResultValue = Number(attackResult) || 0;
       const reactionItems = attackResultValue > 0
         ? await this.getDefenseReactionItems(targetActor)
@@ -1014,7 +1033,8 @@
         reduceRollFormula,
         attackResult: attackResultValue,
         reactionGroups: this.groupDefenseReactionItems(reactionItems),
-        // 「가드를 실행할 때 선언한다」(가드 실드·프로텍트 아머 등) — 방어자의 장비다.
+        bypassSection: this.defenseBypassSectionHtml(bypassDefense, restoreItems),
+        // "Declared when you guard" (guard shield, protect armor, …) — the defender's equipment.
         declareSection: window.DX3rdDeclaredEquipment?.sectionHtml(
           window.DX3rdDeclaredEquipment.collect(targetActor, 'defense')) || ''
       };
@@ -1027,8 +1047,8 @@
         return;
       }
 
-      // 토글해 둔 선언형 장비의 실제 사용은 「확인」에서 일어난다. 배선은 render 이후라
-      // 여기서는 자리만 잡아 두고, 확정 콜백이 이 참조를 통해 commit 한다.
+      // Equipment toggled on is actually used at "confirm". The wiring happens after render, so this
+      // only reserves the slot; the confirm callback commits through this reference.
       let declareControl = null;
       let damageRequestSettled = false;
       const cancelDamageRequest = async () => {
@@ -1069,14 +1089,14 @@
             default: true,
             callback: async (event, button) => {
               const form = button.form;
-              // 토글해 둔 장비를 여기서 실제로 사용한다. 폼 값을 읽기 전에 끝내야
-              // 가드/장갑/경감 보정이 이번 방어에 실린다(닫으면 여기까지 오지 않아 소모도 없다).
+              // The toggled equipment is actually used here. It must finish before the form values are read
+              // so guard/armor/reduce bonuses land on this defense (closing never reaches here, so nothing is spent).
               if (declareControl?.hasPending?.()) {
                 const applied = await declareControl.commit();
                 if (applied.length) await refreshDefenseValuesFromActor();
               }
               const num = (selector) => parseInt(form?.querySelector(selector)?.value) || 0;
-              // 확정 시점에 보류된 다이스식을 각각 한 번씩 굴린다.
+              // Roll each deferred dice formula exactly once, at confirmation time.
               const rollDeferred = async (formula, kind) => {
                 if (!formula) return null;
                 try {
@@ -1086,26 +1106,59 @@
                   return null;
                 }
               };
+              // Counters are spent here, alongside the equipment declaration, and only the ones whose
+              // cost actually clears are honoured — an exhausted counter that the world setting blocks
+              // must not silently give the defense back.
+              const restore = { armor: false, guard: false, reaction: false };
+              for (const check of (form?.querySelectorAll('.dx3rd-bypass-restore-check:checked') || [])) {
+                const restoreItem = targetActor.items.get(check.dataset.itemId);
+                if (!restoreItem) continue;
+                const paid = await window.DX3rdUniversalHandler.processItemUsageCost(targetActor, restoreItem);
+                if (paid === false) continue;
+                restore[check.dataset.axis] = true;
+              }
+              const defense = window.DX3rdItemEffectAdapter.resolveDefense(bypassDefense, restore);
+
               const guardChecked = form?.querySelector('#guard-check')?.checked || false;
-              const reactionSuccess = form?.querySelector('#reaction-success')?.checked || false;
-              // 선택한 무기의 가드 다이스식도 같은 가드 굴림에 합류시킨다.
+              let reactionSuccess = form?.querySelector('#reaction-success')?.checked || false;
+              // The chosen weapon's guard dice formula joins the same guard roll.
               const weaponGuard = readCheckedWeaponGuard(form);
               const guardFormula = [guardRollFormula, weaponGuard.formula].filter(Boolean).join(' + ');
-              // 결과에 쓰이지 않을 굴림은 아예 하지 않는다 — 굴리면 채팅에 "가드 굴림 +9" 같은
-              // 줄이 남아 실제로 깎이지 않은 값이 깎인 것처럼 보인다.
+
+              // The bypass gate, resolved here rather than trusted from the render-time lock — the setting
+              // can be flipped, or a counter ticked, while the dialog is open, and the lock is drawn once.
+              // When the setting allows (the default) the block is dropped from the math and only reported;
+              // the report fires on the axes the defender actually used, so an untouched input stays quiet.
+              const enforcedDefense = enforceBypass(defense);
+              if (!bypassBlocks()) {
+                for (const [blockedKey, used, labelKey] of [
+                  ['guardBlocked', guardChecked && !reactionSuccess, 'DX3rd.BypassDefenseGuard'],
+                  ['reactionBlocked', reactionSuccess, 'DX3rd.BypassDefenseReaction']
+                ]) {
+                  if (!defense[blockedKey] || !used) continue;
+                  await window.DX3rdUniversalHandler?.reportUsageGate?.(
+                    targetActor, { name: game.i18n.localize(labelKey) }, 'defenseBypass',
+                    game.i18n.localize('DX3rd.BypassGateDetail'));
+                }
+              } else if (enforcedDefense.reactionBlocked) {
+                // Blocking is enforced by the dead input, which was drawn once — close the same hole here.
+                reactionSuccess = false;
+              }
+              // Rolls whose result would go unused are not made at all — rolling leaves a line like
+              // "guard roll +9" in chat, making a value that was never subtracted look like it was.
               const [guardRoll, armorRoll, reduceRoll] = reactionSuccess ? [null, null, null] : [
-                await rollDeferred(guardChecked ? guardFormula : '', 'guard'),
+                await rollDeferred((guardChecked && !enforcedDefense.guardBlocked) ? guardFormula : '', 'guard'),
                 await rollDeferred(armorRollFormula, 'armor'),
                 await rollDeferred(reduceRollFormula, 'reduce')
               ];
-              // 굴린 값은 각 항에 얹어 방어식을 다시 계산한다(가드 선언/장갑 관통/커버링 배수 반영).
-              // [폭주] 중인데 가드가 걸린 채 적용됐다면 알린다. 설정이 「허용」이면 경고와
-              // 기록만 남기고 그대로 깎고, 「차단」이면 가드를 여기서 떨어뜨린다.
+              // The rolled values are added to their terms and the defense formula is recomputed (guard declaration / armor penetration / covering multiplier included).
+              // Report when a guard was applied during [berserk]. With the setting on "allow" this warns and
+              // records only, still subtracting; with "block" the guard is dropped here.
               //
-              // 위에서 입력을 죽여 두었는데도 이 검사가 필요한 이유: 비활성화는 렌더 직후
-              // 한 번뿐이라, 창을 열어 둔 사이에 대상이 [폭주]에 걸리면 입력이 살아 있다.
-              // 계산 시점에 다시 보지 않으면 그 창에서만 설정이 무력해진다.
-              // 닷지에 성공했으면 가드는 계산에 쓰이지 않으므로 세지 않는다.
+              // Why this check is needed even though the input was disabled above: disabling happens once,
+              // right after render, so if the target becomes [berserk] while the dialog is open the input is live.
+              // Without rechecking at calculation time the setting would be powerless in that one dialog.
+              // With a successful dodge the guard is not used in the calculation, so it is not counted.
               let guardAllowed = guardChecked;
               const guardApplied = num('#guard') + (Number(guardRoll?.total) || 0) + weaponGuard.fixed;
               if (!reactionSuccess && guardChecked && guardApplied > 0 && berserkBlocksGuard()) {
@@ -1122,10 +1175,12 @@
                 armor: num('#armor') + (Number(armorRoll?.total) || 0),
                 reduce: num('#reduce') + (Number(reduceRoll?.total) || 0),
                 covering: coveringValue,
-                reactionSuccess
+                reactionSuccess,
+                armorIgnored: enforcedDefense.armorIgnored,
+                guardBlocked: enforcedDefense.guardBlocked
               });
               const newHP = Math.max(0, currentHP - finalDamage);
-              const hpChange = currentHP - newHP; // 실제 HP 변동량
+              const hpChange = currentHP - newHP; // the HP actually lost
 
               await targetActor.update({
                 'system.attributes.hp.value': newHP
@@ -1137,7 +1192,7 @@
                 chatMessage += ` (${game.i18n.localize('DX3rd.Covering')}: ${coveringValue})`;
               }
 
-              // 채팅 메시지 출력 (스피커는 대상 액터)
+              // Emit the chat message (the speaker is the target actor)
               const rollDetail = async (roll, formula, labelKey) => roll
                 ? `<div class="dx3rd-roll-detail"><div>${game.i18n.localize(labelKey)}: ${formula} → +${roll.total}</div>${await roll.render()}</div>`
                 : '';
@@ -1150,12 +1205,12 @@
                 style: CONST.CHAT_MESSAGE_STYLES.OTHER
               });
               
-              // guard 비활성화 후크 실행
+              // Run the guard disable hook
               if (window.DX3rdDisableHooks) {
                 await window.DX3rdDisableHooks.executeDisableHook('guard', targetActor);
               }
               
-              // ===== afterDamage 익스텐드 큐 시스템 =====
+              // ===== The afterDamage extension queue =====
               if (attackerId && itemId) {
                 const extensionQueueKey = damageRequestId;
                 const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[extensionQueueKey];
@@ -1175,7 +1230,7 @@
                     totalTargets: report.targetCount
                   });
                   
-                  // 모든 타겟이 보고했는지 확인
+                  // Have every target reported?
                   if (report.accepted && report.complete && !extensionRequest.processing) {
                     extensionRequest.processing = true;
                     window.DX3rdDebug.log('DX3rd | All targets reported for extensions, processing...');
@@ -1194,7 +1249,7 @@
                 }
               }
               
-              // ===== 기존 afterDamage 시스템 (queueIndex가 없는 경우) =====
+              // ===== The original afterDamage path (when there is no queueIndex) =====
               window.DX3rdDebug.log('DX3rd | Checking afterDamage conditions:', {
                 hpChange: hpChange,
                 attackerId: attackerId,
@@ -1209,26 +1264,26 @@
                 if (window.DX3rdSocketRouter.isResponsibleGM()) {
                   // Only the GM that owns the queue processes reports locally. Other GMs report
                   // through the same socket path as players.
-                  const applyQueueKey = `${targetActor.id}_${itemId}`; // 효과: 타겟 기준
+                  const applyQueueKey = `${targetActor.id}_${itemId}`; // effects: keyed by target
                   
-                  // 1. afterDamage 타겟 효과 적용
+                  // 1. Apply the afterDamage target effects
                   const applyRequest = window.DX3rdTargetApplyQueue?.[applyQueueKey];
                   if (applyRequest) {
                     window.DX3rdDebug.log('DX3rd | Found target apply request in queue:', applyRequest);
                     
                     if (hpChange >= 1) {
-                      // HP 감소했으면 효과 적용
+                      // HP went down, so apply the effect
                       const sourceActor = game.actors.get(applyRequest.sourceActorId);
                       const item = sourceActor?.items.get(applyRequest.itemId);
                       
                       if (item && targetActor.isOwner) {
-                        // GM이 타겟 소유자이므로 직접 적용
+                        // The GM owns the target, so apply it directly
                         await window.DX3rdUniversalHandler._applyItemAttributes(
                           sourceActor, item, targetActor, applyRequest.targetAttributes,
                           { preEvaluated: applyRequest.preEvaluated === true });
                         window.DX3rdDebug.log('DX3rd | Target effect applied directly by GM');
                       } else {
-                        // 타겟 소유자에게 적용 지시
+                        // Tell the target's owner to apply it
                         window.DX3rdSocketRouter.emitToActorExecutor({
                           type: 'applyEffectToTarget',
                           payload: {
@@ -1245,14 +1300,14 @@
                       window.DX3rdDebug.log('DX3rd | HP not decreased, skipping effect application');
                     }
                     
-                    // 요청 삭제 (HP 감소 여부 무관)
+                    // Drop the request (whether or not HP went down)
                     delete window.DX3rdTargetApplyQueue[applyQueueKey];
                     window.DX3rdDebug.log('DX3rd | Target apply request removed from queue');
                   } else {
                     window.DX3rdDebug.log('DX3rd | No target apply request found for:', applyQueueKey);
                   }
                   
-                  // 2. 활성화/매크로 처리 (활성화 큐 확인 및 보고 수집)
+                  // 2. Activation / macro handling (check the activation queue and collect reports)
                   const activationQueueKey = damageRequestId;
                   const activationRequest = window.DX3rdAfterDamageActivationQueue?.[activationQueueKey];
                   if (activationRequest) {
@@ -1270,12 +1325,12 @@
                       totalTargets: report.targetCount
                     });
                     
-                    // 모든 타겟이 보고했는지 확인
+                    // Have every target reported?
                     if (report.accepted && report.complete && !activationRequest.processing) {
                       activationRequest.processing = true;
                       window.DX3rdDebug.log('DX3rd | All targets reported, processing activation...');
                       try {
-                      // HP 데미지를 받은 타겟 목록
+                      // The targets that took HP damage
                       const damagedReports = Object.entries(activationRequest.damageReports)
                         .filter(([, hp]) => hp > 0);
                       const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
@@ -1295,16 +1350,16 @@
                         return;
                       }
                       
-                      // 💡 콤보 afterDamage 처리 (HP 데미지 발생 후)
-                      // 임시 콤보는 액터에 임베드된 Item 문서가 아니다. 따라서 itemId로
-                      // attacker.items를 먼저 조회해 반환하면, 콤보 빌더로 만든 공격은
-                      // 멤버 이펙트의 사독/회복/데미지 후 효과까지 전부 잃는다.
-                      // comboAfterDamageData는 실행에 필요한 멤버 데이터를 이미 들고 있으므로
-                      // 원본 콤보 문서와 무관하게 먼저 처리한다.
+                      // Combo afterDamage handling (after the HP damage happened).
+                      // A temporary combo is not an Item document embedded in the actor. So looking itemId up
+                      // in attacker.items first and returning would make an attack built in the combo builder
+                      // lose every member effect's poison / heal / after-damage work.
+                      // comboAfterDamageData already carries the member data needed to run, so it is handled
+                      // first, independently of the original combo document.
                       const comboData = activationRequest.comboAfterDamageData;
                       if (comboData && damagedTargets.length > 0) {
                         window.DX3rdDebug.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
-                        // damagedTargets는 Actor ID 배열이므로 Actor 객체로 변환
+                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
                         const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
                           .filter(Boolean);
                         for (const actorId of damagedTargets) {
@@ -1332,14 +1387,14 @@
                         || activationRequest.shouldActivate
                         || activationRequest.shouldApplyToTargets;
                       if (!attackerItem && needsAttackerItem) {
-                        // 저장 아이템 기반 후속 작업은 원본 문서가 없으면 실행할 수 없다.
-                        // 큐를 남기면 같은 키의 다음 요청까지 막으므로 반드시 정리한다.
+                        // Follow-up work based on a stored item cannot run without the original document.
+                        // Leaving the queue entry would block the next request under the same key, so it is always cleaned up.
                         console.warn('DX3rd | Attacker item not found:', itemId);
                         return;
                       }
                       if (!attackerItem) {
-                        // 임시 콤보는 위의 comboData 처리만으로 완료된다. HP 데미지가 없을
-                        // 때의 알림은 저장 콤보와 동일하게 유지한다.
+                        // A temporary combo is complete once the comboData handling above has run.
+                        // The no-HP-damage notification stays the same as for a stored combo.
                         if (damagedTargets.length === 0) {
                           const attackerOwners = game.users.filter(user =>
                             !user.isGM &&
@@ -1362,32 +1417,32 @@
                         return;
                       }
                       
-                      // 1️⃣ 매크로 실행 (한 명이라도 HP 데미지 받았으면)
+                      // 1. Run the macros (if at least one target took HP damage)
                       if (activationRequest.shouldExecuteMacro && damagedTargets.length > 0) {
                         if (attacker.isOwner) {
-                          // GM이 공격자 소유자면 직접 실행
+                          // The GM owns the attacker, so run it directly
                           await window.DX3rdUniversalHandler.executeMacros(attackerItem, 'afterDamage');
                           window.DX3rdDebug.log('DX3rd | AfterDamage macro executed directly by GM');
                         } else {
-                          // 공격자 소유자에게 실행 지시
+                          // Tell the attacker's owner to run it
                           window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'executeAfterDamageMacro',
                             payload: {
                               attackerId: attackerId,
                               itemId: itemId,
-                              hpChange: damagedTargets.length  // 데미지 받은 타겟 수 전달
+                              hpChange: damagedTargets.length  // pass the number of damaged targets
                             }
                           }, attacker);
                           window.DX3rdDebug.log('DX3rd | AfterDamage macro sent via socket');
                         }
                       }
                       
-                      // 2️⃣ 활성화/효과 적용 처리. 사용 횟수는 원래 행동을 승인할 때 이미
-                      // 검사·소비했으므로, 후속 단계에서 현재 상태를 다시 게이트로 쓰지 않는다.
-                      const currentItem = attacker.items.get(itemId);  // 최신 상태 다시 가져오기
+                      // 2. Activation / effect application. The use count was already checked and spent when
+                      // the original action was approved, so the current state is not used as a gate in this follow-up step.
+                      const currentItem = attacker.items.get(itemId);  // fetch the latest state again
                       const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
                       
-                      // 공격자 소유자 중 접속 중인 non-GM 유저 확인
+                      // Look for connected non-GM users who own the attacker
                       const attackerOwners = game.users.filter(user => 
                         !user.isGM && 
                         user.active && 
@@ -1396,16 +1451,16 @@
                       const hasActiveNonGMOwner = attackerOwners.length > 0;
                       
                       if (damagedTargets.length === 0) {
-                        // 아무도 데미지 안 받음: NoDamage 알림
+                        // Nobody took damage: the NoDamage notification
                         if (!hasActiveNonGMOwner) {
-                          // 접속 중인 non-GM 소유자 없음: GM이 직접 표시
+                          // No connected non-GM owner: the GM shows it directly
                           await window.DX3rdUniversalAlertDialogV2({
                             title: game.i18n.localize('DX3rd.NoDamage'),
                             content: `<p>${game.i18n.localize('DX3rd.NoDamageText')}</p>`
                           });
                           window.DX3rdDebug.log('DX3rd | No damage notification shown directly by GM');
                         } else {
-                          // 공격자 소유자에게 소켓 전송
+                          // Send it to the attacker's owner over the socket
                           window.DX3rdSocketRouter.emitToActorExecutor({
                             type: 'showNoDamageNotification',
                             payload: { attackerId: attackerId }
@@ -1416,13 +1471,13 @@
                         const needsConfirmation = activationRequest.needsDialog && usedDisable !== 'notCheck';
                         
                         if (needsConfirmation) {
-                          // 무기/비클 + 횟수 제한 있음: 다이얼로그
+                          // Weapon / vehicle with a use limit: show a dialog
                           if (!hasActiveNonGMOwner) {
-                            // 접속 중인 non-GM 소유자 없음: GM이 직접 표시
+                            // No connected non-GM owner: the GM shows it directly
                             await window.DX3rdUniversalHandler._showAfterDamageDialog(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog shown directly by GM');
                           } else {
-                            // 공격자 소유자에게 소켓 전송
+                            // Send it to the attacker's owner over the socket
                             window.DX3rdSocketRouter.emitToActorExecutor({
                               type: 'showAfterDamageDialog',
                               payload: {
@@ -1436,13 +1491,13 @@
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog sent via socket to player');
                           }
                         } else {
-                          // 나머지 (무기/비클 notCheck 포함): 자동 활성화
+                          // Everything else (weapon / vehicle notCheck included): activate automatically
                           if (!hasActiveNonGMOwner) {
-                            // 접속 중인 non-GM 소유자 없음: GM이 직접 실행
+                            // No connected non-GM owner: the GM runs it directly
                             await window.DX3rdUniversalHandler._executeAfterDamageActivation(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
                             window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation executed directly by GM');
                           } else {
-                            // 공격자 소유자에게 소켓 전송
+                            // Send it to the attacker's owner over the socket
                             window.DX3rdSocketRouter.emitToActorExecutor({
                               type: 'executeAfterDamageActivation',
                               payload: {
@@ -1467,9 +1522,9 @@
                     }
                   }
                 } else {
-                  // 일반 유저는 GM에게 데미지 처리 결과 보고
+                  // An ordinary user reports the damage result to the GM
                   
-                  // 1. 타겟 효과 적용 보고 (항상, HP 변동량 포함)
+                  // 1. The target-effect report (always, with the HP change)
                   window.DX3rdSocketRouter.emit({
                     type: 'reportDamageForApply',
                     payload: {
@@ -1483,7 +1538,7 @@
                     hpChange: hpChange
                   });
                   
-                  // 2. 활성화 처리용 보고 (항상, HP 변동량 포함)
+                  // 2. The activation report (always, with the HP change)
                   window.DX3rdSocketRouter.emit({
                     type: 'reportDamageForActivation',
                     payload: {
@@ -1522,26 +1577,26 @@
       const root = dialog.element;
       if (!root) return;
 
-      // [폭주] 중에는 가드할 수 없다. 리액션 제한과 같은 규칙이라 **같은 게이트**
-      // (`allowBerserkViolation`)를 쓴다 — 리액션은 허용하면서 가드만 막는 테이블은 없다.
-      // 설정이 「막지 않음」(기본)이면 입력을 살려 두고, 실제로 가드가 걸린 채 적용될 때
-      // 경고와 채팅 기록만 남긴다(위 판정 다이얼로그·처리 경로와 같은 문구 체계).
+      // Guarding is forbidden during [berserk]. That is the same rule as the reaction limit, so it uses
+      // the **same gate** (`allowBerserkViolation`) — no table allows reactions but forbids only the guard.
+      // With the setting on "do not block" (the default) the inputs stay live, and when a guard actually
+      // gets applied only a warning and a chat record are left (the same wording as the roll dialog and handler paths).
       if (berserkBlocksGuard() && window.DX3rdUsageGates?.allows?.('berserk') === false) {
-        // 가드 입력 필드 비활성화 및 0으로 설정
+        // Disable the guard input and set it to 0
         const guardInput = root.querySelector('#guard');
         if (guardInput) {
           guardInput.disabled = true;
           guardInput.value = 0;
         }
 
-        // 가드 체크박스 비활성화 및 체크 해제
+        // Disable and clear the guard checkbox
         const guardCheckbox = root.querySelector('#guard-check');
         if (guardCheckbox) {
           guardCheckbox.disabled = true;
           guardCheckbox.checked = false;
         }
 
-        // 무기 가드 선택 자체를 잠근다(고른 무기가 있으면 치운다).
+        // Lock the weapon-guard picker itself (and clear any chosen weapon)
         const weaponSelectEl = root.querySelector('#weapon-guard-select');
         if (weaponSelectEl) { weaponSelectEl.disabled = true; weaponSelectEl.value = ''; }
         const weaponAddEl = root.querySelector('#weapon-guard-add');
@@ -1549,7 +1604,7 @@
         const chosenEl = root.querySelector('#weapon-guard-chosen');
         if (chosenEl) chosenEl.replaceChildren();
 
-        // 총 가드값을 0으로 설정
+        // Set the total guard to 0
         const totalGuard = root.querySelector('#total-guard');
         if (totalGuard) totalGuard.textContent = '0';
 
@@ -1557,7 +1612,7 @@
       }
 
       const getNumberValue = (selector) => parseInt(root.querySelector(selector)?.value) || 0;
-      // 보류 다이스식을 액터에서 다시 읽어 변수와 표시를 동기화한다(방어 중 효과 발동 대응).
+      // Re-read the deferred dice formulas from the actor so the variables and the display stay in sync (for effects used mid-defense).
       const refreshDeferredFormulas = () => {
         guardRollFormula = deferredDefenseFormula('guard');
         armorRollFormula = deferredDefenseFormula('armor');
@@ -1592,19 +1647,19 @@
 
         updateDamage();
       };
-      // 방어 중 발동한 효과(리액션 이펙트·임시 콤보·선언형 장비)가 가드/장갑/경감을 바꿨을 수 있다.
-      // 액터에서 다시 읽어 입력칸과 보류 수식을 동기화한다.
+      // An effect used mid-defense (a reaction effect, a temporary combo, declaration equipment) may have changed guard/armor/reduce.
+      // Re-read the actor to sync the inputs and the deferred formulas.
       //
-      // 덮어쓰지 않고 **차분만 얹는다.** 효과가 준 것은 어차피 그 차분이고, 그냥 덮으면
-      // 플레이어가 직접 고쳐 둔 값(커버링 상황의 임의 장갑 등)이 조용히 지워진다.
-      // 아래 감시 훅 때문에 이 함수는 액터가 갱신될 때마다 불리므로, 그 위험이 실제로 있다.
+      // It adds **the delta only**, never overwriting. The delta is exactly what the effect granted, and an
+      // overwrite would silently erase a value the player typed by hand (an arbitrary armor for a covering situation).
+      // The watcher hooks below call this on every actor update, so that risk is real.
       let lastKnownDefense = { guard, armor, reduce };
       const refreshDefenseValuesFromActor = async () => {
         const current = {
-          // **`value` 가 아니라 `base` 다.** 이 창의 가드 입력칸은 base 에서 출발하고
-          // (위 `const guard`), 장착 무기분은 아래 무기 선택으로 따로 더한다. `value` 는
-          // base + 장착 무기분이라, 여기서 그것을 읽으면 첫 차분에 장착 무기분이 통째로
-          // 섞여 들어가 이중 가산이 된다. 심는 값과 읽는 값은 같은 양이어야 한다.
+          // **`base`, not `value`.** This dialog's guard input starts from base (the `const guard` above)
+          // and the equipped weapon's share is added separately by the weapon picker below. `value` is
+          // base + the equipped weapon's share, so reading it here would fold that whole share into the
+          // first delta and count it twice. What is seeded and what is read must be the same quantity.
           guard: targetActor.system.attributes.guard?.base
             ?? targetActor.system.attributes.guard?.value ?? 0,
           armor: targetActor.system.attributes.armor?.value || 0,
@@ -1621,17 +1676,17 @@
         updateDamage();
       };
 
-      // 방어 수치를 올리는 리액션 이펙트(용린의 장갑 +[LV×10] 등)를 이 창의 드롭다운이
-      // 아니라 캐릭터 시트에서 직접 쓰는 사람이 많다. 드롭다운 경로에서만 갱신하면
-      // 그 사람들에게는 "이펙트를 썼는데 장갑이 그대로"로 보인다 — 창이 떠 있는 동안
-      // 액터 쪽 변화를 그냥 따라간다. 차분 방식이라 무관한 갱신(HP 변동 등)은 무해하다.
+      // Many people use a reaction effect that raises a defense value (Dragon Scale's armor +[LV×10], say)
+      // straight from the character sheet rather than this dialog's dropdown. Refreshing only on the dropdown
+      // path would look to them like "I used the effect and the armor did not move" — so while the dialog is
+      // open it simply follows the actor. Being delta-based, unrelated updates (an HP change) are harmless.
       const defenseWatchers = [];
       const unwatchDefense = () => {
         for (const [hook, id] of defenseWatchers) Hooks.off(hook, id);
         defenseWatchers.length = 0;
       };
       const watchDefenseSource = doc => {
-        // 창이 닫힌 뒤 남은 훅은 스스로 걷는다(닫기 훅을 놓쳐도 새지 않도록).
+        // Hooks left over after the dialog closed clean themselves up (so a missed close hook cannot leak).
         if (!dialog.rendered) return unwatchDefense();
         const owner = doc?.documentName === 'Actor' ? doc : doc?.parent;
         if (owner?.id === targetActor.id) refreshDefenseValuesFromActor();
@@ -1649,10 +1704,39 @@
         return fixed;
       };
 
-      // 실시간 데미지 계산 업데이트
+      /**
+       * How the bypass currently stands, from the counter checkboxes alone. Nothing is spent here —
+       * the confirm handler re-resolves after paying, and only counters that actually paid count there.
+       */
+      const previewDefense = () => {
+        const restore = { armor: false, guard: false, reaction: false };
+        for (const check of root.querySelectorAll('.dx3rd-bypass-restore-check:checked')) {
+          restore[check.dataset.axis] = true;
+        }
+        return window.DX3rdItemEffectAdapter.resolveDefense(bypassDefense, restore);
+      };
+
+      /** Does the bypass actually block, or only warn? The world setting decides (default: warn only). */
+      const bypassBlocks = () => window.DX3rdUsageGates?.allows?.('defenseBypass') === false;
+
+      /**
+       * The resolution as the math should see it. `resolveDefense` stays the pure rules answer —
+       * the gate is applied here, at the one boundary where a block turns into a subtraction, so the
+       * display and the confirmation cannot disagree about whether a bypass was enforced.
+       *
+       * Only the two axes the defender **declares** are softened. Armor is not declared — it is just
+       * the number already on the sheet — so letting it through would not hand a choice back, it would
+       * silently cancel "장갑치를 무시한다" on every hit and leave a chat line each time. Its input still
+       * gets the tooltip, so the defender can see why the number is not being subtracted.
+       */
+      const enforceBypass = (defense) => bypassBlocks()
+        ? defense
+        : { ...defense, guardBlocked: false, reactionBlocked: false };
+
+      // Live damage recalculation
       const updateDamage = () => {
-        // 보류된 다이스식(가드/장갑/경감)은 여기서 굴리지 않는다 — 확인 버튼에서 한 번만 굴려
-        // 같은 calcDefenseDamage 로 최종 계산한다. 그래서 표시값은 고정치 기준이다.
+        // The deferred dice formulas (guard/armor/reduce) are not rolled here — they are rolled once at the
+        // confirm button and go through the same calcDefenseDamage. So the display is based on the fixed parts.
         const calculatedDamage = calcDefenseDamage({
           guard: getNumberValue('#guard'),
           weaponGuard: updateWeaponGuard(),
@@ -1660,7 +1744,8 @@
           armor: getNumberValue('#armor'),
           reduce: getNumberValue('#reduce'),
           covering: getNumberValue('#covering'),
-          reactionSuccess: getReactionSuccess()
+          reactionSuccess: getReactionSuccess(),
+          ...enforceBypass(previewDefense())
         });
 
         const realDamageElement = root.querySelector('#realDamage');
@@ -1669,23 +1754,75 @@
         if (lifeElement) lifeElement.textContent = String(Math.max(0, currentHP - calculatedDamage));
       };
 
-      // 선언형 장비: 토글만 해 두고 「확인」에서 실제로 사용한다. 사용되면 자기 보정 AE 가
-      // 붙으므로, 리액션 이펙트를 발동했을 때와 똑같이 액터에서 가드/장갑/경감을 다시 읽어
-      // 오면 된다(전용 갱신 경로를 새로 만들지 않는다).
+      // What each input looked like before the bypass touched it. Restoring blindly is not enough:
+      // the weapon-guard picker is already disabled by the template when the actor owns no weapon, and
+      // its "+" button carries a tooltip of its own — clearing either on the way back out would hand
+      // the defender a picker with nothing in it, or silently drop an unrelated label.
+      const lockBaseline = new Map();
+      const baselineOf = (selector, el) => {
+        if (!lockBaseline.has(selector)) {
+          lockBaseline.set(selector, { disabled: el.disabled === true, title: el.getAttribute('title') });
+        }
+        return lockBaseline.get(selector);
+      };
+      // The bypass locks the inputs it removes, and unlocks them again the moment a counter is ticked.
+      // Whether that lock is real is the gate's call (`allowDefenseBypassViolation`, default allow):
+      // allowed means a **soft** lock — greyed with a tooltip saying the attack cannot be guarded, but
+      // still live, and using it leaves the same warning + chat record as any other allowed violation.
+      const syncBypassLocks = () => {
+        // Armor is enforced whatever the setting says (see enforceBypass), so its lock is never soft.
+        const soft = !bypassBlocks();
+        const { guardBlocked, reactionBlocked, armorIgnored } = previewDefense();
+        for (const [selector, blocked, tip, softenable] of [
+          ['#guard', guardBlocked, 'DX3rd.BypassLockGuard', true],
+          ['#guard-check', guardBlocked, 'DX3rd.BypassLockGuard', true],
+          ['#weapon-guard-select', guardBlocked, 'DX3rd.BypassLockGuard', true],
+          ['#weapon-guard-add', guardBlocked, 'DX3rd.BypassLockGuard', true],
+          ['#armor', armorIgnored, 'DX3rd.BypassLockArmor', false],
+          ['#reaction-item-use', reactionBlocked, 'DX3rd.BypassLockReaction', true],
+          ['#reaction-result', reactionBlocked, 'DX3rd.BypassLockReaction', true],
+          ['#reaction-success', reactionBlocked, 'DX3rd.BypassLockReaction', true]
+        ]) {
+          const el = root.querySelector(selector);
+          if (!el) continue;
+          const base = baselineOf(selector, el);
+          const lenient = soft && softenable;
+          el.disabled = base.disabled || (blocked && !lenient);
+          el.classList.toggle('dx3rd-soft-locked', blocked && lenient);
+          if (!blocked) {
+            if (base.title === null) el.removeAttribute('title');
+            else el.setAttribute('title', base.title);
+          } else {
+            el.title = [game.i18n.localize(tip), lenient ? game.i18n.localize('DX3rd.BypassLockOverride') : '']
+              .filter(Boolean).join('\n');
+          }
+          // A hard-blocked reaction must not stay ticked from a previous state, or a dead checkbox would
+          // still zero the damage. Under the soft lock the tick is the defender's deliberate override.
+          if (blocked && !lenient && el.type === 'checkbox') el.checked = false;
+        }
+      };
+      for (const check of root.querySelectorAll('.dx3rd-bypass-restore-check')) {
+        check.addEventListener('change', () => { syncBypassLocks(); updateDamage(); });
+      }
+      syncBypassLocks();
+
+      // Declaration equipment: only toggled here, actually used at "confirm". Once used it attaches a self-modifier AE,
+      // so guard/armor/reduce are re-read from the actor exactly as when a reaction effect fires
+      // (no separate refresh path is introduced).
       declareControl = window.DX3rdDeclaredEquipment?.bind(root, targetActor) || null;
 
-      // 초기 데미지 계산 (berserk로 인해 가드가 변경되었을 수 있음)
+      // Initial damage calculation (the guard may have been changed by berserk)
       updateDamage();
 
-      // 가드에 쓸 무기는 드롭다운에서 골라 칩으로 쌓는다. 칩 안의 숨은 체크박스가
-      // 기존 합산 규칙을 그대로 타므로, 가드치를 읽는 곳은 readCheckedWeaponGuard 하나로 남는다.
+      // The weapons used to guard are picked from a dropdown and stacked as chips. The hidden checkbox inside
+      // a chip follows the existing summation rule, so readCheckedWeaponGuard stays the one place guard is read.
       const weaponSelect = root.querySelector('#weapon-guard-select');
       const chosenWeapons = root.querySelector('#weapon-guard-chosen');
       const addChosenWeapon = () => {
         const option = weaponSelect?.selectedOptions?.[0];
         if (!option?.value || !chosenWeapons) return;
-        // 같은 무기를 두 번 세지 않는다. 이미 담긴 것을 또 골랐을 때도 드롭다운은 비운다 —
-        // 그냥 두면 눌러도 아무 일이 없는 것처럼 보여, 담겼는지 아닌지 알 수 없다.
+        // Do not count the same weapon twice. The dropdown is cleared even when an already-added weapon is
+        // picked again — leaving it looks like the button did nothing, so you cannot tell whether it was added.
         if (chosenWeapons.querySelector(`[data-item-id="${CSS.escape(option.value)}"]`)) {
           weaponSelect.value = '';
           return;
@@ -1731,15 +1868,15 @@
         updateDamage();
       });
 
-      // 리셋 버튼
+      // The reset button
       root.querySelector('#reset')?.addEventListener('click', (event) => {
         event.preventDefault();
         chosenWeapons?.replaceChildren();
         if (weaponSelect) weaponSelect.value = '';
         const totalGuard = root.querySelector('#total-guard');
         if (totalGuard) totalGuard.textContent = '0';
-        // 되돌리는 것은 이 창에서 손댄 것(직접 입력·무기 체크)뿐이다. 창이 떠 있는 동안
-        // 실제로 발동한 효과의 보정까지 지우면, 침식까지 치르고 쓴 이펙트가 사라진다.
+        // Only what was touched in this dialog (typed values, weapon checks) is reverted. Erasing the modifiers
+        // of an effect actually used while the dialog was open would lose an effect already paid for with encroachment.
         const guardInput = root.querySelector('#guard');
         if (guardInput) guardInput.value = lastKnownDefense.guard;
         const guardCheckbox = root.querySelector('#guard-check');
@@ -1758,7 +1895,7 @@
         updateDamage();
       });
 
-      // 입력값 변경 시 데미지 재계산
+      // Recalculate the damage when an input changes
       ['#guard', '#armor', '#reduce', '#covering'].forEach(selector => {
         root.querySelector(selector)?.addEventListener('input', updateDamage);
       });
@@ -1796,7 +1933,7 @@
         );
       });
 
-      // 등록된 리액션 이펙트/콤보를 그대로 발동한다.
+      // Fire a registered reaction effect / combo as-is.
       const useRegisteredReaction = async (itemId) => {
         const item = targetActor.items.get(itemId);
         if (!item) {
@@ -1819,22 +1956,22 @@
           }
         );
 
-        // 방어 중 발동한 효과가 다이스식 보정을 걸었을 수 있다. 고정치뿐 아니라
-        // 확정 시 굴릴 보류 수식도 다시 읽어야 그 효과가 실제로 반영된다.
-        // 판정이 붙은 이펙트(가드 굴림을 함께 하는 것들)도 마찬가지라 roll 로 가르지 않는다 —
-        // 가르면 그쪽만 보정이 사라진다. 감시 훅과 겹쳐 불려도 차분이 0이라 무해하다.
+        // An effect used mid-defense may have added a dice-formula modifier. Beyond the fixed parts, the
+        // deferred formulas rolled at confirmation must be re-read for that effect to actually count.
+        // The same holds for effects that come with a check (those that roll a guard too), so this does not
+        // branch on roll — branching would drop the modifier on that side. Overlapping with the watcher hooks is harmless (delta 0).
         if (success) await refreshDefenseValuesFromActor();
       };
 
-      // 등록된 리액션 이펙트/콤보만으로 부족할 때, 이 자리에서 임시 콤보를 조합해 쓴다.
-      // 조합 결과의 판정은 afterRollCallback 으로 리액션 달성치 칸에 그대로 돌아오고,
-      // 판정 없는 가드계 이펙트는 afterUseCallback 이 가드/장갑/경감을 다시 읽어 반영한다.
+      // When the registered reaction effects / combos are not enough, a temporary combo is built right here.
+      // Its check comes back to the reaction-result field through afterRollCallback, and a guard-type effect
+      // with no check is reflected by afterUseCallback re-reading guard/armor/reduce.
       const useInstantReactionCombo = async () => {
         if (!targetActor.isOwner && !game.user.isGM) {
           ui.notifications.warn(game.i18n.localize('DX3rd.NoPermission'));
           return;
         }
-        // 회피 기능이 없는 액터(에너미 등)는 능력치 판정으로 시드한다.
+        // An actor with no evade skill (an enemy, say) is seeded with an attribute check.
         const dodgeSkill = targetActor.system?.attributes?.skills?.evade ? 'evade' : 'body';
         await this.openComboBuilder(targetActor, 'skill', dodgeSkill, null, {
           rollType: 'dodge',
@@ -1855,7 +1992,7 @@
           return;
         }
 
-        // 발동이 끝날 때까지 버튼을 잠가 연타로 두 번 발동되는 것을 막는다.
+        // Lock the button until the use finishes, so a double click cannot fire it twice.
         reactionUseButton.disabled = true;
         try {
           if (selected === '__instant-combo__') await useInstantReactionCombo();
@@ -1868,10 +2005,10 @@
     },
 
     /**
-     * afterDamage 다이얼로그 표시 (내부 헬퍼)
+     * Show the afterDamage dialog (internal helper)
      */
     async _showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets) {
-      // 커스텀 DOM 다이얼로그 생성
+      // Build a custom DOM dialog
       const dialogDiv = document.createElement("div");
       dialogDiv.className = "after-damage-dialog";
       dialogDiv.style.position = "fixed";
@@ -1890,7 +2027,7 @@
       dialogDiv.style.minWidth = "280px";
       dialogDiv.style.cursor = "move";
       
-      // 제목
+      // The title
       const title = document.createElement("div");
       title.textContent = `${item.name}`;
       title.style.marginBottom = "16px";
@@ -1899,13 +2036,13 @@
       title.style.cursor = "move";
       dialogDiv.appendChild(title);
       
-      // 버튼 컨테이너
+      // The button container
       const buttonContainer = document.createElement("div");
       buttonContainer.style.display = "flex";
       buttonContainer.style.flexDirection = "column";
       buttonContainer.style.gap = "8px";
       
-      // "장비 효과 사용" 버튼
+      // The "use the equipment effect" button
       const useBtn = document.createElement("button");
       const equipText = game.i18n.localize('DX3rd.Equipment');
       const appliedText = game.i18n.localize('DX3rd.Applied');
@@ -1925,7 +2062,7 @@
 
         // The originating attack already consumed this item's usage count. This button confirms
         // only the optional follow-up; incrementing here again made one attack spend two uses.
-        // 1. 활성화 (shouldActivate가 true인 경우)
+        // 1. Activation (when shouldActivate is true)
         if (shouldActivate) {
           updates['system.active.state'] = true;
           window.DX3rdDebug.log('DX3rd | Item activated on afterDamage:', item.name);
@@ -1935,12 +2072,12 @@
           await item.update(updates);
         }
         
-        // 2. HP 데미지 받은 타겟에게만 효과 적용
+        // 2. Apply the effect only to targets that took HP damage
         if (shouldApplyToTargets) {
           for (const targetId of damagedTargets) {
             const targetActor = game.actors.get(targetId);
             if (targetActor) {
-              // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+              // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
               const targetAttributes = window.DX3rdItemEffectAdapter
                 ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
                 : (item.system.effect?.attributes || {});
@@ -1955,7 +2092,7 @@
       };
       buttonContainer.appendChild(useBtn);
       
-      // "사용 안 함" 버튼
+      // The "do not use" button
       const notUseBtn = document.createElement("button");
       notUseBtn.textContent = game.i18n.localize('DX3rd.NotUse');
       notUseBtn.style.width = "100%";
@@ -1968,14 +2105,14 @@
       notUseBtn.style.fontSize = "0.9em";
       notUseBtn.style.cursor = "pointer";
       notUseBtn.onclick = async () => {
-        // 아무것도 안 함
+        // Do nothing
         if (dialogDiv.parentNode) document.body.removeChild(dialogDiv);
       };
       buttonContainer.appendChild(notUseBtn);
       
       dialogDiv.appendChild(buttonContainer);
       
-      // 드래그 기능
+      // Dragging
       let isDragging = false;
       let offsetX, offsetY;
       
@@ -2032,7 +2169,7 @@
     },
 
     /**
-     * afterDamage 자동 활성화 실행 (내부 헬퍼)
+     * Run the afterDamage auto-activation (internal helper)
      */
     async _executeAfterDamageActivation(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets) {
       const updates = {};
@@ -2046,12 +2183,12 @@
         await item.update(updates);
       }
       
-      // HP 데미지 받은 타겟에게만 효과 적용
+      // Apply the effect only to targets that took HP damage
       if (shouldApplyToTargets) {
         for (const targetId of damagedTargets) {
           const targetActor = game.actors.get(targetId);
           if (targetActor) {
-            // 데미지 적용 후는 공격 발현점이다 — 항목별 「발현 액션」이 다른 버킷은 제외한다.
+            // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
             const targetAttributes = window.DX3rdItemEffectAdapter
               ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
               : (item.system.effect?.attributes || {});
@@ -2064,10 +2201,10 @@
     },
 
     /**
-     * 공격 롤 처리 (weapon, vehicle, 향후 psionic, effect, combo 등)
-     * @param {Actor} actor - 공격하는 액터
-     * @param {Item} item - 사용하는 아이템
-     * @returns {boolean} - 성공 여부
+     * Handle the attack roll (weapon, vehicle, and later psionic, effect, combo, …)
+     * @param {Actor} actor - the attacking actor
+     * @param {Item} item - the item being used
+     * @returns {boolean} - whether it succeeded
      */
        handleAttackRoll: async function(actor, item, options = {}) {
         const autoAttackRoll = game.settings.get('dx3rd-emanim', 'autoAttackRoll') !== false;
@@ -2076,31 +2213,31 @@
           return true;
         }
         
-        // 아이템의 소유자 액터를 토큰으로 선택
+        // Select the item's owning actor as a token
       let previousToken = null;
       if (actor && canvas.tokens) {
-        // 현재 선택된 토큰 저장 (복원용)
+        // Remember the currently selected token (to restore it)
         previousToken = canvas.tokens.controlled?.[0] || null;
         
-        // 액터의 토큰 찾기
+        // Find the actor's token
         const actorToken = canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
         if (actorToken) {
           actorToken.control({ releaseOthers: true });
         }
       }
       
-      // 대상 확인 (하이라이트 제거 전에 체크)
+      // Check the targets (before clearing the highlight)
       const targets = Array.from(game.user.targets);
       if (targets.length === 0) {
         ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
-        // 이전 토큰 복원
+        // Restore the previous token
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
-        return false; // 하이라이트 유지하고 중단
+        return false; // keep the highlight and stop
       }
       
-      // 아이템의 기능(skill) 확인
+      // Check the item's skill
       const skillKey = item.system.skill;
       if (!skillKey || skillKey === '-') {
         const itemTypeLabel = item.type === 'weapon' ? '무기' : 
@@ -2109,17 +2246,17 @@
         return false;
       }
       
-      // 스킬 데이터 가져오기
+      // Fetch the skill data
       let skillData = null;
       let skillName = '';
       
-      // 기본 능력치인 경우
+      // A base attribute
       const attributes = ['body', 'sense', 'mind', 'social'];
       if (attributes.includes(skillKey)) {
         skillData = actor.system.attributes[skillKey];
         skillName = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
       } else {
-        // 스킬인 경우
+        // A skill
         skillData = actor.system.attributes.skills?.[skillKey];
         if (skillData) {
           skillName = skillData.name;
@@ -2136,7 +2273,7 @@
         return false;
       }
       
-       // handleItemUse에서 이미 고른 경우에는 같은 선택을 다시 묻지 않는다.
+       // Do not ask the same question again when handleItemUse already chose.
        let useCombo;
        if (options.comboMode === 'combo') useCombo = true;
        else if (options.comboMode === 'normal') useCombo = false;
@@ -2150,22 +2287,22 @@
        }
 
       if (useCombo) {
-        // 콤보 빌더 열기 (스킬 타입으로, 무기 아이템 전달하여 attackRoll 초기값 설정)
+        // Open the combo builder (as a skill type, passing the weapon item to seed attackRoll)
         await this.openComboBuilder(actor, 'skill', skillKey, item);
-        // 이전 토큰 복원
+        // Restore the previous token
         if (previousToken && canvas.tokens) {
           previousToken.control({ releaseOthers: true });
         }
       } else {
-        // 무기/비클 자신의 수정치(system.add=명중 수정)를 명중판정 달성치에 반영.
-        //   룰(rulebook-1-2 p121): 무기의 명중 수정은 종별에 맞는 공격 달성치에 가산.
-        //   공격력(system.attack)은 데미지 단계(executeAttackRoll)에서 별도 평가되므로 여기서는
-        //   플레이버 표시용일 뿐 이중계산되지 않음(executeAttackRoll은 weaponBonus를 받지 않음).
+        // Fold the weapon's / vehicle's own modifier (system.add = accuracy modifier) into the accuracy check result.
+        //   Rules (rulebook-1-2 p121): a weapon's accuracy modifier adds to the attack result of its own type.
+        //   The attack value (system.attack) is evaluated separately in the damage stage (executeAttackRoll), so here
+        //   it is only for flavor display and is not double-counted (executeAttackRoll takes no weaponBonus).
         let weaponBonus = null;
         const preparedWeaponAdd = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.add, item, actor);
         const preparedWeaponAttack = window.DX3rdFormulaEvaluator.prepareRollFormula(item.system.attack, item, actor);
-        // 다이스 수정치는 시트/다이얼로그를 열 때 굴리지 않는다. 판정 버튼을 누르는
-        // 순간 executeAttackRoll/executeStatRoll이 원 수식을 같은 Roll에 포함한다.
+        // Dice modifiers are not rolled when the sheet or dialog opens. The moment the check button is
+        // pressed, executeAttackRoll / executeStatRoll include the source formula in the same Roll.
         const weaponAddIsDice = window.DX3rdFormulaEvaluator.hasDice(preparedWeaponAdd);
         const selfAdd = weaponAddIsDice ? 0 : (window.DX3rdFormulaEvaluator.evaluate(preparedWeaponAdd) || 0);
         const selfAttack = window.DX3rdFormulaEvaluator.hasDice(preparedWeaponAttack)
@@ -2180,7 +2317,7 @@
             weaponIds: [item.id]
           };
         }
-        // 판정 다이얼로그 표시 (메이저만, 무기 아이템 전달)
+        // Show the check dialog (major only, passing the weapon item)
         this.showStatRollDialog(
           actor, skillData, skillName, 'major', item, previousToken, weaponBonus,
           null, null, null, false, false, null, false, options.sourceMessage || null
@@ -2191,31 +2328,31 @@
     },
 
     /**
-     * 명중판정(공격 롤) 완료 후 공통 후처리.
-     * 무기/비클 경로(executeAttackRoll)와 콤보/이펙트 경로(executeStatRoll 공격 분기) 양쪽에서
-     * 롤 직후 호출되는 단일 지점. 명중판정 시점에 개입해야 하는 로직을 여기 모은다.
+     * Shared post-processing after the accuracy check (attack roll) completes.
+     * The single point called right after the roll from both the weapon/vehicle path (executeAttackRoll) and
+     * the combo/effect path (executeStatRoll's attack branch). Logic that must intervene at accuracy time lives here.
      *
-     * 1) 확장 훅: `Hooks.callAll('dx3rd.attackRollComplete', {...})` — 이펙트/모듈이 명중판정
-     *    완료에 개입할 수 있는 확장점(별도 이펙트 타이밍은 데이터상 존재하지 않으므로 훅으로 제공).
-     * 2) 증오(hatred) 자동 회복(룰 p12): 증오 대상에게 공격을 1회 실행하면 성공 여부와 무관하게
-     *    증오가 회복된다. 빗나감/펌블 시에도 데미지 버튼을 누르지 않으므로 반드시 명중판정 시점에서 해제.
+     * 1) Extension hook: `Hooks.callAll('dx3rd.attackRollComplete', {...})` — an extension point where effects and
+     *    modules can intervene on accuracy-check completion (there is no separate effect timing in the data, so it is offered as a hook).
+     * 2) Automatic hatred recovery (rules p12): making one attack against the hatred target recovers hatred regardless
+     *    of success. On a miss or fumble the damage button is never pressed, so it MUST be cleared at accuracy time.
      *
-     * @param {Actor} actor - 공격한 액터
-     * @param {Item} item - 공격 아이템
-     * @param {Token[]} targets - 명중판정 대상 토큰 배열
-     * @param {number} rollResult - 펌블 보정이 반영된 최종 달성치
-     * @param {boolean} isFumble - 펌블 여부
-     * @param {ChatMessage|null} attackMessage - 이번 공격의 후속 상태를 귀속할 채팅 카드
+     * @param {Actor} actor - the attacking actor
+     * @param {Item} item - the attacking item
+     * @param {Token[]} targets - the tokens targeted by the accuracy check
+     * @param {number} rollResult - the final result, fumble correction included
+     * @param {boolean} isFumble - whether it was a fumble
+     * @param {ChatMessage|null} attackMessage - the chat card this attack's follow-up state is bound to
      */
     async onAttackRollComplete(actor, item, targets, rollResult, isFumble, attackMessage = null) {
       try {
         const attackAfterDamageRiders = await this.bindPendingAttackRiders(actor, attackMessage);
-        // 확장점: 명중판정 완료 시점에 개입할 훅 (룰/이펙트 확장 대비)
+        // Extension point: a hook to intervene when the accuracy check completes (for rule / effect extensions)
         Hooks.callAll('dx3rd.attackRollComplete', {
           actor, item, targets, rollResult, isFumble, attackMessage, attackAfterDamageRiders
         });
 
-        // 증오 자동 회복: 대상 중 hatred.target이 포함되어 있으면 해제
+        // Automatic hatred recovery: clear it when hatred.target is among the targets
         const hatredActive = actor.system?.conditions?.hatred?.active || false;
         const hatredTarget = actor.system?.conditions?.hatred?.target || '';
         if (hatredActive && hatredTarget && Array.isArray(targets) && targets.length > 0) {

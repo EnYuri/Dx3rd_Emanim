@@ -727,7 +727,8 @@ test('HP transitions are classified at zero and below, on the initiating client 
   assert.equal(classify(4, 3), null);
 
   const conditions = source('scripts/condtions.js');
-  const hpHooks = conditions.slice(conditions.indexOf('const _previousHpValues'), conditions.indexOf('// 전역으로 함수 노출'));
+  const hpHooks = conditions.slice(conditions.indexOf('const _previousHpValues'),
+    conditions.indexOf('window.addDeathMarkToToken = addDeathMarkToToken'));
   assert.match(hpHooks, /preUpdateActor[\s\S]*?userId !== game\.user\.id/);
   assert.match(hpHooks, /updateActor[\s\S]*?userId !== game\.user\.id/);
   assert.match(hpHooks, /classifyHpTransition\?\.\(oldHp, newHp\)/);
@@ -855,10 +856,29 @@ test('temporary and saved combos keep member target requirements before paying c
       }]
     })
   };
-  assert.equal(adapter.requiresTarget(member, 'attack'), false,
-    '멤버 자신의 공격 액션만 보면 사용 카드의 대상 요구는 보이지 않는다');
+  // 장비가 아닌 것은 공격하는 것이 곧 사용이라(actionCoversBucket), 공격으로 발현해도
+  // 사용 카드가 함께 걸린다 — 그러면 그 카드가 요구하는 대상도 함께 필요하다.
+  assert.equal(adapter.requiresTarget(member, 'attack'), true,
+    '이펙트의 공격 발현은 사용 카드를 함께 태우므로 그 대상 요구도 보여야 한다');
   assert.equal(adapter.requiresTarget(member, 'use'), true,
     '콤보 사전 검사는 멤버의 사용 카드에 필요한 대상을 찾아야 한다');
+  // 그래도 활성화는 절대 상속되지 않는다 — 활성화 전용 카드는 대상을 요구하지 않는다.
+  const activationMember = {
+    ...member,
+    getFlag: () => ({
+      cards: [{
+        id: 'poison',
+        type: 'condition',
+        data: {activate: true, action: 'activation', timing: 'afterDamage', target: 'targetToken', type: 'poisoned'}
+      }]
+    })
+  };
+  assert.equal(adapter.requiresTarget(activationMember, 'attack'), false,
+    '활성화 전용 카드는 어떤 발현 액션에서도 대상을 요구하지 않는다');
+  // 장비는 예외다 — 사용/공격 선택창이 실제로 있어 두 발현점이 갈린다.
+  const gearMember = {...member, type: 'weapon', system: {...member.system, equipment: true}};
+  assert.equal(adapter.requiresTarget(gearMember, 'attack'), false,
+    '장비의 공격은 그 장비의 사용 카드를 태우지 않는다');
 
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
   assert.ok(handler.includes("window.DX3rdComboHandler?.comboMemberEntries?.(actor, item)"),
@@ -1133,7 +1153,8 @@ test('each damage application keeps an independent after-damage request id throu
   assert.ok(damage.includes("const damageRequestId = window.DX3rdRuntimeUtils.createRequestId('afterDamage')"));
   assert.ok(damage.includes('const extensionQueueKey = damageRequestId'));
   assert.ok(damage.includes('const activationQueueKey = damageRequestId'));
-  assert.ok(damage.includes('itemId: item?.id || null, damageRequestId'),
+  // 인접성이 아니라 사실을 본다 — 페이로드에 필드가 하나 끼어들었다고 깨지면 안 된다.
+  assert.match(damage, /const payload = \{[\s\S]*?itemId: item\?\.id \|\| null,[\s\S]*?damageRequestId[\s\S]*?\};/,
     '모든 방어 다이얼로그가 공격 1회 식별자를 받아야 한다');
   assert.ok(damage.includes('targetTokenIds: targetTokenIds'));
   assert.ok(damage.includes('recordAfterDamageReport(extensionRequest'),
@@ -1850,6 +1871,384 @@ test("an effect's own roll bonus reads the same alone as it does inside a combo"
   assert.match(source('scripts/handlers/effect-handler.js').replace(/\s+/g, ' '),
     /effectAttackBonus\?\.\(item, actor, \{includeComboModifiers: true\}\)/,
     '단독 사용도 콤보와 같은 기준으로 읽어야 한다');
+});
+
+test('an effect rolls only when its difficulty names something to roll against', async () => {
+  // 난이도는 목표치가 적히는 칸이고, 그중 두 값은 「굴릴 것이 없다」는 뜻이다 —
+  // 자동성공(굴리지 않고 성공)과 '-'/빈칸(목표치 미저작). 기능 미지정도 같다(굴릴 능력치가 없다).
+  // 그 셋은 판정 없이 그냥 사용되어야 한다. 반대로 대결·숫자·효과참조는 굴린다.
+  // 공격 이펙트(attackRoll)만 예외 — 명중 굴림이 데미지 단계를 만드는 유일한 통로라
+  // 난이도가 비어 있어도(월드 실측 14건) 굴려야 한다.
+  const context = baseContext({
+    game: {
+      i18n: { localize: key => key, format: key => key },
+      actors: new Map(),
+      items: new Map(),
+      settings: { get: () => 10 },
+      user: { targets: new Set() }
+    },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { once: () => {}, on: () => {} }
+  });
+  load(context, 'scripts/combo-range-target.js');
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/effect-handler.js');
+
+  let rolled = null;
+  context.DX3rdUniversalHandler.showStatRollDialog = (_actor, stat, label, rollType) => {
+    rolled = { stat, label, rollType };
+  };
+  context.DX3rdUniversalHandler.resolveStatAndLabel = () => ({ stat: { value: 5 }, label: '기능' });
+  context.DX3rdUniversalHandler.calculateRegisteredWeaponBonus = () => ({ weaponIds: [] });
+
+  const actor = { id: 'caster', name: '시전자', items: new Map(), system: { attributes: {} } };
+  context.game.actors.set(actor.id, actor);
+
+  const use = async (system) => {
+    const item = { id: 'e1', name: '이펙트', type: 'effect', system, getFlag: () => undefined };
+    actor.items.set(item.id, item);
+    rolled = null;
+    await context.DX3rdEffectHandler.handle(actor.id, item.id, undefined, {});
+    return rolled;
+  };
+
+  const base = { skill: 'melee', roll: 'major', attackRoll: '-', timing: 'major' };
+  assert.equal(await use({ ...base, difficulty: '자동성공' }), null, '자동성공: 굴리지 않는다');
+  assert.equal(await use({ ...base, difficulty: '-' }), null, "'-': 굴리지 않는다");
+  assert.equal(await use({ ...base, difficulty: '' }), null, '빈칸: 굴리지 않는다');
+  assert.equal(await use({ ...base, skill: '-', difficulty: '자동성공' }), null,
+    '기능도 난이도도 굴릴 것을 말하지 않으면 굴리지 않는다');
+
+  assert.ok(await use({ ...base, difficulty: '대결' }), '대결: 굴린다');
+  assert.ok(await use({ ...base, difficulty: '12' }), '숫자: 굴린다');
+  assert.ok(await use({ ...base, difficulty: '효과참조' }), '효과참조: 굴린다');
+  assert.ok(await use({ ...base, attackRoll: 'melee', difficulty: '' }),
+    '공격 이펙트는 난이도가 비어도 명중을 굴린다');
+
+  // 「기능 -, 난이도 대결」은 실제로 저작되는 형태다(월드 실측 1건). 굴릴 능력치를 대지 않았을 뿐
+  // 굴린다는 말은 하고 있으므로, 빈 다이스 풀로 창을 열어 사용자가 채운다.
+  const blank = await use({ ...base, skill: '-', difficulty: '대결' });
+  assert.ok(blank, '기능이 없어도 난이도가 대결이면 굴린다');
+  assert.equal(blank.label, '-', '댈 기능이 없다는 것을 라벨이 숨기지 않는다');
+  assert.equal(blank.stat.dice, 0, '빈 풀로 열린다');
+
+  // 끄는 방향만이다 — 난이도가 대결이어도 판정 토글이 '-' 인 이펙트는 그대로 굴리지 않는다.
+  // (컴펜디움 348건이 그 형태이고, 그 대결은 조합될 콤보의 것이지 멤버 단독 사용의 것이 아니다.)
+  assert.equal(await use({ ...base, roll: '-', difficulty: '대결' }), null,
+    '난이도만으로 판정이 새로 생기면 안 된다');
+});
+
+test('an item whose 대상 is 자신 targets the caster instead of blocking on an empty target list', async () => {
+  // 「대상: 자신」은 대상을 이미 지정한 것이다. 그런데도 T 를 직접 눌러야 게이트를 통과했고,
+  // 누르지 않으면 사용 자체가 막혔다. 눌러 준 것으로 간주한다 — 이후 단계는 전부
+  // game.user.targets 를 읽으므로 다른 코드가 이 사정을 알 필요가 없다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key, format: key => key }, user: { targets: new Set() } },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { once: () => {}, on: () => {} }
+  });
+  load(context, 'scripts/combo-range-target.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  const handler = context.DX3rdUniversalHandler;
+
+  assert.equal(handler.itemTargetsSelf({ system: { target: '자신' } }), true);
+  assert.equal(handler.itemTargetsSelf({ system: { target: '단독' } }), false);
+  assert.equal(handler.itemTargetsSelf({ system: { target: '' } }), false, '미저작을 자신으로 읽으면 안 된다');
+
+  const token = { id: 'tok', name: '시전자 토큰' };
+  token.setTarget = (targeted, { user, releaseOthers }) => {
+    assert.equal(releaseOthers, true);
+    if (targeted) user.targets.add(token);
+  };
+  const actor = { name: '시전자', getActiveTokens: () => [token] };
+  const selfTargets = handler.autoTargetSelf(actor);
+  assert.equal(selfTargets.length, 1);
+  assert.equal(selfTargets[0].id, token.id, '시전자 자신의 토큰이 대상이 된다');
+
+  // 캔버스에 토큰이 없으면 지어내지 않는다 — 호출부가 평소의 「대상을 지정하라」로 떨어진다.
+  context.game.user.targets = new Set();
+  assert.equal(handler.autoTargetSelf({ name: '토큰 없음', getActiveTokens: () => [] }).length, 0);
+
+  // 자신이 대상이 될 수 없는 아이템(수동 지정 전용)은 이 자동 지정에서 제외된다.
+  const gate = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.match(gate, /if \(targets\.length === 0 && !manualTargetOtherOnly && this\.itemTargetsSelf\(item\)\)/);
+});
+
+test('every created item gets a marker, and an activation-bound one dies with the activation', async () => {
+  // 생성물의 수명은 표식(AE)이 쥔다. 무기에만 표식을 달아 두어 방어구·비클은 회수할 주인이 없었고,
+  // 「활성화」로 저작한 생성물은 활성화를 꺼도 남았다. 반대로 「사용」으로 만든 것은 그 아이템의 활성화
+  // 상태와 무관한 자기 수명을 가지므로 함께 지워지면 안 된다.
+  const context = baseContext({
+    game: {
+      i18n: { localize: key => key, format: key => key },
+      macros: { getName: () => null },
+      user: { id: 'u1', targets: new Set() },
+      actors: new Map()
+    },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONST: { ACTIVE_EFFECT_SHOW_ICON: { ALWAYS: 2 } },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  const handler = context.DX3rdUniversalHandler;
+  context.DX3rdFormulaEvaluator = { evaluate: value => Number(String(value).replace('+', '')) || 0, getItemLevel: () => 1 };
+  handler.showEquipmentSelectionDialog = async () => ({ confirmed: true });
+
+  const items = new Map();
+  const effects = [];
+  const actor = {
+    id: 'a', name: 'actor', uuid: 'Actor.a', effects,
+    get items() { return Object.assign(items, { filter: fn => [...items.values()].filter(fn) }); },
+    async createEmbeddedDocuments(type, data) {
+      if (type === 'Item') {
+        const made = { id: `i${items.size + 1}`, ...data[0] };
+        items.set(made.id, made);
+        return [made];
+      }
+      const flags = data[0].flags || {};
+      const made = {
+        id: `ae${effects.length + 1}`, ...data[0], flags,
+        getFlag(scope, key) { return this.flags[scope]?.[key]; },
+        async setFlag(scope, key, value) { (this.flags[scope] ??= {})[key] = value; return this; },
+        async unsetFlag(scope, key) { delete this.flags[scope]?.[key]; return this; }
+      };
+      effects.push(made);
+      return [made];
+    },
+    async deleteEmbeddedDocuments(type, ids) {
+      if (type === 'Item') ids.forEach(id => items.delete(id));
+      else ids.forEach(id => {
+        const at = effects.findIndex(effect => effect.id === id);
+        if (at >= 0) effects.splice(at, 1);
+      });
+      return [];
+    }
+  };
+
+  const source = action => ({
+    id: 'src', name: '생성 이펙트', type: 'effect', img: '',
+    system: { timing: 'major', attackRoll: '-', attributes: {}, active: { state: false, applyMode: 'onUse' } },
+    getFlag: () => undefined,
+    _action: action
+  });
+  const payload = action => ({ activate: true, action, name: '검', attack: '+3', type: 'melee', skill: 'melee', add: '+0', guard: '0', range: '지근', amount: '1' });
+
+  // 방어구·비클도 표식을 받는다(예전엔 무기만이었다).
+  await handler.createProtectItem(actor, payload('use'), source('use'));
+  await handler.createVehicleItem(actor, payload('use'), source('use'));
+  assert.equal(effects.length, 2, '방어구·비클 생성도 표식을 남긴다');
+
+  // 「활성화」로 만든 것: 활성화를 끄면 표식이 지워지고, 훅이 생성물을 회수한다.
+  effects.length = 0;
+  items.clear();
+  const activationItem = source('activation');
+  await handler.createWeaponItems(actor, payload('activation'), activationItem);
+  assert.equal(items.size, 1);
+  assert.equal(context.DX3rdUniversalHandler.grantPayload(effects[0]).action, 'activation');
+  const cleared = await handler.clearActivationGrants(actor, activationItem);
+  assert.equal(cleared, 1, '활성화 생성물의 표식은 활성화가 꺼질 때 지워진다');
+
+  // 「사용」으로 만든 것은 같은 아이템의 활성화가 꺼져도 남는다.
+  effects.length = 0;
+  items.clear();
+  const useItem = source('use');
+  await handler.createWeaponItems(actor, payload('use'), useItem);
+  assert.equal(await handler.clearActivationGrants(actor, useItem), 0,
+    '사용으로 만든 생성물은 활성화 상태와 무관하다');
+  assert.equal(effects.length, 1, '표식이 남아 있어야 자기 수명대로 회수된다');
+
+  // 회수는 한 곳뿐이다 — 표식 삭제 훅. 종류별 분기가 아니라 기록된 id 목록으로 지운다.
+  await handler.revertItemGrant(actor, effects[0]);
+  assert.equal(items.size, 0, '표식이 사라지면 그것이 만든 아이템도 사라진다');
+
+  // 아이템에 이미 보정 AE 가 있으면 표식은 **그 문서에 얹힌다**. 따로 만들면 이름·이미지가 같은 AE 가
+  // 둘 서서, 사용자가 지운 「그 효과」가 어느 쪽인지 알 수 없어진다(생성물이 남던 원인).
+  effects.length = 0;
+  items.clear();
+  const hostItem = source('use');
+  const appliedAe = {
+    id: 'applied-ae', name: '생성 이펙트', img: '',
+    flags: { 'dx3rd-emanim': { appliedKey: `applied_${hostItem.id}`, applied: { itemId: hostItem.id } } },
+    getFlag(scope, key) { return this.flags[scope]?.[key]; },
+    async setFlag(scope, key, value) { this.flags[scope][key] = value; return this; },
+    async unsetFlag(scope, key) { delete this.flags[scope][key]; return this; }
+  };
+  effects.push(appliedAe);
+  context.DX3rdAppliedEffects = { getEffectsByItem: () => [appliedAe] };
+  await handler.createWeaponItems(actor, payload('use'), hostItem);
+  assert.equal(effects.length, 1, '보정 AE 가 있으면 표식용 AE 를 따로 만들지 않는다');
+  assert.equal(handler.grantPayload(appliedAe)?.kind, 'weapon', '표식은 그 보정 AE 가 들고 있다');
+
+  // 만료·비활성화로 그 AE 가 사라질 때는 생성물을 함께 죽이지 않는다 — 수명이 다른 두 가지다.
+  await handler.rehomeGrant(actor, appliedAe);
+  assert.equal(handler.grantPayload(appliedAe), null, '표식은 그 문서를 떠난다');
+  assert.equal(effects.length, 2, '떠난 표식은 자기 문서를 새로 가진다');
+  assert.equal(items.size, 1, '재배치는 생성물을 건드리지 않는다');
+
+  // 반대 순서도 한 문서로 모인다. 활성화 경로에서는 표식이 먼저 쓰이고 토글 AE 가 50ms 뒤에 생기므로,
+  // 순서만으로는 보장할 수 없다 — 나중에 온 보정 AE 가 떠 있는 표식을 흡수한다.
+  const orphan = effects.find(effect => handler.grantPayload(effect));
+  assert.ok(orphan, '전제 확인 — 떠 있는 표식이 있다');
+  assert.equal(await handler.adoptOrphanGrants(actor, appliedAe), true);
+  assert.equal(handler.grantPayload(appliedAe)?.kind, 'weapon', '보정 AE 가 표식을 넘겨받는다');
+  assert.equal(effects.includes(orphan), false, '떠 있던 표식 문서는 사라진다');
+  assert.equal(items.size, 1, '흡수는 생성물을 건드리지 않는다');
+});
+
+test('an activation-bound card is switchable even when the item has no modifier rows', () => {
+  // 「활성화 시 무기 생성」만 저작한 이펙트는 자기 보정 행이 없어 시트에 활성화 토글이 아예 없었다.
+  // 그러면 active.state 를 올릴 방법이 없고, 그 상태 변화가 유일한 발화점인 활성화 라우터도 돌지 않는다 —
+  // 카드에는 「활성화」라고 적혀 있는데 활성화할 수단이 없는 상태였다.
+  const sheetData = source('scripts/sheets/actor-sheet-data.js').replace(/\s+/g, ' ');
+  assert.match(sheetData, /if \(adapter\?\.hasActionEffects\?\.\(item, 'activation'\)\) return true;/);
+  const beforeModifierGate = sheetData.indexOf("hasActionEffects?.(item, 'activation')");
+  const modifierGate = sheetData.indexOf('if (!hasUsableEffectAttributes(item.system?.attributes)) return false;');
+  assert.ok(beforeModifierGate > -1 && beforeModifierGate < modifierGate,
+    '보정 행 유무 검사보다 먼저 통과해야 의미가 있다');
+
+  // 끄는 쪽도 같은 라우터가 잡는다.
+  const adapter = source('scripts/item-effect-adapter.js').replace(/\s+/g, ' ');
+  assert.match(adapter, /if \(activeOff\) \{ try \{ await handler\.clearActivationGrants\?\.\(actor, item\); \}/);
+});
+
+test('the screen HUD clears a condition through its status effect, and asks first', () => {
+  const hud = source('scripts/dx3rd-condition-hud.js').replace(/\s+/g, ' ');
+  // 상태이상 해제는 상태 AE 를 끄는 한 통로뿐이다. system.conditions 를 직접 쓰면 condtions.js 의
+  // 동기화 훅(다이얼로그·부수효과·채팅)을 건너뛰어 시트와 토큰 오버레이가 갈린다.
+  assert.match(hud, /await actor\.toggleStatusEffect\(meta\.status, \{ active: false \}\)/);
+  assert.doesNotMatch(hud, /actor\.update\([^)]*system\.conditions/,
+    'HUD 가 액터의 conditions 를 직접 고치면 안 된다');
+  // 아이콘이 사라지는 방향은 전부 확인을 받는다(상태이상 해제 · 표식 제거 · 보정 해제).
+  assert.match(hud, /HudConditionClearConfirm[\s\S]{0,80}return;/);
+  assert.match(hud, /HudGrantRemoveConfirm[\s\S]{0,80}return;/);
+  assert.match(hud, /HudAppliedDisableConfirm[\s\S]{0,80}return;/);
+  // 권한 없는 사용자가 남의 토큰 상태를 끄려다 콘솔 오류로 끝나지 않게 한다.
+  assert.match(hud, /if \(!actor\.isOwner\) \{ ui\.notifications\.warn/);
+});
+
+test('attacking with equipment never spends what only its "on use" content would', async () => {
+  // 장비에서 공격과 사용은 다른 일이다. 공격이 「사용 시」 카드를 실행하지 않는데(processItemExtensions 가
+  // 액션으로 거른다) 사용 횟수만 빠져나가던 문제 — 면제 판정이 **보정 행만** 보고 있었기 때문이다.
+  // 사용 버킷에 익스텐션이나 매크로만 저작한 장비가 거기서 빠져나갔다.
+  const context = baseContext({
+    game: {
+      i18n: { localize: key => key, format: key => key },
+      settings: { get: () => true },
+      user: { targets: new Set() },
+      actors: new Map()
+    },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/declared-equipment.js');
+  const handler = context.DX3rdUniversalHandler;
+
+  const gear = (type, extra = {}) => ({
+    id: 'g1', name: '장비', type, img: '',
+    system: {
+      equipment: true, type: 'melee', skill: 'melee', attack: '5', attackRoll: 'melee', timing: 'major',
+      used: { state: 0, max: 3, disable: 'scene' }, 'attack-used': { state: 0, max: 0, disable: 'notCheck' },
+      attributes: {}, active: { state: false, disable: 'scene', runTiming: 'instant', action: '', applyMode: 'toggle' },
+      effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} }, macros: [],
+      ...(extra.system || {})
+    },
+    getFlag: (scope, key) => key === 'itemExtend' ? extra.ext : undefined
+  });
+
+  // 사용 버킷에 무엇이 들어 있든 — 보정 행이든 익스텐션이든 매크로든 — 공격은 그것을 소비하지 않는다.
+  assert.equal(handler.attackDefersUsage(
+    gear('weapon', { system: { attributes: { r: { key: 'add', label: '-', value: '+5', action: 'use' } } } })), true,
+    '보정 행(문서화된 선언형)');
+  assert.equal(handler.attackDefersUsage(
+    gear('weapon', { ext: { heal: { activate: true, action: 'use', timing: 'instant', value: '10' } } })), true,
+    '사용 익스텐션');
+  assert.equal(handler.attackDefersUsage(
+    gear('weapon', { system: { macros: [{ timing: 'instant', action: 'use', kind: 'code', command: '1' }] } })), true,
+    '사용 매크로');
+
+  // 사용 버킷이 없는 소모성 무기는 그대로 공격에서 소비한다.
+  assert.equal(handler.attackDefersUsage(gear('weapon')), false, '카드가 없는 소모성 무기');
+  assert.equal(handler.attackDefersUsage(
+    gear('weapon', { ext: { damage: { activate: true, action: 'attack', timing: 'afterDamage', value: '5' } } })), false,
+    '공격 카드만 있는 무기');
+
+  // 장비 한정이다. 이펙트·콤보는 공격하는 것이 곧 사용이라, 넓히면 사용 카드를 하나 저작한 것만으로
+  // 공격 이펙트가 침식률도 횟수도 내지 않게 된다.
+  const attackEffect = gear('effect', { ext: { heal: { activate: true, action: 'use', timing: 'instant', value: '10' } } });
+  delete attackEffect.system.equipment;
+  assert.equal(handler.attackDefersUsage(attackEffect), false, '이펙트는 공격이 곧 사용이다');
+
+  // 면제된 장비의 사용 카드가 영영 못 쓰이는 것은 아니다 — 시트의 사용 경로가 action:'use' 로 들어와
+  // 거기서 비용과 횟수를 낸다(그 경로만 effectOnlyUse 로 공격 판정을 건너뛴다).
+  const universal = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.match(universal, /const declarationOnly = action === 'attack' && this\.attackDefersUsage\(item\);/);
+  assert.match(universal, /const effectOnlyUse = action === 'use' && window\.DX3rdItemEffectAdapter\?\.isAttackItem\(item\);/);
+});
+
+test('an always-on self modifier is never switched off by a use that does not own its channel', async () => {
+  // 상시 이펙트(컴펜디움 형태: timing='always', applyMode='onUse', disable='-')의 자기 채널은 **추론으로**
+  // 활성화 채널이 된다. 그런데 「얼어붙는 채널의 잔재라면 내린다」는 가드가 *명시* 버킷만 물어봐서,
+  // 그 상시 이펙트가 콤보 멤버로 실행되는 순간 active.state 가 내려갔다 — 소멸 타이밍이 없으니 다시 켜지지도
+  // 않아, 가드 보정이 한 번 붙고 나면 영영 사라졌다.
+  const context = baseContext({
+    game: { i18n: { localize: key => key, format: key => key }, settings: { get: () => true },
+      user: { targets: new Set() }, actors: new Map() },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+  const handler = context.DX3rdUniversalHandler;
+  const frozen = [];
+  handler._applyItemAttributes = async (_actor, _item, _target, attrs) =>
+    frozen.push(Object.values(attrs || {}).map(entry => entry.key));
+
+  const make = active => {
+    const item = {
+      id: 'e1', name: '강인한 골격', type: 'effect',
+      system: {
+        timing: 'always', roll: '-', attackRoll: '-', skill: '-',
+        attributes: { g: { key: 'guard', label: '-', value: '+[level]' } },
+        active: { state: true, disable: '-', runTiming: 'instant', action: '', applyMode: 'onUse', ...active },
+        effect: { disable: 'notCheck', runTiming: 'instant', action: '', attributes: {} }, macros: []
+      },
+      getFlag: () => undefined
+    };
+    item.update = async updates => {
+      for (const [path, value] of Object.entries(updates)) {
+        const parts = path.split('.');
+        let node = item;
+        for (const part of parts.slice(0, -1)) node = node[part];
+        node[parts.at(-1)] = value;
+      }
+    };
+    return item;
+  };
+
+  // 전제 확인 — 이 채널은 추론으로만 활성화다(명시 버킷은 없다).
+  const always = make();
+  assert.equal(context.DX3rdItemEffectAdapter.usesActivationSelfChannel(always), true);
+  assert.equal(context.DX3rdItemEffectAdapter.hasExplicitBucket(always, 'self', 'activation'), false);
+
+  // 콤보 멤버 실행(combo-handler 의 호출: forceToggle 없음) 이후에도 켜져 있어야 한다.
+  await handler.applySelfModifiers({ id: 'a' }, always, { action: 'use' });
+  assert.equal(always.system.active.state, true, '상시 채널을 남의 사용이 끄면 안 된다');
+
+  // 반대쪽은 그대로다 — 진짜 얼어붙는 채널의 잔재 상태는 여전히 내려간다(이중 가산 방지).
+  const frozenChannel = make();
+  frozenChannel.system.timing = 'major';
+  assert.equal(context.DX3rdItemEffectAdapter.usesActivationSelfChannel(frozenChannel), false, '전제 확인');
+  await handler.applySelfModifiers({ id: 'a' }, frozenChannel, { action: 'use' });
+  assert.equal(frozenChannel.system.active.state, false, '얼어붙는 채널의 잔재는 계속 내려간다');
 });
 
 test('the roll dialog only shows attack power when the roll can spend it', () => {
@@ -3346,6 +3745,13 @@ test('every usage condition gate is switchable, and none of them blocks by defau
       `${gate} 위반은 공용 보고 경로를 타야 한다`);
   }
 
+  // 다섯 번째 게이트는 방어 무시다. 보고 자리가 universal-handler 가 아니라 데미지 창이라
+  // 위 루프의 마지막 검사가 성립하지 않을 뿐, 설정·기본값의 규칙은 완전히 같다.
+  assert.match(helpers, /defenseBypass: 'allowDefenseBypassViolation'/,
+    '방어 무시 게이트가 설정 판독기에 등록돼야 한다');
+  assert.match(main, /'allowDefenseBypassViolation', \{[^}]*default: true/,
+    'allowDefenseBypassViolation 도 기본값이 true(막지 않음)여야 한다');
+
   // 게이트 자리에 직접 return false 를 두면 설정을 건너뛴다. 넷 다 보고 경로 뒤에만 있어야 한다.
   const flat = handler.replace(/\s+/g, ' ');
   assert.doesNotMatch(flat, /Resurrect item blocked - HP is not 0/,
@@ -4269,13 +4675,15 @@ test('a use bucket and an attack bucket never share one applied effect', async (
 
   // 무기는 판정 다이얼로그의 선언(action:'use')과 그 무기로 공격(action:'attack')이 둘 다
   // 발현점이다. 키를 공유하면 공격 적용이 선언 적용을 덮어써 지운다.
+  // 장비여야 하는 것이 요점이다 — 장비 이외에는 공격이 곧 사용이라(actionCoversBucket) 두 버킷이
+  // 한 번의 발현으로 함께 걸리고, 두 번 써서 덮어쓸 일 자체가 없다.
   const actor = { id: 'a1', name: '시전자', isOwner: true, effects: [] };
   const item = {
-    id: 'i1', name: '이펙트', img: 'x.png', type: 'effect', actor, getFlag: () => ({}),
+    id: 'i1', name: '무기', img: 'x.png', type: 'weapon', actor, getFlag: () => ({}),
     system: {
-      timing: 'major',
+      timing: 'major', equipment: true,
       attributes: {
-        a0: { key: 'guard', value: '5' },                       // 미지정 → 채널 기본(사용)
+        a0: { key: 'guard', value: '5', action: 'use' },         // 선언(사용 시)
         a1: { key: 'attack', value: '3', action: 'attack' }      // 공격 시
       },
       effect: { disable: 'notCheck', attributes: {} },
@@ -4293,6 +4701,50 @@ test('a use bucket and an attack bucket never share one applied effect', async (
   assert.deepEqual(Object.keys(plain(declared.payload.attributes)), ['guard']);
   assert.deepEqual(Object.keys(plain(writes[1].payload.attributes)), ['attack']);
   assert.equal(writes[1].payload.action, 'attack', '버킷 판별자가 페이로드에 실려야 소멸 훅이 찾는다');
+});
+
+test('an attack effect fires the card it was authored on, because attacking is using', () => {
+  const { adapter } = equipmentHookContext();
+  // yuricross '포텐스': 백병 공격력 +[level]d10 을 「사용 시」 카드에 저작한 attackRoll='melee' 이펙트.
+  // invocationAction 은 공격 이펙트에 늘 'attack' 을 돌려주고 사용/공격 선택창은 무기·비클 전용이라,
+  // 그 카드는 어떤 경로로도 발현하지 않아 데미지 수정치가 조용히 사라졌다.
+  const potens = {
+    type: 'effect', id: 'potens', name: '포텐스',
+    system: {
+      attackRoll: 'melee', skill: 'body', difficulty: '대결', target: '자신',
+      active: {state: false, disable: 'roll', runTiming: 'instant', action: 'use', applyMode: 'onUse'},
+      attributes: {
+        a: {key: 'stat_add', label: 'body', value: '+[level]d10'},
+        b: {key: 'attack', label: 'melee', value: '+[level]d10'},
+        d: {key: 'stat_add', label: 'body', value: '+[level]', action: 'activation'}
+      },
+      effect: {disable: 'notCheck', runTiming: 'instant', action: '', attributes: {}}
+    },
+    getFlag: () => ({})
+  };
+  const action = adapter.invocationAction(potens, {});
+  assert.equal(action, 'attack', '공격 이펙트의 발현 액션은 attack 이다');
+  assert.equal(
+    adapter.extensionActionMatches(potens, 'selfModifiers', potens.system.active, action, 'instant'),
+    true, '「사용 시」 자기 보정 카드는 그 이펙트의 공격 발현에서 걸려야 한다');
+  assert.deepEqual(Object.keys(adapter.selfFrozenAttributes(potens, action)).sort(), ['a', 'b'],
+    '활성화 행은 토글 AE 가 들고, 나머지 두 행만 동결된다');
+
+  // 활성화는 절대 흡수되지 않는다 — 그 축까지 합치면 상시 이펙트가 공격만으로 켜진다.
+  assert.equal(adapter.actionCoversBucket(potens, 'attack', 'activation'), false);
+  assert.equal(adapter.actionCoversBucket(potens, 'use', 'attack'), false,
+    '사용은 공격 카드를 태우지 않는다 — 흡수는 한 방향뿐이다');
+
+  // 장비는 예외다: 사용/공격 선택창이 실제로 있고, attackDefersUsage 가 「공격이 사용 카드의 값을
+  // 치르지 않는다」를 지킨다. 여기서 넓히면 그 짝이 무너진다.
+  for (const type of ['weapon', 'protect', 'vehicle']) {
+    assert.equal(adapter.actionCoversBucket({type}, 'attack', 'use'), false, `${type} 는 예외로 남는다`);
+  }
+
+  // 게이트와 어댑터가 갈리면 카드는 다시 도달 불가가 된다.
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.ok(handler.includes("adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')"),
+    'handleItemUse 의 자기 보정 게이트는 어댑터 한 곳을 물어봐야 한다');
 });
 
 test('adding a persistent modifier card claims the next free bucket', async () => {
@@ -4654,11 +5106,14 @@ test('every dialog declares through the same shared component', () => {
   assert.match(damageFile, /await declareControl\.commit\(\)/,
     '방어 창은 「확인」에서 확정해야 한다');
 
-  // 공격만으로는 회수도 침식도 나가지 않아야 한다. 게이트 판정은 선언 UI 와 같은
-  // 함수(isDeclarable)를 써야 "목록엔 뜨는데 이미 소모된" 어긋남이 생기지 않는다.
+  // 공격만으로는 회수도 침식도 나가지 않아야 한다. 게이트는 선언 UI 와 같은 함수(isDeclarable)를
+  // 반드시 **포함**해야 "목록엔 뜨는데 이미 소모된" 어긋남이 생기지 않는다. 그 위에 사용 버킷의
+  // 익스텐션·매크로까지 넓힌 것이 attackDefersUsage 다.
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
-  assert.ok(handler.includes("const declarationOnly = action === 'attack' && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);"),
+  assert.ok(handler.includes("const declarationOnly = action === 'attack' && this.attackDefersUsage(item);"),
     '선언형 장비의 공격은 비용·회수를 치르지 않아야 한다');
+  assert.match(handler, /attackDefersUsage\(item\) \{[\s\S]{0,400}?DX3rdDeclaredEquipment\?\.isDeclarable\?\.\(item\)/,
+    '선언 UI 의 판정을 그대로 품어야 두 곳이 갈리지 않는다');
   assert.ok(handler.includes('if (!declarationOnly) { const usageAllowed = await this.processItemUsageCost'),
     '비용 처리와 사용 횟수 증가가 그 게이트 안에 있어야 한다');
 
@@ -4778,13 +5233,17 @@ test('a defense-built temporary combo neither asks for a target nor turns into a
 test('an effect with no skill applies its modifiers instead of refusing to run', () => {
   const handler = source('scripts/handlers/effect-handler.js');
   // 리액션 창에서 고르는 「다이스 +N」류 이펙트는 굴릴 기능이 없다. 예전에는 경고만 띄우고
-  // 중단해 코스트만 나가고 아무 일도 일어나지 않았다.
+  // 중단해 코스트만 나가고 아무 일도 일어나지 않았다. 지금은 기능 미지정이 중단 사유가 아니다 —
+  // 난이도가 굴릴 것을 말하지 않으면 판정 없이 효과만, 말하면 빈 풀로 굴린다.
   assert.equal(handler.includes('이펙트의 기능이 설정되지 않았습니다'), false,
-    '기능 미지정은 오류가 아니라 「판정 없이 효과만」이다');
-  assert.equal((handler.match(/DX3rdDebug\?\.log\(`DX3rd \| \$\{item\.name\}: 기능 미지정/g) || []).length, 2,
-    '무기 보너스 경로에도 같은 통과 규칙이 있어야 한다');
+    '기능 미지정은 오류가 아니다');
+  // 두 판정 경로(무기 보너스 유무)가 같은 한 함수를 쓴다 — 규칙을 두 벌 쓰면 갈린다.
+  assert.equal((handler.match(/this\.resolveRollStat\(actor, item\)/g) || []).length, 2,
+    '무기 보너스 경로도 같은 해석기를 써야 한다');
+  assert.match(handler, /blankRollStat\(\), label: '-'/,
+    '기능 미지정은 빈 풀로 굴린다');
   // 기능이 지정됐는데 데이터가 없는 것은 여전히 저작 오류다.
-  assert.ok(handler.includes('기능 데이터를 찾을 수 없습니다'));
+  assert.match(handler, /ui\.notifications\.warn\(game\.i18n\.localize\('DX3rd\.SkillDataNotFound'\)\)/);
 });
 
 test('a critical reduction lands even when no effect declares a critical floor', () => {
@@ -5395,4 +5854,228 @@ test('an equipment grant is undone by deleting its marker, never by disabling it
   for (const key of ['DX3rd.GrantFistDescription', 'DX3rd.GrantWeaponDescription']) {
     assert.ok(key in ko, `${key} 가 ko.json 에 없다`);
   }
+});
+
+/**
+ * 오버레이 다이얼로그가 쓰는 DOM 표면만 흉내 내는 최소 스텁.
+ * 하네스에 jsdom 이 없으므로, 실물 스크립트를 그대로 싣기 위해 필요한 만큼만 만든다.
+ */
+function overlayDomStub() {
+  const byId = new Map();
+  const createElement = tag => {
+    const el = {
+      tagName: tag,
+      id: '',
+      className: '',
+      innerHTML: '',
+      textContent: '',
+      style: {},
+      children: [],
+      parent: null,
+      listeners: {},
+      classList: {
+        add(name) { el.className = `${el.className} ${name}`.trim(); },
+        contains(name) { return el.className.split(/\s+/).includes(name); }
+      },
+      setAttribute() {},
+      appendChild(child) {
+        child.parent = el;
+        el.children.push(child);
+        if (child.id) byId.set(child.id, child);
+        return child;
+      },
+      addEventListener(type, fn) { (el.listeners[type] ||= []).push(fn); },
+      removeEventListener() {},
+      remove() {
+        if (el.id) byId.delete(el.id);
+        if (el.parent) el.parent.children = el.parent.children.filter(c => c !== el);
+        el.parent = null;
+      },
+      click() { for (const fn of el.listeners.click || []) fn({}); },
+      querySelector() { return null; },
+      querySelectorAll() { return []; }
+    };
+    return el;
+  };
+  const body = createElement('body');
+  return {
+    body,
+    document: {
+      createElement,
+      body,
+      getElementById: id => byId.get(id) ?? null,
+      addEventListener() {},
+      removeEventListener() {}
+    }
+  };
+}
+
+function overlayApi() {
+  const { document, body } = overlayDomStub();
+  const context = baseContext({ document, foundry: { utils: { escapeHTML: String } } });
+  load(context, 'scripts/dialog/overlay-dialog.js');
+  const descendants = el => el.children.flatMap(c => [c, ...descendants(c)]);
+  const find = cls => descendants(body).filter(e => e.classList.contains(cls));
+  return { api: context.window.DX3rdOverlayDialog, body, find, descendants };
+}
+
+test('an overlay dialog resolves its button value, and null for every dismissal', async () => {
+  const { api, find } = overlayApi();
+
+  const chosen = api.wait({ id: 'a', title: 't', buttons: [{ label: '백병', value: 'melee' }] });
+  find('dx3rd-overlay-dialog__button').find(b => b.textContent === '백병').click();
+  assert.equal(await chosen, 'melee', 'a button carries its value out');
+
+  const dismissed = api.wait({ id: 'a', title: 't', buttons: [{ label: '사격', value: 'ranged' }] });
+  find('dx3rd-overlay-dialog__close')[0].click();
+  assert.equal(await dismissed, null,
+    'the close button resolves null — callers treat that as "no choice", and unlike DialogV2 '
+    + 'no button action string is substituted in, so a cancellation cannot pose as a value');
+
+  // A callback returning nothing folds into the same "dismissed" signal.
+  const empty = api.wait({ id: 'a', title: 't', buttons: [{ label: 'x', callback: () => undefined }] });
+  find('dx3rd-overlay-dialog__button')[0].click();
+  assert.equal(await empty, null);
+});
+
+test('a displaced overlay resolves instead of stranding whatever awaited it', async () => {
+  const { api, find } = overlayApi();
+
+  // The condition prompt reuses one id for hatred, fear and berserk. Replacing an overlay
+  // by dropping only its DOM node would leave the first await hanging forever, stalling the
+  // whole condition-apply path; the replacement must resolve it as a dismissal.
+  const first = api.wait({ id: 'dx3rd-condition-choice', title: 'hatred', buttons: [{ label: 'A', value: 'a' }] });
+  const second = api.wait({ id: 'dx3rd-condition-choice', title: 'fear', buttons: [{ label: 'B', value: 'b' }] });
+
+  assert.equal(await first, null, 'the displaced overlay resolves rather than hanging');
+
+  const live = find('dx3rd-overlay-dialog__button');
+  assert.equal(live.length, 1, 'only the replacement is still on screen');
+  live[0].click();
+  assert.equal(await second, 'b', 'the replacement still resolves normally');
+});
+
+test('the condition prompt asks through the overlay, never through a DialogV2 cancel workaround', () => {
+  const conditions = source('scripts/handlers/universal-condition-apply.js');
+
+  assert.match(conditions, /_promptConditionChoice = async function/,
+    'the three special-condition prompts share one helper');
+  assert.equal((conditions.match(/_promptConditionChoice\(\{/g) || []).length, 3,
+    'hatred, fear and berserk all go through it');
+  // Scoped to real usage, not the word: the helper's own comment explains why DialogV2 is avoided.
+  assert.doesNotMatch(conditions, /DialogV2\s*\??\.\s*(wait|prompt|confirm)/,
+    'no DialogV2 call is left here; its cancel callback substitutes the button action string '
+    + 'for nullish, which is exactly the trap these prompts had to work around');
+  assert.doesNotMatch(conditions, /callback: \(\) => false/,
+    'and the workaround that trap forced is gone with it');
+});
+
+function defenceAdapter() {
+  const context = baseContext({
+    foundry: { utils: { deepClone: structuredClone, mergeObject: Object.assign } },
+    game: { i18n: { localize: k => k }, settings: { get: () => undefined } },
+    Hooks: { on() {}, once() {} },
+    ui: { notifications: { warn() {}, error() {}, info() {} } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  return context.window.DX3rdItemEffectAdapter;
+}
+
+test('a bypassed defence is only given back by the counter the rules print for it', () => {
+  const adapter = defenceAdapter();
+  const none = adapter.resolveDefense({}, {});
+  assert.deepEqual(
+    { a: none.armorIgnored, g: none.guardBlocked, r: none.reactionBlocked },
+    { a: false, g: false, r: false },
+    'an ordinary attack bypasses nothing, so the dialog is untouched');
+
+  // 《이지스 링》 answers armor and only armor.
+  assert.equal(adapter.resolveDefense({ armor: true }, {}).armorIgnored, true);
+  assert.equal(adapter.resolveDefense({ armor: true }, { armor: true }).armorIgnored, false);
+  assert.equal(adapter.resolveDefense({ armor: true }, { guard: true }).armorIgnored, true,
+    'the guard counter must not double as an armor counter');
+
+  // 《마그넷 체인》《비호하는 짐승》《에너지 실드》: "「리액션을 실행할 수 없다」거나 「가드를 실행할
+  // 수 없다」는 효과를 가진 공격에 대해서도 가드를 실행할 수 있다".
+  assert.equal(adapter.resolveDefense({ guard: true }, {}).guardBlocked, true);
+  assert.equal(adapter.resolveDefense({ guard: true }, { guard: true }).guardBlocked, false);
+
+  const viaReaction = adapter.resolveDefense({ reaction: true }, { guard: true });
+  assert.equal(viaReaction.guardRestored, true,
+    'a bypassed reaction also opens the guard — the counter names both cases');
+  assert.equal(viaReaction.reactionBlocked, true,
+    'but the guard counter does not hand the reaction back; it grants a guard');
+
+  // 《전지의 파편》 is the card that does: "…공격에 대해서도 닷지를 실행할 수 있다".
+  assert.equal(adapter.resolveDefense({ reaction: true }, { reaction: true }).reactionBlocked, false);
+  assert.equal(adapter.resolveDefense({ guard: true }, { reaction: true }).guardBlocked, true,
+    'and the reaction counter is not a guard counter either — the two cards are not interchangeable');
+});
+
+test('a total armor bypass outranks numeric penetration instead of stacking with it', () => {
+  const damage = source('scripts/handlers/universal-damage-dialog.js');
+  assert.match(damage, /armorIgnored \? 0 : Math\.max\(0, armorValue - penetrate\)/,
+    '"장갑치를 무시" and "장갑치를 [LVx8]만큼 무시" are different rules; combining them could only '
+    + 'produce a negative armor, and the boolean is the all-or-nothing one');
+  assert.match(damage, /const effectiveGuard = \(guardChecked && !guardBlocked\)/,
+    'a blocked guard is not merely unchecked — it is removed from the calculation');
+  // enforcedDefense, not the raw resolution: the gate below can drop the block, and a guard that
+  // counts must have been rolled.
+  assert.match(damage, /rollDeferred\(\(guardChecked && !enforcedDefense\.guardBlocked\)/,
+    'and its dice are not rolled at all, or chat would show a guard roll that was never subtracted');
+});
+
+test('a bypassed defence is locked by the same switch as every other usage gate', () => {
+  // 다른 게이트와 같은 축이다 — 「가드를 실행할 수 없다」는 판정은 그대로 하고, 그것을
+  // 차단으로 이을지만 설정이 정한다. 기본은 막지 않음이므로 칸은 잠긴 것처럼 보이되 살아 있다.
+  const damage = source('scripts/handlers/universal-damage-dialog.js');
+  assert.match(damage, /const bypassBlocks = \(\) => window\.DX3rdUsageGates\?\.allows\?\.\('defenseBypass'\) === false/,
+    '방어 무시의 차단 여부는 공용 설정 판독기 한 곳에서 읽어야 한다');
+
+  // 잠금은 표시일 뿐이고, 계산에서 빠지는지는 enforceBypass 한 곳이 정한다. 두 곳으로 갈리면
+  // 「입력은 살아 있는데 값이 안 먹는다」가 조용히 난다.
+  assert.match(damage, /const enforceBypass = \(defense\) => bypassBlocks\(\)\s*\?\s*defense\s*:\s*\{ \.\.\.defense, guardBlocked: false, reactionBlocked: false \}/,
+    '허용 설정에서 풀리는 것은 방어측이 선언하는 두 축뿐이다');
+  // 장갑은 선언하는 것이 아니라 시트에 이미 적힌 숫자다. 그것까지 풀면 선택을 돌려주는 것이 아니라
+  // 「장갑치를 무시한다」가 기본값에서 조용히 죽고, 맞을 때마다 채팅 경고가 한 줄씩 쌓인다.
+  assert.doesNotMatch(damage, /\{ \.\.\.defense,[^}]*armorIgnored: false/,
+    '장갑 무시는 설정과 무관하게 계산에서 유지돼야 한다');
+  assert.match(damage, /\['#armor', armorIgnored, 'DX3rd\.BypassLockArmor', false\]/,
+    '장갑 칸은 소프트 잠금 대상이 아니다 — 다만 왜 안 빠지는지는 툴팁이 말한다');
+  assert.match(damage, /\.\.\.enforceBypass\(previewDefense\(\)\)/,
+    '표시용 계산도 같은 경계를 지나야 한다 — 창의 숫자와 확정값이 갈리면 안 된다');
+  assert.match(damage, /el\.disabled = base\.disabled \|\| \(blocked && !lenient\);/,
+    '허용 상태에서 입력을 실제로 비활성화하면 설정이 무력해진다');
+  assert.match(damage, /classList\.toggle\('dx3rd-soft-locked', blocked && lenient\)/,
+    '대신 잠긴 것처럼 보이게만 한다');
+  // 잠금을 풀 때 원래 상태로 돌려놔야 한다. 무기 가드 픽커는 무기가 없으면 템플릿이 이미
+  // 비활성화해 두고, 「+」 버튼은 제 툴팁을 갖고 있다 — 맹목적으로 되살리면 둘 다 망가진다.
+  assert.match(damage, /lockBaseline\.set\(selector, \{ disabled: el\.disabled === true, title: el\.getAttribute\('title'\) \}\)/,
+    '잠그기 전 상태를 기억해야 한다');
+  assert.match(damage, /if \(base\.title === null\) el\.removeAttribute\('title'\);/,
+    '원래 툴팁이 없던 칸만 지우고, 있던 칸은 되돌려야 한다');
+  assert.match(damage, /DX3rd\.BypassLockGuard/,
+    '왜 잠겨 보이는지는 툴팁이 말해야 한다');
+
+  // 막지 않을 때도 경고와 채팅 기록은 남는다 — 다른 게이트와 같은 공용 보고 경로다.
+  assert.match(damage.replace(/\s+/g, ' '),
+    /reportUsageGate\?\.\( targetActor, \{ name: game\.i18n\.localize\(labelKey\) \}, 'defenseBypass'/,
+    '무시되는 방어를 강행했으면 공용 보고 경로로 남겨야 한다');
+  // 렌더 시점의 잠금은 한 번뿐이므로, 확정 시점에 다시 보지 않으면 창을 열어 둔 사이 설정이
+  // 바뀌거나 무효화가 체크된 것이 계산에 닿지 않는다([폭주] 가드와 같은 함정이다).
+  assert.match(damage, /const enforcedDefense = enforceBypass\(defense\);/,
+    '확정 시점에 게이트를 다시 봐야 한다');
+  assert.match(damage, /armorIgnored: enforcedDefense\.armorIgnored/,
+    '그 결과가 실제 데미지 계산에 반영돼야 한다');
+});
+
+test('a defence counter is only honoured once its own cost has actually been paid', () => {
+  const damage = source('scripts/handlers/universal-damage-dialog.js');
+  assert.match(damage, /processItemUsageCost\(targetActor, restoreItem\)/,
+    '《마그넷 체인》 is once per scenario; ticking it must spend the use');
+  assert.match(damage, /if \(paid === false\) continue;/,
+    'and a counter whose cost was refused must not give the defence back anyway');
+  // The attacker's client resolves the union, because the defender cannot see the attacker's
+  // combo members or registered weapons.
+  assert.match(damage, /const bypassDefense = window\.DX3rdItemEffectAdapter\.attackBypassDefense\(actor, item\)/);
 });

@@ -1,0 +1,114 @@
+/* DX3rd-Overlay-Dialog */
+
+.dx3rd-overlay-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.dx3rd-overlay-dialog__panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.dx3rd-overlay-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.dx3rd-overlay-dialog__title {
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 0;
+}
+
+.dx3rd-overlay-dialog__close {
+  flex: 0 0 auto;
+  width: 20px;
+  min-width: 20px;
+  max-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  max-height: 20px;
+  background: none;
+  border: none;
+  outline: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dx3rd-overlay-dialog__close:hover {
+  color: #dc3545;
+}
+
+.dx3rd-overlay-dialog__body {
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* Prompt line above a button-per-option choice list. */
+.dx3rd-overlay-dialog__prompt {
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+}
+
+.dx3rd-overlay-dialog__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  /* A long choice list (e.g. the 13 berserk urges) must scroll inside the panel
+     rather than run off the viewport, which the panel's centered transform hides. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.dx3rd-overlay-dialog__buttons.dx3rd-overlay-dialog__buttons--in-body {
+  padding: 10px 0 0;
+}
+
+.dx3rd-overlay-dialog__divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 2px 0;
+}
+
+.dx3rd-overlay-dialog__button {
+  width: 100%;
+  flex: 0 0 auto;
+  height: 32px;
+  line-height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dx3rd-overlay-dialog__button:hover {
+  background: rgba(255, 187, 0, 0.2);
+  border-color: rgba(255, 187, 0, 0.45);
+}
+

@@ -1,5 +1,5 @@
 /**
- * Shared actor sheet data preparation for 이전 시트 and AppV2 sheets.
+ * Shared actor sheet data preparation for the previous sheets and the AppV2 sheets.
  */
 (function () {
     const LIST_KEYS = [
@@ -39,8 +39,8 @@
     function shouldUseSimpleSheet(actor, user = game.user) {
         if (user.isGM) return false;
 
-        // getUserLevel 은 INHERIT 를 이미 기본 권한으로 풀어서 돌려준다.
-        // (actor.permission 은 "현재 사용자"의 권한 레벨 숫자이므로 user 별 조회에 쓸 수 없다.)
+        // getUserLevel already resolves INHERIT into the default permission before returning.
+        // (actor.permission is the "current user's" permission level number, so it cannot be used for a per-user lookup.)
         const permission = actor.getUserLevel(user) ?? CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
 
         if (permission >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) return false;
@@ -108,8 +108,8 @@
         const skill = actor.system?.attributes?.skills?.[skillId];
         if (!skill) return null;
 
-        // 폭은 넘기지 않는다 — 생성 다이얼로그와 표가 같은 9열이므로 클래스 기본값(600)을
-        // 그대로 쓴다. 여기서 900을 주면 같은 표가 편집 때만 좌우로 늘어난다.
+        // The width is not passed — the creation dialog and the table share the same nine columns, so the class
+        // default (600) is used as-is. Passing 900 here would stretch the same table only while editing.
         return {
             title: game.i18n.localize("DX3rd.EditSkill"),
             skill: {
@@ -209,27 +209,27 @@
         if (!item) return null;
 
         const active = !!checked;
-        // 각 아이템의 토글은 독립 상태다. 이펙트가 콤보에 포함되어 있더라도 이펙트
-        // 토글이 콤보의 active.state를 켜거나 끄면 안 되며, 구성 이펙트의 지속 여부도
-        // 해당 이펙트 자신의 active.state만 결정한다.
+        // Each item's toggle is an independent state. Even when an effect belongs to a combo, the effect's toggle
+        // must not turn the combo's active.state on or off, and whether a member effect persists is decided solely
+        // by that effect's own active.state.
         if (!!item.system?.active?.state !== active) {
             await item.update({ "system.active.state": active });
         }
 
-        // 사용 시 생성된 비-toggle AE와 레거시 applied만 먼저 정리한다. toggle AE는
-        // 아래 sync가 각 아이템의 독립 active.state를 보고 toggle AE를 유지 또는 삭제한다.
+        // Only the non-toggle AEs created on use and the legacy applied entries are cleaned up first. Toggle AEs are
+        // kept or deleted by the sync below, according to each item's independent active.state.
         if (!active) {
             await window.DX3rdAppliedEffects?.removeByItem?.(actor, item.id, { includeToggle: false });
         }
 
-        // effect/spell/psionic/combo의 지속 보정은 AppliedToggle이 AE로 변환한다.
-        // 아이템 갱신 훅만 기다리면 다음 판정이 AE 생성 전의 파생치를 읽을 수 있으므로,
-        // 사용자가 토글 직후 판정해도 같은 상태를 보도록 진행 중인 동기화까지 대기한다.
+        // The persistent modifiers of effect/spell/psionic/combo are converted into AEs by AppliedToggle.
+        // Waiting only for the item update hook would let the next roll read derived values from before the AE was
+        // created, so the in-flight sync is awaited too and a roll right after toggling sees the same state.
         await window.DX3rdAppliedToggle?.sync?.(actor);
 
-        // 액터 시트의 행과 별도로 열려 있는 이펙트 시트는 item.update만으로 즉시
-        // 재렌더되지 않을 수 있다. 같은 원본 문서를 다시 그려 두 체크박스가 항상
-        // 동일한 active.state/출처 AE 상태를 표시하게 한다.
+        // An effect sheet opened separately from the actor sheet's row may not re-render immediately from item.update
+        // alone. The same source document is redrawn so both checkboxes always show the identical active.state and
+        // source AE state.
         const itemSheet = item.sheet;
         if (itemSheet?.rendered) {
             if (window.DX3rdApplicationCompat?.requestRender) {
@@ -257,10 +257,10 @@
             if (updates.length) await actor.updateEmbeddedDocuments("Item", updates);
         }
 
-        // 장착과 자기 보정 활성 상태를 한 문서 업데이트로 확정한다. updateItem 훅에만
-        // 맡기면 훅의 비동기 2차 update보다 액터 시트 렌더가 먼저 일어나 가드치 등
-        // 파생 수치가 이전 상태로 보일 수 있다. 훅은 이미 목표 상태인 것을 확인하고
-        // 매크로/대상 효과 등 나머지 activation 처리만 이어간다.
+        // The equipped flag and the self-modifier active state are settled in one document update. Leaving it to the
+        // updateItem hook alone would let the actor sheet render before the hook's asynchronous second update, so
+        // derived values such as the guard value could show the previous state. The hook then sees that the target
+        // state is already reached and carries on with the remaining activation work (macros, target effects, …).
         const update = { "system.equipment": equipped };
         if (!equipped && item.system?.active?.state === true) {
             update["system.active.state"] = false;
@@ -273,8 +273,8 @@
             update["system.active.state"] = true;
         }
         await item.update(update);
-        // 임베디드 Item 갱신 직후 AppV2가 부모 Actor의 이전 prepared system을 읽는
-        // Foundry 버전이 있다. 저장 원본에서 즉시 다시 준비해 장갑/가드 표시를 확정한다.
+        // Some Foundry versions have AppV2 read the parent Actor's previously prepared system right after an embedded
+        // Item update. Re-preparing from the stored source immediately settles the armor / guard display.
         actor.reset?.();
         return item;
     }
@@ -313,7 +313,7 @@
         return result;
     }
 
-    // 능력/스킬 굴림 dispatch와 콤보 빌더 위임. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
+    // The attribute / skill roll dispatch and the combo builder delegation. The previous sheets and the AppV2 actor sheet share this path.
     function openComboBuilder(actor, targetType, targetId) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.openComboBuilder) {
@@ -339,7 +339,7 @@
         );
     }
 
-    // 드래그/드롭 정렬 dispatch. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
+    // The drag / drop sorting dispatch. The previous sheets and the AppV2 actor sheet share this path.
     function buildItemDragData(actor, item) {
         if (!actor || !item) return null;
         return {
@@ -352,7 +352,7 @@
         };
     }
 
-    // 같은 액터 내 아이템 순서 변경(sort). 정렬을 수행했으면 true.
+    // Reordering items within the same actor (sort). Returns true when a sort was performed.
     async function sortOwnedItem(actor, data, targetEl) {
         const target = targetEl?.closest?.('[data-item-id]');
         if (!target) return false;
@@ -370,7 +370,7 @@
         return true;
     }
 
-    // 외부 아이템 드롭 → 타입별 제한 체크 후 생성. 생성한 아이템을 반환하고, 막혔으면 null.
+    // An external item drop → created after the per-type limit check. Returns the created item, or null when blocked.
     async function createDroppedItem(actor, item) {
         if (!item) return null;
 
@@ -391,8 +391,8 @@
         return created?.[0] || null;
     }
 
-    // 스킬 생성/편집 다이얼로그 오픈. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
-    // 다이얼로그는 ApplicationV2 기반이라 buttons/default 설정은 받지 않는다(클래스가 자체 렌더).
+    // Open the skill creation / edit dialog. The previous sheets and the AppV2 actor sheet share this path.
+    // The dialog is ApplicationV2-based, so it takes no buttons/default settings (the class renders them itself).
     function openCreateSkillDialog(actor, abilityId) {
         if (!window.DX3rdSkillCreateDialog) {
             ui.notifications.error(format("DX3rd.HandlerMissing", {name: "DX3rdSkillCreateDialog"}));
@@ -413,9 +413,9 @@
         new window.DX3rdSkillEditDialog(options).render(true);
     }
 
-    // 로이스 Titus화. 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
-    // 채팅 '사용' 버튼(DX3rdRoisHandler.handle)과 동일하게 handleTitus를 직접 호출한다.
-    // handleItemUse 경유 시 비용 게이트 추가 부과 + instant 매크로 이중 실행 문제가 있어 직접 호출로 통일.
+    // Turning a Lois into a Titus. The previous sheets and the AppV2 actor sheet share this path.
+    // handleTitus is called directly, just as the chat 'use' button does (DX3rdRoisHandler.handle).
+    // Going through handleItemUse charges the cost gate again and double-runs instant macros, so the direct call is used everywhere.
     function useTitus(actor, item) {
         if (!window.DX3rdRoisHandler?.handleTitus) {
             ui.notifications.error(localize("DX3rd.RoisHandlerMissing"));
@@ -424,14 +424,14 @@
         return window.DX3rdRoisHandler.handleTitus(actor.id, item.id);
     }
 
-    // 아이템을 채팅으로 출력하기 전 게이트(권한만). 이전 시트/AppV2 액터 시트가 같은 경로를 쓴다.
-    // raw 전송(_sendItemToChat → DX3rdActorChat)은 외부 호출자(combat-ui/action-ui)도 직접 쓰므로
-    // 여기서는 게이트 판정만 반환하고 전송은 시트가 수행한다.
+    // The gate before printing an item to chat (permission only). The previous sheets and the AppV2 actor sheet share this path.
+    // The raw send (_sendItemToChat → DX3rdActorChat) is also used directly by external callers (combat-ui/action-ui),
+    // so this only returns the gate decision and the sheet performs the send.
     //
-    // 사용횟수 소진은 여기서 막지 않는다. 채팅 출력은 "정보 표시"(좌클릭 이름 / 우클릭 메뉴)이고
-    // 실제 사용이 아니다 — 소진된 이펙트의 카드조차 못 띄우면 효과문·사정거리를 확인할 수 없다.
-    // 소진 차단은 실제 사용 경로(UniversalHandler.handleItemUse 의 사용횟수 체크)가 담당하므로,
-    // 카드의 '사용' 버튼을 눌러도 여기 게이트 없이 정상적으로 거절된다.
+    // Exhaustion is not blocked here. Printing to chat is "showing information" (left-clicking the name / the
+    // right-click menu), not an actual use — not even being able to show an exhausted effect's card would make its
+    // effect text and range unreadable. Blocking on exhaustion is the job of the real use path (the use-count check in
+    // UniversalHandler.handleItemUse), so pressing the card's 'use' button is still refused properly without a gate here.
     function checkItemChatGate(actor, item) {
         if (!actor || !item) {
             return { ok: false, level: "warn", message: game.i18n.localize("DX3rd.NoPermission") };
@@ -442,8 +442,8 @@
         return { ok: true };
     }
 
-    // 아이템 사용/공격 굴림 dispatch. 현재는 AppV2 시트 전용 버튼이지만,
-    // V2 default 승격을 대비해 단일 테스트 경로를 확보한다(UniversalHandler 직접 호출 통일).
+    // The item use / attack roll dispatch. Today it is an AppV2-sheet-only button, but a single test path is secured
+    // in preparation for V2 becoming the default (unifying on the direct UniversalHandler call).
     function useItem(actor, item, roisAction = undefined, getTarget = undefined, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.handleItemUse) {
@@ -464,8 +464,8 @@
         return handler.handleAttackRoll(actor, item);
     }
 
-    // 대상 탭 효과와 자기 효과 탭을 구분해 적용한다. 자신이 타겟이고 둘 다 있으면
-    // UniversalHandler가 대상 효과/자기 효과 선택 메뉴를 제공한다.
+    // Target-tab effects and self-effect-tab effects are applied separately. When you are the target and both exist,
+    // UniversalHandler offers a target-effect / self-effect selection menu.
     function applyItemEffect(actor, item, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         if (!handler?.applyChosenItemEffect) {
@@ -486,21 +486,21 @@
         }
     }
 
-    // 효과 탭(system.attributes)과 대상 탭(system.effect.attributes)을 구분한다.
-    // 0과 false도 유효한 효과값이므로, 값의 진실값이 아닌 입력 여부로 판단한다.
+    // The effect tab (system.attributes) and the target tab (system.effect.attributes) are distinguished.
+    // 0 and false are valid effect values too, so the test is whether something was entered, not the value's truthiness.
     function hasUsableEffectAttributes(attributes) {
         return Object.values(attributes || {}).some(attribute =>
             attribute?.key && attribute.key !== "-" && String(attribute.value ?? "").trim() !== ""
         );
     }
 
-    // 활성 토글은 장착/사용과 별개로 유지되는 '상시 자기 효과'에만 의미가 있다.
-    // 장비는 equipment 체크가 원본이고, 상시가 아닌 아이템은 사용 액션이 발동점이며,
-    // 대상 효과는 효과 적용 경로로 실행하므로 모두 숨긴다.
-    // 발동형 로이스: 좌클릭 '사용'으로 발동한다(효과/사용형 아이템과 동일한 UX).
-    //  - 임베드 매크로(roisActivate 등)를 가졌거나,
-    //  - 자기 버프 attributes 가 있으면서 소멸 타이밍(active.disable)이 지정된 경우(major 등, 발동 후 소멸).
-    // 상시 버프(active.disable 이 '-'/'notCheck')는 발동형이 아니라 상시 토글로 다룬다.
+    // The active toggle only means something for an "always-on self effect" kept independently of equipping and using.
+    // For equipment the equipment checkbox is the source, for a non-always item the use action is the firing point,
+    // and target effects run through the apply-effect path, so all of those are hidden.
+    // An activated Lois: it fires from a left-click 'use' (the same UX as an effect or a usable item).
+    //  - it holds an embedded macro (roisActivate and the like), or
+    //  - it has self-buff attributes and an expiry timing (active.disable) set (major and the like — it expires after firing).
+    // An always-on buff (active.disable is '-'/'notCheck') is treated as an always-on toggle rather than an activated one.
     function roisHasActivation(item) {
         if (!item || item.type !== "rois") return false;
         const macros = item.system?.macros;
@@ -512,8 +512,8 @@
         return false;
     }
 
-    // 어댑터가 없을 때만 쓰는 폴백. 판정 규칙을 두 벌 유지하면 미묘하게 갈라져
-    // "토글도 없고 사용에도 안 걸리는" 이펙트가 생기므로, 평시에는 어댑터에게만 묻는다.
+    // The fallback used only when the adapter is absent. Keeping two copies of the test rule would let them diverge
+    // subtly and produce an effect with "no toggle and no firing on use", so normally only the adapter is asked.
     function activationSelfChannelFallback(item) {
         if (item?.system?.active?.action === "activation") return true;
         if ((item?.system?.active?.applyMode || "onUse") === "toggle") return true;
@@ -523,21 +523,27 @@
         return !hasUsableEffectAttributes(item.system?.effect?.attributes);
     }
 
-    // 활성 토글은 자기 보정이 '활성화' 채널인 아이템에만 의미가 있다.
-    // 장비는 equipment 체크가 원본이고, 사용 액션이 발동점인 아이템이나 대상 효과는
-    // 각자의 경로로 실행하므로 모두 숨긴다. 상시가 아니어도 자기 보정을 '활성화'로
-    // 저작했다면 토글이 발동/해제 채널이다 — 소멸 타이밍이 '-'면 자동 해제가 없어
-    // 토글이 없으면 켠 뒤 끌 수가 없다.
-    // 발동형 로이스: 좌클릭 '사용'으로 발동한다(효과/사용형 아이템과 동일한 UX).
+    // The active toggle only means something for an item whose self modifiers are on the 'activation' channel.
+    // For equipment the equipment checkbox is the source, and an item whose firing point is the use action, or a
+    // target effect, runs through its own path, so all of those are hidden. Even when it is not always-on, authoring
+    // the self modifiers as 'activation' makes the toggle the firing / release channel — with an expiry timing of '-'
+    // there is no automatic release, so without a toggle it could never be turned off once on.
+    // An activated Lois: it fires from a left-click 'use' (the same UX as an effect or a usable item).
     function usesSelfEffectActiveToggle(item) {
         if (!item || ["weapon", "protect", "vehicle"].includes(item.type)) return false;
-        // 로이스(D로이스 등)는 timing 필드가 없어 어댑터의 상시 판정 밖에 있다. 자체 '상시'
-        // 버프(attributes)가 저작돼 있으면 토글을 노출하고, 발동형(매크로/소멸타이밍)은 제외한다.
-        // 계산은 장비와 동일한 actor.js 자체계산 채널을 탄다.
+        // A Lois (a D-Lois and the like) has no timing field and so falls outside the adapter's always-on test. When it
+        // authors its own "always" buff (attributes) the toggle is exposed; an activated one (macro / expiry timing) is excluded.
+        // The calculation goes through the same actor.js own-computation channel as equipment.
         if (item.type === "rois") return hasUsableEffectAttributes(item.system?.attributes) && !roisHasActivation(item);
-        // 그릴 보정이 없으면 토글도 의미가 없다.
-        if (!hasUsableEffectAttributes(item.system?.attributes)) return false;
         const adapter = window.DX3rdItemEffectAdapter;
+        // A card bound to the 활성화 action needs a state to switch, whether or not the item also carries modifier
+        // rows. Requiring self modifiers first meant an effect whose only authored card was "create a weapon on
+        // activation" had no toggle anywhere — so active.state could never flip, and the activation router (which
+        // is what runs those cards) never fired. The card said 활성화 and activating it did nothing, because there
+        // was nothing to activate with.
+        if (adapter?.hasActionEffects?.(item, 'activation')) return true;
+        // With no modifiers to draw and nothing bound to activation, a toggle is meaningless.
+        if (!hasUsableEffectAttributes(item.system?.attributes)) return false;
         return adapter ? adapter.usesActivationSelfChannel(item) : activationSelfChannelFallback(item);
     }
 
@@ -557,7 +563,7 @@
         if (!item.system.encroach) item.system.encroach = { value: 0 };
         if (!item.system.level) item.system.level = { value: 0 };
 
-        // 렌더 전용 플래그다. Item 문서 데이터에는 저장되지 않는다.
+        // A render-only flag. It is never stored on the Item document data.
         item.showActiveToggle = usesSelfEffectActiveToggle(item);
         item.showRoisUse = roisHasActivation(item);
         if (item.system.used.disable === "notCheck") {
@@ -582,8 +588,8 @@
     }
 
     function categorizeItem(actorData, item) {
-        // 사용한 즉석 콤보는 후속/지속 효과의 출처 문서로만 존속한다. 일반 콤보처럼 다시
-        // 선택하거나 편집할 수 있게 노출하면 같은 임시 문서를 별도 행동으로 재사용하게 된다.
+        // An improvised combo that has been used lives on only as the source document for follow-up / persistent effects.
+        // Exposing it for reselection or editing like an ordinary combo would let the same temporary document be reused as a separate action.
         if (window.DX3rdIsInstantCombo?.(item)) return;
         if (item.type === "works") actorData.workList.push(item);
         else if (item.type === "syndrome") actorData.syndromeList.push(item);
@@ -639,6 +645,15 @@
         const appliedSource = window.DX3rdAppliedEffects?.collect
             ? window.DX3rdAppliedEffects.collect(actor)
             : (actor.system.attributes.applied ?? {});
+        // An AE can be both the item's modifier effect and the marker for what that item created — the two used to
+        // be separate documents with the same name and image, so "the effect" the user deleted was whichever one
+        // the list happened to show. Now the payload rides on the applied AE when there is one, and the row says so.
+        const grantHosts = window.DX3rdUniversalHandler?.grantPayload
+            ? actor.effects.filter(effect => window.DX3rdUniversalHandler.grantPayload(effect))
+            : [];
+        const grantedAppliedKeys = new Set(grantHosts
+            .map(effect => effect.getFlag?.("dx3rd-emanim", "appliedKey"))
+            .filter(Boolean));
         actorData.applied = Object.entries(appliedSource).map(([appliedKey, appliedEffect], index) => ({
             _id: appliedKey,
             name: appliedEffect.name || "알 수 없는 효과",
@@ -648,8 +663,26 @@
             },
             disable: appliedEffect.disable || "-",
             enabled: !appliedEffect._disabled,
+            // Removing this row also takes back what the item created (the payload is on this very document).
+            hasGrant: grantedAppliedKeys.has(appliedKey),
             appliedEffect
         }));
+
+        // Only the markers that could NOT be folded into an applied row get their own row — a create-only effect
+        // has no modifier AE to ride on, and fist grants stack, so one item can own several. They are a different
+        // kind of document (no applied key, no modifiers) and offer removal only: disabling one deliberately does
+        // nothing (see the marker contract in universal-extensions.js), so a toggle here would be a lie.
+        actorData.grants = grantHosts
+            .filter(effect => !effect.getFlag?.("dx3rd-emanim", "appliedKey"))
+            .map(effect => ({
+                _id: effect.id,
+                name: effect.name || game.i18n.localize("DX3rd.Effect"),
+                img: effect.img || "icons/svg/sword.svg",
+                description: game.i18n.localize(
+                    window.DX3rdUniversalHandler.grantPayload(effect)?.kind === "fist"
+                        ? "DX3rd.GrantFistDescription"
+                        : "DX3rd.GrantItemDescription")
+            }));
     }
 
     function prepareItemLevelDisplay(actor, itemData) {

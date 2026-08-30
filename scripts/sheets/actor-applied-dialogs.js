@@ -383,17 +383,21 @@
     return true;
   }
 
-  async function confirmRemove(applied) {
+  async function confirmRemove(applied, {hasGrant = false} = {}) {
     if (!DialogV2?.confirm) {
       ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
       return false;
     }
 
     const name = applied?.effect?.name || applied?.key || game.i18n.localize('DX3rd.Applied');
+    // 이 줄이 표식을 겸하고 있으면 지우는 범위가 보정만이 아니다 — 무엇이 함께 사라지는지 먼저 말한다.
+    const message = hasGrant
+      ? game.i18n.format('DX3rd.HudGrantRemoveConfirm', {name})
+      : game.i18n.format('DX3rd.ConfirmRemoveApplied', {name});
     return DialogV2.confirm({
       window: { title: game.i18n.localize('DX3rd.RemoveApplied') },
       classes: ['dx3rd-emanim', 'dialog'],
-      content: `<p>${escapeHTML(game.i18n.format('DX3rd.ConfirmRemoveApplied', {name}))}</p>`,
+      content: `<p>${escapeHTML(message)}</p>`,
       yes: {
         icon: '<i class="fas fa-trash"></i>',
         label: game.i18n.localize('DX3rd.Remove')
@@ -406,6 +410,20 @@
     });
   }
 
+  /**
+   * The source item of an applied effect. The payload carries it; the legacy key forms spell it out instead,
+   * so both are read — an old AE that predates the payload field still has to cascade correctly.
+   */
+  function appliedItemId(actor, applied) {
+    const fromPayload = applied?.effect?.itemId;
+    if (fromPayload) return fromPayload;
+    const key = String(applied?.key || '');
+    for (const prefix of ['toggle:', 'applied_self_', 'applied_']) {
+      if (key.startsWith(prefix)) return key.slice(prefix.length);
+    }
+    return null;
+  }
+
   async function remove(actor, appliedIdOrKey, {confirm = true} = {}) {
     const applied = findApplied(actor, appliedIdOrKey);
     if (!applied) {
@@ -414,9 +432,16 @@
     }
 
     if (confirm) {
-      const confirmed = await confirmRemove(applied);
+      const hasGrant = !!window.DX3rdUniversalHandler?.grantEffectsForItem?.(
+        actor, appliedItemId(actor, applied)).length;
+      const confirmed = await confirmRemove(applied, {hasGrant});
       if (!confirmed) return false;
     }
+
+    // 이 버튼은 「이 효과와 그것이 만든 것까지」 지우는 자리다 — 목록의 한 줄이 곧 한 AE 이고, 그 AE 가
+    // 보정과 장비 변경 표식을 함께 들고 있을 수 있다. 수명이 저절로 끝나는 경로(만료·비활성화)는 반대로
+    // 생성물을 지키므로(rehomeGrants), 파괴는 사용자가 명시적으로 누른 이 자리에서만 일어난다.
+    const grantItemId = appliedItemId(actor, applied);
 
     try {
       // 원본 아이템이 있는 AE를 제거하면 원본도 비활성화한다. AE만 지우면
@@ -424,13 +449,15 @@
       const sourceItem = window.DX3rdAppliedEffects?.getToggleSourceItem?.(actor, applied.key);
       if (sourceItem && window.DX3rdAppliedEffects?.setActive) {
         await window.DX3rdAppliedEffects.setActive(actor, applied.key, false);
+        await window.DX3rdUniversalHandler?.removeItemGrants?.(actor, grantItemId);
         ui.notifications.info(game.i18n.localize('DX3rd.AppliedRemoved'));
         return true;
       }
       // 네이티브 AE 우선 삭제, 없으면 레거시 필드 정리(전환기 대비)
       const removed = window.DX3rdAppliedEffects?.remove
-        ? await window.DX3rdAppliedEffects.remove(actor, applied.key)
+        ? await window.DX3rdAppliedEffects.remove(actor, applied.key, {keepGrants: false})
         : false;
+      await window.DX3rdUniversalHandler?.removeItemGrants?.(actor, grantItemId);
       if (!removed) {
         const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
         if (ForcedDeletion) {
@@ -450,12 +477,57 @@
     }
   }
 
+  /**
+   * Remove an equipment-change marker (`flags.dx3rd-emanim.itemGrant`).
+   *
+   * Kept apart from `remove` on purpose: a marker is not a modifier and has no applied key, no toggle source and
+   * no legacy field to fall back to. Deleting the AE is the whole operation — the `deleteActiveEffect` hook takes
+   * the created items back and re-aligns the fist. **Do not restore anything here**; two restore paths inevitably
+   * diverge (that is the same rule the combat/scene-control resets follow).
+   */
+  async function removeGrant(actor, effectId, {confirm = true} = {}) {
+    const effect = actor?.effects?.get?.(effectId);
+    const grant = window.DX3rdUniversalHandler?.grantPayload?.(effect);
+    if (!effect || !grant) {
+      ui.notifications.warn(game.i18n.localize('DX3rd.AppliedNotFound'));
+      return false;
+    }
+
+    if (confirm) {
+      if (!DialogV2?.confirm) {
+        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
+        return false;
+      }
+      const name = effect.name || game.i18n.localize('DX3rd.Effect');
+      const confirmed = await DialogV2.confirm({
+        window: { title: game.i18n.localize('DX3rd.RemoveApplied') },
+        classes: ['dx3rd-emanim', 'dialog'],
+        content: `<p>${escapeHTML(game.i18n.format('DX3rd.HudGrantRemoveConfirm', {name}))}</p>`,
+        yes: { icon: '<i class="fas fa-trash"></i>', label: game.i18n.localize('DX3rd.Remove') },
+        no: { icon: '<i class="fas fa-times"></i>', label: game.i18n.localize('DX3rd.Cancel') },
+        defaultYes: false
+      });
+      if (!confirmed) return false;
+    }
+
+    try {
+      await actor.deleteEmbeddedDocuments('ActiveEffect', [effect.id]);
+      ui.notifications.info(game.i18n.localize('DX3rd.AppliedRemoved'));
+      return true;
+    } catch (error) {
+      console.error('DX3rd | 장비 변경 표식 제거 실패:', error);
+      ui.notifications.error(game.i18n.localize('DX3rd.AppliedRemoveFailed'));
+      return false;
+    }
+  }
+
   window.DX3rdActorAppliedDialogs = {
     findApplied,
     renderDetails,
     open,
     edit,
     confirmRemove,
-    remove
+    remove,
+    removeGrant
   };
 })();

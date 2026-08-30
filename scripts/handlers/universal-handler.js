@@ -87,6 +87,72 @@
     },
 
     /**
+     * Does an ordinary attack with this equipment leave its cost and use count alone?
+     *
+     * For equipment, attacking and *using* are two different things: the gear's "on use" content fires when the
+     * player declares it, and an attack that never fires it must not be charged for it. The declaration UI's
+     * `isDeclarable` used to be the whole test, but it only recognises **modifier rows** — equipment whose use
+     * bucket holds an extension or a macro card instead (heal on use, a macro on use) fell through, so a plain
+     * attack spent a use of something the attack never ran (`processItemExtensions` filters on action, so the
+     * card itself stayed unfired). Any live card bound to 'use' therefore counts.
+     *
+     * **Equipment only.** For an effect or a combo, attacking IS the use — extending this to them would make an
+     * attack effect that also authors a use card cost nothing at all.
+     */
+    attackDefersUsage(item) {
+      if (!['weapon', 'protect', 'vehicle'].includes(item?.type)) return false;
+      if (window.DX3rdDeclaredEquipment?.isDeclarable?.(item)) return true;
+      return !!window.DX3rdItemEffectAdapter?.hasActionEffects?.(item, 'use');
+    },
+
+    /**
+     * Does this item's authored difficulty mean "there is nothing to roll against"?
+     *
+     * The 난이도 dropdown carries the target value, and two of its options say the use simply
+     * happens: 자동성공 (it succeeds with no roll) and '-'/blank (no target value authored).
+     * The other options — 대결 / a number / 효과참조 / free text — all name something the roll
+     * is measured against, so they keep the roll.
+     *
+     * This is a *skip* test only: it can turn a roll off, never on. An item whose roll toggle is
+     * '-' stays no-roll no matter what the difficulty says (there are 348 compendium effects
+     * authored 대결 with roll '-' — combo members whose contest belongs to the combo, not to a
+     * standalone use of the member).
+     *
+     * The classification comes from DX3rdRangeTarget so the sheet dropdown and this gate cannot
+     * drift apart; the fallback covers the load order in which that script is not yet present.
+     */
+    skipsRollByDifficulty(item) {
+      const raw = String(item?.system?.difficulty ?? '').trim();
+      const option = window.DX3rdRangeTarget?.classifyDifficulty?.(raw)?.option
+        ?? (raw === '' ? '-' : raw);
+      return option === '-' || option === '자동성공';
+    },
+
+    /** Is the item's 대상 field the canonical self value? (parsed by DX3rdRangeTarget, so synonyms count) */
+    itemTargetsSelf(item) {
+      const raw = item?.system?.target;
+      if (raw === undefined || raw === null || String(raw).trim() === '') return false;
+      const info = window.DX3rdRangeTarget?.targetInfo?.(raw);
+      return info ? !!info.self : String(raw).trim() === '자신';
+    },
+
+    /**
+     * Target the caster's own token for this user, as if they had pressed T on it.
+     * Returns the resulting target list (empty when the actor has no token on the canvas —
+     * the caller then falls back to the ordinary "pick a target" warning rather than pretending).
+     */
+    autoTargetSelf(actor) {
+      const token = actor?.getActiveTokens?.(true, false)?.[0] || actor?.getActiveTokens?.()?.[0];
+      if (!token) {
+        window.DX3rdDebug.log('DX3rd | autoTargetSelf - no token on canvas for', actor?.name);
+        return [];
+      }
+      token.setTarget(true, {user: game.user, releaseOthers: true});
+      window.DX3rdDebug.log('DX3rd | autoTargetSelf - self-targeted', token.name);
+      return Array.from(game.user.targets || []);
+    },
+
+    /**
      * Resolve the roll stat and its display label from the item's system.skill.
      * Handles attributes (body/sense/mind/social), syndrome, and normal/custom skills.
      * Shared by effect/psionic — psionic held two stale inline copies that were missing
@@ -130,6 +196,20 @@
       }
 
       return { stat: null, label: '' };
+    },
+
+    /**
+     * The roll profile for an item that names no 기능 but whose 난이도 still demands a roll
+     * ("기능 -, 난이도 대결"): an empty pool the player fills in from the dialog.
+     * Not a fallback for a *misspelled* skill — that stays an error, because there the authored
+     * intent exists and silently rolling zero dice would hide it.
+     */
+    blankRollStat() {
+      return {
+        dice: 0,
+        critical: game.settings.get('dx3rd-emanim', 'defaultCritical') || 10,
+        add: 0
+      };
     },
 
     /**
@@ -1897,7 +1977,15 @@
       });
       
       if (requiresTarget) {
-        const targets = Array.from(game.user.targets || []);
+        let targets = Array.from(game.user.targets || []);
+        // "대상: 자신" already names the target — the caster. Making the player press T on their own
+        // token to satisfy the gate is busywork that silently blocks the use when they forget, so the
+        // self-target is toggled for them, exactly as if they had pressed it (every downstream step
+        // reads game.user.targets, so nothing else has to know). manualTargetOtherOnly items are the
+        // opposite case — self is not a legal target there — and are left alone.
+        if (targets.length === 0 && !manualTargetOtherOnly && this.itemTargetsSelf(item)) {
+          targets = this.autoTargetSelf(actor);
+        }
         if (targets.length === 0) {
           window.DX3rdDebug.log('DX3rd | Item use blocked - no targets selected (highlight preserved)');
           ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
@@ -1975,8 +2063,7 @@
       // here too would burn a once-per-scenario use on an ordinary shot, and the bonus would not
       // even apply, the action being different. The test is the same function the declaration UI
       // uses (isDeclarable), so "listed there" and "free here" cannot diverge.
-      const declarationOnly = action === 'attack'
-        && !!window.DX3rdDeclaredEquipment?.isDeclarable?.(item);
+      const declarationOnly = action === 'attack' && this.attackDefersUsage(item);
 
       if (!declarationOnly) {
         const usageAllowed = await this.processItemUsageCost(actor, item, {

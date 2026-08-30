@@ -1,28 +1,28 @@
 /**
- * DX3rd 상태이상 관리
- * 기존 Foundry VTT의 기본 상태이상을 제거하고 DX3rd 전용 상태이상을 설정합니다.
+ * DX3rd status condition management
+ * Removes Foundry VTT's default status effects and installs the DX3rd-specific ones.
  */
 
 /**
- * 상태이상 적용 핸들러
+ * The condition application handler
  */
-// 취소 시 메시지 출력 방지를 위한 플래그
+// A flag that suppresses the message when the dialog is cancelled
 let _cancellingCondition = false;
 
-/** 액터만 스피커로 반환. 구현은 DX3rdRuntimeUtils에 있다. */
+/** Return the actor alone as the speaker. The implementation lives in DX3rdRuntimeUtils. */
 function getActorOnlySpeaker(actor) {
   return window.DX3rdRuntimeUtils.getActorOnlySpeaker(actor);
 }
 
 /**
- * 상태이상 입력 다이얼로그(확인/취소) 공용 헬퍼.
- * 레거시 이전 시트 `Dialog`를 AppV2 `DialogV2`로 대체하되 동작(확인 시 폼 읽기, 취소 시 이펙트 제거,
- * X 닫기 시 콜백 미실행)은 원본과 동일하게 유지한다.
+ * The shared helper for a condition input dialog (confirm / cancel).
+ * Replaces the legacy sheet `Dialog` with the AppV2 `DialogV2` while keeping the behavior identical
+ * (read the form on confirm, delete the effect on cancel, run no callback when closed with X).
  * @param {object} opts
- * @param {string} opts.title            창 제목
- * @param {string} opts.content          다이얼로그 HTML
- * @param {(root: HTMLElement) => Promise<void>|void} opts.onConfirm  확인 콜백. 인자는 다이얼로그 루트 엘리먼트.
- * @param {() => Promise<void>|void} opts.onCancel                    취소(확인 아님) 콜백.
+ * @param {string} opts.title            the window title
+ * @param {string} opts.content          the dialog HTML
+ * @param {(root: HTMLElement) => Promise<void>|void} opts.onConfirm  the confirm callback; its argument is the dialog root element.
+ * @param {() => Promise<void>|void} opts.onCancel                    the cancel (not-confirm) callback.
  */
 function _showConditionDialog({ title, content, onConfirm, onCancel }) {
   const DialogV2 = foundry.applications?.api?.DialogV2;
@@ -52,45 +52,45 @@ function _showConditionDialog({ title, content, onConfirm, onCancel }) {
 }
 
 /**
- * 토큰에 Death Mark 오버레이 추가
+ * Add the Death Mark overlay to a token
  */
 async function addDeathMarkToToken(token) {
   if (!token || !canvas.ready) return;
   
-  // 이미 death mark가 있으면 추가하지 않음
+  // Do not add one when a death mark is already present
   if (token.dx3rdDeathMark) return;
   
   try {
     const iconPath = game.settings.get('dx3rd-emanim', 'deathMarkIcon') || 'icons/svg/skull.svg';
     
-    // PIXI Container 생성
+    // Create the PIXI Container
     const container = new PIXI.Container();
     container.name = 'dx3rd-death-mark';
     
-    // 중앙 위치 계산
+    // The center position
     const centerX = token.w / 2;
     const centerY = token.h / 2;
     
-    // 아이콘 크기
+    // The icon size
     const iconSize = Math.min(token.w, token.h);
     
-    // 스프라이트 생성
-    // v13/v14 호환: foundry.canvas.loadTexture 폴백 처리
+    // Create the sprite
+    // v13/v14 compatibility: fall back for foundry.canvas.loadTexture
     const _loadTexture = foundry.canvas?.loadTexture ?? globalThis.loadTexture;
     const texture = await _loadTexture(iconPath);
     const sprite = new PIXI.Sprite(texture);
     
-    // 스프라이트 크기 및 위치 조정
+    // Size and position the sprite
     sprite.width = iconSize;
     sprite.height = iconSize;
     sprite.anchor.set(0.5);
     sprite.x = centerX;
     sprite.y = centerY;
     
-    // 컨테이너에 추가
+    // Add it to the container
     container.addChild(sprite);
     
-    // 토큰에 추가
+    // Add it to the token
     token.addChild(container);
     token.dx3rdDeathMark = container;
   } catch (error) {
@@ -99,7 +99,7 @@ async function addDeathMarkToToken(token) {
 }
 
 /**
- * 토큰에서 Death Mark 오버레이 제거
+ * Remove the Death Mark overlay from a token
  */
 function removeDeathMarkFromToken(token) {
   if (!token || !token.dx3rdDeathMark) return;
@@ -115,12 +115,12 @@ function removeDeathMarkFromToken(token) {
 }
 
 /**
- * suppress(시각 동기화) 경로에서도 팔레트 경로와 동일한 "생성 시 기계적 부수효과"를 적용한다.
- * 채팅 메시지/다이얼로그 없이, 상태에 종속된 부수효과만 반영한다.
- * - dead: 토큰에 death mark 추가 + 타 클라이언트 동기화(handleConditionToggle의 dead 분기와 동일)
- * - dazed: dice -2 applied 효과(handleConditionToggle의 dazed 분기와 동일)
- * (berserk의 파괴적/연쇄 효과나 poisoned 랭크 다이얼로그 등은 시각 동기화 경로에서 실행하지 않는다 —
- *  이는 팔레트/아이템 경로에서만 적용된다.)
+ * Apply the same "mechanical side effects on creation" as the palette path, on the suppress (visual sync) path too.
+ * Only the state-dependent side effects are reflected — no chat message, no dialog.
+ * - dead: add the death mark to the token and sync to the other clients (identical to handleConditionToggle's dead branch)
+ * - dazed: the dice -2 applied effect (identical to handleConditionToggle's dazed branch)
+ * (berserk's destructive / chained effects, the poisoned rank dialog and the like are NOT run on the visual sync path —
+ *  those apply on the palette / item path only.)
  */
 async function applyConditionCreateSideEffects(actor, conditionId) {
   if (!actor) return;
@@ -152,17 +152,17 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
   const actor = token.actor;
   if (!actor) return;
   
-  // 증오 처리
+  // Hatred handling
   if (conditionId === "hatred") {
     if (isActive) {
-      // specialTarget이 있으면 다이얼로그 건너뛰고 바로 적용
+      // With a specialTarget, skip the dialog and apply it right away
       if (specialTarget) {
         await actor.update({
           "system.conditions.hatred.active": true,
           "system.conditions.hatred.target": specialTarget
         });
         
-        // 채팅 메시지 출력
+        // Emit the chat message
         let messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${specialTarget}) ${game.i18n.localize("DX3rd.Apply")}`;
         if (triggerItemName) {
           const clean = String(triggerItemName).split('||')[0];
@@ -176,7 +176,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 현재 장면의 다른 토큰들 가져오기
+      // Fetch the other tokens in the current scene
       const currentScene = game.scenes.active;
       if (!currentScene) {
         ui.notifications.warn(game.i18n.localize('DX3rd.NoActiveScene'));
@@ -185,7 +185,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 자신을 제외한 공개된 토큰들 가져오기
+      // Fetch the visible tokens other than this one
       const otherTokens = currentScene.tokens
         .filter(t => t.actor && t.actor.id !== actor.id && !t.hidden)
         .map(t => ({ id: t.id, name: t.name }))
@@ -198,9 +198,9 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 드롭다운 옵션 생성
-      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
-      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      // Build the dropdown options.
+      // Escape the token names so markup in one cannot break the select structure.
+      // The parser decodes it back (.value returns the original), so comparing the selected value still works.
       const options = otherTokens.map(t => {
         const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
         return `<option value="${safe}">${safe}</option>`;
@@ -251,9 +251,9 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             "system.conditions.hatred.target": targetName
           });
 
-          // 채팅 메시지 출력.
-          // 토큰 이름은 사용자 입력이고 채팅 내용은 접속한 모든 클라이언트에서 HTML로 렌더되므로,
-          // 넣기 직전에 이스케이프한다(universal-damage.js의 safeDamageText와 같은 규약).
+          // Emit the chat message.
+          // A token name is user input and chat content is rendered as HTML on every connected client,
+          // so it is escaped right before insertion (the same convention as safeDamageText in universal-damage.js).
           const safeTargetName = window.DX3rdRuntimeUtils.escapeHTML(targetName);
           const messageContent = `${game.i18n.localize("DX3rd.Hatred")}(${safeTargetName}) ${game.i18n.localize("DX3rd.Apply")}`;
 
@@ -270,16 +270,16 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제: conditions 필드 원복은 항상 수행한다.
-      // (시트 체크박스로 켠 뒤 다이얼로그를 취소한 경우 active 가 true 로 남아 오버레이와
-      //  어긋나므로, _cancellingCondition 여부와 무관하게 false 로 되돌린다. active 가 이미
-      //  false 면 no-op diff 라 팔레트 취소 경로에는 영향이 없다.)
+      // Clearing: the conditions field is always restored.
+      // (When it was turned on from the sheet checkbox and the dialog was then cancelled, active would stay true and
+      //  disagree with the overlay — so it is reset to false regardless of _cancellingCondition. When active is already
+      //  false this is a no-op diff, so the palette cancel path is unaffected.)
       await actor.update({
         "system.conditions.hatred.active": false,
         "system.conditions.hatred.target": ""
       });
 
-      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      // The chat message is emitted only when this is neither a cancel nor a suppress
       if (!_cancellingCondition && !suppressMessage) {
         const messageContent = `${game.i18n.localize("DX3rd.Hatred")} ${game.i18n.localize("DX3rd.Clear")}`;
 
@@ -291,10 +291,10 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 폭주 처리
+  // Berserk handling
   if (conditionId === "berserk") {
     if (isActive) {
-      // 폭주 타입 옵션
+      // The berserk type options
       const berserkTypes = [
         { value: "normal", label: game.i18n.localize("DX3rd.Normal") },
         { value: "release", label: game.i18n.localize("DX3rd.UrgeRelease") },
@@ -311,7 +311,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         { value: "hatred", label: game.i18n.localize("DX3rd.UrgeHatred") }
       ];
       
-      // specialTarget이 있으면 다이얼로그 건너뛰고 바로 적용
+      // With a specialTarget, skip the dialog and apply it right away
       if (specialTarget) {
         const selectedType = berserkTypes.find(t => t.value === specialTarget) || berserkTypes[0];
         
@@ -320,7 +320,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.berserk.type": selectedType.value
         };
         
-        // 기아(hunger) 타입이면 dice -5 패널티 적용
+        // The hunger type applies a dice -5 penalty
         if (selectedType.value === 'hunger') {
           await window.DX3rdAppliedEffects.set(actor, 'berserk_hunger', {
             name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeHunger'),
@@ -331,7 +331,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           });
         }
 
-        // 가학(tourture) 타입이면 attack -20 패널티 적용
+        // The torture type applies an attack -20 penalty
         if (selectedType.value === 'tourture') {
           await window.DX3rdAppliedEffects.set(actor, 'berserk_tourture', {
             name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeTourture'),
@@ -342,7 +342,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           });
         }
         
-        // 자해(selfmutilation) 타입이면 HP -5 데미지 (경감 무시, 최대 HP까지만)
+        // The self-mutilation type deals HP -5 damage (reduction ignored, capped at max HP)
         if (selectedType.value === 'selfmutilation') {
           const currentHP = actor.system.attributes.hp.value || 0;
           const maxHP = actor.system.attributes.hp.max || 0;
@@ -351,7 +351,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           
           await actor.update({ "system.attributes.hp.value": newHP });
           
-          // HP 데미지 메시지 출력
+          // Emit the HP damage message
           let damageMessage = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}: HP -${damage}`;
           if (triggerItemName) {
             const clean = String(triggerItemName).split('||')[0];
@@ -363,13 +363,13 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             speaker: getActorOnlySpeaker(actor)
           });
           
-          // 폭주 상태이상만 제거 (메시지 없음)
+          // Remove the berserk status alone (no message)
           const effectsToRemove = actor.effects.filter(e => {
             const statuses = Array.from(e.statuses || []);
             return statuses.some(s => ['berserk'].includes(s));
           });
           
-          // suppressMessage를 true로 설정하여 해제 메시지 방지
+          // Set suppressMessage to true so no clear message is emitted
           window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
           for (const eff of effectsToRemove) {
             const key = `${actor.id}:berserk`;
@@ -377,15 +377,15 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             await eff.delete();
           }
 
-          // 폭주 이펙트 삭제 → deleteActiveEffect 훅이 berserk.active:false로 정리한다.
-          // 여기서 updates(active:true)를 쓰면 훅의 active:false와 레이스가 나
-          // orphan 플래그(아이콘 없이 active:true)가 남을 수 있으므로 재설정 없이 종료.
+          // Delete the berserk effect → the deleteActiveEffect hook cleans up with berserk.active:false.
+          // Writing updates (active:true) here would race the hook's active:false and could leave an
+          // orphan flag (active:true with no icon), so we finish without re-setting it.
           return;
         }
 
         await actor.update(updates);
         
-        // 채팅 메시지 출력
+        // Emit the chat message
         let messageContent = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}`;
         if (triggerItemName) {
           const clean = String(triggerItemName).split('||')[0];
@@ -397,12 +397,12 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           speaker: getActorOnlySpeaker(actor)
         });
         
-        // 폭주 fear 타입이면 rigor도 함께 적용 (폭주 메시지 이후)
+        // The berserk fear type applies rigor as well (after the berserk message)
         if (selectedType.value === 'fear') {
           await actor.toggleStatusEffect("rigor", { active: true });
         }
         
-        // 폭주 hatred 타입이면 일반 hatred도 함께 적용 (폭주 메시지 이후)
+        // The berserk hatred type applies ordinary hatred as well (after the berserk message)
         if (selectedType.value === 'hatred') {
           await actor.toggleStatusEffect("hatred", { active: true });
         }
@@ -410,7 +410,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 드롭다운 옵션 생성
+      // Build the dropdown options
       const options = berserkTypes.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
       
       const template = `
@@ -460,7 +460,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                 "system.conditions.berserk.type": berserkType
               };
               
-              // 기아(hunger) 타입이면 dice -5 패널티 적용
+              // The hunger type applies a dice -5 penalty
               if (berserkType === 'hunger') {
                 await window.DX3rdAppliedEffects.set(actor, 'berserk_hunger', {
                   name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeHunger'),
@@ -471,7 +471,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                 });
               }
 
-              // 가학(tourture) 타입이면 attack -20 패널티 적용
+              // The torture type applies an attack -20 penalty
               if (berserkType === 'tourture') {
                 await window.DX3rdAppliedEffects.set(actor, 'berserk_tourture', {
                   name: game.i18n.localize('DX3rd.Mutation') + ': ' + game.i18n.localize('DX3rd.UrgeTourture'),
@@ -482,7 +482,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                 });
               }
               
-              // 자해(selfmutilation) 타입이면 HP -5 데미지 (경감 무시, 최대 HP까지만)
+              // The self-mutilation type deals HP -5 damage (reduction ignored, capped at max HP)
               if (berserkType === 'selfmutilation') {
                 const currentHP = actor.system.attributes.hp.value || 0;
                 const maxHP = actor.system.attributes.hp.max || 0;
@@ -491,7 +491,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                 
                 await actor.update({ "system.attributes.hp.value": newHP });
                 
-                // HP 데미지 메시지 출력
+                // Emit the HP damage message
                 let damageMessage = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}: HP -${damage}`;
                 if (triggerItemName) {
                   const clean = String(triggerItemName).split('||')[0];
@@ -503,13 +503,13 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                   speaker: getActorOnlySpeaker(actor)
                 });
                 
-                // 폭주 상태이상만 제거 (메시지 없음)
+                // Remove the berserk status alone (no message)
                 const effectsToRemove = actor.effects.filter(e => {
                   const statuses = Array.from(e.statuses || []);
                   return statuses.some(s => ['berserk'].includes(s));
                 });
                 
-                // suppressMessage를 true로 설정하여 해제 메시지 방지
+                // Set suppressMessage to true so no clear message is emitted
                 window.DX3rdConditionTriggerMap = window.DX3rdConditionTriggerMap || new Map();
                 for (const eff of effectsToRemove) {
                   const key = `${actor.id}:berserk`;
@@ -517,15 +517,15 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                   await eff.delete();
                 }
 
-                // 폭주 이펙트 삭제 → deleteActiveEffect 훅이 berserk.active:false로 정리한다.
-                // 여기서 updates(active:true)를 쓰면 훅의 active:false와 레이스가 나
-                // orphan 플래그(아이콘 없이 active:true)가 남을 수 있으므로 재설정 없이 종료.
+                // Delete the berserk effect → the deleteActiveEffect hook cleans up with berserk.active:false.
+                // Writing updates (active:true) here would race the hook's active:false and could leave an
+                // orphan flag (active:true with no icon), so we finish without re-setting it.
                 return;
               }
 
               await actor.update(updates);
               
-              // 채팅 메시지 출력 (트리거 아이템 이름 반영)
+              // Emit the chat message (with the trigger item's name)
               let messageContent = `${game.i18n.localize("DX3rd.Berserk")}(${selectedType.label}) ${game.i18n.localize("DX3rd.Apply")}`;
               if (triggerItemName) {
                 const clean = String(triggerItemName).split('||')[0];
@@ -537,12 +537,12 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
                 speaker: getActorOnlySpeaker(actor)
               });
               
-              // 폭주 fear 타입이면 rigor도 함께 적용 (폭주 메시지 이후)
+              // The berserk fear type applies rigor as well (after the berserk message)
               if (berserkType === 'fear') {
                 await actor.toggleStatusEffect("rigor", { active: true });
               }
               
-              // 폭주 hatred 타입이면 일반 hatred도 함께 적용 (폭주 메시지 이후)
+              // The berserk hatred type applies ordinary hatred as well (after the berserk message)
               if (berserkType === 'hatred') {
                 await actor.toggleStatusEffect("hatred", { active: true });
               }
@@ -555,16 +555,16 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제: 상태이상 필드 원복 + applied 효과 제거는 항상 수행한다.
-      // (시트 체크박스로 켠 뒤 유형 다이얼로그를 취소한 경우 active 가 true 로 남는 것을 방지.
-      //  active 가 이미 false 면 no-op diff.)
+      // Clearing: restoring the status fields and removing the applied effect are always done.
+      // (Prevents active staying true when it was turned on from the sheet checkbox and the type dialog was cancelled.
+      //  When active is already false this is a no-op diff.)
       await actor.update({
         "system.conditions.berserk.active": false,
         "system.conditions.berserk.type": "-"
       });
       await window.DX3rdAppliedEffects.removeMany(actor, ['berserk_hunger', 'berserk_tourture']);
 
-      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      // The chat message is emitted only when this is neither a cancel nor a suppress
       if (!_cancellingCondition && !suppressMessage) {
         const messageContent = `${game.i18n.localize("DX3rd.Berserk")} ${game.i18n.localize("DX3rd.Clear")}`;
 
@@ -576,17 +576,17 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 공포 처리
+  // Fear handling
   if (conditionId === "fear") {
     if (isActive) {
-      // specialTarget이 있으면 다이얼로그 건너뛰고 바로 적용
+      // With a specialTarget, skip the dialog and apply it right away
       if (specialTarget) {
         await actor.update({
           "system.conditions.fear.active": true,
           "system.conditions.fear.target": specialTarget
         });
         
-        // 채팅 메시지 출력
+        // Emit the chat message
         let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${specialTarget}) ${game.i18n.localize("DX3rd.Apply")}`;
         if (triggerItemName) {
           const clean = String(triggerItemName).split('||')[0];
@@ -600,7 +600,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 현재 장면의 다른 토큰들 가져오기
+      // Fetch the other tokens in the current scene
       const currentScene = game.scenes.active;
       if (!currentScene) {
         ui.notifications.warn(game.i18n.localize('DX3rd.NoActiveScene'));
@@ -609,7 +609,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 자신을 제외한 공개된 토큰들 가져오기
+      // Fetch the visible tokens other than this one
       const otherTokens = currentScene.tokens
         .filter(t => t.actor && t.actor.id !== actor.id && !t.hidden)
         .map(t => ({ id: t.id, name: t.name }))
@@ -622,9 +622,9 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         return;
       }
       
-      // 드롭다운 옵션 생성
-      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
-      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
+      // Build the dropdown options.
+      // Escape the token names so markup in one cannot break the select structure.
+      // The parser decodes it back (.value returns the original), so comparing the selected value still works.
       const options = otherTokens.map(t => {
         const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
         return `<option value="${safe}">${safe}</option>`;
@@ -675,9 +675,9 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             "system.conditions.fear.target": targetName
           });
 
-          // 채팅 메시지 출력.
-          // 토큰 이름·아이템 이름 모두 사용자 입력이고 채팅 내용은 접속한 모든 클라이언트에서
-          // HTML로 렌더되므로, 넣기 직전에 이스케이프한다(증오 경로와 동일 규약).
+          // Emit the chat message.
+          // Token names and item names are both user input and chat content is rendered as HTML on every
+          // connected client, so they are escaped right before insertion (the same convention as the hatred path).
           const safeTargetName = window.DX3rdRuntimeUtils.escapeHTML(targetName);
           let messageContent = `${game.i18n.localize("DX3rd.Fear")}(${safeTargetName}) ${game.i18n.localize("DX3rd.Apply")}`;
           if (triggerItemName) {
@@ -698,14 +698,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제: conditions 필드 원복은 항상 수행(시트 체크박스 켠 뒤 다이얼로그 취소 대비).
-      // active 가 이미 false 면 no-op diff.
+      // Clearing: the conditions field is always restored (in case the sheet checkbox was ticked and the dialog cancelled).
+      // When active is already false this is a no-op diff.
       await actor.update({
         "system.conditions.fear.active": false,
         "system.conditions.fear.target": ""
       });
 
-      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      // The chat message is emitted only when this is neither a cancel nor a suppress
       if (!_cancellingCondition && !suppressMessage) {
         const messageContent = `${game.i18n.localize("DX3rd.Fear")} ${game.i18n.localize("DX3rd.Clear")}`;
 
@@ -717,14 +717,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 경직 처리
+  // Rigor handling
   if (conditionId === "rigor") {
     if (isActive) {
       await actor.update({
         "system.conditions.rigor.active": true
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Rigor")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -741,7 +741,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.rigor.active": false
         });
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Rigor")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -754,14 +754,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 중압 처리
+  // Pressure handling
   if (conditionId === "pressure") {
     if (isActive) {
       await actor.update({
         "system.conditions.pressure.active": true
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Pressure")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -778,7 +778,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.pressure.active": false
         });
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Pressure")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -791,10 +791,10 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 방심 처리
+  // Dazed handling
   if (conditionId === "dazed") {
     if (isActive) {
-      // applied 효과 추가 (dice -2) - 네이티브 ActiveEffect
+      // Add the applied effect (dice -2) as a native ActiveEffect
       await actor.update({ "system.conditions.dazed.active": true });
       await window.DX3rdAppliedEffects.set(actor, 'dazed', {
         name: game.i18n.localize('DX3rd.Dazed'),
@@ -804,7 +804,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         disable: '-'
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Dazed")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -817,11 +817,11 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
               });
     } else {
       if (!_cancellingCondition) {
-        // 상태이상과 applied 효과 모두 제거
+        // Remove both the status and the applied effect
         await actor.update({ "system.conditions.dazed.active": false });
         await window.DX3rdAppliedEffects.remove(actor, 'dazed');
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Dazed")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -834,14 +834,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 탑승 처리
+  // Boarding handling
   if (conditionId === "boarding") {
     if (isActive) {
       await actor.update({
         "system.conditions.boarding.active": true
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Boarding")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -858,7 +858,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.boarding.active": false
         });
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Boarding")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -871,14 +871,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 은밀 처리
+  // Stealth handling
   if (conditionId === "stealth") {
     if (isActive) {
       await actor.update({
         "system.conditions.stealth.active": true
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Stealth")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -895,7 +895,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.stealth.active": false
         });
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Stealth")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -908,14 +908,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 비행 처리
+  // Flight handling
   if (conditionId === "fly") {
     if (isActive) {
       await actor.update({
         "system.conditions.fly.active": true
       });
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Fly")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -932,7 +932,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.fly.active": false
         });
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Fly")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -945,14 +945,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 전투불능 처리
+  // Defeated handling
   if (conditionId === "dead") {
     if (isActive) {
       await actor.update({
         "system.conditions.defeated.active": true
       });
       
-      // 현재 장면의 해당 액터의 모든 토큰에 death mark 추가
+      // Add a death mark to every token of this actor in the current scene
       if (canvas.scene) {
         const tokens = canvas.scene.tokens.filter(t => t.actorId === actor.id);
         for (const tokenDoc of tokens) {
@@ -961,7 +961,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             await addDeathMarkToToken(tokenObj);
             tokenObj.refresh();
             
-            // 다른 클라이언트에도 death mark 추가
+            // Add the death mark on the other clients too
             window.DX3rdSocketRouter.emit({
               type: 'addDeathMark',
               data: {
@@ -973,7 +973,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       }
       
-      // 채팅 메시지 출력
+      // Emit the chat message
       let messageContent = `${game.i18n.localize("DX3rd.Defeated")} ${game.i18n.localize("DX3rd.Apply")}`;
       if (triggerItemName) {
         const clean = String(triggerItemName).split('||')[0];
@@ -990,7 +990,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           "system.conditions.defeated.active": false
         });
         
-        // 현재 장면의 해당 액터의 모든 토큰에서 death mark 제거
+        // Remove the death mark from every token of this actor in the current scene
         if (canvas.scene) {
           const tokens = canvas.scene.tokens.filter(t => t.actorId === actor.id);
           for (const tokenDoc of tokens) {
@@ -999,7 +999,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
               removeDeathMarkFromToken(tokenObj);
               tokenObj.refresh();
               
-              // 다른 클라이언트에도 death mark 제거
+              // Remove the death mark on the other clients too
               window.DX3rdSocketRouter.emit({
                 type: 'removeDeathMark',
                 data: {
@@ -1011,7 +1011,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           }
         }
         
-        // 채팅 메시지 출력 (suppressMessage가 false일 때만)
+        // Emit the chat message (only when suppressMessage is false)
         if (!suppressMessage) {
           const messageContent = `${game.i18n.localize("DX3rd.Defeated")} ${game.i18n.localize("DX3rd.Clear")}`;
           
@@ -1024,29 +1024,29 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
     }
   }
   
-  // 사독 처리
+  // Poison handling
   if (conditionId === "poisoned") {
     if (isActive) {
-      // 전역 대기 큐에서 트리거와 랭크 후보 회수
+      // Recover the trigger and the candidate rank from the global pending queue
       let triggerFromMap = null;
       let rankFromMap = null;
       if (window.DX3rdConditionTriggerMap) {
         const key = `${actor.id}:${conditionId}`;
         triggerFromMap = window.DX3rdConditionTriggerMap.get(key) || null;
-        // poisonedRank 별도 맵이 없으니 trigger 맵을 재사용해 전달 불가 → 아래에서 triggerItemName 인자로 받은 값을 사용
+        // There is no separate poisonedRank map and the trigger map cannot carry it → the triggerItemName argument received below is used instead
       }
-      // handleConditionToggle 인자의 triggerItemName 우선 사용
+      // The triggerItemName argument of handleConditionToggle takes precedence
       const triggerName = triggerItemName || triggerFromMap || null;
-      // 익스텐드에서 랭크를 전달했다면 다이얼로그 없이 적용
-      // 매개변수로 직접 전달된 poisonedRank를 우선 사용 (이미 사독이 있을 때)
+      // When the extension passed a rank, apply it without a dialog
+      // A poisonedRank passed directly as a parameter wins (when poison is already present)
       const passedRank = poisonedRank || game?.dx3rd?.pendingPoisonedRank || null;
       if (passedRank) {
-        // 기존 랭크와 비교하여 높은 쪽을 유지
+        // Compare with the existing rank and keep the higher one
         const currentRank = Number(actor.system?.conditions?.poisoned?.value || 0);
         let newRank = 0;
         try {
           const clean = String(passedRank).trim();
-          // UniversalHandler에서 숫자로 전달하는 것이 원칙이지만, 혹시 문자열 포뮬러가 도착하면 여기서도 한 번 더 평가 시도
+          // UniversalHandler is expected to pass a number, but should a string formula arrive, try evaluating it once more here
           if (typeof window.DX3rdFormulaEvaluator?.evaluate === 'function' && /\[/.test(clean)) {
             const dummyItem = { type: 'effect', system: { level: { value: 1 } } };
             const evaluated = window.DX3rdFormulaEvaluator.evaluate(clean, dummyItem, actor);
@@ -1070,11 +1070,11 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           }
           ChatMessage.create({ content: `<div class="dx3rd-item-chat">${msg}</div>`, speaker: getActorOnlySpeaker(actor) });
         }
-        // 1회성 전달값 초기화
+        // Clear the one-shot handoff value
         if (game.dx3rd) game.dx3rd.pendingPoisonedRank = null;
         return;
       }
-      // 다이얼로그 표시 (전달값이 없는 경우)
+      // Show the dialog (when nothing was handed in)
       const template = `
         <div class="condition-rank-dialog">
           <div class="form-group">
@@ -1116,7 +1116,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
             "system.conditions.poisoned.value": rank
           });
 
-          // 채팅 메시지 출력 (트리거 아이템 이름 반영)
+          // Emit the chat message (with the trigger item's name)
           let messageContent = `${game.i18n.localize("DX3rd.Poisoned")}(Rank.${rank}) ${game.i18n.localize("DX3rd.Apply")}`;
           if (triggerName) {
             const clean = String(triggerName).split('||')[0];
@@ -1129,7 +1129,7 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
           });
         },
         onCancel: async () => {
-          // 상태이상 이펙트 제거
+          // Remove the status effect
           _cancellingCondition = true;
           const effect = actor.effects.find(e => e.statuses.has("poisoned"));
           if (effect) await effect.delete();
@@ -1137,14 +1137,14 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
         }
       });
     } else {
-      // 해제: conditions 필드 원복은 항상 수행(시트 체크박스 켠 뒤 랭크 다이얼로그 취소 대비).
-      // active 가 이미 false 면 no-op diff.
+      // Clearing: the conditions field is always restored (in case the sheet checkbox was ticked and the rank dialog cancelled).
+      // When active is already false this is a no-op diff.
       await actor.update({
         "system.conditions.poisoned.active": false,
         "system.conditions.poisoned.value": 0
       });
 
-      // 채팅 메시지는 취소가 아니고 suppress 도 아닐 때만 출력
+      // The chat message is emitted only when this is neither a cancel nor a suppress
       if (!_cancellingCondition && !suppressMessage) {
         const messageContent = `${game.i18n.localize("DX3rd.Poisoned")} ${game.i18n.localize("DX3rd.Clear")}`;
 
@@ -1158,82 +1158,82 @@ async function handleConditionToggle(token, conditionId, isActive, triggerItemNa
 }
 
 Hooks.once('ready', async function() {
-  // 기존 상태이상 제거
+  // Remove the existing status effects
   CONFIG.statusEffects = [];
   
-  // DX3rd 상태이상 정의
+  // The DX3rd status effect definitions
   CONFIG.statusEffects = [
-    // 사독 (Poisoned)
+    // Poisoned
     {
       id: "poisoned",
       name: "DX3rd.Poisoned",
       img: "icons/svg/blood.svg"
     },
     
-    // 증오 (Hatred)
+    // Hatred
     {
       id: "hatred", 
       name: "DX3rd.Hatred",
       img: "icons/svg/fire.svg"
     },
     
-    // 공포 (Fear)
+    // Fear
     {
       id: "fear",
       name: "DX3rd.Fear", 
       img: "icons/svg/terror.svg"
     },
     
-    // 폭주 (Berserk)
+    // Berserk
     {
       id: "berserk",
       name: "DX3rd.Berserk",
       img: "icons/svg/pawprint.svg"
     },
     
-    // 경직 (Rigor)
+    // Rigor
     {
       id: "rigor",
       name: "DX3rd.Rigor",
       img: "icons/svg/net.svg"
     },
     
-    // 중압 (Pressure)
+    // Pressure
     {
       id: "pressure",
       name: "DX3rd.Pressure",
       img: "icons/svg/paralysis.svg"
     },
     
-    // 방심 (Dazed)
+    // Dazed
     {
       id: "dazed",
       name: "DX3rd.Dazed", 
       img: "icons/svg/stoned.svg"
     },
     
-    // 탑승 (Boarding)
+    // Boarding
     {
       id: "boarding",
       name: "DX3rd.Boarding",
       img: "icons/svg/target.svg"
     },
     
-    // 은밀 (Stealth)
+    // Stealth
     {
       id: "stealth",
       name: "DX3rd.Stealth",
       img: "icons/svg/blind.svg"
     },
     
-    // 비행 (Fly)
+    // Fly
     {
       id: "fly",
       name: "DX3rd.Fly",
       img: "icons/svg/wing.svg"
     },
 
-    // 전투불능(Defeated)
+    // Defeated
     {
       id: "dead",
       name: "DX3rd.Defeated",
@@ -1241,22 +1241,22 @@ Hooks.once('ready', async function() {
     }
   ];
   
-  // 상태이상 토글 이벤트 후킹
+  // Hook the status toggle events
   Hooks.on('createActiveEffect', async (effect, options, userId) => {
     if (game.user.id !== userId) return;
 
     const actor = effect.parent;
     if (!actor) return;
 
-    // applied 버프(네이티브 AE)는 컨디션 동기화 대상이 아니다 — 합성 status 로 인한 오탐 방지
+    // An applied buff (a native AE) is not a condition-sync target — this prevents false positives from a synthetic status
     if (effect.getFlag?.('dx3rd-emanim', 'appliedKey')) return;
 
-    // statuses를 배열로 변환하여 첫 번째 요소 가져오기
+    // Convert statuses to an array and take the first element
     const conditionId = Array.from(effect.statuses || [])[0];
     
     if (conditionId) {
-      // 익스텐드에 의해 적용된 경우, 별도 기본 메시지 중복 출력 방지(UniversalHandler 쪽에서 출력함)
-      // 안전 전달: 전역 대기 큐에서 트리거 아이템 이름 회수
+      // When applied by an extension, suppress the duplicate default message (UniversalHandler emits it)
+      // Safe handoff: recover the trigger item's name from the global pending queue
       let triggerItemName = null;
       let poisonedRankFromMap = null;
       let specialTargetFromMap = null;
@@ -1269,10 +1269,10 @@ Hooks.once('ready', async function() {
           specialTargetFromMap = payload.specialTarget || null;
           const suppressMessage = payload.suppressMessage || false;
           
-          // suppressMessage가 true면 메시지·다이얼로그는 건너뛰되,
-          // 팔레트 경로와 동일한 기계적 부수효과(death mark / dazed applied 등)는 적용한다.
-          // (시트 체크박스 → updateActor 동기화 경로가 팔레트 경로와 같은 결과를 내도록 병합)
-          // 단, 맵에서 데이터는 삭제하여 해제 시 메시지 억제가 적용되지 않도록 함
+          // With suppressMessage true the message and dialog are skipped, but the mechanical side effects
+          // (death mark / dazed applied, …) are applied exactly as on the palette path.
+          // (Merged so the sheet checkbox → updateActor sync path produces the same result as the palette path.)
+          // The data is still deleted from the map, so message suppression does not carry over to the clear
           if (suppressMessage) {
             window.DX3rdConditionTriggerMap.delete(key);
             await applyConditionCreateSideEffects(actor, conditionId);
@@ -1288,11 +1288,11 @@ Hooks.once('ready', async function() {
           const tokenDoc = canvas.scene.tokens.find(t => t.actorId === actor.id);
           if (tokenDoc) token = tokenDoc.object || { actor };
         }
-        // 사독 랭크/특수 타겟 전달(있으면) - 직접 매개변수로 전달
+        // Hand over the poison rank / special target (when present) as direct parameters
         await handleConditionToggle(token || { actor }, conditionId, true, triggerItemName, poisonedRankFromMap, specialTargetFromMap);
         return;
       }
-      // 해당 액터의 토큰 찾기 (현재 장면에서)
+      // Find this actor's tokens (in the current scene)
       let token = actor.token;
       if (!token && canvas.scene) {
         const tokenDoc = canvas.scene.tokens.find(t => t.actorId === actor.id);
@@ -1310,16 +1310,16 @@ Hooks.once('ready', async function() {
     const actor = effect.parent;
     if (!actor) return;
 
-    // applied 버프(네이티브 AE)는 컨디션 동기화 대상이 아니다 — 합성 status 로 인한 오탐 방지
+    // An applied buff (a native AE) is not a condition-sync target — this prevents false positives from a synthetic status
     if (effect.getFlag?.('dx3rd-emanim', 'appliedKey')) return;
-    // 장비 변경 표식도 같은 이유로 제외한다(고유 status `dx3rd-grant-*` 를 들고 있다).
-    // 정리는 universal-extensions.js 의 전용 훅이 한다.
+    // Equipment grant markers are excluded for the same reason (they carry the unique `dx3rd-grant-*` status).
+    // Their cleanup is handled by the dedicated hook in universal-extensions.js.
     if (effect.getFlag?.('dx3rd-emanim', 'itemGrant')) return;
 
     const conditionId = Array.from(effect.statuses || [])[0];
     
     if (conditionId) {
-      // suppressMessage 플래그 확인
+      // Check the suppressMessage flag
       let suppressMessage = false;
       if (window.DX3rdConditionTriggerMap) {
         const key = `${actor.id}:${conditionId}`;
@@ -1330,7 +1330,7 @@ Hooks.once('ready', async function() {
         }
       }
       
-      // 해당 액터의 토큰 찾기 (현재 장면에서)
+      // Find this actor's tokens (in the current scene)
       let token = actor.token;
       if (!token && canvas.scene) {
         const tokenDoc = canvas.scene.tokens.find(t => t.actorId === actor.id);
@@ -1339,7 +1339,7 @@ Hooks.once('ready', async function() {
         }
       }
       
-      // suppressMessage가 true면 메시지만 억제하고 applied 제거는 수행
+      // With suppressMessage true only the message is suppressed; the applied removal still happens
       if (suppressMessage) {
         await handleConditionToggle(token || { actor }, conditionId, false, null, null, null, true);
       } else {
@@ -1349,20 +1349,20 @@ Hooks.once('ready', async function() {
   });
 
   /**
-   * system.conditions.<id>.active 값과 토큰 오버레이(상태이상 ActiveEffect)를 동기화한다.
-   * 시트 체크박스 / 아이템 사용 등으로 conditions 데이터만 바뀌는 경로에서도
-   * 토큰 위에 상태이상 아이콘(오버레이)이 나타나도록 하기 위한 브리지.
+   * Sync the system.conditions.<id>.active value with the token overlay (the status ActiveEffect).
+   * The bridge that makes the status icon (overlay) appear on the token even on paths that change only
+   * the conditions data — the sheet checkbox, item use, and so on.
    *
-   * - conditions.<id>.active === true 인데 대응 ActiveEffect가 없으면 생성
-   * - conditions.<id>.active === false 인데 대응 ActiveEffect가 있으면 삭제
+   * - conditions.<id>.active === true with no matching ActiveEffect → create it
+   * - conditions.<id>.active === false with a matching ActiveEffect → delete it
    *
-   * 생성/삭제 시 DX3rdConditionTriggerMap 의 suppressMessage 플래그를 세워
-   * createActiveEffect/deleteActiveEffect 훅의 다이얼로그·중복 채팅을 억제한다(순수 시각 동기화).
-   * effect 존재 여부로 idempotent 하게 동작하므로 팔레트 토글 경로와 충돌하지 않는다.
+   * On create / delete, DX3rdConditionTriggerMap's suppressMessage flag is raised so the
+   * createActiveEffect / deleteActiveEffect hooks skip their dialogs and duplicate chat (pure visual sync).
+   * Keying on whether the effect exists makes it idempotent, so it never conflicts with the palette toggle path.
    *
-   * defeated 는 status "dead" 오버레이/죽음표식으로 동기화한다. 생성 시 death mark 는
-   * applyConditionCreateSideEffects(suppress 분기)에서, 삭제 시 handleConditionToggle 의
-   * dead 분기(suppress)에서 처리되므로 시트 체크박스↔토큰 오버레이가 일치한다.
+   * defeated syncs through the "dead" status overlay and the death mark. On create the death mark is handled by
+   * applyConditionCreateSideEffects (the suppress branch) and on delete by handleConditionToggle's dead branch
+   * (suppress), so the sheet checkbox and the token overlay agree.
    */
   const CONDITION_TO_STATUS = {
     poisoned: "poisoned",
@@ -1379,11 +1379,11 @@ Hooks.once('ready', async function() {
   };
 
   Hooks.on('updateActor', async (actor, updateData, options, userId) => {
-    // 변경을 일으킨 클라이언트에서만 오버레이를 동기화(다중 접속 시 중복 생성 방지)
+    // Only the client that caused the change syncs the overlay (avoiding duplicate creation on multiple connections)
     if (game.user.id !== userId) return;
 
-    // 이 훅이 보는 건 system.conditions.*.active 뿐인데, flattenObject 는 페이로드 전체를
-    // 훑는다. 시트 저장처럼 큰 업데이트에서 헛일하지 않도록 먼저 걸러낸다.
+    // This hook only cares about system.conditions.*.active, but flattenObject walks the whole payload.
+    // Filter first so a large update like a sheet save does not do that work for nothing.
     if (!window.DX3rdRuntimeUtils.updateTouchesPath(updateData, 'system.conditions')) return;
 
     let flat;
@@ -1400,15 +1400,15 @@ Hooks.once('ready', async function() {
       const nowActive = !!flat[key];
       const hasEffect = actor.effects.some(e => e.statuses.has(status));
 
-      // 시트 체크박스로 상태이상을 켜고 끄면 팔레트/아이템 경로와 "완전히 동일하게" 발동시킨다.
-      // (다이얼로그 · 부수효과 · 채팅 메시지 포함) — 오버레이(ActiveEffect)를 생성/삭제하면
-      // 정규 createActiveEffect/deleteActiveEffect 훅이 handleConditionToggle 을 호출한다.
+      // Turning a status on or off from the sheet checkbox fires it "exactly like" the palette / item path
+      // (dialog, side effects and chat message included) — creating or deleting the overlay (ActiveEffect)
+      // makes the regular createActiveEffect / deleteActiveEffect hook call handleConditionToggle.
       //
-      // 중복 발동은 hasEffect 가드가 막는다:
-      //   - 팔레트/아이템 경로: handleConditionToggle 이 먼저 오버레이를 만들고 conditions.active 를
-      //     세팅 → 이 훅이 그 업데이트로 다시 돌 때는 이미 hasEffect=true 라 재토글하지 않는다.
-      //   - 시트 경로: 이 훅이 최초로 오버레이를 만들고, handleConditionToggle 이 세팅하는
-      //     conditions.active(=true) 는 no-op diff 라 재진입하지 않는다.
+      // The hasEffect guard prevents a double fire:
+      //   - Palette / item path: handleConditionToggle creates the overlay first and then sets conditions.active
+      //     → when this hook runs on that update, hasEffect is already true, so it does not re-toggle.
+      //   - Sheet path: this hook creates the overlay first, and the conditions.active (=true) that
+      //     handleConditionToggle sets is a no-op diff, so it does not re-enter.
       if (nowActive && !hasEffect) {
         try {
           await actor.toggleStatusEffect(status, { active: true });
@@ -1425,11 +1425,11 @@ Hooks.once('ready', async function() {
       }
     }
 
-    // 폭주 유형에 종속된 "지속 패널티"를 시트 드롭다운 값에 맞춰 재조정한다.
-    // active 토글과 유형 변경(순서 무관)을 모두 커버하도록 .active/.type 변경 시 실행.
-    // 상태 종속 지속 효과(기아 dice-5, 가학 attack-20)만 다룬다 —
-    // 자해 HP-5, 공포→경직, 증오→증오, 흡혈 등 "적용 시점 1회성 이벤트"는
-    // 드롭다운 조작만으로 반복 발동되면 안 되므로 여기서 다루지 않는다(팔레트/아이템 발동 전용).
+    // Re-tune the "persistent penalties" that depend on the berserk type to match the sheet dropdown value.
+    // Runs on a .active / .type change so it covers both the active toggle and a type change, in either order.
+    // It handles only state-dependent persistent effects (hunger dice-5, torture attack-20) —
+    // one-shot events at application time (self-mutilation HP-5, fear→rigor, hatred→hatred, bloodsucking, …) must not
+    // re-fire from a dropdown change alone, so they are not handled here (palette / item trigger only).
     if ('system.conditions.berserk.active' in flat || 'system.conditions.berserk.type' in flat) {
       const bActive = !!actor.system?.conditions?.berserk?.active;
       const bType = actor.system?.conditions?.berserk?.type || '-';
@@ -1471,10 +1471,10 @@ Hooks.once('ready', async function() {
   const _previousHpValues = new Map();
   const _lastKnownHpValues = new Map();
   
-  // HP 변경 전에 이전 값을 저장
+  // Save the previous value before the HP change
   Hooks.on('preUpdateActor', (actor, updateData, options, userId) => {
     if (userId !== game.user.id) return;
-    // updateData는 nested 형태 또는 dot-notation 형태로 올 수 있음
+    // updateData may arrive in nested form or in dot notation
     const incomingHp =
       updateData.system?.attributes?.hp?.value ??
       updateData["system.attributes.hp.value"];
@@ -1486,13 +1486,13 @@ Hooks.once('ready', async function() {
     }
   });
   
-  // HP 변경 감지하여 전투불능(dead) 상태 자동 토글
+  // Detect an HP change and toggle the defeated (dead) status automatically
   Hooks.on('updateActor', async (actor, updateData, options, userId) => {
     // Only the client which initiated this update has the matching pre-update value. That client
     // necessarily had permission to update the actor, and can therefore toggle its status as well.
     if (userId !== game.user.id) return;
 
-    // HP 값이 변경되었는지 확인
+    // Did the HP value change?
     const incomingHp =
       updateData.system?.attributes?.hp?.value ??
       updateData["system.attributes.hp.value"];
@@ -1504,7 +1504,7 @@ Hooks.once('ready', async function() {
       const oldHp = Number(cachedOldHp);
       const newHp = Number(incomingHp);
       
-      // 이전 값 제거
+      // Drop the previous value
       _previousHpValues.delete(actor.id);
       _lastKnownHpValues.set(actor.id, newHp);
       
@@ -1512,19 +1512,19 @@ Hooks.once('ready', async function() {
 
       // HP crossed from positive to zero or below.
       if (transition === 'defeated') {
-        // dead 상태 이상이 이미 있는지 확인
+        // Is the dead status already present?
         const hasDeadEffect = actor.effects.find(e => e.statuses.has("dead"));
         if (!hasDeadEffect) {
           await actor.toggleStatusEffect("dead", { active: true });
         }
         
-        // 폭주 bloodsucking 타입이면 폭주 해제
+        // Clear berserk when its type is bloodsucking
         const berserkActive = actor.system?.conditions?.berserk?.active || false;
         const berserkType = actor.system?.conditions?.berserk?.type || '';
         if (berserkActive && berserkType === 'bloodsucking') {
           const berserkEffect = actor.effects.find(e => e.statuses.has("berserk"));
           if (berserkEffect) {
-            // 메시지 제어 플래그 설정
+            // Set the message-control flag
             const mapKey = `${actor.id}:berserk`;
             if (!window.DX3rdConditionTriggerMap) {
               window.DX3rdConditionTriggerMap = new Map();
@@ -1536,19 +1536,19 @@ Hooks.once('ready', async function() {
             
             await actor.toggleStatusEffect("berserk", { active: false });
             
-            // 맵 정리
+            // Tidy the map
             window.DX3rdConditionTriggerMap.delete(mapKey);
           }
         }
       }
       // HP crossed from zero or below back to a positive value.
       else if (transition === 'revived') {
-        // dead 상태 이상이 있는지 확인
+        // Is the dead status present?
         const deadEffect = actor.effects.find(e => e.statuses.has("dead"));
         if (deadEffect) {
           await deadEffect.delete();
           
-          // death mark를 직접 제거 (deleteActiveEffect 훅이 늦게 작동할 경우 대비)
+          // Remove the death mark directly (in case the deleteActiveEffect hook runs late)
           setTimeout(() => {
             if (canvas.scene) {
               const tokens = canvas.scene.tokens.filter(t => t.actorId === actor.id);
@@ -1558,7 +1558,7 @@ Hooks.once('ready', async function() {
                   removeDeathMarkFromToken(tokenObj);
                   tokenObj.refresh();
                   
-                  // 다른 클라이언트에도 death mark 제거
+                  // Remove the death mark on the other clients too
                   window.DX3rdSocketRouter.emit({
                     type: 'removeDeathMark',
                     data: {
@@ -1575,7 +1575,7 @@ Hooks.once('ready', async function() {
     }
   });
   
-  // 전역으로 함수 노출 (소켓 통신에서 사용)
+  // Expose the functions globally (used by the socket layer)
   window.addDeathMarkToToken = addDeathMarkToToken;
   window.removeDeathMarkFromToken = removeDeathMarkFromToken;
   window.handleConditionToggle = handleConditionToggle;
@@ -1583,7 +1583,7 @@ Hooks.once('ready', async function() {
 });
 
 
-// 캔버스 준비 시 모든 dead 토큰에 death mark 표시 (초기 로드용)
+// Show the death mark on every dead token when the canvas is ready (for the initial load)
 Hooks.on('canvasReady', async () => {
   if (!canvas.scene) return;
   
@@ -1601,8 +1601,8 @@ Hooks.on('canvasReady', async () => {
   }
 });
 
-// 상태이상 오버레이 복구는 기동 중 자동 생성하지 않고 동기화 메뉴에서만 명시 실행한다.
-// 현재 씬에서 system.conditions 는 active 이지만 대응 ActiveEffect 가 없는 경우만 대상이다.
+// Restoring the status overlays is never done automatically at startup — only explicitly, from the sync menu.
+// Only actors in the current scene whose system.conditions is active but has no matching ActiveEffect are targeted.
 const DX3RD_CONDITION_TO_STATUS = {
   poisoned: "poisoned", hatred: "hatred", fear: "fear", berserk: "berserk",
   rigor: "rigor", pressure: "pressure", dazed: "dazed", boarding: "boarding",

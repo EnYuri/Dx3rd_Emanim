@@ -1,10 +1,10 @@
 /**
- * 더블크로스 3rd의 특수 주사위 시스템 구현
+ * The Double Cross 3rd special dice system
  */
 
-// 전역 객체에 클래스 정의
+// Define the classes on the global object
 (function () {
-    // Foundry VTT가 준비될 때까지 대기
+    // Wait until Foundry VTT is ready
     function waitForFoundry(callback, maxAttempts = 10, interval = 500) {
         let attempts = 0;
 
@@ -22,25 +22,25 @@
         checkFoundry();
     }
 
-    // DX3rdDiceTerm 클래스 정의
+    // The DX3rdDiceTerm class
     class DX3rdDiceTerm extends foundry.dice.terms.Die {
         /** @override */
         constructor(termData = {}) {
-            // modifiers를 배열로 변환
+            // Convert modifiers to an array
             if (typeof termData.modifiers === 'string') {
                 termData.modifiers = [parseInt(termData.modifiers)];
             } else if (!Array.isArray(termData.modifiers)) {
-                termData.modifiers = [game.settings.get("dx3rd-emanim", "defaultCritical") || 10];  // 기본값
+                termData.modifiers = [game.settings.get("dx3rd-emanim", "defaultCritical") || 10];  // the default
             }
 
             super(termData);
-            this.faces = 10;  // 항상 10면체
+            this.faces = 10;  // always ten-sided
             this.critical = termData.modifiers[0] ?? (game.settings.get("dx3rd-emanim", "defaultCritical") || 10);
-            if (this.critical < 2) this.critical = 2;  // 최소 크리티컬 값은 2
+            if (this.critical < 2) this.critical = 2;  // the minimum critical value is 2
 
-            // 체인 롤 관련 데이터
-            this.chainRolls = [];  // 체인별 주사위 굴림 결과
-            this.chainMaxes = [];  // 체인별 최대값
+            // The chain-roll data
+            this.chainRolls = [];  // the dice rolled in each chain
+            this.chainMaxes = [];  // the maximum of each chain
         }
 
         /** @inheritdoc */
@@ -51,7 +51,7 @@
 
         /** @inheritdoc */
         static get REGEXP() {
-            // 'dx' 패턴을 직접 인식
+            // Recognize the 'dx' pattern directly
             return /(?<number>\d+)dx(?<crit>\d+)?(?<mod>[+-]\d+)?/i;
         }
 
@@ -71,7 +71,7 @@
 
         /** @override */
         _evaluateModifiers() {
-            // DX 주사위는 기본 modifiers 처리를 건너뜁니다
+            // A DX die skips the default modifier handling
             return this;
         }
 
@@ -81,23 +81,23 @@
                 throw new Error("주사위 개수는 999개를 넘을 수 없습니다.");
             }
 
-            // 기본 Die 평가 수행
+            // Perform the base Die evaluation
             await super.evaluate({ minimize, maximize });
 
-            // 체인 롤 처리
+            // Handle the chain rolls
             this.chainRolls = [];
             this.chainMaxes = [];
             let currentDice = this.number;
             let currentResults = [...this.results];
-            let totalValue = 0;  // 최종 달성치를 위한 누적값
+            let totalValue = 0;  // the running value for the final result
             let isFirstChain = true;
-            this.fumble = false; // 펌블(최초 굴림 전부 1) 여부 — 핸들러가 자동실패/달성치 0 처리에 사용
+            this.fumble = false; // whether it fumbled (every die of the first roll a 1) — the handler uses it for auto-failure / a result of 0
 
             while (currentDice > 0) {
                 let thisChain = currentResults.map(r => r.result);
                 this.chainRolls.push(thisChain);
 
-                // 크리티컬 표시 및 톱니 처리
+                // Mark criticals and handle the sawtooth
                 let hasCritical = false;
                 let crits = 0;
                 let idx = 0;
@@ -111,7 +111,7 @@
                     }
                 });
 
-                // 펌블(1만 나온 경우) 처리: 최초 체인에서만 적용
+                // Fumble (only 1s came up): applies on the first chain only
                 let chainValue;
                 if (isFirstChain && thisChain.length > 0 && thisChain.every(v => v === 1)) {
                     chainValue = 0;
@@ -122,7 +122,7 @@
                 this.chainMaxes.push(chainValue);
                 totalValue += chainValue;
 
-                // 다음 체인
+                // The next chain
                 currentDice = crits;
                 if (currentDice > 0) {
                     const nextRoll = new foundry.dice.terms.Die({
@@ -137,7 +137,7 @@
                 isFirstChain = false;
             }
 
-            // 최종 달성치 저장
+            // Store the final result
             this._totalValue = totalValue;
             this._evaluated = true;
             return this;
@@ -163,13 +163,13 @@
                     const classes = ["dice"];
                     let resultDisplay = result;
                     
-                    // 스타일을 직접 HTML에 적용
+                    // Apply the styles to the HTML directly
                     if (result === 1) {
-                        // 펌블 (빨간색, 취소선 없음)
+                        // Fumble (red, no strikethrough)
                         resultDisplay = `<span style="color: #d32f2f; text-shadow: none;">${result}</span>`;
                         classes.push("fumble");
                     } else if (r.exploded) {
-                        // 크리티컬 (녹색)
+                        // Critical (green)
                         resultDisplay = `<span style="color: #2e7d32; text-shadow: none;">${result}</span>`;
                         classes.push("exploded");
                     }
@@ -179,9 +179,9 @@
                         classes: classes.join(" ")
                     });
                 });
-                // 체인 결과는 그 체인의 주사위와 같은 줄 오른쪽에 붙는다(오른쪽 플로트).
-                // 뒤이어 높이 0 의 구분 줄이 다음 체인을 아래로 내리고 선을 긋는다 —
-                // 선을 <hr> 로 그리면 border-bottom 과 두 겹이 되고 여백까지 벌어진다.
+                // A chain's result sits to the right of that chain's dice, on the same line (floated right).
+                // A zero-height separator line then pushes the next chain down and draws the rule —
+                // drawing it with an <hr> would double up with the border-bottom and widen the spacing too.
                 rolls.push({
                     result: `${this.chainMaxes[idx]}`,
                     classes: "dx3rd-chain-total"
@@ -231,7 +231,7 @@
                                 flavor: node.flavor
                             }
                         });
-                        // 결과 데이터가 있는 경우 복원
+                        // Restore the result data when present
                         if (node.results) {
                             term.results = node.results.map(r => ({ ...r, active: true }));
                             term._evaluated = true;
@@ -240,15 +240,15 @@
                     }
                 }
 
-                // AST 노드에서 직접 데이터 추출
+                // Extract the data straight from the AST node
                 if (node.number) {
-                    // 'dx' 패턴 확인
+                    // Check the 'dx' pattern
                     const isDX = node.denomination === 'dx' ||
                         node.faces === 'x' ||
                         (typeof node.faces === 'string' && node.faces.startsWith('x'));
 
                     if (isDX) {
-                        // modifiers 처리
+                        // Handle the modifiers
                         let diceCount = node.number ?? 1;
                         let criticalValue = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
                         if (node.modifiers) {
@@ -270,7 +270,7 @@
                             }
                         });
 
-                        // 결과 데이터가 있는 경우 복원
+                        // Restore the result data when present
                         if (node.results) {
                             term.results = node.results.map(r => ({
                                 ...r,
@@ -284,17 +284,17 @@
                 }
             }
 
-            // 데이터 객체 처리
+            // Handle a data object
             if (typeof node === 'object') {
 
-                // Foundry VTT 13의 AST 노드 형식 처리
+                // Handle Foundry VTT 13's AST node format
                 const isDXTerm = node.class === this.name ||
                     node.term === this.name ||
                     node.denomination === this.DENOMINATION ||
                     (node.faces === 'x' && node.number);
 
                 if (isDXTerm) {
-                    // formula가 있으면 matchTerm로 파싱해서 modifier 추출
+                    // With a formula present, parse it with matchTerm to extract the modifier
                     let diceCount = node.number ?? 1;
                     let criticalValue = game.settings.get("dx3rd-emanim", "defaultCritical") || 10;
                     let modifier = 0;
@@ -326,7 +326,7 @@
                         }
                     });
 
-                    // 결과 데이터가 있는 경우 복원
+                    // Restore the result data when present
                     if (node.results) {
                         term.results = node.results.map(r => ({
                             ...r,
@@ -348,7 +348,7 @@
 
             if (!match) return null;
 
-            // 'dx' 패턴인지 확인
+            // Is this the 'dx' pattern?
             if (!match[0].includes('dx')) {
                 return null;
             }
@@ -408,20 +408,20 @@
         }
     }
 
-    // DS3rdDiceTerm 클래스 정의
+    // The DS3rdDiceTerm class
     class DS3rdDiceTerm extends foundry.dice.terms.Die {
         /** @override */
         constructor(termData = {}) {
             super(termData);
-            this.faces = 10;  // 항상 10면체
-            this.overflowCount = 0;  // 폭주 주사위 개수
-            this.removeOverflow = 0;  // 제거할 폭주 주사위 개수
-            this.autoRemoveOverflow = false;  // 폭주 주사위 자동 제거 여부
-            this.removedDiceIndices = [];  // 제거된 주사위 인덱스들
+            this.faces = 10;  // always ten-sided
+            this.overflowCount = 0;  // the number of overflow dice
+            this.removeOverflow = 0;  // how many overflow dice to remove
+            this.autoRemoveOverflow = false;  // whether overflow dice are removed automatically
+            this.removedDiceIndices = [];  // the indices of the removed dice
             
-            // 체인 롤 관련 데이터
-            this.chainRolls = [];  // 체인별 주사위 굴림 결과
-            this.chainValues = [];  // 체인별 합계값
+            // The chain-roll data
+            this.chainRolls = [];  // the dice rolled in each chain
+            this.chainValues = [];  // the sum of each chain
         }
 
         /** @inheritdoc */
@@ -432,7 +432,7 @@
 
         /** @inheritdoc */
         static get REGEXP() {
-            // 'ds' 패턴을 직접 인식 (주사위 제거 구문 포함)
+            // Recognize the 'ds' pattern directly (the dice-removal syntax included)
             return /(?<number>\d+)ds(?:\[(?<remove>[da,\d\s]+)\])?(?<mod>[+-]\d+)?/i;
         }
 
@@ -445,7 +445,7 @@
         get expression() {
             let expr = `${this.number}ds`;
             
-            // 제거 옵션 조합 표시
+            // Show the removal option combination
             const removeOptions = [];
             if (this.removeOverflow > 0) {
                 removeOptions.push(this.removeOverflow.toString());
@@ -466,13 +466,13 @@
 
         /** @override */
         _evaluateModifiers() {
-            // DS 주사위는 기본 modifiers 처리를 건너뜁니다
+            // A DS die skips the default modifier handling
             return this;
         }
 
-        /** 제거 옵션 파싱 */
+        /** Parse the removal options */
         static parseRemoveOptions(removeValue, term) {
-            // 콤마로 구분된 값들을 파싱
+            // Parse the comma-separated values
             const options = removeValue.split(',').map(opt => opt.trim());
             
             let removeOverflow = 0;
@@ -486,7 +486,7 @@
                 }
             }
             
-            // term 객체에 설정
+            // Set them on the term object
             if (term) {
                 term.removeOverflow = removeOverflow;
                 term.autoRemoveOverflow = autoRemoveOverflow;
@@ -501,43 +501,43 @@
                 throw new Error("주사위 개수는 999개를 넘을 수 없습니다.");
             }
 
-            // 기본 Die 평가 수행
+            // Perform the base Die evaluation
             await super.evaluate({ minimize, maximize });
 
-            // 폭주 주사위 제거 설정 저장
+            // Store the overflow-dice removal settings
             this.removeOverflowCount = this.removeOverflow;
 
-            // 폭주 처리
+            // Handle the overflow
             this.overflowCount = 0;
             this.chainRolls = [];
             this.chainValues = [];
             let currentDice = this.number;
             let currentResults = [...this.results];
-            let totalValue = 0;  // 최종 합계를 위한 누적값
-            let allOverflowDice = [];  // 모든 폭주 주사위 수집
+            let totalValue = 0;  // the running value for the final sum
+            let allOverflowDice = [];  // every overflow die collected
 
-            // 먼저 모든 폭주를 처리하여 폭주 주사위 수집
+            // Handle every overflow first, collecting the overflow dice
             while (currentDice > 0) {
                 let thisRoll = currentResults.map(r => r.result);
                 
-                // 현재 체인의 주사위 결과 저장
+                // Store this chain's dice results
                 this.chainRolls.push(thisRoll);
                 
-                // 현재 굴림의 모든 주사위 값 합산
+                // Sum every die value of this roll
                 let rollValue = thisRoll.reduce((sum, value) => sum + value, 0);
                 this.chainValues.push(rollValue);
                 totalValue += rollValue;
 
-                // 폭주 주사위 개수 계산 (10이 나온 주사위 개수)
+                // Count the overflow dice (how many came up 10)
                 let overflowDice = thisRoll.filter(value => value === 10).length;
                 this.overflowCount += overflowDice;
 
-                // 폭주 주사위 수집
+                // Collect the overflow dice
                 for (let i = 0; i < overflowDice; i++) {
                     allOverflowDice.push(10);
                 }
 
-                // 다음 폭주 주사위 굴림
+                // Roll the next overflow dice
                 currentDice = overflowDice;
                 if (currentDice > 0) {
                     const nextRoll = new foundry.dice.terms.Die({
@@ -551,55 +551,55 @@
                 }
             }
 
-            // 주사위 제거 처리
+            // Handle the dice removal
             let totalRemoveCount = this.removeOverflowCount;
 
-            // 수동 제거 먼저 실행
+            // Manual removal runs first
             if (totalRemoveCount > 0) {
-                // 모든 주사위에서 제거
+                // Remove from every die
                 const allDice = this.results.map(r => r.result);
                 const removeCount = Math.min(totalRemoveCount, allDice.length);
                 
-                // 인터랙티브 다이얼로그 표시 (모든 주사위에서 선택)
+                // Show the interactive dialog (choosing from every die)
                 const selectedIndices = await this.showRemoveDialog(allDice, removeCount, { onlyOverflow: false });
                 
                 if (selectedIndices !== null) {
-                    // 선택된 주사위 값만큼 총합에서 차감
-                    let removedOverflowCount = 0; // 제거된 폭주 주사위 개수
+                    // Subtract the chosen dice's values from the total
+                    let removedOverflowCount = 0; // how many overflow dice were removed
                     for (let i = 0; i < selectedIndices.length; i++) {
                         const diceValue = allDice[selectedIndices[i]];
                         totalValue -= diceValue;
-                        // 제거된 주사위가 폭주 주사위(10)인지 확인
+                        // Was the removed die an overflow die (a 10)?
                         if (diceValue === 10) {
                             removedOverflowCount++;
                         }
                     }
-                    // 총 폭주 주사위 개수에서 제거된 폭주 주사위 개수 차감
+                    // Subtract the removed overflow dice from the total overflow count
                     this.overflowCount -= removedOverflowCount;
                     
-                    // removedDiceIndices에 수동 제거 인덱스 추가
+                    // Add the manual removal indices to removedDiceIndices
                     this.removedDiceIndices = selectedIndices;
                     this.actualRemovedCount = selectedIndices.length;
                 } else {
-                    // 취소된 경우 - removedDiceIndices는 초기화하지 않음 (자동 제거가 있을 수 있음)
+                    // Cancelled — removedDiceIndices is NOT reset (an automatic removal may still follow)
                     this.actualRemovedCount = 0;
                 }
             } else {
                 this.actualRemovedCount = 0;
             }
 
-            // 자동 제거 옵션 처리 (수동 제거 후 남은 폭주 주사위가 있을 때만)
+            // Handle the automatic removal option (only when overflow dice remain after the manual removal)
             if (this.autoRemoveOverflow && this.overflowCount > 0) {
-                // UI 타이밍 보장: 이전 다이얼로그가 닫힌 직후 다음 틱으로 미룬 뒤 띄움
+                // Guarantee the UI timing: deferred to the next tick, right after the previous dialog closes, then shown
                 await new Promise((r)=>setTimeout(r, 30));
-                // 확인 없이 즉시 선택창 표시(10만 선택 가능, 1개), 직전 선택 결과 반영
+                // Show the picker at once with no confirmation (only a 10 is selectable, one of them), reflecting the previous choice
                 totalValue = await this.removeOverflowDiceAutomatically(totalValue, {
                     disabledIndices: this.removedDiceIndices || [],
                     baseTotal: totalValue
                 });
             }
 
-            // 최종 합계 저장
+            // Store the final sum
             this._totalValue = totalValue;
             this._evaluated = true;
             return this;
@@ -615,13 +615,13 @@
             return total;
         }
 
-        /** 폭주 주사위 자동 제거 */
+        /** Remove the overflow dice automatically */
         async removeOverflowDiceAutomatically(totalValue, dialogOptions = {}) {
             const allDice = this.results.map(r => r.result);
             const overflowIndices = allDice.map((v, i) => v === 10 ? i : -1).filter(i => i !== -1);
             if (overflowIndices.length === 0) return totalValue;
 
-            // 같은 UI로 선택하도록: 전체 주사위를 보여주되 10만 선택 가능 (최대 1개)
+            // Use the same UI: show every die but allow only a 10 to be chosen (at most one)
             let chosenOriginalIndex = overflowIndices[0];
             if (typeof window.SpellDiceRemoveDialog !== 'undefined') {
                 const selected = await new Promise((resolve) => {
@@ -631,11 +631,11 @@
                 if (selected && selected.length > 0) {
                     chosenOriginalIndex = selected[0];
                 } else {
-                    // 선택 취소 시 아무것도 제거하지 않음
+                    // Nothing is removed when the choice is cancelled
                     return totalValue;
                 }
             } else {
-                // 폴백: 확인 시 첫 번째 10 제거
+                // Fallback: on confirmation, remove the first 10
                 const ok = await foundry.applications.api.DialogV2.confirm({
                     window: { title: game.i18n.localize("DX3rd.RemoveOverflow") },
                     content: `<p>폭주 주사위(10) ${overflowIndices.length}개 중 1개를 제거하시겠습니까?</p>`,
@@ -656,12 +656,12 @@
             return totalValue;
         }
 
-        /** 주사위 제거 다이얼로그 표시 */
+        /** Show the dice-removal dialog */
         async showRemoveDialog(allDice, maxRemove, options = {}) {
             return new Promise((resolve) => {
-                // SpellDiceRemoveDialog 클래스가 로드되어 있는지 확인
+                // Is the SpellDiceRemoveDialog class loaded?
                 if (typeof window.SpellDiceRemoveDialog === 'undefined') {
-                    // 클래스가 없으면 간단한 확인 다이얼로그 사용
+                    // With no such class, use a simple confirmation dialog
                     const confirmMessage = game.i18n.format("DX3rd.RemoveOverflowConfirm", { count: maxRemove });
                     foundry.applications.api.DialogV2.confirm({
                         window: { title: game.i18n.localize("DX3rd.RemoveOverflow") },
@@ -672,7 +672,7 @@
                     return;
                 }
 
-                // 인터랙티브 다이얼로그 표시
+                // Show the interactive dialog
                 const dialog = new window.SpellDiceRemoveDialog(allDice, maxRemove, resolve, options);
                 dialog.render();
             });
@@ -683,10 +683,10 @@
             const rolls = [];
             let resultIdx = 0;
             
-            // 제거된 주사위 인덱스 추적 (다이얼로그에서 선택된 주사위)
+            // Track the removed dice indices (the dice chosen in the dialog)
             const removedIndices = this.removedDiceIndices || [];
             
-            // 체인별로 주사위 결과 표시
+            // Show the dice results per chain
             this.chainRolls.forEach((chain, idx) => {
                 chain.forEach((result, i) => {
                     const r = this.results[resultIdx++];
@@ -696,13 +696,13 @@
                     let classes = ["dice"];
                     let resultDisplay = result;
                     
-                    // 스타일을 직접 HTML에 적용
+                    // Apply the styles to the HTML directly
                     if (isRemoved) {
-                        // 제거된 주사위 (빨간색, 취소선) - 폭주 여부와 관계없이
+                        // A removed die (red, struck through) — regardless of whether it overflowed
                         resultDisplay = `<span style="color: #d32f2f; text-decoration: line-through; opacity: 0.7; text-shadow: none;">${result}</span>`;
                         classes.push("exploded");
                     } else if (isOverflow) {
-                        // 제거되지 않은 폭주 주사위 (녹색)
+                        // An overflow die that was not removed (green)
                         resultDisplay = `<span style="color: #2e7d32; text-shadow: none;">${result}</span>`;
                         classes.push("fumble");
                     }
@@ -712,7 +712,7 @@
                         classes: classes.join(" ")
                     });
                 });
-                // 체인 구분선과 체인별 합계 표시 (같은 줄 오른쪽 + 높이 0 구분 줄)
+                // The chain separator and the chain's sum (to the right on the same line + a zero-height separator line)
                 rolls.push({
                     result: `${this.chainValues[idx]}`,
                     classes: "dx3rd-chain-total"
@@ -723,7 +723,7 @@
                 });
             });
 
-            // 최종 합계 정보 추가
+            // Add the final sum information
             let resultText = `${game.i18n.localize("DX3rd.DiceSum")}: ${this.total}`;
             if (this.overflowCount > 0) {
                 resultText += ` (${game.i18n.localize("DX3rd.Overflow")}: ${this.overflowCount}개)`;
@@ -767,7 +767,7 @@
                             }
                         });
                         
-                        // removeOverflow 및 autoRemoveOverflow 설정 추가
+                        // Add the removeOverflow and autoRemoveOverflow settings
                         const removeValue = match.groups.remove;
                         if (removeValue) {
                             this.parseRemoveOptions(removeValue, term);
@@ -776,7 +776,7 @@
                             term.autoRemoveOverflow = false;
                         }
                         
-                        // 결과 데이터가 있는 경우 복원
+                        // Restore the result data when present
                         if (node.results) {
                             term.results = node.results.map(r => ({ ...r, active: true }));
                             term._evaluated = true;
@@ -785,9 +785,9 @@
                     }
                 }
 
-                // AST 노드에서 직접 데이터 추출
+                // Extract the data straight from the AST node
                 if (node.number) {
-                    // 'ds' 패턴 확인
+                    // Check the 'ds' pattern
                     const isDS = node.denomination === 'ds' ||
                         node.faces === 's' ||
                         (typeof node.faces === 'string' && node.faces.startsWith('s'));
@@ -805,7 +805,7 @@
                             }
                         });
 
-                        // removeOverflow 및 autoRemoveOverflow 설정 추가
+                        // Add the removeOverflow and autoRemoveOverflow settings
                         const removeValue = match.groups.remove;
                         if (removeValue) {
                             this.parseRemoveOptions(removeValue, term);
@@ -814,7 +814,7 @@
                             term.autoRemoveOverflow = false;
                         }
 
-                        // 결과 데이터가 있는 경우 복원
+                        // Restore the result data when present
                         if (node.results) {
                             term.results = node.results.map(r => ({
                                 ...r,
@@ -828,9 +828,9 @@
                 }
             }
 
-            // 데이터 객체 처리
+            // Handle a data object
             if (typeof node === 'object') {
-                // Foundry VTT 13의 AST 노드 형식 처리
+                // Handle Foundry VTT 13's AST node format
                 const isDSTerm = node.class === this.name ||
                     node.term === this.name ||
                     node.denomination === this.DENOMINATION ||
@@ -848,7 +848,7 @@
                             diceCount = parseInt(match.groups.number);
                             modifier = match.groups.mod ? parseInt(match.groups.mod) : 0;
                             
-                            // removeOverflow 및 autoRemoveOverflow 설정
+                            // The removeOverflow and autoRemoveOverflow settings
                             const removeValue = match.groups.remove;
                             if (removeValue) {
                                 const parsed = this.parseRemoveOptions(removeValue);
@@ -872,11 +872,11 @@
                         }
                     });
 
-                    // removeOverflow 및 autoRemoveOverflow 설정
+                    // The removeOverflow and autoRemoveOverflow settings
                     term.removeOverflow = removeOverflow;
                     term.autoRemoveOverflow = autoRemoveOverflow;
 
-                    // 결과 데이터가 있는 경우 복원
+                    // Restore the result data when present
                     if (node.results) {
                         term.results = node.results.map(r => ({
                             ...r,
@@ -897,7 +897,7 @@
             const match = formula.match(this.REGEXP);
             if (!match) return null;
 
-            // 'ds' 패턴인지 확인
+            // Is this the 'ds' pattern?
             if (!match[0].includes('ds')) {
                 return null;
             }
@@ -917,7 +917,7 @@
                 }
             });
             
-            // removeOverflow 및 autoRemoveOverflow 설정 추가
+            // Add the removeOverflow and autoRemoveOverflow settings
             const removeValue = match.groups.remove;
             if (removeValue) {
                 this.parseRemoveOptions(removeValue, term);
@@ -971,17 +971,17 @@
         }
     }
 
-    // Foundry VTT가 준비되면 클래스 등록
+    // Register the classes once Foundry VTT is ready
     waitForFoundry(() => {
-        // 전역 객체에 클래스 등록
+        // Register the classes on the global object
         foundry.dice.terms.DX3rdDiceTerm = DX3rdDiceTerm;
         foundry.dice.terms.DS3rdDiceTerm = DS3rdDiceTerm;
 
-        // CONFIG.Dice.terms 설정
+        // Set up CONFIG.Dice.terms
         if (!CONFIG.Dice) CONFIG.Dice = {};
         if (!CONFIG.Dice.terms) CONFIG.Dice.terms = {};
 
-        // DX 주사위 시스템 등록
+        // Register the DX dice system
         const dxRegistration = {
             name: DX3rdDiceTerm.name,
             class: DX3rdDiceTerm,
@@ -990,7 +990,7 @@
             fromParseNode: DX3rdDiceTerm.fromParseNode.bind(DX3rdDiceTerm)
         };
 
-        // DS 주사위 시스템 등록
+        // Register the DS dice system
         const dsRegistration = {
             name: DS3rdDiceTerm.name,
             class: DS3rdDiceTerm,
@@ -999,23 +999,23 @@
             fromParseNode: DS3rdDiceTerm.fromParseNode.bind(DS3rdDiceTerm)
         };
 
-        // CONFIG.Dice.terms에 등록
+        // Register in CONFIG.Dice.terms
         CONFIG.Dice.terms["dx"] = dxRegistration;
         CONFIG.Dice.terms["ds"] = dsRegistration;
 
-        // DiceTerm.REGISTERED_TERMS에 등록
+        // Register in DiceTerm.REGISTERED_TERMS
         if (foundry.dice.terms.DiceTerm.REGISTERED_TERMS) {
             foundry.dice.terms.DiceTerm.REGISTERED_TERMS["dx"] = dxRegistration;
             foundry.dice.terms.DiceTerm.REGISTERED_TERMS["ds"] = dsRegistration;
         }
 
-        // RollTerm 클래스에 등록
+        // Register on the RollTerm class
         if (foundry.dice.RollTerm) {
-            // RollTerm.CLASSES에 등록
+            // Register in RollTerm.CLASSES
             foundry.dice.RollTerm.CLASSES[DX3rdDiceTerm.name] = DX3rdDiceTerm;
             foundry.dice.RollTerm.CLASSES[DS3rdDiceTerm.name] = DS3rdDiceTerm;
 
-            // RollTerm.fromData 메서드 오버라이드
+            // Override the RollTerm.fromData method
             const originalFromData = foundry.dice.RollTerm.fromData;
             foundry.dice.RollTerm.fromData = function (data) {
                 if (data.class === DX3rdDiceTerm.name) {
@@ -1027,7 +1027,7 @@
                 return originalFromData.call(this, data);
             };
 
-            // RollTerm._fromData 메서드 오버라이드
+            // Override the RollTerm._fromData method
             const originalFromDataInternal = foundry.dice.RollTerm._fromData;
             foundry.dice.RollTerm._fromData = function (data) {
                 if (data.class === DX3rdDiceTerm.name) {
@@ -1040,9 +1040,9 @@
             };
         }
 
-        // Roll 클래스에 등록
+        // Register on the Roll class
         if (foundry.dice.Roll) {
-            // Roll.fromData 메서드 오버라이드
+            // Override the Roll.fromData method
             const originalRollFromData = foundry.dice.Roll.fromData;
             foundry.dice.Roll.fromData = function (data) {
                 if (data.terms) {
@@ -1060,7 +1060,7 @@
             };
         }
 
-        // 등록 확인
+        // Confirm the registration
         if (foundry.dice.terms.DX3rdDiceTerm === DX3rdDiceTerm &&
             foundry.dice.terms.DS3rdDiceTerm === DS3rdDiceTerm &&
             CONFIG.Dice.terms["dx"]?.class === DX3rdDiceTerm &&
@@ -1068,12 +1068,12 @@
         }
     });
 
-    // DiceTerm 클래스 확장
+    // Extend the DiceTerm class
     if (foundry.dice.terms.DiceTerm) {
         const originalFromParseNode = foundry.dice.terms.DiceTerm.fromParseNode;
         foundry.dice.terms.DiceTerm.fromParseNode = function (node) {
 
-            // 'dx' 패턴 확인
+            // Check the 'dx' pattern
             if (node && typeof node === 'object') {
                 if (node.denomination === 'dx' ||
                     (node.formula && node.formula.includes('dx'))) {
@@ -1081,7 +1081,7 @@
                 }
             }
 
-            // 'ds' 패턴 확인
+            // Check the 'ds' pattern
             if (node && typeof node === 'object') {
                 if (node.denomination === 'ds' ||
                     (node.formula && node.formula.includes('ds'))) {
@@ -1089,7 +1089,7 @@
                 }
             }
 
-            // 기본 처리
+            // The default handling
             return originalFromParseNode.call(this, node);
         };
     }

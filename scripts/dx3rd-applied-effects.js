@@ -1,32 +1,32 @@
-// DX3rd Applied Effects 어댑터
+// DX3rd Applied Effects adapter
 // ---------------------------------------------------------------------------
-// 적용 효과(applied 버프)의 저장소를 네이티브 ActiveEffect 문서로 이행하기 위한 파사드.
-// 모든 applied 쓰기/읽기/제거가 이 한 곳을 통과한다.
+// The facade for migrating the storage of applied effects (buffs) to native ActiveEffect documents.
+// Every applied write / read / removal passes through this one place.
 //
-// 설계 원칙(방식 A):
-//  - source of truth = 액터에 임베드된 ActiveEffect 문서 1개(= applied 버프 1개).
-//  - DX3rd 계산의 무손실 원본은 flags["dx3rd-emanim"].applied 에 payload 그대로 보존.
-//    → prepareData(actor.js)는 collect()가 재구성한 레거시 { [key]: payload } 맵을
-//       기존 _indexAppliedEffects 로 그대로 소비한다(계산 로직 불변, 단일 경로).
-//  - changes[] 는 전부 mode: CUSTOM 으로 생성한다. applyActiveEffect 훅 핸들러를
-//    등록하지 않으면 코어는 CUSTOM change 에 대해 액터 데이터를 전혀 수정하지 않는다
-//    → 이중 적용(코어 자동적용 + flag 계산) 위험을 원천 차단.
-//    동시에 changes 배열(v14: system.changes)은 문서에 남아 외부 자동화 모듈이 읽을 수 있다(가시성 전용).
-//  - 토큰 오버레이: showIcon=ALWAYS 로 두어 코어(Token#_drawEffects)가 img 를 항상 토큰에 렌더.
-// ---------------------------------------------------------------------------
+// Design principles (approach A):
+//  - source of truth = one ActiveEffect document embedded on the actor (= one applied buff).
+//  - The lossless original for the DX3rd calculation is kept verbatim as the payload in flags["dx3rd-emanim"].applied.
+//    → prepareData (actor.js) consumes the legacy { [key]: payload } map that collect() rebuilds, through the
+//       existing _indexAppliedEffects (calculation logic unchanged, single path).
+//  - changes[] is always built with mode: CUSTOM. Unless an applyActiveEffect hook handler is registered, core
+//    does not modify actor data at all for a CUSTOM change → the risk of double application (core auto-apply +
+//    flag calculation) is eliminated at the root.
+//    At the same time the changes array (v14: system.changes) stays on the document for external automation
+//    modules to read (visibility only).
+//  - Token overlay: showIcon=ALWAYS makes core (Token#_drawEffects) always render img on the token.
 (function () {
 
   const SCOPE = 'dx3rd-emanim';
-  const SYNTH_STATUS = 'dx3rd-applied'; // appliedKey 별 고유 합성 status(actor.statuses 노출, 아이콘 병합 방지)
+  const SYNTH_STATUS = 'dx3rd-applied'; // a unique synthetic status per appliedKey (exposed on actor.statuses, prevents icon merging)
 
-  // v14 change 규격: 숫자 mode 는 폐기(CONST.ACTIVE_EFFECT_MODES 접근 시 deprecation 경고),
-  // 문자열 type 로 대체된다(EffectChangeData#type, 검증: /^[a-z0-9]+$/ 또는 custom.{n}).
-  // 'custom' 은 코어에 applyActiveEffect 핸들러가 없으면 액터 데이터를 건드리지 않아
-  // 이중 적용(코어 자동적용 + flag 계산) 위험이 없다. 계산은 flag 단일 경로, changes 는 가시성 전용.
+  // The v14 change spec: numeric modes are deprecated (accessing CONST.ACTIVE_EFFECT_MODES warns) and replaced by
+  // a string type (EffectChangeData#type, validated as /^[a-z0-9]+$/ or custom.{n}).
+  // With no applyActiveEffect handler in core, 'custom' does not touch actor data, so there is no risk of double
+  // application (core auto-apply + flag calculation). The calculation is the single flag path; changes is visibility only.
   const CHANGE_TYPE_CUSTOM = 'custom';
 
-  // 판정 전용이 아닌, 문서 경로가 존재하는 key → 외부 모듈 가독성을 위한 change.key 매핑.
-  // (mode 는 CUSTOM 이라 실제로 쓰이지는 않으며, change.key 표기를 사람이/모듈이 읽기 좋게 할 뿐)
+  // A key that is not roll-only and does have a document path → a change.key mapping for external readability.
+  // (The mode is CUSTOM so it is never actually used; it only makes change.key pleasant for a human or a module to read.)
   const READABLE_PATH = {
     hp: 'system.attributes.hp.max',
     hp_max: 'system.attributes.hp.max',
@@ -40,7 +40,7 @@
     move_full: 'system.attributes.move.full',
     fullMove: 'system.attributes.move.full',
     saving_max: 'system.attributes.saving.max',
-    // stock_point는 현재 재산점의 일회성 증감이 아니라 파생 기본 재산점 보너스다.
+    // stock_point is not a one-off change to the current resource points but a derived base resource-point bonus.
     stock_point: 'system.attributes.stock.base',
     attack: 'system.attributes.attack.value',
     effect_level: `flags.${SCOPE}.effectLevelBonus`
@@ -49,7 +49,7 @@
   const ACTIVE_EFFECT_CLS = () =>
     foundry.documents?.ActiveEffect ?? globalThis.ActiveEffect;
 
-  /** attributes( 객체형 {key,label,value} 또는 원시형 {dice:-5} 혼용 )로부터 changes[] 생성. */
+  /** Build changes[] from attributes (a mix of object form {key,label,value} and raw form {dice:-5}). */
   function buildChanges(attributes = {}) {
     const changes = [];
     for (const [attrName, attrValue] of Object.entries(attributes || {})) {
@@ -59,13 +59,13 @@
       const val = (isObj && 'value' in attrValue) ? attrValue.value : attrValue;
       if (key === undefined || key === null || key === '-') continue;
 
-      // 사람이 읽기 좋은 change.key (문서 경로가 있으면 그것, 없으면 dx3rd 네임스페이스)
+      // A human-readable change.key (the document path when there is one, else the dx3rd namespace)
       const readable = READABLE_PATH[key]
         || (label ? `flags.${SCOPE}.applied.${key}.${label}` : `flags.${SCOPE}.applied.${key}`);
 
       changes.push({
         key: readable,
-        type: CHANGE_TYPE_CUSTOM, // 코어 미적용(핸들러 미등록), 가시성 전용
+        type: CHANGE_TYPE_CUSTOM, // not applied by core (no handler registered), visibility only
         value: String(val ?? ''),
         priority: 20
       });
@@ -73,18 +73,18 @@
     return changes;
   }
 
-  /** payload 정규화(누락 필드 방어). */
+  /** Normalize a payload (guarding against missing fields). */
   function normalizePayload(payload = {}) {
     return {
       itemId: payload.itemId ?? null,
-      // 어느 보정 버킷에서 왔는가. 'self' = system.attributes(자기 동결 버프, 수명 active.disable),
-      // 그 외/미기재 = system.effect.attributes(대상 보정, 수명 effect.disable).
-      // 화이트리스트라 여기 없으면 flag 에 저장되지 않는다 → 채널 구분이 통째로 사라진다.
+      // Which modifier bucket did it come from? 'self' = system.attributes (a frozen self buff, lifetime active.disable),
+      // anything else / unstated = system.effect.attributes (a target modifier, lifetime effect.disable).
+      // This is a whitelist, so a field missing here is not stored on the flag → the channel distinction vanishes entirely.
       channel: payload.channel === 'self' ? 'self' : 'target',
-      // 채널 안에서 어느 발현 액션 버킷인가. 채널 기본 버킷은 null(레거시 키 유지)이고,
-      // 그 밖의 버킷은 자기 액션을 들고 별도 키를 쓴다(applied_act_/use_/atk_<id>).
-      // 화이트리스트라 여기 없으면 flag 에 저장되지 않는다 → 서로 다른 버킷이 같은 AE 로
-      // 취급돼 나중 것이 앞의 것을 덮어쓰고, 소멸 훅도 버킷 수명을 못 찾는다.
+      // Which firing-action bucket within the channel? The channel's default bucket is null (keeping the legacy key),
+      // and every other bucket carries its own action and uses a separate key (applied_act_/use_/atk_<id>).
+      // This is a whitelist, so a field missing here is not stored on the flag → different buckets are treated as the
+      // same AE, the later one overwrites the earlier one, and the expiry hooks cannot find the bucket's lifetime.
       action: ['activation', 'use', 'attack'].includes(payload.action) ? payload.action : null,
       name: payload.name || game.i18n.localize('DX3rd.Applied'),
       img: payload.img || 'icons/svg/aura.svg',
@@ -92,16 +92,16 @@
       timestamp: payload.timestamp ?? Date.now(),
       disable: payload.disable || '-',
       description: payload.description || '',
-      // 오버레이 표시는 토큰/스크린을 구별한다(효과 탭 편집에서 per-effect 토글).
-      //  - showOnToken: 토큰 위 아이콘. 기본 OFF(showIcon 으로 반영).
-      //  - showOnScreen: 게임 스크린 우상단 HUD. 기본 ON.
+      // The overlay display distinguishes token from screen (a per-effect toggle in the effects tab edits it).
+      //  - showOnToken: the icon on the token. OFF by default (projected through showIcon).
+      //  - showOnScreen: the game screen's top-right HUD. ON by default.
       showOnToken: payload.showOnToken ?? false,
       showOnScreen: payload.showOnScreen ?? true,
       attributes: payload.attributes || {}
     };
   }
 
-  /** ActiveEffect 생성 데이터 조립. */
+  /** Assemble the ActiveEffect creation data. */
   function buildAEData(actor, appliedKey, payload) {
     const p = normalizePayload(payload);
     return {
@@ -109,37 +109,37 @@
       img: p.img,
       description: p.description,
       disabled: false,
-      // v14 토큰 아이콘 렌더 판정은 isTemporary 가 아니라 effect.showIcon 이다
-      // (Token#_drawEffects → appliedEffects.filter: showIcon===ALWAYS 이거나
-      //  showIcon===CONDITIONAL && isTemporary). applied 버프는 지속시간 기반이 아니므로
-      //  CONDITIONAL 이면 안 그려진다. → 오버레이 표시는 per-effect 선택(기본 OFF):
-      //  showOnToken 이면 ALWAYS(토큰에 아이콘), 아니면 NEVER(효과 탭에는 여전히 표시).
-      //  img 는 effect.img 에서 오므로 CONFIG.statusEffects 등록 불필요.(검증: v14.364 실측)
+      // In v14 the token icon render test is not isTemporary but effect.showIcon
+      // (Token#_drawEffects → appliedEffects.filter: showIcon===ALWAYS, or
+      //  showIcon===CONDITIONAL && isTemporary). An applied buff is not duration-based, so CONDITIONAL would never
+      //  draw it. → The overlay display is a per-effect choice (OFF by default):
+      //  showOnToken means ALWAYS (an icon on the token), otherwise NEVER (still listed on the effects tab).
+      //  img comes from effect.img, so registering in CONFIG.statusEffects is unnecessary. (Verified on v14.364.)
       showIcon: p.showOnToken
         ? (CONST.ACTIVE_EFFECT_SHOW_ICON?.ALWAYS ?? 2)
         : (CONST.ACTIVE_EFFECT_SHOW_ICON?.NEVER ?? 0),
-      // appliedKey 별 고유 합성 status → 아이콘 병합 방지 + actor.statuses 노출(가시성 전용).
+      // A unique synthetic status per appliedKey → prevents icon merging and exposes it on actor.statuses (visibility only).
       statuses: [`${SYNTH_STATUS}-${appliedKey}`],
       origin: p.itemId ? `${actor.uuid}.Item.${p.itemId}` : actor.uuid,
-      // v14: change 배열은 top-level 이 아니라 system.changes 에 위치(base AE 데이터모델).
-      // effect.changes getter 는 system.changes 를 반환하므로 외부 모듈 가독성 유지.
+      // v14: the change array lives at system.changes rather than top-level (the base AE data model).
+      // The effect.changes getter returns system.changes, so external-module readability is preserved.
       system: { changes: buildChanges(p.attributes) },
       flags: {
         [SCOPE]: {
-          appliedKey,     // upsert 매칭 및 collect 재구성 키
-          applied: p       // 계산 무손실 원본
+          appliedKey,     // the upsert matching key, and the key collect rebuilds from
+          applied: p       // the lossless original for the calculation
         }
       }
     };
   }
 
-  /** 지정 key 의 applied ActiveEffect 문서를 찾는다. */
+  /** Find the applied ActiveEffect document for the given key. */
   function getEffect(actor, appliedKey) {
     if (!actor) return null;
     return actor.effects.find(e => e.getFlag?.(SCOPE, 'appliedKey') === appliedKey) || null;
   }
 
-  /** 특정 원본 아이템에서 생성된 applied AE 전부를 찾는다. */
+  /** Find every applied AE created from a particular source item. */
   function getEffectsByItem(actor, itemId) {
     if (!actor || !itemId) return [];
     const onUseKey = `applied_${itemId}`;
@@ -149,8 +149,8 @@
     return actor.effects.filter(effect => {
       const appliedKey = effect.getFlag?.(SCOPE, 'appliedKey');
       const sourceItemId = effect.getFlag?.(SCOPE, 'applied')?.itemId;
-      // 최신 payload, 과거 appliedKey, 그리고 Foundry origin을 모두 확인한다.
-      // 활성화 → 비활성화 → 재활성화 중 한 필드가 누락된 구형 AE도 남기지 않는다.
+      // Check the latest payload, the past appliedKey and the Foundry origin, all three.
+      // That way an old AE missing one of those fields — activated → deactivated → reactivated — is not left behind.
       return sourceItemId === itemId
         || appliedKey === onUseKey
         || appliedKey === selfKey
@@ -159,7 +159,7 @@
     });
   }
 
-  /** 전환기 구형 system.attributes.applied 중 특정 아이템 원본의 key를 찾는다. */
+  /** Find the keys of a particular source item among the transitional legacy system.attributes.applied. */
   function getLegacyAppliedKeysByItem(actor, itemId) {
     if (!actor || !itemId) return [];
     const legacy = actor.system?.attributes?.applied;
@@ -175,9 +175,9 @@
   }
 
   /**
-   * 기존 AE 를 새 payload 로 덮어쓰는 갱신 데이터. set/setMany 공용.
-   * flags 는 문서 업데이트 시 딥 머지된다. 편집으로 제거된 attribute 키(예: a0)가
-   * 잔존해 이중 적용되지 않도록, 새 payload 에 없는 기존 키는 명시적으로 삭제한다.
+   * The update data that overwrites an existing AE with a new payload. Shared by set/setMany.
+   * flags are deep-merged on a document update. So that an attribute key removed by editing (e.g. a0) does not
+   * linger and get applied twice, an existing key absent from the new payload is explicitly deleted.
    */
   function buildUpdateData(existing, data, preserveDisabled) {
     const prevAttrs = existing.getFlag(SCOPE, 'applied')?.attributes || {};
@@ -190,8 +190,8 @@
       name: data.name,
       img: data.img,
       description: data.description,
-      // 토글 이펙트의 수식 재평가(sync)는 임시 비활성화 상태를 바꾸지 않는다.
-      // 일반 set 호출은 지금까지와 같이 갱신 시 활성화한다.
+      // Re-evaluating a toggle effect's formulas (sync) must not change a temporary disabled state.
+      // An ordinary set call activates on update, as it always has.
       disabled: preserveDisabled ? existing.disabled : false,
       showIcon: data.showIcon,
       statuses: data.statuses,
@@ -201,7 +201,7 @@
     };
   }
 
-  /** applied 버프를 생성/갱신(upsert). */
+  /** Create or update (upsert) an applied buff. */
   async function set(actor, appliedKey, payload, {preserveDisabled = false} = {}) {
     if (!actor || !appliedKey) return null;
     const data = buildAEData(actor, appliedKey, payload);
@@ -220,12 +220,12 @@
   }
 
   /**
-   * 여러 applied 버프를 DB 왕복 2회(갱신 1 + 생성 1)로 upsert. set() 과 동일한 조립을 쓴다.
-   * 콤보처럼 이펙트 여러 개를 한 번에 켜는 경로에서 AE 를 하나씩 쓰면 그 수만큼
-   * 액터 재파생·시트 재렌더가 연쇄돼 눈에 보이는 버벅임이 된다.
+   * Upsert several applied buffs in two DB round trips (one update + one create). It uses the same assembly as set().
+   * On a path that turns several effects on at once, such as a combo, writing the AEs one at a time cascades that
+   * many actor re-derivations and sheet re-renders into visible stutter.
    * @param {Actor} actor
-   * @param {Array<[string, object]>} entries - [appliedKey, payload] 쌍 배열
-   * @returns {Promise<number>} 쓰기(갱신+생성) 건수
+   * @param {Array<[string, object]>} entries - an array of [appliedKey, payload] pairs
+   * @returns {Promise<number>} the number of writes (updates + creations)
    */
   async function setMany(actor, entries = [], {preserveDisabled = false} = {}) {
     if (!actor || !entries?.length) return 0;
@@ -248,10 +248,13 @@
     }
   }
 
-  /** 지정 key 의 applied 버프 제거. */
-  async function remove(actor, appliedKey) {
+  /** Remove the applied buff for the given key. */
+  async function remove(actor, appliedKey, {keepGrants = true} = {}) {
     const eff = getEffect(actor, appliedKey);
     if (!eff) return false;
+    // Default: what this item created keeps its own lifetime (see rehomeGrants). The sheet's remove button
+    // cascades instead, by deleting the item's grants itself after this returns.
+    if (keepGrants) await rehomeGrants(actor, [eff]);
     try {
       await eff.delete();
       return true;
@@ -261,7 +264,7 @@
     }
   }
 
-  /** applied 버프의 활성/비활성(disabled) 상태를 설정. dnd5e 식 토글 소스. */
+  /** Set an applied buff's active/inactive (disabled) state. The dnd5e-style toggle source. */
   async function setDisabled(actor, appliedKey, disabled) {
     const eff = getEffect(actor, appliedKey);
     if (!eff) return false;
@@ -274,7 +277,7 @@
     }
   }
 
-  /** applied 버프의 활성/비활성 상태를 반전. */
+  /** Invert an applied buff's active/inactive state. */
   async function toggleDisabled(actor, appliedKey) {
     const eff = getEffect(actor, appliedKey);
     if (!eff) return false;
@@ -282,24 +285,24 @@
   }
 
   // ---------------------------------------------------------------------------
-  // 활성/비활성 "단일 소스" 통합 제어.
-  //  · toggle 파생 AE(appliedKey='toggle:<itemId>')의 진짜 상태는 소스 아이템의
-  //    system.active.state 다(applied-toggle sync 가 그것에서 AE 를 파생/삭제). 따라서
-  //    체크박스/HUD 는 AE.disabled 가 아니라 아이템 토글을 직접 뒤집는다 → 이중 상태 소멸.
-  //    끄면 sync 가 AE 를 삭제하므로 목록/HUD 에서 사라진다(toggle 효과의 정상 동작).
-  //  · 원본 아이템이 있어도, 그 아이템의 active.state 가 실제 상태인 것(활성화 채널)만
-  //    아이템을 뒤집는다. 동결 채널(applied_self_<itemId>, applyMode='onUse')은 켜져 있어도
-  //    active.state 가 false 이므로 아이템으로 라우팅하면 상태를 거꾸로 읽는다 →
-  //    toggleActive 가 늘 "켜기"로 판단해 toggle AE 를 하나 더 만들고(같은 보정 2중 가산)
-  //    끄는 것은 영영 불가능해진다. 이쪽은 AE 자체의 disabled 가 단일 소스다.
-  //  · 원본 없는 독립 버프(Panic·매크로 등)도 AE 자체의 disabled 를 토글한다.
-  //  · 소스 아이템이 사라진 toggle AE 는 AE.disabled 로 폴백.
+  // Unified control of the "single source" of active/inactive.
+  //  · The real state of a toggle-derived AE (appliedKey='toggle:<itemId>') is the source item's system.active.state
+  //    (the applied-toggle sync derives / deletes the AE from it). So the checkbox / HUD flips the item toggle
+  //    directly rather than AE.disabled → no dual state. Turning it off makes sync delete the AE, so it disappears
+  //    from the list / HUD (the normal behaviour of a toggle effect).
+  //  · Even when there is a source item, only one whose active.state is the actual state (the activation channel)
+  //    flips the item. A frozen channel (applied_self_<itemId>, applyMode='onUse') has active.state false even while
+  //    it is on, so routing through the item reads the state backwards → toggleActive always decides "turn on",
+  //    creating one more toggle AE (the same modifier counted twice) and making it impossible to ever turn off.
+  //    Here the AE's own disabled is the single source.
+  //  · A standalone buff with no source (Panic, a macro, …) also toggles the AE's own disabled.
+  //  · A toggle AE whose source item is gone falls back to AE.disabled.
   // ---------------------------------------------------------------------------
 
   /**
-   * appliedKey 의 상태를 대표하는 원본 아이템을 반환한다(없으면 null → AE.disabled 가 상태).
-   * 'toggle:' 파생은 정의상 아이템이 상태이고, 그 외 AE 는 자기 보정 채널이 '활성화'인
-   * 아이템에서 온 것만 해당한다(장비는 장착 체크가 원본이므로 제외 — useMeansActivation).
+   * Return the source item that represents the state of an appliedKey (null when there is none → AE.disabled is the state).
+   * A 'toggle:' derivation is by definition stated by its item; any other AE qualifies only when it came from an item
+   * whose self-modifier channel is 'activation' (equipment is excluded, because the equipped checkbox is its source — useMeansActivation).
    */
   function getToggleSourceItem(actor, appliedKey) {
     const key = String(appliedKey || '');
@@ -310,19 +313,19 @@
     return window.DX3rdItemEffectAdapter?.useMeansActivation?.(item) ? item : null;
   }
 
-  /** applied 효과를 활성/비활성으로 설정(단일 소스 라우팅). */
+  /** Set an applied effect active/inactive (single-source routing). */
   async function setActive(actor, appliedKey, active) {
     const item = getToggleSourceItem(actor, appliedKey);
     if (item) {
       const svc = window.DX3rdActorSheetData?.updateOwnedItemActiveState;
-      if (svc) await svc(actor, item.id, !!active);            // effect 탭 체크박스와 동일 경로
+      if (svc) await svc(actor, item.id, !!active);            // the same path as the effect tab's checkbox
       else await item.update({ 'system.active.state': !!active });
       return true;
     }
     return setDisabled(actor, appliedKey, !active);
   }
 
-  /** applied 효과의 활성/비활성을 반전(단일 소스 라우팅). */
+  /** Invert an applied effect's active/inactive state (single-source routing). */
   async function toggleActive(actor, appliedKey) {
     const item = getToggleSourceItem(actor, appliedKey);
     if (item) return setActive(actor, appliedKey, !(item.system?.active?.state));
@@ -331,15 +334,31 @@
     return setDisabled(actor, appliedKey, !eff.disabled);
   }
 
-  /** 여러 key 를 한 번에 제거(배치). */
+  /**
+   * An equipment-change grant may be riding on the AE about to be deleted (one item = one AE, so the modifier
+   * effect and the marker for what that item created share a document). Their **lifetimes** are not shared,
+   * though — a buff can expire at the end of a major action while the weapon it made lasts the scene — so an
+   * automatic removal hands the payload to a standalone marker first. Only the sheet's explicit remove cascades.
+   */
+  async function rehomeGrants(actor, effects) {
+    const H = window.DX3rdUniversalHandler;
+    if (!H?.grantPayload) return;
+    for (const effect of effects) {
+      if (H.grantPayload(effect)) await H.rehomeGrant(actor, effect);
+    }
+  }
+
+  /** Remove several keys at once (batched). */
   async function removeMany(actor, appliedKeys = []) {
     if (!actor || !appliedKeys.length) return 0;
     const ids = [];
+    const effects = [];
     for (const k of appliedKeys) {
       const eff = getEffect(actor, k);
-      if (eff) ids.push(eff.id);
+      if (eff) { ids.push(eff.id); effects.push(eff); }
     }
     if (!ids.length) return 0;
+    await rehomeGrants(actor, effects);
     try {
       await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
       return ids.length;
@@ -349,15 +368,21 @@
     }
   }
 
-  /** 특정 아이템에서 유래한 applied 버프 전부 제거. */
-  async function removeByItem(actor, itemId, {includeToggle = true} = {}) {
+  /**
+   * Remove every applied buff originating from a particular item.
+   * `keepGrants` (the default) protects what that item created: this runs on ordinary lifecycle events
+   * (deactivating, expiry), which must not destroy a creation that has its own lifetime. The sheet's remove
+   * button passes false, because there the user is deleting the effect and everything it made.
+   */
+  async function removeByItem(actor, itemId, {includeToggle = true, keepGrants = true} = {}) {
     if (!actor || !itemId) return 0;
-    const ids = getEffectsByItem(actor, itemId)
-      .filter(effect => includeToggle || !String(effect.getFlag?.(SCOPE, 'appliedKey') || '').startsWith('toggle:'))
-      .map(effect => effect.id);
+    const targets = getEffectsByItem(actor, itemId)
+      .filter(effect => includeToggle || !String(effect.getFlag?.(SCOPE, 'appliedKey') || '').startsWith('toggle:'));
+    if (keepGrants) await rehomeGrants(actor, targets.filter(effect => effect.getFlag?.(SCOPE, 'appliedKey')));
+    const ids = targets.map(effect => effect.id);
     let removed = 0;
-    // active.state 변경과 AppliedToggle 동기화가 같은 프레임에 일어날 수 있다.
-    // 각 문서를 다시 확인해 개별 삭제하면, 다른 경로가 먼저 지운 AE는 정상적인 no-op가 된다.
+    // An active.state change and the AppliedToggle sync can happen in the same frame.
+    // Re-checking each document and deleting individually makes an AE another path already deleted a normal no-op.
     for (const id of ids) {
       if (!actor.effects.get(id)) continue;
       try {
@@ -370,8 +395,8 @@
       }
     }
 
-    // 네이티브 AE로 이행하기 전의 applied 값도 함께 지운다. 이 값을 남기면 AE가
-    // 없어도 prepareData의 전환 브리지가 다시 읽어 HP/능력치 보정이 잔존한다.
+    // Also clear the applied values from before the migration to native AEs. Leaving them means prepareData's
+    // transition bridge reads them again even with no AE, so the HP / attribute modifiers linger.
     const legacyKeys = getLegacyAppliedKeysByItem(actor, itemId)
       .filter(key => includeToggle || key !== `toggle:${itemId}`);
     if (legacyKeys.length) {
@@ -389,9 +414,9 @@
   }
 
   /**
-   * 액터의 applied ActiveEffect 들을 레거시 { [appliedKey]: payload } 맵으로 재구성.
-   * prepareData / 시트 / disable-hooks 가 기존과 동일한 형태로 소비한다.
-   * 전환 브리지: 아직 AE 로 이행되지 않은 레거시 system.attributes.applied 가 있으면 병합(AE 우선).
+   * Rebuild the actor's applied ActiveEffects into the legacy { [appliedKey]: payload } map.
+   * prepareData / the sheets / disable-hooks consume it in exactly the shape they always have.
+   * Transition bridge: a legacy system.attributes.applied not yet migrated to an AE is merged in (the AE wins).
    */
   function collect(actor) {
     const out = {};
@@ -400,14 +425,14 @@
       const key = e.getFlag?.(SCOPE, 'appliedKey');
       if (!key) continue;
       const payload = e.getFlag?.(SCOPE, 'applied');
-      // AE 의 disabled 상태를 payload 사본에 얕게 실어 내보낸다(원본 flag 오염 방지).
-      //  · _indexAppliedEffects 는 _disabled === true 를 계산에서 제외한다.
-      //  · 시트 Applied 목록/HUD 는 _disabled 로 토글 상태를 표시한다.
-      //  · normalizePayload 는 화이트리스트라 _disabled 가 다시 flag 에 저장되지 않는다.
+      // Carry the AE's disabled state shallowly on a copy of the payload (avoiding polluting the original flag).
+      //  · _indexAppliedEffects excludes _disabled === true from the calculation.
+      //  · The sheet's Applied list / HUD shows the toggle state from _disabled.
+      //  · normalizePayload is a whitelist, so _disabled is never stored back onto the flag.
       if (payload) out[key] = { ...payload, _disabled: !!e.disabled };
     }
-    // 전환 브리지: 이행 완료 월드에선 레거시 필드가 삭제(undefined)되거나 빈 {} 이므로
-    // 대개 아래를 건너뛴다. prepareData 핫패스에서 불필요한 순회/할당을 피하려 조기 종료한다.
+    // Transition bridge: in a fully migrated world the legacy field is deleted (undefined) or an empty {}, so this
+    // is usually skipped. The early exit avoids a needless traversal and allocation on the prepareData hot path.
     const legacy = actor.system?.attributes?.applied;
     if (legacy && typeof legacy === 'object') {
       for (const k of Object.keys(legacy)) {
@@ -439,9 +464,9 @@
     collect
   };
 
-  // 토큰 HUD의 효과 오버레이 좌클릭은 Foundry 기본 동작으로 ActiveEffect를 삭제한다.
-  // applied AE만 가로채 액터 시트의 적용 효과 체크박스와 동일하게 disabled를 반전한다.
-  // 일반 상태이상은 Foundry 기본 동작을 그대로 유지한다.
+  // A left click on the token HUD's effect overlay deletes the ActiveEffect through Foundry's default behaviour.
+  // Only applied AEs are intercepted, inverting disabled exactly like the actor sheet's applied-effect checkbox.
+  // An ordinary status effect keeps Foundry's default behaviour.
   Hooks.on('renderTokenHUD', (hud, html) => {
     const root = html instanceof HTMLElement ? html : html?.[0];
     if (!root || root.dataset.dx3rdAppliedOverlayBound) return;
@@ -460,7 +485,7 @@
       const appliedKey = effect?.getFlag?.(SCOPE, 'appliedKey');
       if (!appliedKey) return;
 
-      // 캡처 단계에서 막아 Foundry의 삭제 핸들러가 실행되지 않게 한다.
+      // Blocked in the capture phase so Foundry's delete handler never runs.
       event.preventDefault();
       event.stopImmediatePropagation();
       await setDisabled(actor, appliedKey, !effect.disabled);

@@ -1062,10 +1062,10 @@
             <div class="cell--title"><label>{{localize "DX3rd.Applied"}}</label></div>
             <ol class="items-list margin-top-10">
               {{#each actor.applied as |item|}}
-                <li class="item flexrow applied-item" data-applied-id="{{item._id}}" draggable="false">
+                <li class="item flexrow applied-item{{#if item.hasGrant}} applied-grant-item{{/if}}" data-applied-id="{{item._id}}" draggable="false">
                   <h4 class="item-name">
                     <span class="echo-item" style="float:left;"><img src="{{item.img}}" title="{{item.name}}" width="28" height="28" style="vertical-align:middle;margin-right:8px;"></span>
-                    <span class="item-label" data-action="toggleDesc">{{item.name}}<br>
+                    <span class="item-label" data-action="toggleDesc">{{item.name}}{{#if item.hasGrant}} <span class="applied-grant-badge" title="{{localize "DX3rd.GrantItemDescription"}}">{{localize "DX3rd.GrantMarker"}}</span>{{/if}}<br>
                       <span class="applied-subtle">{{localize "DX3rd.DisableTiming"}} : {{disable item.disable}}{{#if item.system.description}} <span class="item-details-toggle"><i class="fas fa-chevron-down"></i></span>{{/if}}</span>
                     </span>
                   </h4>
@@ -1076,6 +1076,21 @@
                     {{#if ../canEdit}}<a class="item-control remove-applied" data-action="removeApplied" title="{{localize "DX3rd.Remove"}}"><i class="fas fa-trash"></i></a>{{/if}}
                   </div>
                   {{#if item.system.description}}<div class="item-description" style="display:none;">{{{item.system.description}}}</div>{{/if}}
+                </li>
+              {{/each}}
+              {{!-- 장비 변경 표식: 보정이 아니라 「생성물의 수명을 쥔 AE」다. 토글/편집이 없는 것은 의도이고
+                    (비활성화는 아이콘만 숨긴다), 지우면 생성 아이템 회수·맨손 복원까지 함께 일어난다. --}}
+              {{#each actor.grants as |grant|}}
+                <li class="item flexrow applied-item applied-grant-item" data-grant-id="{{grant._id}}" draggable="false">
+                  <h4 class="item-name">
+                    <span class="echo-item" style="float:left;"><img src="{{grant.img}}" title="{{grant.name}}" width="28" height="28" style="vertical-align:middle;margin-right:8px;"></span>
+                    <span class="item-label" data-action="toggleDesc">{{grant.name}} <span class="applied-grant-badge">{{localize "DX3rd.GrantMarker"}}</span><br>
+                      <span class="applied-subtle">{{grant.description}}</span>
+                    </span>
+                  </h4>
+                  <div class="item-controls applied-controls">
+                    {{#if ../canEdit}}<a class="item-control remove-grant" data-action="removeGrant" title="{{localize "DX3rd.Remove"}}"><i class="fas fa-trash"></i></a>{{/if}}
+                  </div>
                 </li>
               {{/each}}
             </ol>

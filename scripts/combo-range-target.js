@@ -1,16 +1,16 @@
-// 사정거리(range)·대상(target) 캐노니컬 값 + 조합 자동조정 파서
-// - 저장 값은 한글 캐노니컬 문자열(기존 컴펜디움 데이터와 일치, 마이그레이션 최소화).
-// - 레거시 자유텍스트/오타/파라미터형(Xm, N체)을 normalize로 캐노니컬화.
-// - 조합 규칙: 사정거리·대상 모두 "가장 제한적인(순위 최소) 컴포넌트"를 따라간다.
-//   자신(self)은 자신끼리만 조합 가능 — 위반 시 경고만(진행 허용).
-// - 효과참조/미지정('-')은 순위 없음(자동계산 제외) → 사용자가 직접 최종값을 정한다.
+// The canonical range / target values plus the parser that auto-adjusts them on combination
+// - The stored value is the Korean canonical string (matching the existing compendium data, minimizing migration).
+// - Legacy free text, typos and parametric forms (Xm, N체) are canonicalized by normalize.
+// - The combination rule: both range and target follow the "most restrictive (lowest-ranked) component".
+//   자신 (self) can only combine with itself — a violation only warns (it is allowed to proceed).
+// - An effect reference / unstated ('-') has no rank (excluded from the automatic computation) → the user sets the final value.
 (function() {
-  // ===== 캐노니컬 정의 =====
-  // rank: 작을수록 제한적(조합 시 우선). null=자동계산 제외. parametric=숫자 파라미터 동반.
+  // ===== The canonical definitions =====
+  // rank: the lower, the more restrictive (it wins on combination). null = excluded from the automatic computation. parametric = it carries a numeric parameter.
   const RANGE_DEFS = [
     { value: '-',      key: null,             rank: null },
     { value: '지근',   key: 'DX3rd.Engage',   rank: 10 },
-    { value: '거리',   key: 'DX3rd.Distance', rank: 20, parametric: 'm' },   // 실제 저장값은 "{n}m"
+    { value: '거리',   key: 'DX3rd.Distance', rank: 20, parametric: 'm' },   // the value actually stored is "{n}m"
     { value: '시야',   key: 'DX3rd.Sight',    rank: 30 },
     { value: '씬',     key: 'DX3rd.SceneTarget', rank: 40 },
     { value: '무기',   key: 'DX3rd.Weapon',   rank: null, special: 'weapon' },
@@ -21,8 +21,8 @@
     { value: '-',        key: null,               rank: null },
     { value: '자신',     key: 'DX3rd.Self',       rank: 0, self: true },
     { value: '단독',     key: 'DX3rd.Single',     rank: 10 },
-    { value: '대상수',   key: 'DX3rd.TargetCount', rank: 12, parametric: '체' }, // 실제 저장값은 "{n}체"
-    { value: '레벨대상수', key: 'DX3rd.LevelTargetCount', rank: 12, parametric: 'LV' }, // 실제 저장값은 "[LV+n]체"
+    { value: '대상수',   key: 'DX3rd.TargetCount', rank: 12, parametric: '체' }, // the value actually stored is "{n}체"
+    { value: '레벨대상수', key: 'DX3rd.LevelTargetCount', rank: 12, parametric: 'LV' }, // the value actually stored is "[LV+n]체"
     { value: '범위(선택)', key: 'DX3rd.AreaSelect', rank: 30 },
     { value: '범위',     key: 'DX3rd.Area',       rank: 40 },
     { value: '씬(선택)', key: 'DX3rd.SceneSelect', rank: 50 },
@@ -30,7 +30,7 @@
     { value: '효과참조', key: 'DX3rd.Reference',   rank: null, special: 'reference' }
   ];
 
-  // 레거시/오타/동의어 → 캐노니컬 (파라미터형은 별도 정규식)
+  // Legacy / typo / synonym → canonical (parametric forms have their own regexes)
   const RANGE_SYNONYMS = {
     '지극': '지근', '근접': '지근',
     '야': '시야',
@@ -49,37 +49,37 @@
     return (s && s !== def.key) ? s : def.value;
   }
 
-  // ===== 정규화 =====
+  // ===== Normalization =====
   function normalizeRange(raw) {
     const v = String(raw ?? '').trim();
     if (v in RANGE_SYNONYMS) return RANGE_SYNONYMS[v];
-    // "20m" / "20M" / bare number(=미터) → "{n}m"
+    // "20m" / "20M" / a bare number (= meters) → "{n}m"
     const m = v.match(/^(\d+)\s*m$/i) || v.match(/^(\d+)$/);
     if (m) return `${parseInt(m[1], 10)}m`;
-    return v; // 이미 캐노니컬이거나 미지(기타)
+    return v; // already canonical, or unknown (other)
   }
 
   function normalizeTarget(raw) {
     const v = String(raw ?? '').trim();
     if (v in TARGET_SYNONYMS) return TARGET_SYNONYMS[v];
-    // 레벨 스케일 대상수: "[LV+1]체" / "LV+1" / "LV+1체" → "[LV+n]체"
+    // A level-scaled target count: "[LV+1]체" / "LV+1" / "LV+1체" → "[LV+n]체"
     const lv = v.match(/\[?\s*LV\s*\+\s*(\d+)\s*\]?\s*체?$/i);
     if (lv) return `[LV+${parseInt(lv[1], 10)}]체`;
-    // 고정 대상수: "3" / "3체" → "{n}체"
+    // A fixed target count: "3" / "3체" → "{n}체"
     const cnt = v.match(/^(\d+)\s*체?$/);
     if (cnt) return `${parseInt(cnt[1], 10)}체`;
     return v;
   }
 
-  // ===== 순위 산출 =====
-  // 반환: { rank:number|null, meters?:number, count?:number, self?:boolean, special?:string, value:string }
+  // ===== Deriving the rank =====
+  // Returns: { rank:number|null, meters?:number, count?:number, self?:boolean, special?:string, value:string }
   function rangeInfo(raw) {
     const value = normalizeRange(raw);
     const mm = value.match(/^(\d+)m$/i);
     if (mm) return { rank: 20, meters: parseInt(mm[1], 10), value };
     const def = RANGE_DEFS.find(d => d.value === value);
     if (def) return { rank: def.rank, special: def.special, value };
-    return { rank: null, value }; // 기타(미지)
+    return { rank: null, value }; // other (unknown)
   }
 
   function targetInfo(raw) {
@@ -89,10 +89,10 @@
     if (/^\[LV\+\d+\]체$/i.test(value)) return { rank: 12, value };
     const def = TARGET_DEFS.find(d => d.value === value);
     if (def) return { rank: def.rank, self: !!def.self, special: def.special, value };
-    return { rank: null, value }; // 기타(미지)
+    return { rank: null, value }; // other (unknown)
   }
 
-  // 두 info 비교: a가 더 제한적(작음)이면 음수. rank 동률이면 meters/count 작은 쪽이 제한적.
+  // Compare two infos: negative when a is more restrictive (smaller). On a rank tie, the smaller meters/count is more restrictive.
   function moreRestrictive(a, b) {
     if (a.rank !== b.rank) return a.rank - b.rank;
     const am = a.meters ?? a.count ?? 0;
@@ -100,9 +100,9 @@
     return am - bm;
   }
 
-  // ===== 조합 =====
-  // 여러 컴포넌트의 사정거리를 합성. rankable(순위 있음)만 비교해 가장 제한적인 값 채택.
-  // 반환: { value:string, resolved:boolean }  resolved=false면 자동 결정 불가(사용자 값 보존).
+  // ===== Combination =====
+  // Combine several components' ranges. Only rankable entries are compared, and the most restrictive value is taken.
+  // Returns: { value:string, resolved:boolean } — resolved=false means it could not be decided automatically (the user's value is kept).
   function combineRange(rawList) {
     const infos = (rawList || []).map(rangeInfo).filter(i => i.rank !== null);
     if (infos.length === 0) return { value: '-', resolved: false };
@@ -111,8 +111,8 @@
     return { value: best.value, resolved: true };
   }
 
-  // 대상 합성. 자신 규칙: 자신끼리면 자신, 자신+비자신 혼합이면 selfConflict=true(경고) 후 비자신 최소값.
-  // 반환: { value:string, resolved:boolean, selfConflict:boolean }
+  // Combining targets. The self rule: self among selves stays self; a mix of self and non-self sets selfConflict=true (a warning) and then takes the non-self minimum.
+  // Returns: { value:string, resolved:boolean, selfConflict:boolean }
   function combineTarget(rawList) {
     const infos = (rawList || []).map(targetInfo).filter(i => i.rank !== null);
     if (infos.length === 0) return { value: '-', resolved: false, selfConflict: false };
@@ -127,8 +127,8 @@
     return { value: best.value, resolved: true, selfConflict: selfs.length > 0 };
   }
 
-  // ===== 시트 드롭다운용 분류 =====
-  // 저장값 → { option, param }. option은 select에서 선택할 캐노니컬 옵션 value, param은 거리/대상수 숫자부.
+  // ===== Classification for the sheet dropdowns =====
+  // A stored value → { option, param }. option is the canonical option value to select in the select, param is the numeric part of the distance / target count.
   function classifyRange(raw) {
     const value = normalizeRange(raw);
     if (/^\d+m$/i.test(value)) return { option: '거리', param: value.replace(/m$/i, '') };
@@ -147,7 +147,7 @@
     return { option: '기타', param: value };
   }
 
-  // select 옵션 목록(로케일 라벨 포함). '거리'/'대상수'/'기타'는 파라미터 입력을 동반.
+  // The select option list (with localized labels). '거리' / '대상수' / '기타' carry a parameter input.
   function rangeOptions() {
     return RANGE_DEFS.map(d => ({ value: d.value, label: localizeLabel(d), parametric: d.parametric || null }));
   }
@@ -155,13 +155,13 @@
     return TARGET_DEFS.map(d => ({ value: d.value, label: localizeLabel(d), parametric: d.parametric || null }));
   }
 
-  // ===== 난이도(difficulty) =====
-  // roll(판정 발동: major/reaction/dodge)과는 독립적인 목표치/유형 메타데이터.
-  // 실제 컴펜디움 값: 자동성공 / 대결 / 효과참조 / 숫자 / '-'.
-  //  - 자동성공: 판정 없이 성공
-  //  - 대결: 대결 판정(상대 판정치와 비교)
-  //  - 효과참조: 텍스트 참조(유저 수동)
-  //  - 숫자: 고정 목표치
+  // ===== Difficulty =====
+  // Target-value / kind metadata, independent of roll (the roll trigger: major/reaction/dodge).
+  // The actual compendium values: 자동성공 (auto success) / 대결 (contest) / 효과참조 (effect reference) / a number / '-'.
+  //  - 자동성공: succeeds with no roll
+  //  - 대결: a contested roll (compared against the opponent's roll value)
+  //  - 효과참조: a textual reference (handled manually by the user)
+  //  - a number: a fixed target value
   const L = (k, fb) => { const s = game?.i18n?.localize?.(k); return (s && s !== k) ? s : fb; };
 
   const DIFFICULTY_OPTIONS = [
@@ -188,13 +188,13 @@
     return { option: '기타', param: v };
   }
 
-  // 조합 난이도 합성(룰북 p.13 「난이도의 변경」):
-  //  - 대결 이 하나라도 있으면 자동적으로 대결.
-  //  - 그 외에는 가장 높은(엄격한) 숫자 난이도를 적용.
-  //  - 자동성공 과 비자동성공(숫자/대결)이 섞이면 비자동성공을 적용(자동성공은 배제).
-  //  - 효과참조/기타/미지정('-')만 있으면 자동 결정 불가(사용자 값 보존).
-  // 우선순위(높을수록 채택): 대결 > 숫자(최댓값) > 자동성공.
-  // 반환: { value:string, resolved:boolean }  resolved=false면 사용자 값 보존.
+  // Combining difficulties (rulebook p.13, "changing the difficulty"):
+  //  - If even one 대결 is present, the result is automatically 대결.
+  //  - Otherwise the highest (strictest) numeric difficulty applies.
+  //  - When 자동성공 mixes with a non-auto-success (a number / 대결), the non-auto-success applies (auto success is excluded).
+  //  - With only 효과참조 / other / unstated ('-'), it cannot be decided automatically (the user's value is kept).
+  // Priority (higher wins): 대결 > a number (the maximum) > 자동성공.
+  // Returns: { value:string, resolved:boolean } — resolved=false keeps the user's value.
   function combineDifficulty(rawList) {
     const cls = (rawList || []).map(classifyDifficulty);
     if (cls.some(c => c.option === '대결')) return { value: '대결', resolved: true };
@@ -204,7 +204,7 @@
     return { value: '-', resolved: false };
   }
 
-  // 사정거리 값이 「무기」 특수 지시자인지(조합 시 무기 사정거리를 대입).
+  // Is the range value the special 「무기」 (weapon) directive (substitute the weapon's range on combination)?
   function isWeaponRange(raw) {
     return normalizeRange(raw) === '무기';
   }
@@ -221,8 +221,8 @@
     };
   }
 
-  // ===== 시트(드롭다운) 배선 헬퍼 =====
-  // 템플릿에 넘길 필드 컨텍스트: 옵션 목록 + 초기 선택 + 파라미터 표시 여부.
+  // ===== Sheet (dropdown) wiring helpers =====
+  // The field context passed to the template: the option list, the initial selection, and whether a parameter is shown.
   function fieldContext(kind, rawValue) {
     const isRange = kind === 'range';
     const cls = isRange ? classifyRange(rawValue) : classifyTarget(rawValue);
@@ -236,13 +236,13 @@
     };
   }
 
-  // kind별 파라미터 입력을 여는 옵션값(+ '기타'는 공통). target은 대상수/레벨대상수 둘 다 숫자 입력을 동반.
+  // The option values that open a parameter input per kind (plus '기타', which is common). For target, both 대상수 and 레벨대상수 carry a numeric input.
   const PARAM_OPTIONS = { range: ['거리'], target: ['대상수', '레벨대상수'], difficulty: ['숫자'] };
   function isParamOption(kind, option) {
     return option === '기타' || (PARAM_OPTIONS[kind] || []).includes(option);
   }
 
-  // 드롭다운 선택 + 파라미터 입력 → 저장할 캐노니컬 값 조합.
+  // The dropdown selection plus the parameter input → the canonical value to store.
   function composeValue(kind, option, param) {
     const p = String(param ?? '').trim();
     if (!option || option === '-') return '-';
@@ -261,8 +261,8 @@
     return option; // 자동성공 / 대결 / 효과참조
   }
 
-  // .rt-field[data-rt] (select.rt-option + input.rt-param + input[type=hidden][name=system.range|target]) 배선.
-  // update(item, {'system.range': value}) 콜백으로 즉시 저장.
+  // Wiring for .rt-field[data-rt] (select.rt-option + input.rt-param + input[type=hidden][name=system.range|target]).
+  // Saved immediately through the update(item, {'system.range': value}) callback.
   function setupFieldListeners(root, item, { update } = {}) {
     if (!root || !update) return;
     root.querySelectorAll('.rt-field[data-rt]').forEach(field => {
@@ -273,18 +273,18 @@
       if (!sel || !hidden) return;
       const apply = async ({focusParam = false} = {}) => {
         const show = isParamOption(kind, sel.value);
-        // 템플릿은 hidden 속성으로 숨긴다. 인라인 display 를 비워도 [hidden]{display:none}이
-        // 그대로 남아 입력칸이 끝까지 안 보였고, 그래서 숫자를 못 넣은 채 아래 composeValue 가
-        // '-' 를 저장해 방금 고른 옵션이 매번 '-' 로 되돌아갔다.
+        // The template hides it with the hidden attribute. Clearing the inline display still left [hidden]{display:none}
+        // in force, so the input never became visible; with no number entered, composeValue below then stored '-' and
+        // the option just chosen reverted to '-' every time.
         if (param) {
           param.hidden = !show;
           param.style.removeProperty('display');
         }
         const raw = param ? String(param.value ?? '').trim() : '';
-        // 파라미터형 옵션인데 아직 숫자가 비어 있으면 저장하지 않는다 — 저장하면 그 update 의
-        // 재렌더가 선택을 '-' 로 덮는다. 입력칸에 포커스를 주고 값이 들어오길 기다린다.
-        // 포커스는 드롭다운을 방금 고른 경우에만 — 파라미터 입력의 blur 에서 되불러오면
-        // 빈 칸을 벗어날 수 없는 포커스 덫이 된다.
+        // Nothing is stored while a parametric option's number is still empty — storing it would have that update's
+        // re-render overwrite the selection with '-'. The input is focused instead, waiting for a value.
+        // It is focused only when the dropdown was just chosen — refocusing from the parameter input's blur would
+        // make it a focus trap the user could not leave while the field is empty.
         if (show && !raw) {
           if (focusParam) param?.focus();
           return;

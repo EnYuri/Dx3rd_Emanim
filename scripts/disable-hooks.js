@@ -1,12 +1,12 @@
-// Disable Hooks - 타이밍에 따라 아이템 비활성화 및 효과 제거
+// Disable Hooks - deactivates items and removes effects according to the timing
 (function() {
     window.DX3rdDebug.log("DX3rd | DisableHooks script loading...");
 
     class DX3rdDisableHooks {
         /**
-         * 특정 타이밍에 해당하는 아이템들을 비활성화하고 효과를 제거
-         * @param {string} timing - 타이밍 ('roll', 'major', 'reaction', 'guard', 'main', 'round', 'scene', 'session')
-         * @param {Actor|Actor[]|null} targetActors - 대상 액터(들). null이면 모든 액터, Actor 하나면 해당 액터만, Array면 배열의 액터들만
+         * Deactivate the items belonging to a particular timing and remove their effects
+         * @param {string} timing - the timing ('roll', 'major', 'reaction', 'guard', 'main', 'round', 'scene', 'session')
+         * @param {Actor|Actor[]|null} targetActors - the target actor(s). null = every actor, a single Actor = only that one, an Array = only those in the array
          */
         static async executeDisableHook(timing, targetActors = null) {
             if (!timing) {
@@ -16,23 +16,23 @@
 
             window.DX3rdDebug.log(`DX3rd | DisableHooks - Executing ${timing} hook`, { targetActors });
 
-            // 대상 액터 결정
+            // Decide the target actors
             let actors = [];
             if (targetActors === null) {
-                // null이면 현재 캔버스의 토큰 액터들 (캐릭터 + 에너미)
+                // null = the token actors on the current canvas (characters + enemies)
                 const currentScene = game.scenes.active;
                 if (currentScene) {
                     const tokensWithActors = currentScene.tokens.filter(t => t.actor && (t.actor.type === 'character' || t.actor.type === 'enemy'));
                     actors = tokensWithActors.map(t => t.actor);
                 } else {
-                    // 활성 씬이 없으면 빈 배열
+                    // With no active scene, an empty array
                     actors = [];
                 }
             } else if (Array.isArray(targetActors)) {
-                // 배열이면 해당 액터들만 (판정/행동을 실행한 액터이므로 캐릭터·에너미 모두 처리)
+                // An array = only those actors (the actor who made the roll / took the action, so both characters and enemies are handled)
                 actors = targetActors.filter(a => a && (a.type === 'character' || a.type === 'enemy'));
             } else if (targetActors) {
-                // 단일 액터면 배열로 변환 (판정/행동을 실행한 액터이므로 캐릭터·에너미 모두 처리)
+                // A single actor is converted to an array (the actor who made the roll / took the action, so both characters and enemies are handled)
                 if (targetActors.type === 'character' || targetActors.type === 'enemy') {
                     actors = [targetActors];
                 }
@@ -58,16 +58,16 @@
                     }
                 }
 
-                // 액터의 모든 아이템 확인
+                // Check every item on the actor
                 for (const item of actor.items) {
                     let shouldDeactivate = false;
                     let shouldResetUsage = false;
 
-                    // active.state 는 자기 보정의 「활성화」 버킷 상태다. 사용/공격 버킷이
-                    // 채널 기본 버킷인 혼합 아이템에서는 system.active.disable 이 그쪽 수명이고,
-                    // 활성화 버킷은 buckets.activation.disable 로 별도 수명을 가질 수 있다.
-                    // 평탄 필드만 보면 첫 사용 버킷이 끝날 때 상시 버킷까지 꺼져, 같은 조합을
-                    // 다시 쓸 때 콤보가 활성화 버킷을 재점등하지 않는 정상 규칙과 맞물려 보정이 사라진다.
+                    // active.state is the state of the self modifiers' "activation" bucket. On a mixed item whose use /
+                    // attack bucket is the channel's default bucket, system.active.disable is that bucket's lifetime,
+                    // and the activation bucket can have its own lifetime at buckets.activation.disable.
+                    // Looking only at the flat field turns the always-on bucket off when the first use bucket ends, and
+                    // together with the correct rule that a combo does not relight the activation bucket, the modifier disappears.
                     const adapter = window.DX3rdItemEffectAdapter;
                     const activeDisable = adapter?.usesActivationSelfChannel?.(item)
                         ? adapter.bucketLifecycle(item, 'self', 'activation').disable
@@ -76,7 +76,7 @@
                         shouldDeactivate = true;
                     }
 
-                    // used.disable 확인 (사용 횟수 리셋)
+                    // Check used.disable (resetting the use count)
                     if (item.system.used?.disable === timing && item.system.used?.state > 0) {
                         shouldResetUsage = true;
                     }
@@ -90,30 +90,30 @@
                     }
                 }
 
-                // 적용된 효과(Applied) 확인 (네이티브 AE 에서 재구성)
+                // Check the applied effects (rebuilt from the native AEs)
                 const appliedEffects = window.DX3rdAppliedEffects?.collect
                     ? window.DX3rdAppliedEffects.collect(actor)
                     : (actor.system.attributes.applied || {});
                 for (const [appliedKey, appliedData] of Object.entries(appliedEffects)) {
-                    // appliedData가 객체 형식인 경우
+                    // When appliedData is in object form
                     if (appliedData && typeof appliedData === 'object') {
                         let shouldRemove = false;
                         
-                        // 1. applied 효과 자체에 disable 속성이 있는 경우 (EXTRA TURN 등)
+                        // 1. The applied effect itself has a disable property (EXTRA TURN and the like)
                         if (appliedData.disable === timing) {
                             shouldRemove = true;
                         }
                         
-                        // 2. 아이템 기반 applied 효과인 경우 — 단, 자기 보정 채널은 제외한다.
-                        // 자기 동결 버프의 수명은 active.disable 이고 그건 위 1번이 이미 본다.
-                        // 여기서 대상 채널의 effect.disable 까지 적용하면, 두 채널의 소멸
-                        // 타이밍이 다른 아이템에서 자기 버프가 남의 수명으로 먼저 사라진다.
+                        // 2. An item-based applied effect — except that the self modifier channel is excluded.
+                        // A frozen self buff's lifetime is active.disable, and case 1 above already covers that.
+                        // Applying the target channel's effect.disable here too would make the self buff disappear first,
+                        // on someone else's lifetime, for an item whose two channels expire at different times.
                         const sourceItemId = appliedData.channel === 'self' ? null : appliedData.itemId;
                         if (sourceItemId && !shouldRemove) {
-                            // 원본 아이템 찾기 (같은 액터 또는 다른 액터에서)
+                            // Find the source item (on the same actor, or another one)
                             let sourceItem = actor.items.get(sourceItemId);
                             
-                            // 같은 액터에서 찾지 못한 경우, 모든 액터에서 찾기
+                            // When it was not found on the same actor, search every actor
                             if (!sourceItem) {
                                 for (const otherActor of game.actors) {
                                     sourceItem = otherActor.items.get(sourceItemId);
@@ -121,10 +121,10 @@
                                 }
                             }
 
-                            // 원본 아이템의 disable 타이밍 확인. 소멸 타이밍은 채널이 아니라
-                            // **그 버킷**의 것이다(appliedData.action = 버킷 판별자, 기본 버킷은 null).
-                            // 채널 필드를 그대로 읽으면 카드마다 수명을 나눠 저작한 아이템에서
-                            // 다른 카드의 수명으로 먼저 사라진다.
+                            // Check the source item's disable timing. An expiry timing belongs not to the channel but to
+                            // **that bucket** (appliedData.action = the bucket discriminator; the default bucket is null).
+                            // Reading the channel field directly would, on an item that authors a lifetime per card, make
+                            // it disappear first on another card's lifetime.
                             if (sourceItem) {
                                 const adapter = window.DX3rdItemEffectAdapter;
                                 const effectDisable = adapter
@@ -142,7 +142,7 @@
                     }
                 }
 
-                // 아이템 비활성화
+                // Deactivate the item
                 const deactivatedItems = [];
                 for (const item of itemsToDeactivate) {
                     try {
@@ -167,7 +167,7 @@
                     await window.DX3rdAppliedEffects.removeMany(actor, expiredToggleKeys);
                 }
 
-                // 익스텐션으로 부여한 코어 상태 AE는 출처별 수명만 종료한다.
+                // A core status AE granted by an extension ends only that source's lifetime.
                 try {
                     const clearedConditions = await window.DX3rdConditionSources?.clearByTiming?.(actor, timing) || 0;
                     if (clearedConditions) {
@@ -177,7 +177,7 @@
                     console.error(`DX3rd | DisableHooks - Failed to clear condition sources on actor ${actor.name}:`, error);
                 }
 
-                // 사용 횟수 리셋
+                // Reset the use count
                 for (const item of itemsToResetUsage) {
                     try {
                         await item.update({ 'system.used.state': 0 });
@@ -188,13 +188,13 @@
                     }
                 }
 
-                // 적용된 효과 제거 (네이티브 AE 삭제)
+                // Remove the applied effects (deleting the native AEs)
                 if (appliedToRemove.length) {
                     removedAppliedCount += await window.DX3rdAppliedEffects.removeMany(actor, appliedToRemove);
                     window.DX3rdDebug.log(`DX3rd | DisableHooks - Removed applied effects: ${appliedToRemove.join(', ')} from actor ${actor.name}`);
                 }
 
-                // 액터 업데이트
+                // Update the actor
                 if (Object.keys(updates).length > 0) {
                     try {
                         await actor.update(updates);
@@ -218,8 +218,8 @@
         }
 
         /**
-         * 매크로 바에 추가할 수 있는 헬퍼 함수들
-         * @param {Actor|Actor[]|null} targetActors - 대상 액터(들). 생략하면 모든 액터
+         * Helper functions that can be added to the macro bar
+         * @param {Actor|Actor[]|null} targetActors - the target actor(s). Omitted = every actor
          */
         static async afterRoll(targetActors = null) {
             await this.executeDisableHook('roll', targetActors);
@@ -250,10 +250,10 @@
         }
     }
 
-    // 전역 노출
+    // Expose globally
     window.DX3rdDisableHooks = DX3rdDisableHooks;
 
-    // 매크로에서 쉽게 사용할 수 있도록 전역 함수로도 노출
+    // Also exposed as global functions, for easy use from a macro
     window.afterRoll = (targetActors = null) => DX3rdDisableHooks.afterRoll(targetActors);
     window.afterMajor = (targetActors = null) => DX3rdDisableHooks.afterMajor(targetActors);
     window.afterReaction = (targetActors = null) => DX3rdDisableHooks.afterReaction(targetActors);

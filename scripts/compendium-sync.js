@@ -1,63 +1,63 @@
-// 컴펜디움 동기화
+// Compendium sync
 // ---------------------------------------------------------------------------
-// 월드 액터가 소유한 임베디드 아이템 중, 시스템 컴펜디움에 (타입|이름)이 동일한
-// 항목이 있으면 그 컴펜디움 데이터로 갱신한다. 기계화(system.attributes/effect/
-// flags.itemExtend/macros)와 임베디드 ActiveEffect까지 함께 최신화하는 것이 목적.
+// When an embedded item owned by a world actor has a (type|name) match in a system compendium, it is updated
+// from that compendium data. The point is to bring the mechanization (system.attributes/effect/
+// flags.itemExtend/macros) and the embedded ActiveEffects up to date along with it.
 //
-// 방식: 임베디드 아이템을 삭제 후 병합 결과로 재생성(_id 보존 → 참조 유지).
-//   전체 교체이므로 죽은 필드가 남지 않고 임베디드 AE도 그대로 따라온다.
+// Method: delete the embedded item and recreate it from the merge result (_id preserved → references survive).
+//   Being a full replacement, no dead field is left behind and the embedded AEs come along.
 //
-// **3-way 병합** — 이 파일의 핵심 불변식.
-//   「현재 값 ≠ 컴펜디움 값」만으로 갱신 대상을 정하면 액터에서 손본 값도 말없이
-//   되돌아간다. PRESERVE 화이트리스트 밖은 전부 소실됐고, 그래서 갱신 한 번이
-//   손질을 통째로 날렸다. 팩 쪽에는 이미 같은 문제의 답이 있다 —
-//   `tools/recover-pack-edits.mjs` 는 *지난 빌드가 팩에 넣은 값*을 기준선으로 두고
-//   `live ≠ prev` 로만 손튜닝을 판정한다. 월드 동기화도 같은 구조를 쓴다:
+// **The 3-way merge** — the core invariant of this file.
+//   Deciding what to update from "current value ≠ compendium value" alone silently reverts values edited on the
+//   actor. Everything outside the PRESERVE whitelist was lost, so one sync wiped out all hand tuning.
+//   The pack side already has the answer to the same problem —
+//   `tools/recover-pack-edits.mjs` takes *what the last build put into the pack* as its baseline and decides hand
+//   tuning from `live ≠ prev` alone. The world sync uses the same structure:
 //
-//     기준선(base) = 마지막 동기화 시점의 **컴펜디움** 값. 아이템 flag 에 잎 경로별
-//                    해시로 저장한다(`flags.dx3rd-emanim.syncBaseline`).
-//     내 값(mine)   = 지금 액터가 들고 있는 값
-//     최신(theirs)  = 지금 컴펜디움 값
+//     baseline (base) = the **compendium** value at the last sync. Stored on the item flag as a per-leaf-path
+//                       hash (`flags.dx3rd-emanim.syncBaseline`).
+//     mine            = the value the actor holds now
+//     theirs          = the compendium value now
 //
-//     theirs = base            → 컴펜디움 무변화. mine 이 다르면 **사용자 편집이므로 유지**
-//     mine = base ≠ theirs     → 컴펜디움만 변경 → **최신 반영**
-//     mine ≠ base ≠ theirs     → **충돌**. 기본은 내 값 유지, 아이템별로 컴펜디움 우선 선택
+//     theirs = base            → the compendium did not change. A differing mine is **a user edit, so it is kept**
+//     mine = base ≠ theirs     → only the compendium changed → **take the update**
+//     mine ≠ base ≠ theirs     → **conflict**. Keeping mine by default; the compendium can be chosen per item
 //
-//   기준선을 전체 데이터 사본이 아니라 잎 경로별 해시로 두는 이유는 크기다. 판정에
-//   필요한 것은 「base 와 같은가」뿐이고, 값 자체는 mine/theirs 로 표시할 수 있다.
-//   기준선이 없는 아이템(이 기능 이전에 만들어진 것)은 예전대로 전체 교체하되
-//   확인창에 「기준선 없음」으로 표시해 사용자가 알고 결정하게 한다. 현재 값이
-//   컴펜디움과 이미 같은 아이템은 정보 손실 없이 기준선을 채택할 수 있으므로
-//   삭제·재생성 없이 flag 만 기록한다(`baselineAdoptions`).
+//   The baseline is a per-leaf-path hash rather than a full copy of the data because of size. All the decision needs
+//   is "is it the same as base", and the values themselves can be shown from mine/theirs.
+//   An item with no baseline (created before this feature) is fully replaced as before, but shown in the confirmation
+//   dialog as "no baseline" so the user decides knowingly. An item whose current value already equals the compendium
+//   can adopt a baseline with no loss of information, so only the flag is written, with no delete and recreate
+//   (`baselineAdoptions`).
 //
-//   인스턴스 상태(PRESERVE)와 파생값(TYPE_DERIVED)은 병합 대상에서 제외한다 —
-//   전자는 규칙상 항상 내 것이고, 후자는 보존한 값과 컴펜디움 값으로 다시 계산한다.
+//   Instance state (PRESERVE) and derived values (TYPE_DERIVED) are excluded from the merge —
+//   the former is always mine by rule, and the latter is recomputed from the preserved and the compendium values.
 //
-// GM 전용 수동 실행(설정 메뉴 버튼). 마이그레이션 버전과 무관하게 언제든 재실행 가능.
+// GM-only manual execution (a button in the settings menu). Re-runnable at any time, independent of the migration version.
 // ---------------------------------------------------------------------------
 
 (function() {
     const SCOPE = 'dx3rd-emanim';
     const EXCLUSION_SETTING = 'compendiumSyncExclusions';
     const PACK_PREFERENCE_SETTING = 'compendiumSyncPackPreference';
-    // 기준선 flag. 버전을 올리면 옛 기준선은 무시되고 전체 교체로 되돌아간다.
+    // The baseline flag. Bumping the version makes an old baseline ignored and falls back to a full replacement.
     const BASELINE_FLAG = 'syncBaseline';
     const BASELINE_VERSION = 1;
-    // Item 타입 컴펜디움 팩(system.json packs 순서와 동일)
+    // The Item-type compendium packs (in the same order as system.json packs)
     const PACKS = ['effects', 'weapons', 'armors', 'vehicles', 'items', 'dlois', 'works', 'syndromes'];
 
-    // 인스턴스별 상태(사용자/런타임이 조작한 값). 교체 후 되살린다.
+    // Per-instance state (values the user or the runtime manipulated). Restored after the replacement.
     const PRESERVE = [
-        'system.active.state',        // 토글 버프 on/off
-        'system.used.state',          // 사용 횟수 소진 카운트
-        'system.attack-used.state',   // 무기 공격 횟수 소진 카운트(무기 외 타입엔 없어 자동 무시)
-        'system.equipment',           // 장착 여부(무기/방어구/비클)
-        'system.saving.acquisition'   // 액터 소유본의 획득 방식(상비/구매)
+        'system.active.state',        // the toggle buff on/off
+        'system.used.state',          // the spent use count
+        'system.attack-used.state',   // the spent weapon attack count (absent on non-weapon types, so ignored automatically)
+        'system.equipment',           // equipped or not (weapon/protect/vehicle)
+        'system.saving.acquisition'   // the actor's copy's acquisition method (stock / purchased)
     ];
 
-    // 이펙트/사이오닉의 습득 레벨은 플레이어가 성장시킨 인스턴스 데이터다.
-    // max/upgrade 등 규칙 메타데이터는 보존하지 않아 컴펜디움 최신값을 받게 한다.
-    // 소모품/기타 아이템의 수량은 플레이어가 구입·소비한 인스턴스 값이므로 보존한다.
+    // The acquired level of an effect / psionic is instance data the player grew.
+    // Rule metadata such as max / upgrade is not preserved, so the compendium's latest value is taken.
+    // The quantity of a consumable / misc item is an instance value the player bought and spent, so it is preserved.
     const TYPE_PRESERVE = {
         effect: ['system.level.init'],
         psionic: ['system.level.init'],
@@ -65,26 +65,26 @@
         etc: ['system.quantity']
     };
 
-    // 파생값. prepareReplacement 가 보존한 init 과 컴펜디움 upgrade 로 다시 계산하므로
-    // 병합이 옛 값을 되살리면 안 된다.
+    // Derived values. prepareReplacement recomputes them from the preserved init and the compendium's upgrade,
+    // so the merge must not revive the old value.
     const TYPE_DERIVED = {
         effect: ['system.level.value'],
         psionic: ['system.level.value']
     };
 
-    // 컴펜디움에서 아이템의 타입이 재분류되면 `type|name` 정확 매칭이 끊겨, 그 사본은
-    // 몇 번을 동기화해도 낡은 채로 남는다(예: 응급치료 키트가 etc → once로 이동).
-    // once/etc는 둘 다 소모품·기타 아이템으로 스키마가 호환되므로 상호 별칭을 허용한다.
-    // 이 목록을 넓히지 말 것: weapon/effect처럼 이름만 같고 실체가 다른 조합(이펙트가
-    // 생성한 무기, 플레이어가 만든 콤보)까지 매칭되면 멀쩡한 인스턴스를 덮어쓴다.
+    // When an item is reclassified in the compendium, the exact `type|name` match breaks and that copy stays stale
+    // however many times it is synced (e.g. a first-aid kit moving from etc to once).
+    // once and etc are both consumable / misc items with compatible schemas, so they alias each other.
+    // Do NOT widen this list: matching a combination that shares only a name while being a different thing —
+    // weapon/effect, a weapon created by an effect, a combo the player built — would overwrite a perfectly good instance.
     const TYPE_ALIASES = {
         once: ['etc'],
         etc: ['once']
     };
 
-    // D/E 로이스는 공식 데이터 갱신 대상이지만, 일반 로이스는 플레이어 관계
-    // 데이터이므로 이름이 우연히 컴펜디움 항목과 같아도 덮어쓰지 않는다.
-    // 맨손은 액터별 커스터마이즈가 잦은 기본 무기이므로 컴펜디움 원본으로 되돌리지 않는다.
+    // A D/E Lois is an official-data update target, but an ordinary Lois is player relationship data,
+    // so it is not overwritten even when its name happens to match a compendium entry.
+    // A fist is a default weapon customized per actor often, so it is never reverted to the compendium original.
     function isSyncEligible(item) {
         if (item.type === 'weapon' && item.name === '맨손') return false;
         if (item.type !== 'rois') return true;
@@ -127,22 +127,22 @@
         return pack?.metadata?.label || pack?.collection || doc.pack || '?';
     };
 
-    // 동기화로 생성할 데이터. 검사와 실제 적용이 동일한 데이터를 기준으로 판단하게
-    // 하여, 검사 결과와 적용 결과가 어긋나지 않게 한다.
+    // The data the sync will create. The check and the actual application judge from identical data,
+    // so the check result and the applied result cannot disagree.
     function prepareReplacement(item, src, preserveState = true) {
-        // toObject() 구현체가 반환한 객체를 절대 직접 수정하지 않는다. 검사에서는
-        // 같은 원본을 여러 번 비교하므로 특히 중요하다.
+        // The object a toObject() implementation returned is NEVER modified directly. This matters especially
+        // in the check, where the same original is compared several times.
         const data = cloneData(src.toObject());
-        // preCreateItem은 일반 가방 아이콘으로 저장된 once를 액터에 생성할 때 알약
-        // 아이콘으로 정규화한다. 비교 쪽이 컴펜디움의 가방 아이콘을 그대로 기대하면
-        // 성공적으로 갱신한 직후에도 이미지 차이로 영원히 다시 잡힌다.
+        // preCreateItem normalizes a once stored with the generic bag icon to the pill icon when it is created on
+        // an actor. If the comparison side expected the compendium's bag icon as-is, the image difference would
+        // catch it again forever, right after a successful update.
         if (data.type === 'once' && (!data.img || data.img === 'icons/svg/item-bag.svg')) {
             data.img = 'icons/svg/pill.svg';
         }
-        data._id = item.id;              // 임베디드 id 보존(콤보/신드롬 참조 유지)
-        data.sort = item.sort;           // 시트 정렬 위치 보존
-        delete data.ownership;           // 임베디드는 액터 소유권을 따르므로 컴펜디움 소유권 제거
-        delete data.folder;              // 임베디드는 폴더 무의미
+        data._id = item.id;              // preserve the embedded id (keeping combo / syndrome references)
+        data.sort = item.sort;           // preserve the sheet ordering position
+        delete data.ownership;           // an embedded item follows the actor's ownership, so the compendium's is dropped
+        delete data.folder;              // a folder is meaningless for an embedded item
 
         if (preserveState) {
             const oldObj = item.toObject();
@@ -152,8 +152,8 @@
                 if (v !== undefined) setPath(data, p, v);
             }
 
-            // value는 저장 원본이 아니라 현재 습득 레벨 + 침식률 보정의 파생값이다.
-            // 보존한 init과 컴펜디움에서 갱신한 upgrade를 기준으로 다시 맞춘다.
+            // value is not the stored original but a derived value: the current acquired level plus the encroachment correction.
+            // It is re-aligned from the preserved init and the upgrade taken from the compendium.
             if (item.type === 'effect' || item.type === 'psionic') {
                 const init = Number(getPath(data, 'system.level.init')) || 0;
                 const upgrade = item.type === 'effect' && Boolean(getPath(data, 'system.level.upgrade'));
@@ -169,8 +169,8 @@
         return data;
     }
 
-    // 동기화 의미가 있는 필드만 비교한다. _id/sort/ownership/folder 같은 문서 위치
-    // 메타데이터는 제외해 검사 결과가 실제 갱신 필요성과 일치하도록 한다.
+    // Only the fields sync actually means anything for are compared. Document location metadata such as
+    // _id/sort/ownership/folder is excluded so the check result matches the real need for an update.
     function comparable(data) {
         return {
             name: data.name,
@@ -182,8 +182,8 @@
         };
     }
 
-    // 기준선 flag 자체는 비교 대상이 아니다. 포함하면 기준선을 기록하는 것만으로
-    // 「갱신 필요」가 되어 매번 삭제·재생성이 돌고, 지문 검사도 무의미해진다.
+    // The baseline flag itself is not a comparison target. Including it would make writing the baseline alone count as
+    // "needs update", so a delete and recreate would run every time and the fingerprint check would be meaningless.
     function comparableForMerge(data) {
         const value = comparable(data);
         const flags = cloneData(value.flags || {});
@@ -197,10 +197,10 @@
     }
 
     function stableStringify(value) {
-        // JSON.stringify 는 undefined(와 함수·심볼)에 문자열이 아니라 undefined 를 돌려준다.
-        // 그대로 내보내면 hashValue 의 str.length 가 터진다 — comparable() 이 name/type/img 를
-        // 무조건 키로 만들므로 img 없는 컴펜디움 문서 하나로도 undefined 잎이 생긴다.
-        // 따옴표 없는 토큰이라 실제 문자열 "undefined"( → "\"undefined\"" )와 충돌하지 않는다.
+        // JSON.stringify returns undefined — not a string — for undefined (and functions and symbols).
+        // Emitting that as-is blows up hashValue's str.length — comparable() makes name/type/img keys unconditionally,
+        // so a single compendium document with no img produces an undefined leaf.
+        // Being an unquoted token, it cannot collide with the real string "undefined" ( → "\"undefined\"" ).
         if (value === undefined) return 'undefined';
         if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
         if (value && typeof value === 'object') {
@@ -215,12 +215,12 @@
             stableStringify(before[key]) !== stableStringify(after[key]));
     }
 
-    // ── 기준선 ──────────────────────────────────────────────────────────────
+    // ── The baseline ───────────────────────────────────────────────────────
 
-    // 잎 경로별 해시. 32비트 두 갈래를 이어 붙여 충돌 확률을 실질적으로 없앤다.
-    // 충돌해도 결과는 「그 잎만 예전처럼 판정」이라 데이터가 깨지지는 않는다.
+    // A per-leaf-path hash. Two 32-bit halves are concatenated, making a collision practically impossible.
+    // Even on a collision the result is only "that one leaf is judged as before", so no data breaks.
     function hashValue(value) {
-        const str = stableStringify(value) ?? 'undefined';   // 직렬화 불가값(함수·심볼) 방어
+        const str = stableStringify(value) ?? 'undefined';   // guard against unserializable values (functions, symbols)
         let h1 = 0x811c9dc5;
         let h2 = 0xdeadbeef;
         for (let i = 0; i < str.length; i++) {
@@ -232,8 +232,8 @@
         return `${h1.toString(36)}.${h2.toString(36)}`;
     }
 
-    // 잎 = 원시값 · 배열 · 빈 객체. 배열을 통째로 잎으로 보는 것은 의도적이다 —
-    // 보정 행이나 AE 배열은 인덱스가 밀리면 잎 단위 비교가 잡음으로 뒤덮인다.
+    // A leaf = a primitive, an array, or an empty object. Treating an array as one whole leaf is deliberate —
+    // with a modifier-row or AE array, one shifted index would bury the per-leaf comparison in noise.
     function collectLeaves(value, prefix, out) {
         if (value && typeof value === 'object' && !Array.isArray(value)) {
             const keys = Object.keys(value);
@@ -251,8 +251,8 @@
     function encodeBaseline(leaves) {
         const lines = [];
         for (const [path, value] of leaves) lines.push(`${path}\t${hashValue(value)}`);
-        // 경로에 점이 들어 있으므로 객체 키로 두면 Foundry 의 expandObject 에 걸린다.
-        // 한 줄에 하나씩 담은 문자열이면 그 위험이 없고 크기도 작다.
+        // The paths contain dots, so putting them in as object keys would trip Foundry's expandObject.
+        // A string with one per line has no such risk and is smaller too.
         return { version: BASELINE_VERSION, leaves: lines.join('\n') };
     }
 
@@ -268,7 +268,7 @@
         return map;
     }
 
-    // 병합에서 손대지 않을 경로(인스턴스 상태 + 파생값).
+    // The paths the merge never touches (instance state + derived values).
     function reservedPaths(item) {
         return [...PRESERVE, ...(TYPE_PRESERVE[item.type] || []), ...(TYPE_DERIVED[item.type] || [])];
     }
@@ -276,18 +276,18 @@
         paths.some(p => path === p || path.startsWith(`${p}.`));
 
     /**
-     * 3-way 병합 결과를 만든다.
+     * Build the 3-way merge result.
      * @returns {{data:object, baseline:object, hasBaseline:boolean, kept:string[], conflicts:string[]}}
-     *   data      실제로 기록할 아이템 데이터(기준선 flag 포함)
-     *   kept      컴펜디움이 바뀌지 않아 사용자 값을 지킨 경로
-     *   conflicts 양쪽 다 바뀐 경로
+     *   data      the item data actually written (the baseline flag included)
+     *   kept      the paths where the user's value was kept because the compendium did not change
+     *   conflicts the paths where both sides changed
      */
     function mergeReplacement(item, src, { preferCompendium = false } = {}) {
         const currentRaw = item.toObject();
         const baseline = decodeBaseline(currentRaw);
         const data = prepareReplacement(item, src);
-        // 기준선은 병합 결과가 아니라 **컴펜디움 값**이어야 한다. 그래야 다음 갱신에서
-        // 「사용자가 그 뒤에 손댔는가」를 판정할 수 있다.
+        // The baseline must be the **compendium value**, not the merge result. Only then can the next sync decide
+        // "did the user touch it afterwards".
         const theirs = leafMap(prepareReplacement(item, src, false));
         const result = {
             data,
@@ -306,17 +306,17 @@
                 const base = baseline.get(path);
                 const mineHash = mine.has(path) ? hashValue(mine.get(path)) : undefined;
                 const theirsHash = theirs.has(path) ? hashValue(theirs.get(path)) : undefined;
-                if (mineHash === theirsHash) continue;          // 결과가 같다
+                if (mineHash === theirsHash) continue;          // the results are the same
                 const applyMine = () => {
                     if (mine.has(path)) setPath(data, path, cloneData(mine.get(path)));
                     else deletePath(data, path);
                 };
-                if (theirsHash === base) {                      // 컴펜디움 무변화 → 사용자 편집 보존
+                if (theirsHash === base) {                      // the compendium did not change → keep the user edit
                     applyMine();
                     result.kept.push(path);
                     continue;
                 }
-                if (mineHash === base) continue;                // 컴펜디움만 변경 → 최신 반영
+                if (mineHash === base) continue;                // only the compendium changed → take the update
                 result.conflicts.push(path);
                 if (!preferCompendium) applyMine();
             }
@@ -328,8 +328,8 @@
         return result;
     }
 
-    // 잎 경로 단위 변경 목록. 확인창·감사창이 그대로 그린다 —
-    // 「시스템 데이터」 한 줄로는 제외할지 판단할 근거가 되지 못한다.
+    // The per-leaf-path change list. The confirmation and audit dialogs draw it as-is —
+    // a single "system data" line is no basis for deciding whether to exclude something.
     function leafChanges(item, mergedData) {
         const before = leafMap(item.toObject());
         const after = leafMap(mergedData);
@@ -352,31 +352,31 @@
         return flat.length > 70 ? `${flat.slice(0, 70)}…` : flat;
     }
 
-    // 실제 교체가 필요한지 검사와 동일한 기준으로 판정한다. 보존 대상만 다른
-    // 아이템은 교체해도 결과가 같으므로, 삭제·재생성 자체를 생략하는 편이 안전하다.
+    // Whether a replacement is really needed is decided by the same test as the check. An item differing only in
+    // preserved values gives the same result either way, so skipping the delete and recreate entirely is safer.
     function needsReplacement(item, src) {
         const current = comparableForMerge(item.toObject());
         const merged = comparableForMerge(mergeReplacement(item, src).data);
         return differingFields(current, merged).length > 0;
     }
 
-    // 확인 창을 띄운 뒤의 외부 변경을 감지하기 위한 월드 아이템 지문이다.
-    // 동기화 대상 필드만 포함해, 정렬·소유권 같은 문서 위치 메타데이터 변화에는
-    // 불필요하게 중단되지 않는다.
+    // A fingerprint of the world item, used to detect an external change after the confirmation dialog opened.
+    // Only the sync target fields are included, so a change in document location metadata such as sort or ownership
+    // does not abort it needlessly.
     const itemFingerprint = (item) => stableStringify(comparableForMerge(item.toObject()));
 
-    // ── 컴펜디움 인덱스 ────────────────────────────────────────────────────
+    // ── The compendium index ───────────────────────────────────────────────
 
     function getPackPreference() {
         const value = game.settings.get(SCOPE, PACK_PREFERENCE_SETTING);
         return value && typeof value === 'object' && !Array.isArray(value) ? cloneData(value) : {};
     }
 
-    // 컴펜디움 인덱스: `${type}|${name}` → 컴펜디움 문서
-    // nameTypes는 이름 하나가 몇 종류의 타입으로 존재하는지를 담는다. 별칭 매칭이
-    // 동명이물을 집어오지 않도록 판정하는 데 쓴다.
-    // 중복 키는 기본적으로 마지막(PACKS 순서상 뒤쪽) 문서가 이기지만, 사용자가 팩을
-    // 지정했으면 그것이 우선한다.
+    // The compendium index: `${type}|${name}` → the compendium document.
+    // nameTypes records how many types one name exists as. It is used to keep an alias match
+    // from grabbing a different thing with the same name.
+    // A duplicate key is normally won by the last document (later in PACKS order), but a pack the user
+    // specified takes precedence.
     async function buildIndex() {
         const index = new Map();
         const nameTypes = new Map();
@@ -408,11 +408,11 @@
         return { index, nameTypes, dupes: duplicates.length, duplicates, missingPacks };
     }
 
-    // 임베디드 아이템에 대응하는 컴펜디움 문서를 찾는다. 정확 매칭이 우선이고,
-    // 실패했을 때만 TYPE_ALIASES로 재분류를 따라간다. 별칭은 다음을 모두 만족할 때만
-    // 적용해, 이름이 겹치는 별개 문서를 덮어쓰지 않는다.
-    //   - 컴펜디움에서 그 이름이 단 하나의 타입으로만 존재할 것(동명이물 배제)
-    //   - 같은 액터가 별칭 타입의 사본을 이미 갖고 있지 않을 것(중복 교체 배제)
+    // Find the compendium document matching an embedded item. An exact match comes first, and only on failure
+    // is a reclassification followed through TYPE_ALIASES. An alias applies only when all of the following hold,
+    // so a separate document that happens to share a name is never overwritten.
+    //   - that name exists as exactly one type in the compendium (excluding same-name-different-thing)
+    //   - the same actor does not already own a copy of the alias type (excluding a duplicate replacement)
     function resolveSource(index, nameTypes, actor, item) {
         const exact = index.get(`${item.type}|${item.name}`);
         if (exact) return exact;
@@ -429,7 +429,7 @@
         return null;
     }
 
-    // 드라이 스캔: 실제 갱신 대상 계획 수집. 동일/보존 상태만 다른 항목은 제외한다.
+    // The dry scan: collect the plan of what would actually be updated. Entries that are identical, or differ only in preserved state, are excluded.
     // [{actor, matches:[{item, fingerprint, changes, conflicts, kept, hasBaseline}, ...]}, ...]
     function scan(index, nameTypes) {
         const plan = [];
@@ -457,8 +457,8 @@
         return plan;
     }
 
-    // 기준선이 없고 현재 값이 이미 컴펜디움과 같은 아이템. 삭제·재생성 없이 flag 만
-    // 기록하면 되므로 정보 손실 위험이 없고, 이후의 갱신이 사용자 편집을 알아본다.
+    // Items with no baseline whose current value already equals the compendium. Writing just the flag, with no delete
+    // and recreate, carries no risk of information loss, and later syncs then recognize the user's edits.
     function baselineAdoptions(index, nameTypes) {
         const rows = [];
         for (const actor of game.actors) {
@@ -469,7 +469,7 @@
                 if (!src) continue;
                 if (decodeBaseline(item.toObject())) continue;
                 const merge = mergeReplacement(item, src);
-                if (leafChanges(item, merge.data).length) continue;   // 갱신 대상은 apply 가 기록한다
+                if (leafChanges(item, merge.data).length) continue;   // an update target is recorded by apply
                 updates.push({ _id: item.id, [`flags.${SCOPE}.${BASELINE_FLAG}`]: merge.baseline });
             }
             if (updates.length) rows.push({ actor, updates });
@@ -492,11 +492,11 @@
         return { actors, items };
     }
 
-    // ── 제외 목록 ──────────────────────────────────────────────────────────
+    // ── The exclusion list ─────────────────────────────────────────────────
 
-    // 데이터 갱신에서 제외할 액터 임베디드 아이템은 월드 설정에 보관한다.
-    // 아이템 자체에 플래그를 쓰면 그 플래그 변경이 확인창 이후의 지문 검사를 깨뜨리고,
-    // 컴펜디움 교체 시 플래그 보존이라는 별도 예외도 생기므로 외부 설정이 더 안전하다.
+    // The actor-embedded items to exclude from the data update are kept in a world setting.
+    // Writing a flag on the item itself would have that flag change break the post-confirmation fingerprint check,
+    // and add another exception for preserving the flag across a compendium replacement, so an external setting is safer.
     const exclusionKey = (actorId, itemId) => `${actorId}:${itemId}`;
 
     function getExclusions() {
@@ -504,7 +504,7 @@
         return value && typeof value === 'object' && !Array.isArray(value) ? cloneData(value) : {};
     }
 
-    // 삭제된 액터·아이템의 키는 영원히 남아 설정을 부풀린다. 실행할 때마다 청소한다.
+    // Keys of deleted actors and items would linger forever and bloat the setting. They are cleaned on every run.
     function pruneExclusions(exclusions) {
         const kept = {};
         let removed = 0;
@@ -533,7 +533,7 @@
         })).filter(({ matches }) => matches.length);
     }
 
-    // ── 확인 다이얼로그 ────────────────────────────────────────────────────
+    // ── The confirmation dialog ────────────────────────────────────────────
 
     function renderLeafRows(changes) {
         return changes.map(change =>
@@ -620,7 +620,7 @@
         `<button type="button" data-compendium-sync-all="include">DX3rd.CompendiumSyncIncludeAll</button>` +
         `</div>`;
 
-    // 선택 UI 배선. 액터가 수십 개면 체크박스만으로는 다룰 수 없다.
+    // The selection UI wiring. With dozens of actors, checkboxes alone are unmanageable.
     function wireSelection(root) {
         if (!root) return;
         const itemRows = Array.from(root.querySelectorAll('[data-sync-item]'));
@@ -647,8 +647,8 @@
             button.addEventListener('click', (event) => {
                 event.preventDefault();
                 const exclude = button.dataset.compendiumSyncAll === 'exclude';
-                // 검색으로 걸러진 것만 대상으로 한다 — 보이지 않는 항목을 말없이
-                // 바꾸면 「전체」의 의미가 사용자가 보는 화면과 어긋난다.
+                // Only what the search left visible is targeted — silently changing an item that is not on screen
+                // would make "all" mean something other than what the user sees.
                 for (const row of itemRows) {
                     if (row.style.display === 'none') continue;
                     for (const box of boxesOf(row)) box.checked = exclude;
@@ -669,7 +669,7 @@
     }
 
     async function saveExclusionSelection(plan, root, duplicates) {
-        // 팩 선택이 바뀌면 계획 자체가 달라진다. 여기서 적용하지 않고 다시 검사한다.
+        // Changing the pack selection changes the plan itself. It is not applied here; the check is re-run.
         let rescan = false;
         if (duplicates?.length) {
             const preference = getPackPreference();
@@ -748,18 +748,18 @@
                     action: 'cancel',
                     icon: 'fas fa-times',
                     label: localize('DX3rd.Cancel'),
-                    // null 을 돌려주면 안 된다 — DialogV2 는 콜백이 nullish 일 때 그 자리에
-                    // 버튼의 action 문자열을 채우므로("cancel"), 취소가 truthy 로 새어 나간다.
-                    // (foundry client/applications/api/dialog.mjs 의 `?? button?.action`)
+                    // It must NOT return null — DialogV2 fills a nullish callback result with the button's action
+                    // string ("cancel"), so a cancel would leak through as truthy.
+                    // (the `?? button?.action` in foundry's client/applications/api/dialog.mjs)
                     callback: () => false
                 }
             ]
         });
     }
 
-    // ── 감사 ───────────────────────────────────────────────────────────────
+    // ── The audit ──────────────────────────────────────────────────────────
 
-    // 읽기 전용 감사. 실제 동기화에 쓰일 최종 데이터와 현재 아이템을 비교한다.
+    // A read-only audit. It compares the current item with the final data the real sync would use.
     function audit(index, nameTypes) {
         const plan = scan(index, nameTypes);
         const result = {
@@ -815,7 +815,7 @@
         return result;
     }
 
-    // 기동 중 자동으로 쓰지 않는 복구 항목의 읽기 전용 점검 결과.
+    // The read-only inspection result for the repair entries never applied automatically at startup.
     function runtimeAudit() {
         const empty = { actors: 0, items: 0, effects: 0, rows: [] };
         return {
@@ -855,9 +855,9 @@
         return { applied, instantCombo, conditionOverlay };
     }
 
-    // ── 적용 ───────────────────────────────────────────────────────────────
+    // ── Apply ──────────────────────────────────────────────────────────────
 
-    // 실제 적용: 액터별로 삭제 후 재생성(keepId).
+    // The real application: delete and recreate per actor (keepId).
     async function apply(index, nameTypes, plan) {
         let actorsChanged = 0, itemsChanged = 0, failed = 0, recovered = 0, recoveryFailed = 0, stale = 0;
         let kept = 0, conflicts = 0;
@@ -866,8 +866,8 @@
             const deleteIds = [];
             const originalData = [];
             for (const planned of matches) {
-                // 계획 이후 변경된 문서는 삭제·재생성하지 않는다. 다음 검사에서 새
-                // 상태를 기준으로 다시 판단할 수 있으므로, 보수적으로 건너뛴다.
+                // A document changed since the plan is not deleted and recreated. The next check can judge it afresh
+                // from its new state, so it is skipped conservatively.
                 const item = actor.items.get(planned.item.id);
                 if (!item || itemFingerprint(item) !== planned.fingerprint) {
                     stale++;
@@ -881,8 +881,8 @@
                     console.warn(`DX3rd | 컴펜디움 동기화 타입 재분류: ${actor.name} / ${item.name} (${item.type} → ${src.type})`);
                 }
                 const oldObj = item.toObject();
-                // 충돌 처리는 확인창의 선택을 그대로 따른다. 계획 시점의 데이터를
-                // 재사용하지 않고 다시 병합하는 이유가 이것이다.
+                // Conflict handling follows the confirmation dialog's choice exactly. That is why the merge is redone
+                // rather than the plan-time data being reused.
                 const merge = mergeReplacement(item, src, { preferCompendium: planned.preferCompendium });
                 kept += merge.kept.length;
                 conflicts += merge.conflicts.length;
@@ -904,8 +904,8 @@
                 failed++;
                 if (!deleted) continue;
                 try {
-                    // 부분 생성도 원래 ID를 점유할 수 있으므로, 같은 ID의 잔여 문서를
-                    // 지운 뒤 삭제 전 스냅샷으로 복원한다.
+                    // A partial creation can occupy the original id too, so a leftover document with the same id is
+                    // deleted before restoring from the pre-delete snapshot.
                     const partialIds = actor.items.filter(item => deleteIds.includes(item.id)).map(item => item.id);
                     if (partialIds.length) await actor.deleteEmbeddedDocuments('Item', partialIds, { render: false });
                     const restored = await actor.createEmbeddedDocuments('Item', originalData, { keepId: true, render: false });
@@ -921,7 +921,7 @@
         return { actorsChanged, itemsChanged, failed, recovered, recoveryFailed, stale, kept, conflicts };
     }
 
-    // ── 진입점 ─────────────────────────────────────────────────────────────
+    // ── The entry points ───────────────────────────────────────────────────
 
     async function openAudit() {
         if (!game.user.isGM) {
@@ -973,7 +973,7 @@
         return result;
     }
 
-    // 스캔 → 확인 다이얼로그 → 적용 → 결과 보고
+    // Scan → confirmation dialog → apply → report the result
     async function openItemSync() {
         if (!game.user.isGM) {
             ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
@@ -999,8 +999,8 @@
             duplicates,
             contentBefore
         });
-        // 취소·닫기는 계획을 돌려주지 않는다. 「falsy 인가」가 아니라 「계획이 있는가」로
-        // 판정해야 DialogV2 가 흘려보내는 action 문자열에 걸리지 않는다.
+        // Cancel and close return no plan. The test must be "is there a plan" rather than "is it falsy",
+        // so the action string DialogV2 lets through cannot trip it.
         if (!selection?.plan) return;
         if (selection.rescan) {
             ui.notifications.info(localize('DX3rd.CompendiumSyncRescan'));
@@ -1026,7 +1026,7 @@
         console.log('DX3rd | 컴펜디움 동기화 결과', res);
     }
 
-    // 동기화 버튼의 단일 실행 경로: 모든 자동 복구 후보를 검사한 뒤 GM 확인 후에만 적용.
+    // The sync button's single execution path: check every automatic repair candidate, then apply only after the GM confirms.
     async function open() {
         if (!game.user.isGM) {
             ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
@@ -1058,8 +1058,8 @@
             contentBefore,
             contentAfter: runtimeAuditContent(runtime)
         });
-        // 취소·닫기는 계획을 돌려주지 않는다. 「falsy 인가」가 아니라 「계획이 있는가」로
-        // 판정해야 DialogV2 가 흘려보내는 action 문자열에 걸리지 않는다.
+        // Cancel and close return no plan. The test must be "is there a plan" rather than "is it falsy",
+        // so the action string DialogV2 lets through cannot trip it.
         if (!selection?.plan) return;
         if (selection.rescan) {
             ui.notifications.info(localize('DX3rd.CompendiumSyncRescan'));
@@ -1074,8 +1074,8 @@
         const compendium = selectedItems
             ? await apply(index, nameTypes, selectedPlan)
             : { actorsChanged: 0, itemsChanged: 0, failed: 0, kept: 0, conflicts: 0 };
-        // 갱신하지 않은(=이미 컴펜디움과 같은) 아이템의 기준선도 이때 채운다.
-        // 계획 이후 상태가 바뀌었을 수 있으므로 다시 수집한다.
+        // The baselines of the items not updated (= already equal to the compendium) are filled in at this point too.
+        // Their state may have changed since the plan, so they are collected again.
         const baselines = await applyBaselines(baselineAdoptions(index, nameTypes));
         const repaired = await repairRuntime();
         ui.notifications.info(format('DX3rd.FullSyncComplete', {
@@ -1090,8 +1090,8 @@
         console.log('DX3rd | 컴펜디움 동기화 결과', { compendium, baselines, repaired });
     }
 
-    // 토글형 이펙트의 Applied ActiveEffect는 기동 중 전수 생성하지 않는다.
-    // 이 메뉴에서만 검사 → 확인 → 필요한 항목만 보정한다.
+    // The Applied ActiveEffects of toggle-type effects are not created wholesale at startup.
+    // Only this menu checks → confirms → repairs the entries that need it.
     async function openAppliedToggleRepair() {
         if (!game.user.isGM) {
             ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
@@ -1124,7 +1124,7 @@
         return result;
     }
 
-    // 이전 선택식 UI 호환용 진입점. 설정 메뉴는 아래에서 open() 일괄 동기화를 사용한다.
+    // The entry point kept for the older selection-style UI. The settings menu uses the batch open() sync below.
     async function openHub() {
         if (!game.user.isGM) {
             ui.notifications.warn(localize('DX3rd.CompendiumSyncGMOnly'));
@@ -1145,7 +1145,7 @@
         if (action === 'applied') return openAppliedToggleRepair();
     }
 
-    // 설정 메뉴 버튼 등록. type 클래스는 render 시 확인 플로우만 띄우고 창은 열지 않는다.
+    // Register the settings menu button. The type class only raises the confirmation flow on render; no window opens.
     Hooks.once('init', function() {
         game.settings.register(SCOPE, EXCLUSION_SETTING, {
             scope: 'world',
@@ -1195,7 +1195,7 @@
         open, openItemSync, openAudit, openHub, openAppliedToggleRepair,
         buildIndex, resolveSource, scan, audit, apply, runtimeAudit,
         isSyncEligible, prepareReplacement, needsReplacement, exclusionKey, filterPlan,
-        // 3-way 병합·기준선(테스트와 콘솔 점검용)
+        // The 3-way merge and baseline (for the tests and console inspection)
         mergeReplacement, leafChanges, encodeBaseline, decodeBaseline, hashValue,
         leafMap, baselineAdoptions, applyBaselines, pruneExclusions
     };

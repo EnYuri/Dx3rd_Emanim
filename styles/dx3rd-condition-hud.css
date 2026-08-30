@@ -42,6 +42,12 @@
   filter: grayscale(1) drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
 }
 
+/* 장비 변경 표식: 보정 AE 와 아이콘이 같을 수 있으므로 테두리로 구분한다(더블클릭 → 제거). */
+#dx3rd-condition-hud .dx3rd-grant-hud-icon {
+  border-color: rgba(200, 160, 60, 0.9);
+  box-shadow: 0 0 4px rgba(200, 160, 60, 0.5);
+}
+
 #dx3rd-condition-hud .dx3rd-condition-hud-badge {
   position: absolute;
   bottom: -1px;

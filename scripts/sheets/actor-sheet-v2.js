@@ -39,6 +39,7 @@
         createSkill: DX3rdActorSheetV2._onCreateSkill,
         editSkill: DX3rdActorSheetV2._onEditSkill,
         removeApplied: DX3rdActorSheetV2._onRemoveApplied,
+        removeGrant: DX3rdActorSheetV2._onRemoveGrant,
         editApplied: DX3rdActorSheetV2._onEditApplied,
         rollAbility: DX3rdActorSheetV2._onRollAbility,
         rollSkill: DX3rdActorSheetV2._onRollSkill,
@@ -77,9 +78,9 @@
     };
 
     /**
-     * 값이 undefined 인 키가 섞이면 DataModel 검증이 `may not be undefined` 로 실패해
-     * 서브밋 전체가 취소된다. 부분 업데이트에서 undefined 는 "미변경"과 같으므로 제거한다.
-     * (아이템 시트 DX3rdItemSheetV2._processFormData 와 동일한 방어)
+     * A key whose value is undefined makes the DataModel validation fail with `may not be undefined`, cancelling the
+     * whole submit. In a partial update undefined means "unchanged", so those keys are removed.
+     * (The same guard as the item sheet's DX3rdItemSheetV2._processFormData.)
      */
     _processFormData(event, form, formData) {
       const data = super._processFormData(event, form, formData);
@@ -102,7 +103,7 @@
       prepared.isSimple = simple;
       prepared.canEdit = actorData.hasOwnerPermission(actor);
       prepared.actorDocument = actor;
-      // 헤더 등장 버튼 문구: CRC 스테이지가 켜져 있으면 공포 판정까지 포함한다(씬 컨트롤 도구와 동일 규칙).
+      // The header's appearance button wording: with the CRC stage on it covers the fear roll too (the same rule as the scene control tool).
       prepared.enterSceneLabel = game.settings.get('dx3rd-emanim', 'stageCRC')
         ? 'DX3rd.EnterUrgePanic'
         : 'DX3rd.EnterUrge';
@@ -110,11 +111,11 @@
     }
 
     /**
-     * AppV2 헤더 컨트롤(⋮ 메뉴). 이전 시트 은 액터 타입/토큰 설정을 헤더에 인라인 버튼으로
-     * 노출하므로, 여기서는 동일한 항목들을 드롭다운에서 제거하고 _injectHeaderButtons 로
-     * 헤더에 직접 주입한다(중복 방지).
-     * 액션명을 정확히 비교한다. /token/i 로 거르면 인라인 버튼으로 대체하지 않는
-     * showTokenArtwork(토큰 아트워크 보기)까지 사라진다.
+     * The AppV2 header controls (the ⋮ menu). The previous sheet exposed the actor type / token settings as inline
+     * buttons in the header, so here the same entries are removed from the dropdown and injected directly into the
+     * header by _injectHeaderButtons (avoiding duplicates).
+     * The action names are compared exactly. Filtering by /token/i would also drop showTokenArtwork (view token
+     * artwork), which is not replaced by an inline button.
      */
     _getHeaderControls() {
       const replacedByInlineButtons = ['configurePrototypeToken', 'configureToken'];
@@ -123,18 +124,18 @@
     }
 
     /**
-     * 이전 시트 _getHeaderButtons 의 인라인 버튼(액터 타입/프로토타입 토큰)을 AppV2 윈도우 헤더에
-     * 직접 주입한다. AppV2 는 _getHeaderControls 를 ⋮ 드롭다운으로만 렌더하므로,
-     * "헤더에 노출"하려면 DOM 주입이 필요하다.
+     * Inject the previous sheet's _getHeaderButtons inline buttons (actor type / prototype token) directly into the
+     * AppV2 window header. AppV2 renders _getHeaderControls only as the ⋮ dropdown, so "exposed in the header"
+     * requires DOM injection.
      */
     _injectHeaderButtons() {
       const header = this.element?.querySelector('.window-header');
       if (!header) return;
 
-      // 재렌더 시 중복 주입 방지
+      // Prevent duplicate injection on re-render
       header.querySelectorAll('.dx3rd-header-btn').forEach(el => el.remove());
 
-      // simple 시트(enemy 등 일부)는 액터 타입 편집을 노출하지 않는다(이전 시트과 동일).
+      // A simple sheet (enemy and some others) does not expose actor type editing (as on the previous sheet).
       if (actorData.shouldUseSimpleSheet(this.document)) return;
 
       const anchor = header.querySelector('[data-action="toggleControls"]')
@@ -156,8 +157,8 @@
           event => DX3rdActorSheetV2._onEditActorType.call(this, event, event.currentTarget));
       }
 
-      // 코어 _getHeaderControls 와 동일한 분기: 편집 권한이 없으면 토큰 설정을 노출하지 않고,
-      // 무연결 토큰의 시트는 프로토타입이 아니라 그 토큰 자신의 설정을 연다.
+      // The same branch as core's _getHeaderControls: with no edit permission the token settings are not exposed,
+      // and an unlinked token's sheet opens that token's own settings rather than the prototype's.
       if (!this.isEditable) return;
       if (this.document.isToken) {
         makeButton('fa-solid fa-user-circle', game.i18n.localize('DX3rd.Token'),
@@ -169,13 +170,13 @@
     }
 
     /**
-     * 헤더 버튼 최종 정렬. AppV2 헤더에는 여러 출처가 버튼을 주입한다:
-     *   - 우리 시트: 액터 타입/토큰 (.dx3rd-header-btn)
-     *   - female_edition: 스테이터스(.fedr-sheet-btn), 무대에 추가(.fet-stage-btn) — close 앞에 삽입
-     *   - 코어: 시트UUID(인라인 컨트롤), 드롭다운(⋮, toggleControls), 닫기(close)
-     * 원하는 좌→우 순서로 재배열한다:
-     *   [스테이터스·무대에추가] → [액터타입·토큰] → [시트UUID] → [드롭다운 ⋮] → [닫기]
-     * appendChild 는 기존 노드를 이동시키므로 desired 순서대로 다시 붙이면 정렬된다.
+     * The final ordering of the header buttons. Several sources inject buttons into the AppV2 header:
+     *   - our sheet: actor type / token (.dx3rd-header-btn)
+     *   - female_edition: status (.fedr-sheet-btn), add to stage (.fet-stage-btn) — inserted before close
+     *   - core: sheet UUID (an inline control), the dropdown (⋮, toggleControls), close
+     * They are rearranged into the desired left→right order:
+     *   [status · add to stage] → [actor type · token] → [sheet UUID] → [dropdown ⋮] → [close]
+     * appendChild moves an existing node, so re-appending them in the desired order sorts them.
      */
     _reorderHeaderButtons() {
       const header = this.element?.querySelector('.window-header');
@@ -200,7 +201,7 @@
       if (toggle) desired.push(toggle);
       if (close) desired.push(close);
 
-      // 이미 정렬되어 있으면 DOM 변경을 하지 않는다(MutationObserver 재귀 방지).
+      // Do not touch the DOM when it is already ordered (preventing MutationObserver recursion).
       const current = children.filter(c => !isHeadFixed(c));
       const same = current.length === desired.length && current.every((c, i) => c === desired[i]);
       if (same) return;
@@ -209,9 +210,9 @@
     }
 
     /**
-     * female_edition 등은 우리 _onRender 이후(renderActorSheetV2 훅) 헤더에 버튼을 주입하고,
-     * 상태 변경 시 전체 재렌더 없이 재주입하기도 한다. childList 변화를 관찰해 그때마다 재정렬한다.
-     * _reorderHeaderButtons 는 이미 정렬된 경우 no-op 이므로 관찰 루프가 자연히 종료된다.
+     * female_edition and others inject buttons into the header after our _onRender (the renderActorSheetV2 hook), and
+     * may re-inject on a state change without a full re-render. childList changes are observed and reordered each time.
+     * _reorderHeaderButtons is a no-op when already ordered, so the observation loop terminates naturally.
      */
     _observeHeaderButtons() {
       this._headerObserver?.disconnect();
@@ -223,7 +224,7 @@
 
     _onConfigurePrototypeToken(event) {
       event?.preventDefault();
-      // CONFIG 를 경유해야 프로토타입 토큰 시트를 교체한 모듈의 설정이 유지된다.
+      // Going through CONFIG keeps the settings of a module that replaced the prototype token sheet.
       const PrototypeTokenConfig = CONFIG.Token?.prototypeSheetClass
         || foundry.applications?.sheets?.PrototypeTokenConfig;
       if (!PrototypeTokenConfig) {
@@ -251,14 +252,14 @@
       const root = this.element;
       if (!root) return;
 
-      // 이전 시트 styles.css는 .sheet-wrapper 스코프이므로, 컨테이너(window-content)에
-      // sheet-wrapper 클래스를 부여해 동일한 외형 규칙을 그대로 적용한다.
+      // The previous sheet's styles.css is scoped to .sheet-wrapper, so the container (window-content) is given the
+      // sheet-wrapper class to apply the very same appearance rules.
       root.querySelector('.window-content')?.classList.add('sheet-wrapper');
 
-      // 액터 타입/프로토타입 토큰을 헤더에 인라인 버튼으로 노출(이전 시트 동작과 동일).
+      // Expose the actor type / prototype token as inline header buttons (the same behaviour as the previous sheet).
       this._injectHeaderButtons();
 
-      // 헤더 버튼 정렬 + 이후 모듈 주입(female_edition 등)까지 관찰해 원하는 순서 유지.
+      // Order the header buttons and keep watching for later module injections (female_edition and the like).
       this._reorderHeaderButtons();
       this._observeHeaderButtons();
 
@@ -271,13 +272,13 @@
         element.addEventListener('contextmenu', event => this._onItemContextMenu(event), listenerOptions);
       });
 
-      // 효과(Applied) 탭 항목: 우클릭 → 편집 UI(연필 버튼과 동일). data-item-id 가 없어
-      // 위의 아이템 컨텍스트 메뉴 경로에 걸리지 않으므로 별도 바인딩한다.
+      // Applied tab entries: right click → the edit UI (the same as the pencil button). They have no data-item-id,
+      // so they do not hit the item context menu path above and are bound separately.
       root.querySelectorAll('[data-applied-id]').forEach(element => {
         element.addEventListener('contextmenu', event => this._onAppliedContextMenu(event), listenerOptions);
       });
 
-      // 변경 이벤트는 이전 시트 마크업과 동일한 클래스 훅으로 바인딩한다.
+      // Change events are bound through the same class hooks as the previous sheet's markup.
       root.querySelectorAll('.used-input:not([disabled])').forEach(input => {
         input.addEventListener('change', event => this._onUsedStateChange(event), listenerOptions);
       });
@@ -294,15 +295,15 @@
         input.addEventListener('change', event => this._onSyndromeChange(event), listenerOptions);
       });
 
-      // 기능치가 4개를 초과하는 기능치 열은 5번째부터 접어 헤더 높이를 줄인다
-      // (새 액터는 모든 기능치가 등록돼 사회 열이 지나치게 길어지므로).
+      // A skill column with more than four skills folds from the fifth on, to reduce the header height
+      // (a new actor has every skill registered, making the social column excessively long).
       this._applySkillCollapse(root);
     }
 
     /**
-     * 각 능력치(육체/감각/정신/사회) 기능치 열에서 4개를 초과하는 항목을 접고,
-     * "더 보기(N)"/"접기" 토글 버튼을 주입한다. 펼침 상태는 시트 인스턴스에 유지되어
-     * 재렌더에도 사용자가 펼쳐둔 열은 그대로 유지된다(기본값은 접힘).
+     * Fold the entries beyond the fourth in each attribute's (body/sense/mind/social) skill column and inject a
+     * "show more (N)" / "collapse" toggle button. The expanded state is kept on the sheet instance, so a column the
+     * user expanded stays expanded across re-renders (collapsed by default).
      */
     _applySkillCollapse(root) {
       const THRESHOLD = 4;
@@ -313,7 +314,7 @@
         const box = ability.querySelector('.skill-box');
         if (!box) return;
 
-        // 재렌더/재적용 안전: 기존 토글 버튼 제거 후 다시 계산
+        // Safe on re-render / re-application: remove the existing toggle button, then recompute
         box.querySelector('.skill-collapse-toggle')?.remove();
         const skills = Array.from(box.querySelectorAll(':scope > .skill'));
         if (skills.length <= THRESHOLD) {
@@ -371,10 +372,10 @@
         ? window.DX3rdAppliedEffects.collect(this.document)
         : (this.document.system?.attributes?.applied || {});
 
-      // 직접 키 매칭
+      // A direct key match
       if (applied[appliedId]) return { key: appliedId, effect: applied[appliedId] };
 
-      // 레거시 applied_N 인덱스 형식 지원
+      // Support the legacy applied_N index form
       if (appliedId.startsWith('applied_')) {
         const index = Number.parseInt(appliedId.replace('applied_', ''), 10);
         const key = Object.keys(applied)[index];
@@ -402,7 +403,7 @@
       actorData.showStatRoll(this.document, targetType, targetId, anchor);
     }
 
-    // 외부 호출자(combat-ui, action-ui)가 sheet._openComboBuilder를 콜백으로 사용하므로 유지.
+    // External callers (combat-ui, action-ui) use sheet._openComboBuilder as a callback, so it is kept.
     _openComboBuilder(targetType, targetId) {
       return actorData.openComboBuilder(this.document, targetType, targetId);
     }
@@ -414,7 +415,7 @@
       const abilityId = target.dataset.abilityId;
       if (!abilityId) return;
 
-      // 다이얼로그 생성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
+      // Dialog creation is delegated to the shared helper (the same path as the previous actor sheet)
       actorData.openCreateSkillDialog(this.document, abilityId);
     }
 
@@ -425,7 +426,7 @@
       const skillId = target.closest('[data-skill-id]')?.dataset.skillId;
       if (!skillId) return;
 
-      // 다이얼로그 생성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
+      // Dialog creation is delegated to the shared helper (the same path as the previous actor sheet)
       actorData.openEditSkillDialog(this.document, skillId);
     }
 
@@ -447,10 +448,10 @@
       if (item) item.sheet.render(true);
     }
 
-    // 우클릭 = 시트 열기 / 채팅 전송 메뉴. 좌클릭(실행)과 달리 읽기 전용이므로
-    // 편집 권한을 요구하지 않는다. 채팅 전송은 메뉴 쪽에서 자체 게이트를 건다.
+    // Right click = the open-sheet / send-to-chat menu. Unlike a left click (execution) it is read-only, so it does
+    // not require edit permission. Sending to chat applies its own gate on the menu side.
     _onItemContextMenu(event) {
-      // 입력 요소 위에서의 우클릭(붙여넣기 등 기본 메뉴)은 가로채지 않는다
+      // A right click over an input element (the default paste menu and so on) is not intercepted
       if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       event.preventDefault();
       const item = this._getItemFromTarget(event.currentTarget);
@@ -458,7 +459,7 @@
       window.DX3rdItemContextMenu?.open(event, { actor: this.document, item, sheet: this });
     }
 
-    // 효과(Applied) 항목 우클릭 = 편집 버튼과 동일하게 효과 편집 UI 를 연다.
+    // Right-clicking an Applied entry opens the effect edit UI, the same as the edit button.
     _onAppliedContextMenu(event) {
       if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       event.preventDefault();
@@ -477,9 +478,9 @@
       await this._useItemFromTarget(target);
     }
 
-    // 발동형 로이스(D로이스 등)의 좌클릭 사용. 효과/사용형 아이템과 동일하게
-    // 공용 사용 파이프라인(코스트·자기효과·매크로·사용횟수)을 태우되, roisAction='activate'로
-    // 티투스/승화 전용 핸들러 재진입을 막는다(매크로 이중 실행 방지).
+    // A left-click use of an activated Lois (a D-Lois and the like). It goes through the shared use pipeline
+    // (cost, self effects, macros, use count) just like an effect or a usable item, but with roisAction='activate'
+    // to block re-entering the Titus / sublimation handler (preventing double macro execution).
     static async _onUseRois(event, target) {
       event.preventDefault();
       await this._useItemFromTarget(target, 'activate');
@@ -490,9 +491,9 @@
       const item = this._getItemFromTarget(target);
       if (!item) return;
 
-      // 능동 아이템은 카드보다 먼저 사용 방식을 고른다.
-      // 좌클릭 즉시 실행 예외 없이 항상 메뉴에서 공격/사용/콤보/효과 적용 중
-      // 해당 아이템에 의미 있는 동작을 고른다.
+      // An active item chooses how it is used before the card is shown.
+      // With no exception for immediate execution on left click, the menu is always where attack / use / combo /
+      // apply-effect is chosen from among what is meaningful for that item.
       const actionableTypes = ['weapon', 'protect', 'vehicle', 'effect', 'psionic', 'spell', 'book', 'connection', 'etc', 'once'];
       if (actionableTypes.includes(item.type)) {
         if (typeof window.DX3rdChooseItemMode !== 'function') {
@@ -538,7 +539,7 @@
         return;
       }
 
-      // 채팅 출력 게이트(권한 + 소진)는 공유 헬퍼로 위임 (이전 시트 _onItemNameClick 과 동일한 경로)
+      // The chat output gate (permission + exhaustion) is delegated to the shared helper (the same path as the previous _onItemNameClick)
       const gate = actorData.checkItemChatGate(this.document, item);
       if (!gate.ok) {
         (ui.notifications[gate.level] || ui.notifications.warn).call(ui.notifications, gate.message);
@@ -548,7 +549,7 @@
       await this._sendItemToChat(item);
     }
 
-    // 아이템 설명 인라인 펼침/접기 (이전 시트 _onItemLabelClick 과 동일한 동작)
+    // Inline expand / collapse of the item description (the same behaviour as the previous _onItemLabelClick)
     static _onToggleDescription(event, target) {
       event.preventDefault();
       const li = target.closest('.item');
@@ -564,8 +565,8 @@
       icon?.classList.toggle('fa-chevron-up', !isVisible);
     }
 
-    // 외부(dx3rd-combat-ui / dx3rd-action-ui / dx3rd-macro)가 sheet._sendItemToChat(item)
-    // 으로 호출하므로 AppV2 시트에도 동일한 위임자를 둔다(공유 모듈로 위임).
+    // External code (dx3rd-combat-ui / dx3rd-action-ui / dx3rd-macro) calls sheet._sendItemToChat(item), so the
+    // AppV2 sheet keeps the same delegator (delegating to the shared module).
     async _sendItemToChat(item) {
       return window.DX3rdActorChat.sendItemToChat(this.document, item);
     }
@@ -575,8 +576,8 @@
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(target);
       if (!item) return;
-      // 로이스 Titus화는 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로).
-      // 채팅 '사용' 버튼과 일관되게 handleTitus 직접 호출 — handleItemUse 경유의 이중 매크로/추가 비용 회피.
+      // Turning a Lois into a Titus is delegated to the shared helper (the same path as the previous actor sheet).
+      // handleTitus is called directly, consistent with the chat 'use' button — avoiding the double macro / extra cost of going through handleItemUse.
       await actorData.useTitus(this.document, item);
     }
 
@@ -602,7 +603,7 @@
       await window.DX3rdBacktrackWorkflow.start(this.document);
     }
 
-    /** 헤더의 등장/충동 버튼. 씬 컨트롤의 같은 도구와 동일한 다이얼로그를 이 액터 기준으로 연다. */
+    /** The header's appearance / impulse buttons. They open the same dialogs as the scene control tools, for this actor. */
     static async _onEnterScene(event, target) {
       event.preventDefault();
       if (typeof dx3rdOpenEnterSceneDialog !== 'function') {
@@ -659,12 +660,12 @@
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(target);
       if (!item) return;
-      // 공격 굴림 dispatch는 공유 헬퍼로 위임 (V2 default 승격 대비 단일 경로)
+      // The attack roll dispatch is delegated to the shared helper (a single path, in preparation for V2 becoming the default)
       await actorData.attackRoll(this.document, item);
     }
 
-    // 공격 흐름이 없는 아이템의 효과 적용 발동점.
-    // 대상 효과와 자기 효과가 함께 있으면 공용 분기에서 어느 효과를 적용할지 고른다.
+    // The firing point for applying the effects of an item with no attack flow.
+    // When both target effects and self effects exist, the shared branch chooses which to apply.
     static async _onApplyEffect(event, target) {
       event.preventDefault();
       if (!this._canEdit()) return;
@@ -677,7 +678,7 @@
       if (!this._canEdit()) return false;
       const item = this._getItemFromTarget(target);
       if (!item) return false;
-      // 아이템 사용 dispatch는 공유 헬퍼로 위임 (V2 default 승격 대비 단일 경로)
+      // The item use dispatch is delegated to the shared helper (a single path, in preparation for V2 becoming the default)
       return actorData.useItem(this.document, item, roisAction, undefined, options);
     }
 
@@ -703,14 +704,14 @@
     }
 
     async _onActiveChange(event) {
-      // submitOnChange가 같은 change 이벤트를 폼 제출로 처리하면, 비동기 AE 동기화가
-      // 끝나기 전에 이전 문서 상태로 재렌더되어 사용자가 한 번 더 눌러야 하는 상태가 된다.
-      // 이 체크박스는 공용 토글 서비스가 단독으로 저장한다.
+      // If submitOnChange handled the same change event as a form submit, the sheet would re-render with the previous
+      // document state before the asynchronous AE sync finished, leaving a state where the user has to press again.
+      // This checkbox is saved solely by the shared toggle service.
       event.stopImmediatePropagation();
       event.stopPropagation();
       if (!this._canEdit()) return;
-      // DOM Event.currentTarget은 await 뒤 null이 된다. 이후에도 사용할 입력 요소는
-      // 이벤트 처리 중에 별도로 잡아 둔다.
+      // A DOM Event.currentTarget becomes null after an await. An input element that will be used later is captured
+      // separately during the event handling.
       const input = event.currentTarget;
       const item = this._getItemFromTarget(input);
       if (!item) return;
@@ -722,20 +723,20 @@
       this._activeTogglePending.add(item.id);
       try {
         await window.DX3rdActorSheetData.updateOwnedItemActiveState(this.document, item.id, checked);
-        // 토글 AE는 아이템 갱신 뒤에 비동기로 생성/제거된다. Foundry의 기본 문서 갱신은
-        // 그 시점 이전에 끝나므로, 열린 액터 시트를 명시적으로 다시 그려 HP 등 파생치를
-        // 즉시 갱신한다.
+        // A toggle AE is created / removed asynchronously after the item update. Foundry's default document update
+        // finishes before that point, so the open actor sheet is redrawn explicitly to refresh derived values such
+        // as HP immediately.
         await compat.requestRender(this);
       } finally {
         this._activeTogglePending.delete(item.id);
-        // 재렌더 전 오류가 난 경우에도 현재 DOM을 다시 조작할 수 있게 복구한다.
+        // Even when an error occurred before the re-render, recover so the current DOM can be manipulated again.
         if (input.isConnected) input.disabled = false;
       }
     }
 
-    // 효과(Applied) 목록의 활성/비활성 토글: 체크 = 활성.
-    // 이 토글은 "일시 비활성화"이므로 원본 이펙트는 유지하고 AE.disabled만 바꾼다.
-    // 휴지통 삭제만 아래 remove 경로에서 원본 이펙트까지 비활성화한다.
+    // The active / inactive toggle in the Applied list: checked = active.
+    // This toggle is a "temporary disable", so the source effect is kept and only AE.disabled changes.
+    // Only the trash-can deletion, in the remove path below, also disables the source effect.
     async _onAppliedActiveChange(event) {
       event.stopImmediatePropagation();
       event.stopPropagation();
@@ -757,7 +758,7 @@
     }
 
     async _onEquipmentChange(event) {
-      // submitOnChange의 폼 저장과 장비 전용 업데이트가 경합하지 않게 이 입력은 단독 처리한다.
+      // This input is handled on its own so submitOnChange's form save does not race the equipment-only update.
       event.stopImmediatePropagation();
       event.stopPropagation();
       if (!this._canEdit()) return;
@@ -837,26 +838,46 @@
       ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
     }
 
+    /**
+     * Remove an equipment-change marker from the applied tab.
+     * Deleting the AE is the whole operation — the delete hook takes the created items back and re-aligns the
+     * fist. Restoring anything here would be a second restore path.
+     */
+    static async _onRemoveGrant(event, target) {
+      event.preventDefault();
+      if (!this._canEdit()) return;
+
+      const effectId = target.closest('[data-grant-id]')?.dataset.grantId;
+      if (!effectId) return;
+
+      if (!window.DX3rdActorAppliedDialogs?.removeGrant) {
+        ui.notifications.error('DX3rdActorAppliedDialogs를 찾을 수 없습니다.');
+        return;
+      }
+      const removed = await window.DX3rdActorAppliedDialogs.removeGrant(this.document, effectId);
+      if (removed) await compat.requestRender(this);
+    }
+
     _onDragStart(event) {
       const item = this._getItemFromTarget(event.currentTarget);
       if (!item) return;
 
-      // 드래그 데이터 구성은 공유 헬퍼로 위임 (이전 시트 액터 시트와 동일한 경로)
+      // Assembling the drag data is delegated to the shared helper (the same path as the previous actor sheet)
       const dragData = window.DX3rdActorSheetData.buildItemDragData(this.document, item);
       if (!dragData) return;
       event.dataTransfer?.setData('text/plain', JSON.stringify(dragData));
     }
 
     /**
-     * 아이템 드롭만 시스템 규칙(타입별 개수 제한 / stageCRC)으로 처리한다.
-     * _onDrop 전체를 가로채면 dropActorSheetData 훅과 ActiveEffect·폴더 드롭까지 함께 죽으므로,
-     * 코어가 문서를 해석한 뒤 호출하는 이 진입점만 재정의한다.
+     * Only an item drop is handled by the system rules (per-type count limits / stageCRC).
+     * Intercepting the whole of _onDrop would also kill the dropActorSheetData hook and the ActiveEffect / folder
+     * drops, so only this entry point — which core calls after resolving the document — is overridden.
      */
     async _onDropItem(event, item) {
       if (!this._canEdit()) return null;
 
       try {
-        // 같은 액터의 아이템을 드래그한 경우는 생성이 아니라 순서 변경이다.
+        // Dragging an item of the same actor is a reorder, not a creation.
         if (this.document.uuid === item.parent?.uuid) {
           const sorted = await actorData.sortOwnedItem(this.document, {itemId: item.id}, event.target);
           return sorted ? item : null;

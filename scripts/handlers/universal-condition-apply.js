@@ -1,7 +1,7 @@
-// ========== 상태이상 시스템 ========== //
+// ========== The condition system ========== //
 /**
- * 코어 상태 AE에 익스텐션의 출처를 기록한다. 상태 자체는 Foundry의 상태 효과로
- * 유지하되, 각 출처의 disable 수명이 끝날 때만 안전하게 해제한다.
+ * Record the extension's source on the core status AE. The status itself stays a Foundry status effect, but it is
+ * released safely only when each source's disable lifetime ends.
  */
 window.DX3rdConditionSources = window.DX3rdConditionSources || {
   validDurations: new Set(['roll', 'major', 'main', 'reaction', 'guard', 'round', 'scene', 'session']),
@@ -54,7 +54,37 @@ window.DX3rdConditionSources = window.DX3rdConditionSources || {
 };
 
 /**
- * itemExtend.condition에서 활성화된 조건 항목 배열 반환 (conditions 배열 또는 기존 단일 형식)
+ * Pick one option from a short list, rendered as one button per option.
+ *
+ * Cancelling — the close button, Escape, or dismissing — resolves null, which every caller
+ * treats as "no choice" through a truthy check.
+ *
+ * This uses the overlay rather than DialogV2 on purpose. A DialogV2 cancel callback that
+ * returns nullish has the button's own action string ("cancel") substituted in, which would
+ * arrive here as a valid choice; each of these call sites previously carried a `() => false`
+ * workaround for that. The overlay has no such substitution.
+ *
+ * @param {object} args
+ * @param {string} args.title                                Overlay header.
+ * @param {string} args.label                                Prompt shown above the buttons.
+ * @param {Array<{value: string, label: string}>} args.options
+ * @returns {Promise<string|null>} The chosen value, or null when cancelled.
+ */
+window.DX3rdUniversalHandler._promptConditionChoice = async function({ title, label, options } = {}) {
+  const rows = (Array.isArray(options) ? options : []).filter(o => o && o.value !== undefined);
+  if (!rows.length) return null;
+  return await window.DX3rdOverlayDialog.wait({
+    id: 'dx3rd-condition-choice',
+    title,
+    // The prompt is the only markup here; option labels reach the DOM through textContent.
+    content: `<div class="dx3rd-overlay-dialog__prompt">${window.DX3rdRuntimeUtils.escapeHTML(label ?? '')}</div>`,
+    closeOnEsc: true,
+    buttons: rows.map(o => ({ label: String(o.label ?? o.value), value: o.value }))
+  });
+};
+
+/**
+ * Return the array of condition entries enabled in itemExtend.condition (the conditions array, or the older single form)
  * @param {Object} condData - itemExtend.condition
  * @returns {Array<{timing, target, type, poisonedRank, activate}>}
  */
@@ -78,38 +108,38 @@ window.DX3rdUniversalHandler._getConditionEntries = function(condData) {
 };
 
 /**
- * 상태이상 익스텐션 실행
- * @param {Actor} actor - 사용자 액터
- * @param {Object} conditionData - 상태이상 데이터
- * @param {Item} item - 연동된 아이템 (옵션)
+ * Run a condition extension
+ * @param {Actor} actor - the using actor
+ * @param {Object} conditionData - the condition data
+ * @param {Item} item - the linked item (optional)
  */
 window.DX3rdUniversalHandler.executeConditionExtension = async function(actor, conditionData, item = null) {
   window.DX3rdDebug.log('DX3rd | executeConditionExtension called', { actor: actor.name, conditionData, item: item?.name });
   
   const { timing } = conditionData;
   
-  // afterMain, afterDamage, afterSuccess는 각 버튼/호출 지점에서 직접 큐에 등록하므로 여기서는 처리 안 함
+  // afterMain, afterDamage and afterSuccess register on the queue at their own button / call site, so they are not handled here
   if (timing === 'afterMain' || timing === 'afterDamage' || timing === 'afterSuccess') {
     window.DX3rdDebug.log(`DX3rd | ${timing} timing - will be handled by caller or button handler`);
     return;
   }
   
-  // instant 타이밍이면 즉시 실행
+  // With the instant timing, run it right away
   await this.executeConditionExtensionNow(actor, conditionData, item);
 };
 
 /**
- * 상태이상 익스텐션 즉시 실행
- * @param {Actor} actor - 사용자 액터
- * @param {Object} conditionData - 상태이상 데이터
- * @param {Item} item - 연동된 아이템 (옵션)
+ * Run a condition extension immediately
+ * @param {Actor} actor - the using actor
+ * @param {Object} conditionData - the condition data
+ * @param {Item} item - the linked item (optional)
  */
 window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor, conditionData, item = null) {
   window.DX3rdDebug.log('DX3rd | executeConditionExtensionNow called', { actor: actor.name, conditionData, item: item?.name });
   
   const { target, selectedTargetIds, targetsFrozen = false, triggerItemName, poisonedRank } = conditionData;
   
-  // conditionTypes 배열이 있으면 복수 상태이상 → executeConditionExtensionsNowBulk 호출
+  // With a conditionTypes array present → several conditions → call executeConditionExtensionsNowBulk
   const conditionTypes = conditionData.conditionTypes;
   if (Array.isArray(conditionTypes) && conditionTypes.length > 0) {
     const bulkData = {
@@ -127,7 +157,7 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
     return;
   }
   
-  // 단일 상태이상: conditionType 또는 type 필드
+  // A single condition: the conditionType or type field
   const conditionType = conditionData.conditionType || conditionData.type;
   if (!conditionType) {
     console.error('DX3rd | conditionType is missing from conditionData:', conditionData);
@@ -137,8 +167,8 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
   
   window.DX3rdDebug.log(`DX3rd | Condition type: ${conditionType}`);
 
-  // 단일/복수 상태이상은 반드시 같은 경로로 처리한다. 그래야 특수 입력과
-  // 사독 랭크도 발동 클라이언트에서 한 번만 확정된다.
+  // Single and multiple conditions must go through the same path. That is what keeps the special inputs and the
+  // poison rank settled exactly once, on the firing client.
   await this.executeConditionExtensionsNowBulk(actor, {
     conditionTypes: [conditionType],
     target,
@@ -153,14 +183,14 @@ window.DX3rdUniversalHandler.executeConditionExtensionNow = async function(actor
 };
 
 /**
- * 상태이상 다건 즉시 실행(같은 타이밍/같은 대상 버킷용)
+ * Run several conditions immediately (for the same timing / same target bucket)
  * @param {Actor} actor
  * @param {Object} bulkData - { conditionTypes: string[], target, selectedTargetIds, triggerItemName, poisonedRank }
  */
 window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(actor, bulkData) {
   const { conditionTypes = [], target, selectedTargetIds, targetsFrozen = false, triggerItemName, poisonedRank, itemId, duration, sourceActorId } = bulkData || {};
   if (!Array.isArray(conditionTypes) || conditionTypes.length === 0) return;
-  // 대상 수집(단 한 번)
+  // Collect the targets (exactly once)
   const targets = [];
   if (target === 'self' || target === 'targetAll') targets.push(actor);
   if (target === 'targetToken' || target === 'targetAll') {
@@ -190,8 +220,8 @@ window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(
     duration: duration || null,
     sourceActorId: sourceActorId || actor.id
   };
-  // 특수 상태 선택과 사독 굴림은 적용 권한을 중계하기 전에 발동자가 확정한다.
-  // 이후 소유자/대표 GM은 확정된 값만 적용한다.
+  // The special status choice and the poison roll are settled by the firer before the apply permission is relayed.
+  // The owner / representative GM then applies only the settled values.
   const resolvedData = await this.handleConditionRequestBulk({
     ...requestData,
     targets: [],
@@ -220,18 +250,18 @@ window.DX3rdUniversalHandler.executeConditionExtensionsNowBulk = async function(
 };
 
 /**
- * 상태이상 다건 요청 처리(GM 전용) - 한 번의 다이얼로그에서 승인
+ * Handle a multi-condition request (GM only) — approved from a single dialog
  */
 window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(requestData) {
   const { userId, actorId, actorName, targets, conditionTypes = [], triggerItemName, resolveOnly = false } = requestData;
   let { poisonedRank } = requestData;
   if (conditionTypes.length === 0) return;
   
-  // 사독 랭크가 포뮬러 문자열인 경우 여기서 숫자로 평가 (병합 시 이미 평가됐을 수도 있음)
+  // When the poison rank is a formula string it is evaluated to a number here (it may already have been evaluated during the merge)
   window.DX3rdDebug.log('DX3rd | handleConditionRequestBulk - Initial poisonedRank:', poisonedRank, 'conditionTypes:', conditionTypes);
   try {
     if (conditionTypes.includes('poisoned') && poisonedRank !== undefined && poisonedRank !== null) {
-      // 이미 숫자면 그대로 사용, 문자열은 승인 직후 한 번만 평가한다.
+      // A number is used as-is; a string is evaluated exactly once, right after approval.
       if (typeof poisonedRank === 'number') {
         window.DX3rdDebug.log('DX3rd | Poisoned rank already evaluated:', poisonedRank);
       } else if (typeof poisonedRank === 'string' && poisonedRank.trim() !== '') {
@@ -262,19 +292,19 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
   }
   window.DX3rdDebug.log('DX3rd | handleConditionRequestBulk - Final poisonedRank:', poisonedRank);
   
-  // 💡 특수 상태이상(증오/공포/폭주)의 경우 미리 입력 받기
+  // 💡 For a special condition (hatred / fear / berserk), take the input in advance
   const specialConditions = { ...(requestData.specialConditions || {}) };
   for (const ct of conditionTypes) {
     if (specialConditions[ct] !== undefined) continue;
     if (ct === 'hatred') {
-      // 증오: 현재 씬의 다른 토큰 선택
+      // Hatred: choose another token in the current scene
       const currentScene = game.scenes.active;
       if (!currentScene) {
         ui.notifications.warn("활성화된 장면이 없습니다.");
         return;
       }
       
-      // 대상 액터 ID 가져오기 (첫 번째 타겟)
+      // Get the target actor ID (the first target)
       const targetActorId = (targets && targets[0]) ? targets[0].id : null;
       
       const otherTokens = currentScene.tokens
@@ -287,59 +317,12 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
       
-      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
-      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
-      const options = otherTokens.map(t => {
-        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
-        return `<option value="${safe}">${safe}</option>`;
-      }).join('');
-      const template = `
-        <div class="condition-rank-dialog">
-          <div class="form-group">
-            <label>${game.i18n.localize("DX3rd.HatredInputText")}</label>
-            <select id="condition-target" style="width: 100%; text-align: center;">
-              ${options}
-            </select>
-          </div>
-        </div>
-        <style>
-        .condition-rank-dialog { padding: 5px; }
-        .condition-rank-dialog .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 0px; margin-bottom: 5px; }
-        .condition-rank-dialog label { font-weight: bold; font-size: 14px; }
-        .condition-rank-dialog select { padding: 4px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; background: white; color: black; }
-        </style>
-      `;
-      
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2?.wait) {
-        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-        return;
-      }
-
-      const hatredTarget = await DialogV2.wait({
-        window: { title: game.i18n.localize("DX3rd.Hatred") },
-        content: template,
-        rejectClose: false,
-        buttons: [
-          {
-            action: 'confirm',
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            default: true,
-            callback: (event, button) => {
-              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-target")?.value || false;
-            }
-          },
-          {
-            action: 'cancel',
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
-            // 취소가 유효한 대상값으로 새어 나간다.
-            callback: () => false
-          }
-        ]
+      // The token name is both the value and the button label; it never round-trips
+      // through HTML, so no escaping is needed to get the original string back.
+      const hatredTarget = await window.DX3rdUniversalHandler._promptConditionChoice({
+        title: game.i18n.localize("DX3rd.Hatred"),
+        label: game.i18n.localize("DX3rd.HatredInputText"),
+        options: otherTokens.map(t => ({ value: t.name, label: t.name }))
       });
       
       if (hatredTarget) {
@@ -350,14 +333,14 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
     } else if (ct === 'fear') {
-      // 공포: 현재 씬의 다른 토큰 선택
+      // Fear: choose another token in the current scene
       const currentScene = game.scenes.active;
       if (!currentScene) {
         ui.notifications.warn("활성화된 장면이 없습니다.");
         return;
       }
       
-      // 대상 액터 ID 가져오기 (첫 번째 타겟)
+      // Get the target actor ID (the first target)
       const targetActorId = (targets && targets[0]) ? targets[0].id : null;
       
       const otherTokens = currentScene.tokens
@@ -370,59 +353,12 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
       
-      // 토큰 이름에 마크업이 섞여도 select 구조를 깨지 않도록 이스케이프한다.
-      // value 는 파서가 되돌려 주므로(.value 는 디코드된 원본) 선택값 비교는 그대로 동작한다.
-      const options = otherTokens.map(t => {
-        const safe = window.DX3rdRuntimeUtils.escapeHTML(t.name);
-        return `<option value="${safe}">${safe}</option>`;
-      }).join('');
-      const template = `
-        <div class="condition-rank-dialog">
-          <div class="form-group">
-            <label>${game.i18n.localize("DX3rd.FearInputText")}</label>
-            <select id="condition-target" style="width: 100%; text-align: center;">
-              ${options}
-            </select>
-          </div>
-        </div>
-        <style>
-        .condition-rank-dialog { padding: 5px; }
-        .condition-rank-dialog .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 0px; margin-bottom: 5px; }
-        .condition-rank-dialog label { font-weight: bold; font-size: 14px; }
-        .condition-rank-dialog select { padding: 4px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; background: white; color: black; }
-        </style>
-      `;
-      
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2?.wait) {
-        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-        return;
-      }
-
-      const fearTarget = await DialogV2.wait({
-        window: { title: game.i18n.localize("DX3rd.Fear") },
-        content: template,
-        rejectClose: false,
-        buttons: [
-          {
-            action: 'confirm',
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            default: true,
-            callback: (event, button) => {
-              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-target")?.value || false;
-            }
-          },
-          {
-            action: 'cancel',
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
-            // 취소가 유효한 대상값으로 새어 나간다.
-            callback: () => false
-          }
-        ]
+      // The token name is both the value and the button label; it never round-trips
+      // through HTML, so no escaping is needed to get the original string back.
+      const fearTarget = await window.DX3rdUniversalHandler._promptConditionChoice({
+        title: game.i18n.localize("DX3rd.Fear"),
+        label: game.i18n.localize("DX3rd.FearInputText"),
+        options: otherTokens.map(t => ({ value: t.name, label: t.name }))
       });
       
       if (fearTarget) {
@@ -433,7 +369,7 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         return;
       }
     } else if (ct === 'berserk') {
-      // 폭주: 타입 선택
+      // Berserk: choose the type
       const berserkTypes = [
         { value: "normal", label: game.i18n.localize("DX3rd.Normal") },
         { value: "release", label: game.i18n.localize("DX3rd.UrgeRelease") },
@@ -450,54 +386,10 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         { value: "hatred", label: game.i18n.localize("DX3rd.UrgeHatred") }
       ];
       
-      const options = berserkTypes.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
-      const template = `
-        <div class="condition-rank-dialog">
-          <div class="form-group">
-            <label>${game.i18n.localize("DX3rd.BerserkInputText")}</label>
-            <select id="condition-type" style="width: 100%; text-align: center;">
-              ${options}
-            </select>
-          </div>
-        </div>
-        <style>
-        .condition-rank-dialog { padding: 5px; }
-        .condition-rank-dialog .form-group { display: flex; flex-direction: column; gap: 8px; margin-top: 0px; margin-bottom: 5px; }
-        .condition-rank-dialog label { font-weight: bold; font-size: 14px; }
-        .condition-rank-dialog select { padding: 4px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; background: white; color: black; }
-        </style>
-      `;
-      
-      const DialogV2 = foundry.applications?.api?.DialogV2;
-      if (!DialogV2?.wait) {
-        ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
-        return;
-      }
-
-      const berserkType = await DialogV2.wait({
-        window: { title: game.i18n.localize("DX3rd.Berserk") },
-        content: template,
-        rejectClose: false,
-        buttons: [
-          {
-            action: 'confirm',
-            icon: '<i class="fas fa-check"></i>',
-            label: game.i18n.localize("DX3rd.Confirm"),
-            default: true,
-            callback: (event, button) => {
-              const root = button.form || button.element?.closest('.application') || button.element?.ownerDocument;
-              return root?.querySelector("#condition-type")?.value || false;
-            }
-          },
-          {
-            action: 'cancel',
-            icon: '<i class="fas fa-times"></i>',
-            label: game.i18n.localize("DX3rd.Cancel"),
-            // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열("cancel")로 바꿔치기해
-            // 취소가 유효한 대상값으로 새어 나간다.
-            callback: () => false
-          }
-        ]
+      const berserkType = await window.DX3rdUniversalHandler._promptConditionChoice({
+        title: game.i18n.localize("DX3rd.Berserk"),
+        label: game.i18n.localize("DX3rd.BerserkInputText"),
+        options: berserkTypes
       });
       
       if (berserkType) {
@@ -512,20 +404,20 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
 
   if (resolveOnly) return { poisonedRank, specialConditions };
   
-  // 적용
+  // Apply
   for (const targetData of (targets || [])) {
     const targetActor = game.actors.get(targetData.id);
     if (!targetActor) continue;
     for (const ct of conditionTypes) {
       try {
         const already = targetActor.effects.find(e => e.statuses.has(ct));
-        // 사독이면 평가된 랭크 전달
+        // For poison, pass the evaluated rank
         const rankToPass = (ct === 'poisoned' && poisonedRank) ? poisonedRank : null;
-        // 특수 상태이상이면 입력받은 값 전달
+        // For a special condition, pass the value that was entered
         const specialTarget = specialConditions[ct] || null;
         window.DX3rdDebug.log(`DX3rd | Applying condition ${ct} to ${targetActor.name}, rankToPass:`, rankToPass, 'specialTarget:', specialTarget);
         if (already) {
-          // 이미 활성: 직접 갱신 루틴 호출(기본 핸들러 사용)
+          // Already active: call the update routine directly (using the default handler)
           let token = targetActor.token;
           if (!token && canvas.scene) {
             const tokenDoc = canvas.scene.tokens.find(t => t.actorId === targetActor.id);
@@ -536,14 +428,14 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
           } else if (typeof window.DX3rdHandleConditionToggle === 'function') {
             await window.DX3rdHandleConditionToggle(token || { actor: targetActor }, ct, true, triggerItemName || null, rankToPass, specialTarget);
           } else {
-            // 폴백: 맵에 저장 후 토글
+            // Fallback: store on the map, then toggle
             const key = `${targetActor.id}:${ct}`;
             if (!window.DX3rdConditionTriggerMap) window.DX3rdConditionTriggerMap = new Map();
             window.DX3rdConditionTriggerMap.set(key, { trigger: (triggerItemName||null), poisonedRank: rankToPass, specialTarget: specialTarget });
             await targetActor.toggleStatusEffect(ct, { active: true });
           }
         } else {
-          // 신규: 맵 저장 후 토글로 생성 → 훅에서 메시지
+          // New: store on the map and create it by toggling → the hook posts the message
           const key = `${targetActor.id}:${ct}`;
           if (!window.DX3rdConditionTriggerMap) window.DX3rdConditionTriggerMap = new Map();
           window.DX3rdDebug.log(`DX3rd | Storing in map - key: ${key}, trigger: ${triggerItemName}, poisonedRank: ${rankToPass}, specialTarget: ${specialTarget}`);
@@ -558,35 +450,35 @@ window.DX3rdUniversalHandler.handleConditionRequestBulk = async function(request
         });
       } catch (e) { console.error('DX3rd | Failed to apply condition', ct, 'to', targetActor?.name, e); }
     }
-    // 채팅은 condtions 훅에서 기본 메시지로 일원화 (여기서는 출력 안 함)
+    // Chat is unified on the default message in the condtions hook (nothing is printed here)
   }
 };
 
 /**
- * 상태이상 요청 처리 (GM 전용)
+ * Handle a condition request (GM only)
  */
 window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData) {
   
-  // afterSuccess에서 온 경우: conditionData가 있음
+  // Coming from afterSuccess: conditionData is present
   if (requestData.conditionData) {
     const actor = game.actors.get(requestData.actorId);
     const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
     
-    // executeConditionExtensionNow 직접 호출
+    // Call executeConditionExtensionNow directly
     await this.executeConditionExtensionNow(actor, requestData.conditionData, item);
     return;
   }
   
-  // instant에서 온 경우: 기존 로직
+  // Coming from instant: the existing logic
   const { userId, actorId, actorName, targets, conditionType, triggerItemName } = requestData;
   let { poisonedRank } = requestData;
 
-  // 사독 랭크는 승인 직후에만 해석한다. 다이스식이라면 Roll 결과도 함께 남긴다.
+  // The poison rank is resolved only right after approval. For a dice formula the Roll result is kept as well.
   try {
     if (conditionType === 'poisoned' && poisonedRank !== undefined && poisonedRank !== null && `${poisonedRank}`.trim() !== '') {
       if (typeof window.DX3rdFormulaEvaluator?.evaluateRoll === 'function' && typeof poisonedRank === 'string') {
         const actor = game.actors.get(actorId);
-        // 아이템 컨텍스트가 있다면 사용 (요청 데이터에 itemId가 있을 수도 있음)
+        // Use the item context when there is one (the request data may carry an itemId)
         const item = requestData.itemId ? actor?.items.get(requestData.itemId) : null;
         const itemLevel = item?.system?.level?.value ?? 1;
         const itemForFormula = item ? item : { type: 'effect', system: { level: { value: itemLevel } } };
@@ -606,7 +498,7 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
     console.warn('DX3rd | Failed to evaluate poisonedRank formula:', e);
   }
   
-  // 각 대상에게 상태이상 적용
+  // Apply the condition to each target
   window.DX3rdDebug.log(`DX3rd | Applying condition to ${targets.length} targets, conditionType: ${conditionType}`);
   
   for (const targetData of targets) {
@@ -618,7 +510,7 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
     
     window.DX3rdDebug.log(`DX3rd | Applying ${conditionType} to ${targetActor.name}`);
     
-    // toggleStatusEffect 사용하여 상태이상 적용
+    // Apply the condition through toggleStatusEffect
     try {
       const already = targetActor.effects.find(e => e.statuses.has(conditionType));
       if (already) {
@@ -650,7 +542,7 @@ window.DX3rdUniversalHandler.handleConditionRequest = async function(requestData
       console.error(`DX3rd | Failed to apply condition to ${targetActor.name}:`, error);
       continue;
     }
-    // 채팅은 condtions 훅에서 기본 메시지로 일원화 (여기서는 출력 안 함)
+    // Chat is unified on the default message in the condtions hook (nothing is printed here)
   }
   
   window.DX3rdDebug.log(`DX3rd | All conditions applied successfully`);

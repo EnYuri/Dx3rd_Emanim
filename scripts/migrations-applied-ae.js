@@ -1,17 +1,17 @@
-// DX3rd Applied → ActiveEffect 이행 (독립 마이그레이션 모듈)
+// DX3rd Applied → ActiveEffect migration (a standalone migration module)
 // ---------------------------------------------------------------------------
-// applied 버프의 저장소를 자체 데이터(system.attributes.applied)에서 네이티브
-// ActiveEffect 로 옮기는 1회성 이행. 코어 스키마 정리(migrations.js)와 성격이 달라
-// 별도 버전 카운터(appliedAEMigrationVersion)로 독립 관리한다.
+// The one-off migration moving applied buffs out of our own data (system.attributes.applied) and into native
+// ActiveEffects. It is different in character from the core schema cleanup (migrations.js), so it is managed
+// independently through its own version counter (appliedAEMigrationVersion).
 //
-//  - 액터 이행은 GM 로드 시 자동 1회 실행(멱등: set()이 appliedKey 로 upsert).
-//  - 아이템/컴펜디움에 표시·이식용 AE 정의를 심는 백필은 팩 쓰기 위험이 있어
-//    자동 실행하지 않고 game.dx3rd.backfillItemEffects(...) 수동 호출로 제공한다.
+//  - The actor migration runs automatically once on a GM's load (idempotent: set() upserts by appliedKey).
+//  - The backfill that plants display / transplant AE definitions on items and compendia risks writing to the packs,
+//    so it does not run automatically and is offered as a manual game.dx3rd.backfillItemEffects(...) call.
 // ---------------------------------------------------------------------------
 (function () {
 
   const SETTING = 'appliedAEMigrationVersion';
-  const CURRENT = 4; // 이 모듈이 정의한 이행 단계 수
+  const CURRENT = 4; // the number of migration steps this module defines
 
   Hooks.once('init', function () {
     game.settings.register('dx3rd-emanim', SETTING, {
@@ -23,14 +23,14 @@
   });
 
   Hooks.once('ready', async function () {
-    // 콘솔/매크로용 API 노출 (GM/플레이어 무관하게 등록, 실제 실행 권한은 각 함수가 검사)
+    // Expose the API for the console / macros (registered for GM and player alike; each function checks its own permission)
     game.dx3rd = game.dx3rd || {};
     game.dx3rd.backfillItemEffects = backfillItemEffects;
 
-    // 공개 매크로 API — 월드 매크로가 actor.update({"system.attributes.applied.KEY": {...}})
-    // 대신 이 함수를 호출하면 네이티브 ActiveEffect 로 저장되어 토큰 아이콘/효과 탭에 뜬다.
-    // (기존 방식으로 직접 쓰는 매크로도 collect() 브리지 덕에 수치는 계속 정상 동작하지만,
-    //  AE 시각화를 원하면 매크로를 이 API 로 바꾸면 된다.)
+    // The public macro API — a world macro calling this instead of
+    // actor.update({"system.attributes.applied.KEY": {...}}) stores it as a native ActiveEffect, so it shows on the
+    // token icon and the effects tab.
+    // (A macro writing the old way still computes correctly thanks to the collect() bridge; switch to this API for the AE visuals.)
     //   game.dx3rd.applyEffect(actor, "KEY", { name, img, disable, attributes:{ ... } })
     //   game.dx3rd.removeEffect(actor, "KEY")
     game.dx3rd.applyEffect = (actor, key, payload) =>
@@ -50,9 +50,9 @@
 
     try {
       if (version < 1) await migrateActorsAppliedToAE();
-      // (구 v2 backfillShowIconOnAppliedAE 제거: showIcon 을 ALWAYS 로 올리던 단계였으나
-      //  dnd5e 방식 전환으로 기본 OFF(NEVER) 정책이 확정되어 v3 가 이를 덮는다. v0 신규 이행은
-      //  buildAEData 가 이미 NEVER 로 생성하고 v3 가 no-op → v2 는 순수 churn 이라 삭제.)
+      // (The old v2 backfillShowIconOnAppliedAE was removed: it raised showIcon to ALWAYS, but the move to the
+      //  dnd5e style settled on OFF (NEVER) by default and v3 overrides it. A fresh v0 migration already builds
+      //  NEVER in buildAEData and v3 is a no-op → v2 was pure churn, so it was deleted.)
       if (version < 3) await cleanupMirrorsAndDefaultOverlayOff();
       if (version < 4) await restoreTokenPreferenceAfterCoreMigration();
       await game.settings.set('dx3rd-emanim', SETTING, CURRENT);
@@ -65,9 +65,9 @@
   });
 
   /**
-   * 각 액터의 system.attributes.applied.<key> 를 네이티브 ActiveEffect 로 변환한 뒤
-   * 레거시 필드를 제거한다. 이후 계산은 collect()가 AE flag 에서 재구성한다.
-   * 문서(액터)를 하나씩 개별 처리한다.
+   * Convert each actor's system.attributes.applied.<key> into a native ActiveEffect, then remove the legacy field.
+   * From then on the calculation is rebuilt by collect() from the AE flags.
+   * Documents (actors) are processed one at a time.
    */
   async function migrateActorsAppliedToAE() {
     const adapter = window.DX3rdAppliedEffects;
@@ -83,7 +83,7 @@
       const applied = actor.system?.attributes?.applied;
       if (!applied || typeof applied !== 'object' || !Object.keys(applied).length) continue;
 
-      // 1) applied → 네이티브 ActiveEffect
+      // 1) applied → a native ActiveEffect
       for (const [key, payload] of Object.entries(applied)) {
         if (!payload || typeof payload !== 'object') continue;
         try {
@@ -94,7 +94,7 @@
         }
       }
 
-      // 2) 레거시 필드 제거 (prepareData 기본값이 빈 {} 로 재초기화)
+      // 2) Remove the legacy field (prepareData's default reinitializes it as an empty {})
       try {
         if (ForcedDeletion) {
           await actor.update({ system: { attributes: { applied: new ForcedDeletion() } } }, { render: false });
@@ -111,11 +111,11 @@
   }
 
   /**
-   * v3: 의도 전환(dnd5e 방식) 반영.
-   *  (a) 폐기된 토글 미러 AE(flag activeMirror) 를 전부 제거 — 순수 스텟 토글은 아이템 자체계산이라
-   *      AE 그림자가 필요없다(미러 모듈 삭제됨).
-   *  (b) 토큰 오버레이 기본 OFF 정책 소급: 기존 appliedKey AE 의 showIcon 을 NEVER 로 되돌린다
-   *      (v2 에서 ALWAYS 로 세웠던 것). 이후에는 효과 탭 편집의 per-effect "토큰 표시" 토글로만 켠다.
+   * v3: reflecting the change of intent (the dnd5e style).
+   *  (a) Remove every retired toggle mirror AE (the activeMirror flag) — a pure stat toggle is computed by the item
+   *      itself, so it needs no AE shadow (the mirror module was deleted).
+   *  (b) Apply the "token overlay OFF by default" policy retroactively: existing appliedKey AEs have showIcon put
+   *      back to NEVER (v2 had set it to ALWAYS). From then on it is turned on only by the effects tab's per-effect "show on token" toggle.
    */
   async function cleanupMirrorsAndDefaultOverlayOff() {
     const NEVER = CONST.ACTIVE_EFFECT_SHOW_ICON?.NEVER ?? 0;
@@ -148,10 +148,10 @@
   }
 
   /**
-   * v4: Foundry v14.353+ 코어 마이그레이션 대응.
-   * 합성 statuses 가 있는 기존 applied AE 의 showIcon 을 코어가 ALWAYS 로 바꿀 수 있으므로,
-   * 다른 데이터는 건드리지 않고 저장된 showOnToken 선택에 맞춰 showIcon 만 복구한다.
-   * 실제 상태이상 AE에는 appliedKey 플래그가 없으므로 영향을 주지 않는다.
+   * v4: handling the Foundry v14.353+ core migration.
+   * Core may change an existing applied AE with synthetic statuses to showIcon ALWAYS, so this restores showIcon
+   * alone, according to the stored showOnToken choice, touching no other data.
+   * A real status-effect AE has no appliedKey flag and is therefore unaffected.
    */
   async function restoreTokenPreferenceAfterCoreMigration() {
     const SHOW_ICON = CONST.ACTIVE_EFFECT_SHOW_ICON || {};
@@ -188,11 +188,11 @@
   }
 
   /**
-   * 수동 백필: 이펙트류 Item 의 system.effect.attributes 로부터 아이템 자신에게
-   * 표시/이식용 ActiveEffect 정의를 심는다(아이템만 열어도 AE 가 보이도록).
-   *  - transfer:false 로 두어 착용/소유 시 액터에 자동 전이(=런타임 생성과 중복)되지 않게 한다.
-   *  - 컴펜디움 팩 쓰기는 위험이 있어 기본 제외. includeCompendium=true 로 명시할 때만 수행.
-   * 콘솔에서 실행: game.dx3rd.backfillItemEffects({ includeCompendium: true })
+   * The manual backfill: plant display / transplant ActiveEffect definitions on effect-like Items themselves, from
+   * their system.effect.attributes (so an AE is visible even when only the item is opened).
+   *  - transfer:false, so it does not transfer to the actor automatically on equip / ownership (= duplicating the runtime creation).
+   *  - Writing to compendium packs is risky, so it is excluded by default. It happens only when includeCompendium=true is stated.
+   * Run from the console: game.dx3rd.backfillItemEffects({ includeCompendium: true })
    */
   async function backfillItemEffects({ includeCompendium = false } = {}) {
     if (!game.user.isGM) { ui.notifications?.warn('GM 만 실행할 수 있습니다.'); return; }
@@ -200,7 +200,7 @@
     if (!adapter?.buildChanges) { ui.notifications?.error('DX3rdAppliedEffects 미로드'); return; }
     const FLAG = adapter.SCOPE || 'dx3rd-emanim';
 
-    // 이펙트류(효과 attributes 를 authoring 하는) 타입만 대상
+    // Only the effect-like types (the ones that author effect attributes) are targeted
     const EFFECT_TYPES = new Set(['effect', 'combo', 'spell', 'psionic', 'rois', 'protect', 'once', 'connection', 'etc']);
 
     const buildItemAE = (item) => {
@@ -211,14 +211,14 @@
       return {
         name: item.name,
         img: item.img || 'icons/svg/aura.svg',
-        system: { changes }, // v14: change 배열은 system.changes 에 위치
-        transfer: false, // 자동 전이 금지(런타임 생성이 담당)
+        system: { changes }, // v14: the change array lives at system.changes
+        transfer: false, // no automatic transfer (the runtime creation handles that)
         disabled: false,
         flags: { [FLAG]: { itemDefinition: true, disable: item.system?.effect?.disable || '-' } }
       };
     };
 
-    // 이미 정의 AE 가 있으면 건너뜀(멱등)
+    // Skipped when a definition AE already exists (idempotent)
     const hasDef = (item) => item.effects?.some(e => e.getFlag?.(FLAG, 'itemDefinition'));
 
     let created = 0;
@@ -235,12 +235,12 @@
       }
     };
 
-    // 월드 아이템
+    // World items
     for (const item of game.items) await processItem(item);
-    // 액터 임베드 아이템
+    // Items embedded on actors
     for (const actor of game.actors) for (const item of actor.items) await processItem(item);
 
-    // 컴펜디움(옵션): 시스템 소유 Item 팩만, 잠금 해제→복원
+    // Compendia (optional): system-owned Item packs only, unlocked → restored
     if (includeCompendium) {
       for (const pack of game.packs) {
         if (pack.metadata?.type !== 'Item') continue;

@@ -1,4 +1,4 @@
-/** Shared template-context preparation for 이전 시트 and AppV2 combo sheets. */
+/** Shared template-context preparation for the legacy and AppV2 combo sheets. */
 (function() {
   const itemSheetData = window.DX3rdItemSheetData;
   const abilityKeys = ['body', 'sense', 'mind', 'social'];
@@ -8,10 +8,10 @@
     return (Array.isArray(source) ? source : [source]).filter(id => typeof id === 'string' && id && id !== '-');
   }
 
-  // 콤보 구성 이펙트 ID. **저장 형식 해석의 정본은 universal-extensions 의 normalizeEffectIds**
-  // 하나이고, 여기서는 시트 컨텍스트의 평문 객체(data)까지 받는 껍데기만 더한다. 해석을 여기에
-  // 다시 쓰면 시트와 런타임이 다른 목록을 보게 된다(예전 자체 구현은 system.effect.data 형식을
-  // 몰랐다). 스키마가 effectIds 를 항상 배열로 채우므로 data 폴백은 실제로는 도달하지 않는다.
+  // The combo member effect ids. **The canonical reading of the stored format is the single normalizeEffectIds
+  // in universal-extensions**; this only adds a shell that also accepts the sheet context plain object (data).
+  // Rewriting the parsing here would leave the sheet and the runtime looking at different lists (the old local
+  // implementation did not know the system.effect.data shape). The schema always fills effectIds, so data is unreachable.
   function getEffectIds(item, data = null) {
     const handler = window.DX3rdUniversalHandler;
     const normalize = target => (handler?.normalizeEffectIds
@@ -55,7 +55,7 @@
     return name;
   }
 
-  /** 설명이 비어 있는 콤보 채팅 카드에 표시할 현재 조합 요약. */
+  /** The current combination summary shown on a combo chat card whose description is empty. */
   function buildAutomaticDescription(item, actor) {
     const parts = [];
     const levelLabel = game.i18n.localize('DX3rd.LevelAbbreviation');
@@ -148,21 +148,21 @@
     };
   }
 
-  // 콤보 필드가 "비어있다"(미설정/기본값)고 볼지 판정
+  // Decide whether a combo field counts as "empty" (unset / default)
   function isEmptyComboField(value) {
     return value === undefined || value === null || value === '' || value === '-';
   }
 
-  // 룰북 p.147: 조합하는 모든 이펙트의 타이밍과 기능은 일치해야 한다.
-  // '-'는 아직 데이터가 채워지지 않은 상태이므로, 그것만으로는 조합을 막지 않는다.
+  // Rulebook p.147: every combined effect must agree in timing and skill.
+  // '-' means the data has not been filled in yet, so it alone never blocks a combination.
   //
-  // 타이밍이 "고정되지 않은" 이펙트는 이 일치 검사에서 빠진다.
-  //   auto(오토 액션): 타이밍 제약 없이 언제든 선언할 수 있으므로 어떤 타이밍의 조합에도 얹힌다.
-  //   always(상시): 발동 타이밍 자체가 없다.
-  // 콤보의 타이밍은 이런 멤버가 아니라 타이밍이 고정된 멤버들이 정한다.
+  // An effect whose timing is "not fixed" is exempt from this agreement check.
+  //   auto: declarable at any moment with no timing constraint, so it rides on a combination of any timing.
+  //   always: it has no trigger timing at all.
+  // A combo's timing is decided by the members with a fixed timing, not by these.
   const UNBOUND_TIMINGS = new Set(['auto', 'always']);
-  // 복수 타이밍을 겸하는 이펙트가 실제로 어느 타이밍으로 취급될 수 있는지.
-  // 자기 자신을 맨 앞에 둬야, 그 이펙트만 조합됐을 때 표시 타이밍이 원래 값으로 남는다.
+  // Which timings an effect that serves several can actually be treated as.
+  // Itself must come first, so that combining that effect alone leaves the displayed timing at its original value.
   const TIMING_ALIASES = {
     'major-reaction': ['major-reaction', 'major', 'reaction']
   };
@@ -177,7 +177,7 @@
     const bound = timings.filter(timing => !UNBOUND_TIMINGS.has(timing));
     const unbound = timings.filter(timing => UNBOUND_TIMINGS.has(timing));
 
-    // 겸용 타이밍은 후보 집합의 교집합으로 좁힌다(메이저/리액션 이펙트는 양쪽 조합 모두에 들어간다).
+    // A dual-purpose timing narrows to the intersection of the candidate sets (a major/reaction effect belongs to both combinations).
     let candidates = null;
     for (const timing of bound) {
       const allowed = timingCandidates(timing);
@@ -200,17 +200,17 @@
     const combined = getCombinedEffectTiming(actor, effectIds);
     if (!combined.valid) return false;
     const comboTiming = comboItem?.system?.timing;
-    // 콤보 자신의 타이밍이 비었거나 고정되지 않은 값이면 멤버 쪽이 타이밍을 정한다.
+    // When the combo's own timing is empty or not a fixed value, the members decide the timing.
     if (isEmptyComboField(comboTiming) || UNBOUND_TIMINGS.has(comboTiming)) return true;
-    // 멤버가 오토/상시뿐이면(=고정 타이밍 멤버 없음) 콤보 타이밍에 아무 제약도 걸지 않는다.
+    // When the members are only auto/always (= no fixed-timing member), no constraint is placed on the combo's timing.
     if (!combined.value || UNBOUND_TIMINGS.has(combined.value)) return true;
     return timingCandidates(comboTiming).includes(combined.value)
       || timingCandidates(combined.value).includes(comboTiming);
   }
 
-  // 판정 "기능"이 아닌 센티넬 skill 값(콤보 판정 기능 소스에서 제외).
-  //   syndrome: 컨센트레이트/리플렉스 등 — 이펙트를 사용한 판정에만 조합되는 순수 수정치(별도 attribute로 해소).
-  //   text/cthulhu: 현재 데이터 없음(무시).
+  // Sentinel skill values that are not a check "skill" (excluded as a source for the combo's check skill).
+  //   syndrome: Concentrate / Reflex and the like — a pure modifier combined only into a check that used an effect (resolved through a separate attribute).
+  //   text/cthulhu: no data at present (ignored).
   const NON_JUDGMENT_SKILLS = new Set(['syndrome']);
   function isNonJudgmentSkill(value) {
     return NON_JUDGMENT_SKILLS.has(value);
@@ -229,10 +229,10 @@
     return lists[0].filter(skill => lists.every(list => list.includes(skill)));
   }
 
-  // 조합 자격 위반은 "경고만 하고 진행"이 원칙이다(validateComboCombination은 차단하지 않는다).
-  // 따라서 기능이 서로 충돌해 교집합이 비어도 후보를 비워두면 안 된다 — 비우면 콤보의
-  // 판정 기능/공격판정/공격력이 전부 미계산으로 남아, 경고만 하겠다는 원칙과 달리
-  // 사실상 사용 불가한 콤보가 된다. 교집합이 없으면 합집합을 후보로 내려 사용자가 고르게 한다.
+  // A combination-eligibility violation is "warn and proceed" by principle (validateComboCombination never blocks).
+  // So the candidates must not be left empty even when conflicting skills make the intersection empty — emptying them
+  // would leave the combo's check skill, attack check and attack value all uncomputed, making it effectively unusable,
+  // contrary to the warn-only principle. With no intersection, the union is offered so the user can choose.
   function getComboSkillCandidates(effects) {
     const compatible = getCompatibleSkillChoices(effects);
     if (compatible.length) return compatible;
@@ -243,18 +243,18 @@
     return union;
   }
 
-  // 콤보의 판정 기능(skill/base)·공격판정(attackRoll)·공격력을 "조합 우선순위"로 재계산.
+  // Recompute the combo's check skill (skill/base), attack check (attackRoll) and attack value by "combination priority".
   //
-  // 우선순위(항상 재계산): 이펙트 명시기능 > 무기 명시기능 > 무기 type 유추(ranged→사격, melee→백병).
-  //   근거: 룰 「이펙트가 우선」(rulebook-1-2 3251) — 장비품(무기)의 효과가 이펙트와 모순되면 이펙트가 우선.
-  //   기능 변경(무기 명중판정을 〈RC〉/사격으로)은 이펙트 플레이버 텍스트에 있어 기계 판별 불가하므로,
-  //   유일한 기계 신호인 이펙트 `system.skill`을 우선 신호로 사용한다.
+  // Priority (always recomputed): an effect's explicit skill > a weapon's explicit skill > inference from the weapon type (ranged→Ranged, melee→Melee).
+  //   Basis: the rule "the effect takes precedence" (rulebook-1-2 3251) — when equipment (a weapon) contradicts an effect, the effect wins.
+  //   A skill change (making a weapon's accuracy check <RC> / Ranged) lives in the effect's flavor text and cannot be decided mechanically,
+  //   so the only mechanical signal, the effect's `system.skill`, is used as the priority signal.
   //
-  // 사용자 수동값은 영구 잠금하지 않는다 — 새 이펙트/무기를 추가·삭제하면 이 우선순위로 다시 덮어씀.
-  //   (사용자는 "최종 수정" 시점에 우선권을 가진다: 그 수정은 다음 추가/삭제 전까지 유지된다.)
-  // 후보(이펙트/무기 기능 신호)가 하나도 없으면 기존 값을 보존한다(순수 수동 콤보 보호).
+  // A user's manual value is never locked permanently — adding or removing an effect / weapon overwrites it by this priority again.
+  //   (The user has priority at the moment of their "last edit": that edit holds until the next add or remove.)
+  // With no candidate at all (no effect / weapon skill signal), the existing value is preserved (protecting a purely manual combo).
   //
-  // effectIds/weaponIds를 넘기면 그 예정 목록으로 계산(추가/삭제가 저장되기 전 호출 대비).
+  // Passing effectIds/weaponIds computes from that prospective list (for calls before an add / remove is saved).
   function deriveComboAttackFields(comboItem, actor, { effectIds, weaponIds } = {}) {
     const updates = {};
     const cs = comboItem?.system || {};
@@ -266,20 +266,20 @@
       .map(id => window.DX3rdResolveWeapon?.(actor, id) || actor?.items.get(id))
       .filter(item => item && ['weapon', 'vehicle'].includes(item.type));
 
-    // --- 판정 기능(skill/base) ---
-    // 근거: 룰 「명중판정」(rulebook-1-2 p.145) — 명중판정은 "무기 및 이펙트에 지정된 기능"으로 하며,
-    //   「이펙트가 우선」(p.147)으로 이펙트 지정 기능이 무기 기능을 이긴다.
-    //   이펙트의 "지정된 기능"은 보통 기능 항목(system.skill)이지만, 본문(플레이버)에서
-    //   "명중판정을 〈RC〉/사격/정신 등으로 변경"한다고 재정의하는 특수 이펙트는 기계 판별 불가하므로,
-    //   전용 필드 system.comboSkill(조합시 기능 변경)을 두어 우선 신호로 쓰고 기능 항목을 폴백한다.
+    // --- The check skill (skill/base) ---
+    // Basis: the rule "accuracy check" (rulebook-1-2 p.145) — an accuracy check uses "the skill specified on the weapon and the effect",
+    //   and by "the effect takes precedence" (p.147) the effect's specified skill beats the weapon's.
+    //   An effect's "specified skill" is normally its skill field (system.skill), but a special effect that redefines it in its
+    //   body text (flavor) — "change the accuracy check to <RC> / Ranged / Mind" — cannot be decided mechanically, so the
+    //   dedicated field system.comboSkill (skill change when combined) is the priority signal and the skill field is the fallback.
     let skill = null;
     const compatibleSkills = getComboSkillCandidates(effects);
-    // B: 이펙트 지정 기능 — 조합시 기능 변경(comboSkill) 우선, 없으면 이펙트 기능 항목(skill) 폴백.
-    //   단 skill='syndrome'(컨센트레이트/리플렉스 등)은 판정 기능이 아니라 "이펙트를 사용한 판정에만
-    //   조합되는 순수 수정치" 센티넬이므로 콤보의 판정 기능 소스에서 제외한다(별도 attribute로 해소됨).
-    //   또한 원본이 〈백병〉〈사격〉처럼 복수 기능을 허용하는 이펙트(skillChoices 2개 이상)는 이펙트가
-    //   기능을 하나로 "지정"한 것이 아니므로 이펙트 우선 규칙이 걸리지 않는다. 이 경우 조합된 무기의
-    //   기능/종별이 선택지 안에 있으면 그것으로 확정한다(권총과 조합한 콤보가 백병 판정이 되는 것을 방지).
+    // B: the effect's specified skill — the combine-time skill change (comboSkill) first, falling back to the effect's skill field.
+    //   But skill='syndrome' (Concentrate / Reflex and the like) is not a check skill; it is a sentinel for "a pure modifier
+    //   combined only into a check that used an effect", so it is excluded as a source for the combo's check skill (resolved through a separate attribute).
+    //   Also, an effect whose original allows several skills such as <Melee><Ranged> (two or more skillChoices) has not "specified"
+    //   a single skill, so the effect-precedence rule does not apply. In that case, when the combined weapon's skill / type is among the
+    //   choices it settles it (preventing a combo built with a pistol from becoming a melee check).
     if (compatibleSkills.length === 1) {
       skill = compatibleSkills[0];
     } else if (compatibleSkills.length > 1) {
@@ -287,12 +287,12 @@
         .find(sig => !isEmptyComboField(sig) && compatibleSkills.includes(sig));
       skill = weaponSignal || (compatibleSkills.includes(cs.skill) ? cs.skill : compatibleSkills[0]);
     }
-    // C: 무기 명시 기능
+    // C: the weapon's explicit skill
     if (!skill) {
       const wpnSkill = weapons.find(w => !isEmptyComboField(w.system?.skill));
       if (wpnSkill) skill = wpnSkill.system.skill;
     }
-    // D: 무기 type 유추
+    // D: inference from the weapon type
     if (!skill) {
       const wpnType = weapons.find(w => w.system?.type === 'melee' || w.system?.type === 'ranged');
       if (wpnType) skill = wpnType.system.type;
@@ -305,19 +305,19 @@
       if (baseAttr && baseAttr !== cs.base) updates['system.base'] = baseAttr;
     }
 
-    // --- 능력치(base) 치환: 조합시 능력치 변경(comboBase) — 기능은 유지하고 판정치(능력치)만 교체 ---
-    //   근거: 룰 p.136 판정 = 능력치(다이스 수) + 기능(달성치 레벨). "조합한 판정을 〈정신〉으로"류는
-    //   기능(백병 등)의 레벨은 유지한 채 판정 능력치만 바꾸는 것이므로 skill이 아니라 base만 덮는다.
-    //   (예: 컨트롤 소드 = 백병 기능 유지 + 정신 능력치.) skill 변경 여부와 무관하게 우선 적용.
+    // --- Attribute (base) substitution: the combine-time attribute change (comboBase) — keep the skill, swap only the check attribute ---
+    //   Basis: rules p.136, a check = attribute (dice count) + skill (result level). "Make the combined check <Mind>" and the like
+    //   keep the skill's (Melee's, say) level and change only the check attribute, so base is overwritten rather than skill.
+    //   (e.g. Control Sword = keeps the Melee skill + the Mind attribute.) Applied first, regardless of whether the skill changed.
     const effComboBase = effects.find(e => abilityKeys.includes(e.system?.comboBase));
     if (effComboBase) {
       const cb = effComboBase.system.comboBase;
       if (cb !== (updates['system.base'] ?? cs.base)) updates['system.base'] = cb;
     }
 
-    // --- 공격판정(attackRoll): 이펙트 명시 attackRoll > 이펙트 기능 > 무기 type/기능 ---
-    // 일부 기존 아이템은 attackRoll 대신 skill(또는 comboSkill)만 백병/사격으로 채워져 있다.
-    // 이 경우도 공격 종류를 판별할 수 있으므로 폴백으로 사용한다.
+    // --- The attack check (attackRoll): an effect's explicit attackRoll > the effect's skill > the weapon's type / skill ---
+    // Some existing items have only skill (or comboSkill) filled with melee / ranged instead of attackRoll.
+    // The attack type can be determined from those too, so they are used as a fallback.
     let attackRoll = null;
     const effAR = effects.find(e => e.system?.attackRoll === 'melee' || e.system?.attackRoll === 'ranged');
     if (effAR) attackRoll = effAR.system.attackRoll;
@@ -337,11 +337,11 @@
     if (!attackRoll && weapons.some(w => w.type === 'vehicle')) attackRoll = 'melee';
     if (attackRoll && attackRoll !== cs.attackRoll) {
       updates['system.attackRoll'] = attackRoll;
-      // 공격판정이 새로 생겼는데 roll이 비어있으면 명중 판정(major) 활성화
+      // With a newly created attack check and an empty roll, enable the accuracy check (major)
       if (isEmptyComboField(cs.roll)) updates['system.roll'] = 'major';
     }
 
-    // --- 공격력 재계산 ---
+    // --- Recompute the attack value ---
     const finalAttackRoll = updates['system.attackRoll'] ?? cs.attackRoll;
     if (finalAttackRoll && finalAttackRoll !== '-') {
       updates['system.attack.value'] = calculateSubmittedAttack(actor, finalAttackRoll, wpnIds, effIds);
@@ -350,18 +350,18 @@
     return updates;
   }
 
-  // 이펙트를 콤보에 추가할 때: 해설 탭의 기본값(타이밍/판정 종류/난이도)과 고정무기를
-  // 빈 값일 때만 상속하고, 판정 기능/공격판정은 조합 우선순위로 재계산.
-  // prospectiveEffectIds: 아직 저장 전인 예정 이펙트 목록(방금 추가한 이펙트 포함).
+  // When adding an effect to a combo: inherit the description tab's defaults (timing / check type / difficulty) and the
+  // fixed weapon only when empty, and recompute the check skill / attack check by combination priority.
+  // prospectiveEffectIds: the prospective effect list not yet saved (including the effect just added).
   function computeInheritedComboFields(comboItem, effectItem, actor, prospectiveEffectIds = null) {
     const updates = {};
     const es = effectItem?.system || {};
     const cs = comboItem?.system || {};
 
-    // 타이밍 (빈 값일 때만 상속). 사거리/대상은 combineEffectsRangeTarget으로 전체 재계산.
+    // Timing (inherited only when empty). Range and target are fully recomputed by combineEffectsRangeTarget.
     if (isEmptyComboField(cs.timing) && !isEmptyComboField(es.timing)) updates['system.timing'] = es.timing;
 
-    // 무기: 이펙트가 무기를 고정(weaponSelect: false)하고 콤보 무기 슬롯이 비어있으면 상속
+    // Weapon: inherited when the effect fixes a weapon (weaponSelect: false) and the combo's weapon slot is empty
     const currentWeapons = getWeaponIds(comboItem);
     let effectiveWeapons = currentWeapons;
     if (currentWeapons.length === 0 && es.weaponSelect === false && Array.isArray(es.weapon)) {
@@ -372,15 +372,15 @@
       }
     }
 
-    // 판정 기능/공격판정/공격력: 조합 우선순위로 재계산(방금 추가한 이펙트/고정무기 포함).
+    // Check skill / attack check / attack value: recomputed by combination priority (including the effect / fixed weapon just added).
     Object.assign(updates, deriveComboAttackFields(comboItem, actor, {
       effectIds: prospectiveEffectIds ?? getEffectIds(comboItem),
       weaponIds: effectiveWeapons
     }));
 
-    // 공격판정이 없는 이펙트도 자체 판정을 요구할 수 있다. 기존에는 attackRoll이 있을 때만
-    // roll='major'가 채워져, 일반 판정 이펙트를 넣어도 해설 탭이 '-'로 남았다.
-    // 사용자가 이미 고른 콤보 판정/난이도는 보존하고, 기본값일 때만 이펙트 값을 상속한다.
+    // An effect with no attack check can still require a check of its own. Previously roll='major' was filled in only when
+    // attackRoll was present, so adding an ordinary check effect left the description tab at '-'.
+    // The combo check / difficulty the user already chose is preserved; the effect's value is inherited only at the default.
     if (isEmptyComboField(cs.roll) && !isEmptyComboField(es.roll)) {
       updates['system.roll'] = es.roll;
     }
@@ -391,20 +391,20 @@
     return updates;
   }
 
-  // 무기를 콤보에 추가할 때: 조합 우선순위로 판정 기능/공격판정/공격력을 재계산(공격 콤보 자동화).
-  // (무기는 이미 슬롯에 추가된 상태로 호출됨.)
+  // When adding a weapon to a combo: recompute the check skill / attack check / attack value by combination priority (attack combo automation).
+  // (The weapon has already been added to the slot when this is called.)
   function computeInheritedWeaponFields(comboItem, weaponItem, actor) {
     return deriveComboAttackFields(comboItem, actor);
   }
 
-  // 조합 무기가 바뀌면 「무기」 사정거리를 쓰는 이펙트의 사정거리가 달라지므로 range/target도 재계산해 updates에 반영.
+  // A change of combined weapon changes the range of any effect that uses the "weapon" range, so range/target are recomputed into updates too.
   function applyWeaponRangeRecalc(updates, comboItem, actor) {
     const combined = combineEffectsRangeTarget(actor, getEffectIds(comboItem), getWeaponIds(comboItem));
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
   }
 
-  // 무기/비클 추가 직후 호출: 콤보를 공격 콤보로 재구성.
+  // Called right after a weapon / vehicle is added: rebuild the combo as an attack combo.
   async function applyWeaponAutoAttack(comboItem, actor, weaponId) {
     if (!comboItem || !weaponId || weaponId === '-') return false;
     const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
@@ -416,7 +416,7 @@
     return true;
   }
 
-  // 무기 삭제 직후 호출: 남은 이펙트/무기로 판정 기능/공격판정을 재계산(우선순위 재적용).
+  // Called right after a weapon is removed: recompute the check skill / attack check from the remaining effects / weapons (reapplying the priority).
   async function applyWeaponRemoved(comboItem, actor, removedWeaponId = null) {
     if (!comboItem) return false;
     const updates = deriveComboAttackFields(comboItem, actor);
@@ -468,9 +468,9 @@
     }
   }
 
-  // 조합된 전체 이펙트에서 사거리/대상을 합성(가장 제한적인 값). 자신 규칙 위반은 selfConflict로 표시.
-  // 룰북 p.13 「사정거리의 축소」: 사정거리가 「무기」인 이펙트는 조합된 무기의 사정거리를 대입한다.
-  //   weaponIds를 넘기면 그 무기들의 사정거리로 「무기」 지시자를 치환한 뒤 최소값을 계산한다.
+  // Combine the range / target across every combined effect (the most restrictive value). A self-rule violation is flagged as selfConflict.
+  // Rulebook p.13 "reducing the range": an effect whose range is "weapon" takes the range of the combined weapon.
+  //   When weaponIds is passed, the "weapon" marker is substituted with those weapons' ranges before the minimum is computed.
   function combineEffectsRangeTarget(actor, effectIds, weaponIds = null) {
     const RT = window.DX3rdRangeTarget;
     if (!RT) return null;
@@ -483,7 +483,7 @@
       if (!eff) continue;
       const range = eff.system?.range;
       if (RT.isWeaponRange?.(range)) {
-        // 「무기」 지시자: 조합된 무기들의 실제 사정거리를 대신 넣는다(무기가 없으면 순위 없음으로 무시).
+        // The "weapon" marker: the combined weapons' actual ranges go in instead (with no weapon it is ignored as unranked).
         for (const wr of weaponRanges) ranges.push(wr);
       } else {
         ranges.push(range);
@@ -493,7 +493,7 @@
     return { range: RT.combineRange(ranges), target: RT.combineTarget(targets) };
   }
 
-  // 조합된 전체 이펙트에서 난이도를 합성(룰북 p.13 「난이도의 변경」: 대결 자동승격 > 최고 숫자 > 자동성공).
+  // Combine the difficulty across every combined effect (rulebook p.13 "changing the difficulty": contest auto-promotion > highest number > automatic success).
   function combineEffectsDifficulty(actor, effectIds) {
     const RT = window.DX3rdRangeTarget;
     if (!RT?.combineDifficulty) return null;
@@ -503,10 +503,10 @@
     return RT.combineDifficulty(list);
   }
 
-  // 합성 난이도를 콤보에 반영하기 위한 업데이트를 updates에 적용(roll 정합성 보정 포함).
-  //  - 숫자/대결: 판정이 필요하므로 콤보 roll이 비어 있으면 major로 활성화.
-  //  - 자동성공: 판정이 불필요하므로, 다른 신호(공격판정 등)로 roll이 설정되지 않았다면 '-'로 둔다.
-  // 자동 결정 불가(효과참조/미지정만)면 사용자 값을 보존한다.
+  // Apply the combined difficulty to the combo through updates (roll consistency corrections included).
+  //  - number / contest: a check is needed, so an empty combo roll is enabled as major.
+  //  - automatic success: no check is needed, so roll is left at '-' unless another signal (an attack check) set it.
+  // When it cannot be decided automatically (only effect-reference / unspecified), the user's value is preserved.
   function applyCombinedDifficulty(updates, comboItem, actor, effectIds) {
     const diff = combineEffectsDifficulty(actor, effectIds);
     if (!diff?.resolved) return;
@@ -520,22 +520,22 @@
     }
   }
 
-  // 조합 자격 검증(룰북 p.13-14). 위반 시 경고 i18n 키 목록을 반환(진행은 허용).
-  //  - 기능 일치: 판정 기능(comboSkill 우선, 없으면 skill)이 서로 다르면 경고.
-  //    '-'(와일드카드)와 'syndrome'(조합 전용, 상대 기능을 채택)은 비교에서 제외.
-  //  - 공격 유형: 백병(melee) 이펙트와 사격(ranged) 이펙트는 서로 조합 불가.
+  // Validate combination eligibility (rulebook p.13-14). On a violation the warning i18n keys are returned (proceeding is allowed).
+  //  - Skill agreement: warn when the check skills (comboSkill first, otherwise skill) differ.
+  //    '-' (a wildcard) and 'syndrome' (combine-only, adopting the other skill) are excluded from the comparison.
+  //  - Attack type: a melee effect and a ranged effect cannot be combined.
   function validateComboCombination(actor, effectIds) {
     const warnings = [];
     const effects = normalizeIdList(effectIds).map(id => actor?.items.get(id)).filter(e => e?.type === 'effect');
 
-    // 기능 일치
+    // Skill agreement
     const skillLists = effects.map(effectSkillChoices).filter(a => a.length);
     if (skillLists.length > 1 && getCompatibleSkillChoices(effects).length === 0) warnings.push('DX3rd.ComboSkillMismatch');
 
-    // 공격 유형 충돌(백병 vs 사격) — 이펙트마다 "허용 공격 유형"을 구해 교집합이 비면 충돌.
-    //   원본이 〈백병〉〈사격〉인 이펙트는 양쪽 모두 허용하므로 그 자체로는 충돌 신호가 아니다
-    //   (단일 이펙트만 넣어도 경고가 뜨던 원인). 명시 attackRoll/comboSkill이 있으면 그것이 유형을 확정한다.
-    let allowedAttack = null; // null = 아직 유형 제약 없음
+    // Attack type conflict (melee vs ranged) — the "allowed attack types" are derived per effect and an empty intersection is a conflict.
+    //   An effect whose original is <Melee><Ranged> allows both, so it is not a conflict signal by itself
+    //   (the cause of a warning appearing with a single effect added). An explicit attackRoll / comboSkill settles the type.
+    let allowedAttack = null; // null = no type constraint yet
     for (const e of effects) {
       const es = e.system || {};
       const explicit = [es.attackRoll, es.comboSkill].find(v => v === 'melee' || v === 'ranged');
@@ -552,11 +552,11 @@
     return warnings;
   }
 
-  // 등록 이펙트 원본이 편집됐을 때, 그 이펙트를 참조하는 콤보의 저장 파생값을 다시 맞춘다.
+  // When a registered effect's original is edited, re-align the stored derived values of the combos referencing it.
   //
-  // 콤보가 직접 입력한 timing/무기 선택은 출처를 추적하지 않으므로 여기서 덮어쓰지 않는다.
-  // 반면 침식치, 기능/기본능력치/공격판정/공격력, 사정거리/대상은 기존의 추가·삭제 시점과
-  // 동일한 조합 규칙으로 안전하게 재계산할 수 있다.
+  // A timing or weapon choice the combo entered directly does not track its source, so it is not overwritten here.
+  // Encroachment, skill / base attribute / attack check / attack value, and range / target, on the other hand, can be
+  // safely recomputed by the same combination rules as at add / remove time.
   function getRegisteredEffectSyncUpdates(comboItem, actor) {
     if (!comboItem || !actor) return {};
 
@@ -569,10 +569,10 @@
     const combined = combineEffectsRangeTarget(actor, effectIds, getWeaponIds(comboItem));
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
-    // 난이도: 등록 이펙트 원본이 바뀌면 조합 규칙으로 재계산.
+    // Difficulty: recomputed by the combination rules when a registered effect's original changes.
     applyCombinedDifficulty(updates, comboItem, actor, effectIds);
 
-    // updateItem 루프와 불필요한 문서 갱신을 피하기 위해 실제로 달라진 값만 남긴다.
+    // Keep only what actually differs, to avoid an updateItem loop and pointless document updates.
     return Object.fromEntries(Object.entries(updates).filter(([path, value]) =>
       foundry.utils.getProperty(comboItem, path) !== value
     ));
@@ -602,40 +602,40 @@
     if (!isComboTimingCompatible(item, actor, newEffects)) {
       ui.notifications.warn(game.i18n.localize('DX3rd.ComboTimingMismatch'));
     }
-    // 조합 자격 경고(기능 불일치 / 백병+사격 충돌) — 진행은 허용.
+    // Combination eligibility warnings (skill mismatch / melee+ranged conflict) — proceeding is allowed.
     for (const key of validateComboCombination(actor, newEffects)) {
       ui.notifications.warn(game.i18n.localize(key));
     }
 
-    // 타이밍/고정무기(빈 값만) 상속 + 판정 기능/공격판정은 조합 우선순위로 재계산(방금 추가 이펙트 포함).
+    // Inherit timing / fixed weapon (empty values only) + recompute the check skill / attack check by combination priority (including the effect just added).
     const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects),
       ...computeInheritedComboFields(item, actor?.items.get(effectId), actor, newEffects)
     };
 
-    // 모두 같은 타이밍이면 빈 콤보 표시값을 채운다. 불명('-')만 포함된 경우에는 사용자 입력을 기다린다.
-    // 오토/상시 멤버만 있어 표시값이 그쪽으로 잡혀 있던 콤보도, 타이밍이 고정된 이펙트가
-    // 들어오면 그 값으로 넘긴다 — 오토 멤버를 먼저 넣었다는 이유로 콤보 타이밍이 굳으면 안 된다.
+    // When they all share one timing, fill in the combo's empty display value. With only unknown ('-') present, wait for the user's input.
+    // A combo whose display value was set by auto/always members alone also hands over to a fixed-timing effect once one
+    // is added — the combo's timing must not be frozen just because an auto member went in first.
     const storedTiming = item.system?.timing;
     const timingIsUnbound = isEmptyComboField(storedTiming) || UNBOUND_TIMINGS.has(storedTiming);
     if (timingIsUnbound && combinedTiming.value && combinedTiming.value !== storedTiming) {
       updates['system.timing'] = combinedTiming.value;
     }
 
-    // 사거리/대상: 전체 조합 이펙트에서 재계산(작은 쪽). 「무기」 사정거리는 조합 무기로 치환.
-    //   rankable 결과가 없으면(모두 효과참조 등) 사용자 값 보존.
+    // Range / target: recomputed across every combined effect (the smaller one). A "weapon" range is substituted with the combined weapon's.
+    //   With no rankable result (all effect-reference and the like), the user's value is preserved.
     const effectiveWeapons = normalizeIdList(updates['system.weapon'] ?? getWeaponIds(item));
     const combined = combineEffectsRangeTarget(actor, newEffects, effectiveWeapons);
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
 
-    // 난이도: 조합 규칙(대결 자동승격 > 최고 숫자 > 자동성공)으로 재계산.
+    // Difficulty: recomputed by the combination rules (contest auto-promotion > highest number > automatic success).
     applyCombinedDifficulty(updates, item, actor, newEffects);
 
     await item.update(updates);
 
-    // 자신 대상 이펙트를 비자신과 섞은 경우 경고(진행은 허용).
+    // Warn when a self-target effect is mixed with non-self ones (proceeding is allowed).
     if (combined?.target?.selfConflict) {
       ui.notifications.warn(game.i18n.localize('DX3rd.SelfCombineWarning'));
     }
@@ -670,16 +670,16 @@
     const updates = {
       'system.effectIds': newEffects,
       'system.encroach.value': calculateEncroachment(actor, newEffects),
-      // 제거 후 남은 이펙트/무기로 판정 기능/공격판정 재계산(우선순위 재적용; 예: RC 변경 이펙트 제거 시 무기 기능으로 복귀).
+      // Recompute the check skill / attack check from the effects / weapons left after the removal (reapplying the priority; e.g. reverting to the weapon's skill when an RC-changing effect is removed).
       ...deriveComboAttackFields(item, actor, { effectIds: newEffects })
     };
     const combinedTiming = getCombinedEffectTiming(actor, newEffects);
     if (combinedTiming.value) updates['system.timing'] = combinedTiming.value;
-    // 제거 후 남은 이펙트로 사거리/대상 재계산(「무기」는 조합 무기로 치환, rankable 없으면 보존).
+    // Recompute the range / target from the remaining effects ("weapon" substituted with the combined weapon; preserved when nothing is rankable).
     const combined = combineEffectsRangeTarget(actor, newEffects, weaponIds);
     if (combined?.range?.resolved) updates['system.range'] = combined.range.value;
     if (combined?.target?.resolved) updates['system.target'] = combined.target.value;
-    // 난이도: 남은 이펙트로 조합 규칙 재계산.
+    // Difficulty: recomputed by the combination rules from the remaining effects.
     applyCombinedDifficulty(updates, item, actor, newEffects);
 
     // If the removed effect was the last source for a descriptive field, discard only a value that
@@ -721,7 +721,7 @@
     const currentDifficulty = item.system?.difficulty || '';
 
     if (checked) {
-      // 판정을 켜는 것뿐인데 저작해 둔 목표치까지 지우지 않는다(item-sheet 쪽과 같은 규칙).
+      // Merely enabling the check must not erase an authored target value (the same rule as on the item-sheet side).
       const stale = !currentDifficulty || currentDifficulty === freepassText || currentDifficulty === '-';
       return {
         'system.roll': 'major',
@@ -808,8 +808,8 @@
     return weaponAddBonus;
   }
 
-  // 콤보 시트는 실행 전 미리보기이므로 다이스를 굴리지 않는다. 선택 무기에 다이스식이
-  // 있으면 고정 보정과 분리해 원문을 보여 준다(실제 굴림은 핸들러가 실행 시점에 처리).
+  // The combo sheet is a pre-execution preview, so it never rolls dice. When a chosen weapon has a dice formula,
+  // it is shown as its source text, separate from the fixed modifiers (the actual roll is done by the handler at execution time).
   function getWeaponDiceFormulaTerms(actor, weaponIds, field) {
     const formula = window.DX3rdFormulaEvaluator;
     const terms = [];
@@ -822,8 +822,8 @@
     return terms;
   }
 
-  // 직접 공격 및 조합 보정 이펙트의 자체 수정치/공격력도 무기와 같은 방식으로 합산한다.
-  // 다이스식은 시트에서 굴리지 않고 원문만 보존한다.
+  // A direct attack's / combined modifier effect's own modifiers and attack value are summed the same way as a weapon's.
+  // A dice formula is not rolled on the sheet; only its source text is preserved.
   function getDirectEffectFormulaParts(actor, effectIds, field) {
     const adapter = window.DX3rdItemEffectAdapter;
     const result = {fixed: 0, diceTerms: []};
@@ -868,18 +868,18 @@
   }
 
   /**
-   * 항목별 「발현 액션」이 이 아이템의 발동 액션에서 걸리는가(미리보기 합산용).
-   * 「사용 시」로만 저작된 버킷을 공격 콤보의 미리보기에 더하면 실제 적용값보다 높게 보인다.
+   * Does a row's "trigger action" apply at this item's trigger action (for the preview sum)?
+   * Adding a bucket authored as "on use" only into an attack combo's preview would show a value higher than what actually applies.
    *
-   * @param {boolean} [asComboMember] 이 아이템이 **콤보 구성 멤버로** 발현하는가.
-   *   콤보 본체를 직접 사용하는 것은 활성화를 겸하지만(handleItemUse 의 useMeansActivation),
-   *   **구성 멤버의 활성화 버킷은 콤보로 절대 켜지지 않는다** — combo-handler 의
-   *   memberSelfModifiersFireAt 가 발동 액션(use/attack)과 일치하는 버킷만 통과시킨다.
-   *   그런데 이 필터는 활성화 행을 늘 세고 있었고, 그래서 꺼져 있는 상시(applyMode='toggle')
-   *   이펙트를 조합하면 시트 미리보기만 그 보정만큼 높고 실제 굴림에는 안 들어갔다.
-   *   (켜져 있으면 forEachInactiveRegisteredEffect 가 애초에 제외하므로 그때는 맞았다.)
+   * @param {boolean} [asComboMember] Is this item firing **as a combo member**?
+   *   Using a combo itself directly doubles as an activation (handleItemUse's useMeansActivation), but
+   *   **a member's activation bucket is NEVER lit by a combo** — combo-handler's memberSelfModifiersFireAt
+   *   lets through only the buckets matching the trigger action (use/attack).
+   *   That filter, however, always counted the activation rows, so combining an always-on (applyMode='toggle')
+   *   effect that was switched off made only the sheet preview higher by that modifier while the actual roll
+   *   never included it. (When it was on, forEachInactiveRegisteredEffect excluded it anyway, so that case was right.)
    */
-  /** 구성 멤버 자격의 합산에 넘기는 옵션(콤보 본체는 기본값 그대로 — 직접 사용은 활성화를 겸한다). */
+  /** The options passed to the member-eligibility sum (the combo itself keeps the defaults — direct use doubles as an activation). */
   const comboMemberOptions = parentAction => ({asComboMember: true, parentAction});
 
   function bucketFilter(sourceItem, channel, {asComboMember = false, parentAction = null} = {}) {
@@ -894,8 +894,8 @@
     return entry => {
       const explicit = entry?.action;
       if (!explicit || !adapter.ACTIONS.has(explicit)) {
-        // 미지정 = 채널 기본 버킷. 채널을 나눈 아이템에서는 그 기본 버킷의 발현 액션에서만
-        // 센다(selfFrozenAttributes 의 같은 규칙). 안 맞추면 미리보기가 실제 적용값보다 높다.
+        // Unspecified = the channel's default bucket. On an item that split its channel, it counts only at that default
+        // bucket's trigger action (the same rule as selfFrozenAttributes). Otherwise the preview is higher than what applies.
         if (fallback === 'activation') return activationFires;
         return !split || fallback === action;
       }
@@ -918,14 +918,14 @@
     }
   }
 
-  // 대상 채널(system.effect.attributes)은 **시전자 미리보기에 세지 않는다.** applyToTargets 는
-  // 그 채널을 game.user.targets / 씬 토큰 / forcedTargets 에만 걸고 시전자는 절대 포함하지
-  // 않으며(universal-apply.js), 공격력도 런타임은 최상위 system.attack/add 만 읽는다
-  // (item-effect-adapter 의 effectAttackBonus). 예전에는 이 채널을 자기 dice/add/critical/
-  // attack 에 합산해서, 「대상 다이스 -[레벨]*2」(그래비티 에어리어) 를 조합하면 내 콤보
-  // 미리보기만 그만큼 낮고, 「대상 공격력 +[레벨]*4」(빙열의 군단) 같은 타인 버프는 내
-  // 공격력을 부풀렸다(팩 실측 157건이 이 키를 들고 있다. getTarget/scene 이 둘 다 꺼진
-  // 「죽은 채널」은 0건 — 전부 진짜 대상용 저작이다). 되살리지 말 것.
+  // The target channel (system.effect.attributes) is **never counted in the caster's preview.** applyToTargets applies
+  // that channel only to game.user.targets / scene tokens / forcedTargets and never includes the caster
+  // (universal-apply.js), and for the attack value the runtime reads only the top-level system.attack/add
+  // (effectAttackBonus in item-effect-adapter). This channel used to be summed into the caster's own dice/add/critical/
+  // attack, so combining "target dice -[level]*2" (Gravity Area) made only my combo preview lower by that much, while
+  // a buff for someone else such as "target attack +[level]*4" (Legion of Ice and Fire) inflated my own attack value
+  // (measured across the packs: 157 documents carry this key; documents with both getTarget and scene off — a "dead
+  // channel" — number 0, so every one of them is genuine target authoring). Do not bring it back.
 
   function addRollAttributeBonus(bonus, {key, label, value, sourceItem, actor, rollType, isAbility, skillKey, effectiveBaseKey}) {
     if (!key) return;
@@ -1010,13 +1010,13 @@
     return bonus;
   }
 
-  // 액터에서 "이미 prepareData가 지속 적용 중"인 이펙트 id 집합.
-  // 이 이펙트들은 능력치/스킬/굴림 total에 이미 반영되어 있으므로, 콤보/이펙트 굴림·공격
-  // 보너스 계산에서 중복 가산하면 안 된다. 판정 기준은 두 채널 모두다:
-  //   · 활성화 채널 — 이펙트 자신의 active.state=true (구성 콤보의 상태와는 무관)
-  //   · 동결 채널   — applyMode='onUse' 로 사용해 걸린 applied AE (active.state 는 false로 남는다)
-  // active.state 만 보면 동결 채널을 놓쳐, 수명(active.disable)이 남아 있는 자기버프를
-  // 같은 라운드의 콤보 굴림이 한 번 더 더한다.
+  // The set of effect ids the actor's prepareData is "already applying persistently".
+  // These effects are already folded into the attribute / skill / roll totals, so they must not be counted again in a
+  // combo / effect roll or attack bonus calculation. The test covers both channels:
+  //   · the activation channel — the effect's own active.state=true (unrelated to the containing combo's state)
+  //   · the frozen channel   — an applied AE attached by use with applyMode='onUse' (active.state stays false)
+  // Looking only at active.state misses the frozen channel, so a combo roll in the same round adds a self buff whose
+  // lifetime (active.disable) is still running one more time.
   function getPersistentEffectIds(actor) {
     const ids = new Set();
     if (!actor) return ids;
@@ -1026,7 +1026,7 @@
       }
     }
     for (const eff of (actor.effects || [])) {
-      if (eff.disabled) continue;   // 꺼둔 AE 는 total 에 없다 → 콤보가 더해야 한다
+      if (eff.disabled) continue;   // a disabled AE is not in the total → the combo has to add it
       const itemId = eff.getFlag?.('dx3rd-emanim', 'applied')?.itemId;
       if (!itemId) continue;
       if (actor.items?.get(itemId)?.type === 'effect') ids.add(itemId);
@@ -1040,7 +1040,7 @@
       const effectItem = actor?.items.get(effectId);
       if (!effectItem || effectItem.type !== 'effect') continue;
 
-      // 이미 prepareData가 지속 적용 중인 독립 활성 이펙트는 제외한다(2중 계산 방지).
+      // An independently active effect prepareData is already applying persistently is excluded (preventing double counting).
       if (persistent.has(effectId)) continue;
 
       callback(effectItem);
@@ -1050,7 +1050,7 @@
   function calculateRegisteredEffectRollBonus(actor, effectIds, rollContext, criticalMin, parentAction = null) {
     const bonus = createRollBonus(criticalMin);
 
-    // 구성 멤버 자격으로 발현하는 보정만 센다(활성화 버킷 제외 — bucketFilter 주석 참조).
+    // Count only the modifiers that fire in the member's own right (the activation bucket is excluded — see the bucketFilter comment).
     forEachInactiveRegisteredEffect(actor, effectIds, effectItem => {
       addMainAttributeBonuses(
         bonus, effectItem.system?.attributes, effectItem, actor, rollContext, comboMemberOptions(parentAction)
@@ -1165,7 +1165,7 @@
     return attackBonus;
   }
 
-  // 대상 채널의 attack 행도 마찬가지로 세지 않는다 — 위 addRollAttributeBonus 앞의 주석 참조.
+  // The target channel's attack rows are likewise not counted — see the comment above addRollAttributeBonus.
   function calculateItemAttackBonus(item, actor, attackRoll) {
     if (item.system?.active?.state === true) return 0;
     return addMainAttackBonuses(item, actor, attackRoll);
@@ -1204,7 +1204,7 @@
       ]) };
       data.attackLabel = getAttackLabel(currentAttackRoll);
     } else {
-      // system.attackRoll이 '-'이거나 설정되지 않은 경우
+      // When system.attackRoll is '-' or unset
       data.system.attack = { value: '-' };
       data.attackLabel = getAttackLabel(currentAttackRoll);
     }
@@ -1225,15 +1225,15 @@
 
     const currentAttackRoll = item.system.attackRoll || data.system.attackRoll;
     const isAttackCombo = !!currentAttackRoll && currentAttackRoll !== '-';
-    // 구성 이펙트의 자체 수정치는 **공격 콤보가 아니어도** 실린다 — combo-handler 의
-    // calculateEffectAttackBonus 가 attackRoll 을 보지 않고 계산해 판정 다이얼로그의
-    // effectiveStat.add 로 들어간다(팩 실측 13건이 전부 attackRoll 없는 조합 전용 수치다:
-    // 템테이션·완전복제·머신모핑·스킬 포커스·애큐러시 …). 이 합산만 공격 콤보로 막혀 있어서
-    // 교섭·지각·리액션 콤보의 시트 수정치가 늘 실제 굴림보다 낮았다. 같은 함수 아래에서
-    // 다이스분(directEffectAdd.diceTerms)은 조건 밖에서 늘 표시되고 있었으므로 자기모순이었다.
+    // A member effect's own modifiers ride along **even when this is not an attack combo** — combo-handler's
+    // calculateEffectAttackBonus computes without looking at attackRoll and lands in the roll dialog's
+    // effectiveStat.add (measured across the packs: all 13 documents are combine-only values with no attackRoll:
+    // Temptation, Perfect Copy, Machine Morphing, Skill Focus, Accuracy, …). Only this sum was gated behind an attack
+    // combo, so the sheet modifier of a negotiation / perception / reaction combo was always lower than the real roll.
+    // It was self-contradictory too, since the dice share (directEffectAdd.diceTerms) below was always shown outside the condition.
     //
-    // 무기 수정치는 반대로 공격 콤보 전용이 맞다 — 런타임의 calculateRegisteredWeaponBonus 는
-    // `!weaponSelect && attackRoll !== '-'` 에서만 불린다. 고정분과 다이스분을 같은 게이트에 둔다.
+    // A weapon modifier, conversely, IS attack-combo-only — the runtime's calculateRegisteredWeaponBonus is called only
+    // under `!weaponSelect && attackRoll !== '-'`. The fixed share and the dice share go behind the same gate.
     const directEffectAdd = getDirectEffectFormulaParts(actor, data.system.effectIds, 'add');
     add += directEffectAdd.fixed;
     if (isAttackCombo) add += calculateWeaponAddBonus(actor, getWeaponIds(item, data));
@@ -1243,8 +1243,8 @@
       const effectiveBaseKey = getEffectiveBaseKey(baseKey, isAbility, skillKey, skillData);
       const rollContext = {rollType, isAbility, skillKey, effectiveBaseKey};
 
-      // 콤보 아이템 자체의 attributes 보너스 추가 (활성화되지 않은 경우만)
-      // stat_bonus, skill_bonus는 제외 (능력치/스킬 total 값에 영향을 주므로 dice/add 계산과는 별개)
+      // Add the combo item's own attributes bonus (only when it is not activated)
+      // stat_bonus and skill_bonus are excluded (they affect the attribute / skill totals, so they are separate from the dice/add calculation)
       if (item.system?.active?.state !== true) {
         const comboBonus = calculateItemRollBonus(item, actor, rollContext, criticalMin);
         dice += comboBonus.dice;
@@ -1253,7 +1253,7 @@
         criticalMin = comboBonus.criticalMin;
       }
 
-      // 이펙트 attributes 보너스 추가 (활성화되지 않은 것만)
+      // Add the effects' attributes bonus (only the ones not activated)
       const comboAction = window.DX3rdItemEffectAdapter?.invocationAction?.(item)
         || (isAttackCombo ? 'attack' : 'use');
       const effectBonus = calculateRegisteredEffectRollBonus(
@@ -1272,7 +1272,7 @@
 
   async function prepareSheetData(data, item, actor) {
     
-    // 액터 정보 추가 (에너미 체크용)
+    // Add the actor information (for the enemy check)
     if (actor) {
       data.actor = {
         id: actor.id,
@@ -1282,54 +1282,54 @@
       data.actor = null;
     }
 
-    // 콤보 시트 필드 초기화 (기존 데이터 보존)
+    // Initialize the combo sheet fields (preserving the existing data)
     prepareComboBaseFields(data, item);
     
-    // system.roll과 system.attackRoll 확인
+    // Check system.roll and system.attackRoll
     const {hasRoll} = prepareRollAndAttackPlaceholders(data, item);
 
-    // 액터 이펙트 아이템 목록 생성 (sort 값으로 정렬)
+    // Build the actor's effect item list (sorted by the sort value)
     prepareActorEffectOptions(data, actor);
 
-    // 이펙트 아이템 데이터 로드 및 침식률 자동 계산
+    // Load the effect item data and compute the encroachment automatically
     data.system.effectItems = prepareEffectItems(actor, data.system.effectIds);
 
-    // 계산된 총 침식률을 data.system.encroach에 반영
+    // Write the computed total encroachment into data.system.encroach
     data.system.encroach = { value: calculateEncroachment(actor, data.system.effectIds) };
 
-    // roll이 설정되어 있으면 다이스/크리티컬/수정치 자동 계산
+    // With roll set, compute the dice / critical / modifier automatically
     prepareRollSummary(data, item, actor, hasRoll);
 
-    // 공격력 계산 (실제 아이템 데이터에서 attackRoll 확인)
+    // Compute the attack value (checking attackRoll on the real item data)
     prepareAttackSummary(data, item, actor);
 
-    // 무기 탭 데이터 준비 (WeaponTabManager 사용)
+    // Prepare the weapon tab data (through WeaponTabManager)
     data = window.DX3rdWeaponTabManager.prepareWeaponTabData(data, item);
 
-    // attributes 초기화 (기존 데이터 보존)
+    // Initialize attributes (preserving the existing data)
     itemSheetData.preserveAttributeData(item, data);
 
-    // 액터 스킬 데이터 추가
+    // Add the actor's skill data
     itemSheetData.prepareSkillOptions(item, data, 'combo', {includeActorType: true});
     const effects = getEffectIds(item).map(id => actor?.items.get(id)).filter(Boolean);
-    // 충돌 조합(백병+사격 등)에서도 후보를 남겨 기능 드롭다운이 비지 않게 한다(경고만 하고 진행).
+    // Keep candidates even for a conflicting combination (melee+ranged) so the skill dropdown is never empty (warn and proceed).
     data.comboSkillChoices = getComboSkillCandidates(effects);
     if (data.comboSkillChoices.length) data.system.skillOptions = data.system.skillOptions.filter(o => o.value === '-' || data.comboSkillChoices.includes(o.value));
 
-    // Description 에디터를 위한 데이터 추가 (helpers.js 사용)
+    // Add the data for the Description editor (through helpers.js)
     data = await itemSheetData.enrichSheetData(item, data);
 
-    // getTarget / scene 체크박스 초기화
+    // Initialize the getTarget / scene checkboxes
     itemSheetData.prepareTargetFlags(item, data);
 
-    // 사정거리/대상/난이도 드롭다운 컨텍스트
+    // The range / target / difficulty dropdown context
     if (window.DX3rdRangeTarget) {
       data.rangeField = window.DX3rdRangeTarget.fieldContext('range', data.system.range);
       data.targetField = window.DX3rdRangeTarget.fieldContext('target', data.system.target);
       data.difficultyField = window.DX3rdRangeTarget.difficultyFieldContext(data.system.difficulty);
     }
 
-    // 액터 데이터를 템플릿에 전달
+    // Pass the actor data to the template
     data.actor = actor;
 
     return data;
@@ -1347,11 +1347,11 @@
     combineEffectsRangeTarget,
     isComboTimingCompatible,
     getPersistentEffectIds,
-    // 구성 이펙트가 콤보 판정 미리보기에 더하는 보정. 런타임(combo-handler 의
-    // memberSelfModifiersFireAt)과 어긋나면 시트 숫자가 실제 굴림과 달라지므로 노출해 검증한다.
+    // What the member effects add to the combo's check preview. Drifting from the runtime (combo-handler's
+    // memberSelfModifiersFireAt) makes the sheet numbers differ from the real roll, so it is exposed for verification.
     calculateRegisteredEffectRollBonus,
-    // 콤보 판정 미리보기(다이스/수정치/크리티컬). 런타임 판정 다이얼로그와 어긋나면
-    // 시트 숫자가 실제 굴림과 달라지므로 노출해 검증한다.
+    // The combo check preview (dice / modifier / critical). Drifting from the runtime's roll dialog makes the sheet
+    // numbers differ from the real roll, so it is exposed for verification.
     prepareRollSummary,
     calculateEncroachment,
     calculateSubmittedAttack,

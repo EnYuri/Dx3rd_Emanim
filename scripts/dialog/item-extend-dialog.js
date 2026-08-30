@@ -1,6 +1,6 @@
 /**
  * Item Extend Dialog
- * 아이템 확장 도구 다이얼로그
+ * The item extend tool dialog
  */
 (function() {
     const api = foundry.applications?.api;
@@ -47,8 +47,8 @@
 
     class DX3rdItemExtendDialog extends BaseApplication {
         static DEFAULT_OPTIONS = {
-            // 'sheet'+'item' 을 부여해 아이템 V2 시트의 모노 다크 테마(appv2-sheets.css)를
-            // 그대로 재사용한다. 다이얼로그 전용 스타일 중복을 피한다.
+            // 'sheet'+'item' are added so the item V2 sheet's mono dark theme (appv2-sheets.css) is reused as-is.
+            // That avoids duplicating dialog-only styles.
             classes: ['dx3rd-emanim', 'sheet', 'item', 'dialog', 'item-extend-dialog'],
             tag: 'form',
             window: {
@@ -84,15 +84,15 @@
 
             this.actorId = dialogData.actorId;
             this.itemId = dialogData.itemId;
-            // 아이템은 uuid 로 되짚는다. actorId+itemId 조합은 **미연결 토큰**에서 끊긴다 —
-            // 합성 액터의 id 는 원본 액터와 같아서 game.actors.get() 은 원본을 돌려주고,
-            // 토큰에만 있는 아이템은 그 컬렉션에 없다. 그러면 아이템이 null 인 채로 창이
-            // 열려 지속 효과 페인이 통째로 비어 「먹통」이 된다. 컴펜디움 아이템도 같다.
+            // The item is looked up by uuid. An actorId+itemId pair breaks on an **unlinked token** — a synthetic
+            // actor's id equals the source actor's, so game.actors.get() returns the source, and an item that exists
+            // only on the token is absent from that collection. The window then opens with a null item and the
+            // persistent-effect pane is entirely empty — "dead". A compendium item behaves the same way.
             this.itemUuid = dialogData.itemUuid || null;
             this.initialEditor = initialEditor;
             this.effectId = dialogData.effectId || null;
-            // 시트에서 지속 보정 카드를 눌러 열면 그 카드의 페인을 펴고 시작한다.
-            // 카드 id 가 곧 버킷 id 이므로(modifiers.self / modifiers.target@attack) 그대로 쓴다.
+            // When opened by clicking a persistent-modifier card on the sheet, that card's pane starts expanded.
+            // The card id is the bucket id (modifiers.self / modifiers.target@attack), so it is used directly.
             if (this.effectId?.startsWith('modifiers.')) this._modifierConfigScope = this.effectId;
             this.currentTopTab = null;
             this.currentSubTab = null;
@@ -147,16 +147,16 @@
                 if (!this._focusedEditor || this.initialEditor === 'modifiers') {
                     data.effectView = effectAdapter?.prepareSheetContext?.(item);
                 }
-                // 펴 둘 페인은 버킷 id 다. 버킷이 합쳐졌거나 지워졌으면 되살리지 않는다 —
-                // 없는 id 를 넣으면 모든 페인이 hidden 인 채로 그려진다.
+                // The pane to expand is identified by bucket id. A bucket that was merged away or deleted is not
+                // revived — passing a nonexistent id would draw every pane hidden.
                 if (data.effectView && (data.effectView.modifierOverview.buckets || [])
                     .some(bucket => bucket.id === this._modifierConfigScope)) {
                     data.effectView.modifierOverview.initialScope = this._modifierConfigScope;
                 } else if (data.effectView) {
                     this._modifierConfigScope = data.effectView.modifierOverview.initialScope;
                 }
-                // 페인은 이 한 장만 그린다. 스위처가 없으므로 지금 편집 중인 버킷이
-                // 무엇인지는 헤더의 이름표가 알려 준다(「자신 · 사용 시」).
+                // Only this one pane is drawn. With no switcher, which bucket is being edited is stated by the
+                // header's label ("self · on use").
                 if (data.effectView) {
                     const overview = data.effectView.modifierOverview;
                     overview.currentLabel = (overview.buckets || [])
@@ -164,14 +164,15 @@
                 }
             }
 
-            // 아이템을 못 찾으면 모든 페인이 빈 채로 그려진다 — 조용히 「먹통」인 창을 남기지 말고 알린다.
+            // With the item not found every pane draws empty — rather than leaving a silently "dead" window, say so.
             data.itemMissing = !item;
             data.focusedEditor = this.initialEditor;
             const showAll = !this._focusedEditor;
             const editorVisibility = {
                 EffectSettings: 'effectSettings', Heal: 'heal', Damage: 'damage', StatusClear: 'statusClear',
                 Condition1: 'condition1', Condition2: 'condition2', Condition3: 'condition3',
-                Weapon: 'weapon', Protect: 'protect', Vehicle: 'vehicle', Modifiers: 'modifiers'
+                Weapon: 'weapon', Protect: 'protect', Vehicle: 'vehicle', Modifiers: 'modifiers',
+                DefenseBypass: 'defenseBypass'
             };
             for (const [suffix, editor] of Object.entries(editorVisibility)) {
                 data[`show${suffix}`] = showAll || this.initialEditor === editor;
@@ -190,10 +191,10 @@
                 this.close();
                 return;
             }
-            // root(this.element)는 재렌더에도 같은 노드로 유지된다. 이전 렌더에서 붙인 위임
-            // 리스너를 끊지 않으면 render(false) 한 번마다 한 벌씩 쌓여, 버튼 한 번 클릭이
-            // N번 실행되고 그 안에서 다시 render 가 돌아 기하급수로 늘어난다
-            // (보정 행 무한 추가·클라이언트 전반의 렉). 렌더마다 통째로 갈아끼운다.
+            // root (this.element) stays the same node across re-renders. Without detaching the delegated listeners
+            // attached by the previous render, one more set piles up per render(false), so a single button click runs
+            // N times and each run triggers another render, growing exponentially
+            // (endless modifier-row additions, lag across the whole client). They are replaced wholesale each render.
             this._listeners?.abort();
             this._listeners = new AbortController();
             root.classList.toggle('effect-card-editor', this._focusedEditor);
@@ -231,16 +232,16 @@
                 this.setupConditionPoisonedToggle(`condition${match[1]}`);
             });
 
-            // 자동 저장: 다른 시트들과 동일하게 확인 버튼 없이 필드 변경 즉시 반영한다.
-            // 토글 핸들러(무기 맨손/힐 부활/데미지 조건식/상태이상 종류)들이 값을 프로그램으로
-            // 채운 뒤 실행되도록 이 리스너를 가장 마지막에 등록한다(같은 change 이벤트에서 뒤에 실행).
+            // Auto save: as on the other sheets, a field change takes effect immediately with no confirm button.
+            // This listener is registered last so it runs after the toggle handlers (weapon fist / heal revival /
+            // damage conditional / condition kind) have filled values programmatically (later on the same change event).
             root.addEventListener('change', event => {
                 if (!event.target.matches('input, select, textarea')) return;
                 if (this.currentSubTab === 'modifiers') this._saveModifierInput(event.target);
                 else this._saveCurrentTab();
             }, {signal: this._listeners.signal});
 
-            // 보정 값 칸: 타이핑 중에도 검증 상태를 갱신한다(굴릴 시점이 없는 필드에 다이스식 경고).
+            // The modifier value field: the validation state is refreshed while typing (warning about a dice formula in a field with no roll point).
             this._on(root, 'input.attribute-value', 'input', (event, target) => this._validateModifierValue(target));
             this._refreshModifierValidation();
 
@@ -248,10 +249,10 @@
                 event.preventDefault();
                 const item = this._resolveItem();
                 if (!item) return;
-                // 새 행은 **그 버킷**에 들어간다. 채널만 보고 넣으면 명시 버킷을 편집하다 추가한
-                // 행이 기본 버킷으로 떨어져, 방금 만든 카드가 아니라 옆 카드가 늘어난다.
-                // 버튼은 페인마다 하나이므로 자기 버킷을 직접 들고 있다 — 펴 둔 페인 상태보다
-                // 이것이 앞선다(둘이 어긋나면 눌린 카드가 진실이다).
+                // A new row goes into **that bucket**. Looking only at the channel would drop a row added while editing
+                // an explicit bucket into the default bucket, growing the neighbouring card rather than the one just made.
+                // There is one button per pane, so it carries its own bucket directly — that takes precedence over the
+                // expanded-pane state (when the two disagree, the pressed card is the truth).
                 const scope = target.dataset.bucket || this._modifierConfigScope || target.dataset.pos || 'main';
                 const bucket = effectAdapter?.parseBucketId?.(item, scope);
                 const pos = bucket ? (bucket.channel === 'self' ? 'main' : 'sub') : (target.dataset.pos || 'main');
@@ -266,10 +267,10 @@
                 await attributeManager?.deleteAttribute?.(item, row.dataset.attribute, row.dataset.pos || 'main');
                 this.render(false);
             });
-            // 버킷의 두 축(적용 대상 · 발현 액션)을 고르는 UI 는 이 창에 없다 — 행의 소속
-            // 드롭다운도, 버킷 스위처도, 페인의 「발현 액션」도. 카드가 이미 그 두 축이고 이 창은
-            // 그 카드 한 장을 편집한다. 여기 한 벌 더 두었을 때 카드는 「사용 시」인데 페인은
-            // 「활성화」로 보이는 불일치가 실제로 났다(같은 축을 두 군데서 그리면 필연이다).
+            // The UI for choosing a bucket's two axes (application target · firing action) is not in this window — no
+            // per-row membership dropdown, no bucket switcher, no pane-level "firing action". The card is already those
+            // two axes and this window edits that one card. Having a second copy here really did produce the mismatch
+            // of a card reading "on use" while its pane read "activation" (inevitable when one axis is drawn twice).
 
             this.initializeTabs();
             if (!this._focusedEditor || this.currentSubTab === 'weapon') this.setupWeaponFistToggle();
@@ -310,12 +311,12 @@
             return super.close(options);
         }
 
-        // 모든 조회는 여기 한 곳을 통과한다. 호출부마다 game.actors.get(...).items.get(...)
-        // 을 다시 쓰면 uuid 폴백이 빠진 경로가 남아 같은 「빈 창」이 되살아난다.
+        // Every lookup goes through this one place. Rewriting game.actors.get(...).items.get(...) at each call site
+        // would leave paths without the uuid fallback, reviving the same "empty window".
         _resolveItem() {
             const sync = foundry.utils?.fromUuidSync || globalThis.fromUuidSync;
             if (this.itemUuid && sync) {
-                // 미로드 컴펜디움이면 문서가 아니라 인덱스 항목이 돌아온다 — 그건 아이템이 아니다.
+                // An unloaded compendium returns an index entry rather than a document — that is not an item.
                 const byUuid = sync(this.itemUuid);
                 if (typeof byUuid?.getFlag === 'function') return byUuid;
             }
@@ -328,9 +329,9 @@
             const item = this._resolveItem();
             if (!item || !input?.name) return;
             let value = input.type === 'checkbox' ? input.checked : input.value;
-            // 활성화 버킷은 발현 타이밍을 갖지 않는다(상태가 켜지는 순간이 유일한 발현점).
-            // 필드 경로가 채널(system.active.runTiming)일 수도 버킷(…buckets.use.runTiming)일 수도
-            // 있으므로 이름이 아니라 그 필드가 속한 버킷의 액션으로 판정한다.
+            // An activation bucket has no firing timing (the moment the state turns on is its only firing point).
+            // The field path may be the channel's (system.active.runTiming) or the bucket's (…buckets.use.runTiming),
+            // so the test is the action of the bucket the field belongs to, not the name.
             if (input.name.endsWith('.runTiming')) {
                 const bucket = effectAdapter?.parseBucketId?.(item,
                     input.dataset?.bucket || (input.name.startsWith('system.active') ? 'modifiers.self' : 'modifiers.target'));
@@ -348,17 +349,17 @@
             if (input.classList.contains('attribute-key')) {
                 const row = input.closest('.attribute');
                 await attributeManager?.updateAttributeLabel?.(row, item, row?.dataset.pos || 'main');
-                // 키가 바뀌면 같은 행의 값이 여전히 유효한지 다시 본다
-                // (예: reduce → hp 로 바꾸면 그 자리의 다이스식은 이제 0으로 흡수된다).
+                // When the key changes, whether the same row's value is still valid is re-checked
+                // (e.g. changing reduce → hp makes the dice formula in that slot get absorbed to 0).
                 this._validateModifierValue(this._query('.attribute-value', row));
             }
             if (input.classList.contains('attribute-value')) this._validateModifierValue(input);
         }
 
         /**
-         * 보정 값 칸 하나를 검증해 입력칸에 상태를 남긴다.
-         * 저장 자체는 막지 않는다 — 다이스식은 문법상 정상이고, 다만 굴릴 시점이 없는
-         * 필드에서는 0으로 흡수된다는 사실을 눈에 보이게 하는 것이 목적이다.
+         * Validate one modifier value field and leave the state on the input.
+         * It does not block saving — a dice formula is syntactically fine; the point is only to make visible that in a
+         * field with no roll point it gets absorbed to 0.
          */
         _validateModifierValue(input) {
             if (!input) return;
@@ -367,9 +368,9 @@
             window.DX3rdFormulaEvaluator.setInputValidationState(input, result);
         }
 
-        /** 렌더 직후 보정 행 전체를 한 번 검증한다. */
+        /** Validate every modifier row once, right after a render. */
         _refreshModifierValidation() {
-            // 헤더에도 같은 클래스의 <span> 이 있으므로 입력 칸으로 한정한다.
+            // The header holds a <span> of the same class, so this is limited to input fields.
             this._queryAll('input.attribute-value').forEach(input => this._validateModifierValue(input));
         }
 
@@ -495,8 +496,8 @@
         toggleWeaponFields(isFistMode, nameField, amountField, permanentField = null) {
             this._setDisabled(nameField, false);
             this._setDisabled(amountField, isFistMode);
-            // 「영구 변경」은 맨손을 고쳐 쓸 때만 뜻이 있다 — 별개 무기를 만드는 경로에는
-            // 되돌릴 원본 자체가 없다. 끌 때 값도 함께 내려 저작이 남지 않게 한다.
+            // "Permanent change" means something only when the fist itself is modified — the path that creates a
+            // separate weapon has no original to revert to. Turning it off clears the value so no authoring remains.
             this._setDisabled(permanentField, !isFistMode);
             if (permanentField && !isFistMode) permanentField.checked = false;
         }
@@ -644,8 +645,8 @@
                 const section = this._query(`#${subTab}-content`);
                 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-                // 이전의 'd10 개수 + 가산치' 저장값은 단일 Foundry Roll 수식으로 보여 준다.
-                // 숫자만 있던 formulaDice는 기존 의미를 보존해 Nd10으로 변환한다.
+                // A previous 'd10 count + additive' stored value is shown as a single Foundry Roll formula.
+                // A formulaDice that held only a number is converted to Nd10, preserving its existing meaning.
                 if (subTab === 'heal' || subTab === 'damage') {
                     const dice = String(data.formulaDice ?? data.dice ?? '').trim();
                     const add = String(data.formulaAdd ?? data.add ?? '').trim();
@@ -777,7 +778,7 @@
                     activate: this._checked('input[name="damageActivate"]', root),
                     hpCost: this._value('input[name="hpCost"]', root),
                     hpCostActivate: this._checked('input[name="hpCostActivate"]', root),
-                    // 변동형 런타임 입력: 사용 시 수치를 입력받아 [소비HP]/[입력] 토큰으로 공급
+                    // A variable runtime input: a value is entered on use and supplied as the [소비HP]/[입력] tokens
                     runtimePrompt: this._checked('input[name="runtimePrompt"]', root),
                     runtimeLabel: this._value('input[name="runtimeLabel"]', root),
                     runtimeDefault: this._value('input[name="runtimeDefault"]', root),
@@ -806,7 +807,7 @@
                     range: this._value('input[name="weaponRange"]', root),
                     amount: this._value('input[name="weaponAmount"]', root),
                     fist: this._checked('input[name="weaponFist"]', root),
-                    // 영구 변경(《사이버 암》류): 되돌릴 스냅샷을 남기지 않는다.
+                    // A permanent change (the Cyber Arm family): no snapshot is left to revert to.
                     fistPermanent: this._checked('input[name="weaponFistPermanent"]', root),
                     activate: this._checked('input[name="weaponActivate"]', root)
                 };
@@ -857,9 +858,9 @@
         }
 
         /**
-         * 현재 활성 서브탭의 데이터만 저장 플래그에 병합한다. 확인 버튼을 없애고 필드 변경
-         * 즉시(자동) 저장하는 방식이라, 아직 방문하지 않은(=기본값인) 다른 탭의 저장값을
-         * 덮어쓰지 않도록 전체 폼이 아닌 현재 탭만 반영한다.
+         * Only the currently active subtab's data is merged into the storage flag. Since the confirm button is gone
+         * and a field change saves immediately (automatically), only the current tab is reflected rather than the whole
+         * form, so the stored values of tabs not yet visited (= still at their defaults) are not overwritten.
          */
         async _saveCurrentTab() {
             try {
@@ -870,8 +871,25 @@
                 if (!sub) return;
                 this._storeCurrentSubTab();
 
-                // 이펙트의 기타 탭은 확장 플래그가 아니라 기존 system 필드를 그대로 편집한다.
-                // 데이터 경로를 보존하므로 컴펜디움/월드 아이템 마이그레이션이 필요 없다.
+                // An effect's misc tab edits the existing system fields directly rather than the extend flag.
+                // Preserving the data paths means no compendium / world item migration is needed.
+                if (sub === 'defenseBypass') {
+                    // Every item type can carry these: 《레일 건》 is a weapon, 《이지스 링》 is `etc`,
+                    // 《No.59 잊을 수 없는 사람》 is a D-Lois. So unlike effectSettings there is no type gate.
+                    // Checkboxes must go through _checked — the raw "on" a form submits would be flipped
+                    // to false by BooleanField._cast, which counts only the string "true" as true.
+                    await item.update({
+                        'system.bypassDefense.armor': this._checked('input[name="bypassDefenseArmor"]'),
+                        'system.bypassDefense.guard': this._checked('input[name="bypassDefenseGuard"]'),
+                        'system.bypassDefense.reaction': this._checked('input[name="bypassDefenseReaction"]'),
+                        'system.restoreDefense.armor': this._checked('input[name="restoreDefenseArmor"]'),
+                        'system.restoreDefense.guard': this._checked('input[name="restoreDefenseGuard"]'),
+                        'system.restoreDefense.reaction': this._checked('input[name="restoreDefenseReaction"]')
+                    });
+                    item.sheet?.render(false);
+                    return;
+                }
+
                 if (sub === 'effectSettings') {
                     if (item.type !== 'effect') return;
                     await item.update({
@@ -885,12 +903,12 @@
                         'system.resourceCost.attrKey': this._value('select[name="effectSettingsResourceAttrKey"]'),
                         'system.resourceCost.label': this._value('select[name="effectSettingsResourceLabel"]'),
                         'system.resourceCost.disable': this._value('select[name="effectSettingsResourceDisable"]'),
-                        // 체크박스는 반드시 _checked 로 읽는다 — 문자열 "on" 이 넘어가면
-                        // BooleanField._cast 가 `value === "true"` 로만 참을 보므로 false 로 뒤집힌다.
+                        // A checkbox must be read through _checked — passing the string "on" makes
+                        // BooleanField._cast, which treats only `value === "true"` as true, flip it to false.
                         'system.conditionExempt.pressure': this._checked('input[name="effectSettingsPressureExempt"]'),
                         'system.conditionExempt.berserk': this._checked('input[name="effectSettingsBerserkExempt"]')
                     });
-                    // 열려 있는 원본 시트가 숨긴 필드의 현재값을 계속 들고 있지 않도록 즉시 갱신한다.
+                    // Refresh immediately so an open source sheet does not keep holding the current value of a hidden field.
                     item.sheet?.render(false);
                     return;
                 }

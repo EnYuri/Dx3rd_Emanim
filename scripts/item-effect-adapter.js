@@ -1,13 +1,13 @@
-// 아이템 효과 정규화 어댑터
+// The item effect normalization adapter
 // ---------------------------------------------------------------------------
-// effect/weapon/protect/etc/once에 흩어진 기계화 필드를 저장 형식 변경 없이
-// 공통 효과 카드로 투영한다. 시트와 실행기가 같은 action 판정을 사용하도록 이 파일을
-// helpers 직후에 로드하며, 실제 실행은 기존 UniversalHandler 함수에 계속 위임한다.
+// Projects the mechanization fields scattered across effect/weapon/protect/etc/once onto a shared
+// effect card without changing the stored format. Loaded right after helpers so sheets and executors
+// share one action decision; the actual execution stays delegated to the existing UniversalHandler functions.
 (function () {
   const SCOPE = 'dx3rd-emanim';
   const ACTIONS = new Set(['activation', 'use', 'attack']);
-  // 확장 도구가 실제 편집 UI를 제공하는 슬롯. encroach 실행기는 남아 있지만 독립된
-  // 확장 데이터/편집 폼이 없으므로 빈 가상 카드는 만들지 않는다.
+  // The slots the extend dialog actually offers an editing UI for. The encroach executor still exists but
+  // has no extension data or edit form of its own, so no empty virtual card is created for it.
   const DIRECT_TYPES = ['heal', 'damage', 'statusClear', 'weapon', 'protect', 'vehicle'];
   const EXECUTION_TYPES = [...DIRECT_TYPES, 'encroach'];
   const ATTACK_TYPES = new Set(['weapon', 'vehicle']);
@@ -18,8 +18,8 @@
 
   const localize = key => game.i18n.localize(key);
   const hasEntries = value => value && typeof value === 'object' && Object.keys(value).length > 0;
-  // 실제로 적용되는 보정이 하나라도 있는가. 키가 비었거나 '-'인 껍데기 항목은 저장 형식상
-  // 흔하므로, 액션 판정은 hasEntries(키 존재)가 아니라 이쪽을 써야 시트 표시와 어긋나지 않는다.
+  // Is there at least one modifier that actually applies? Shell entries whose key is missing or '-' are
+  // common in the stored format, so the action decision must use this rather than hasEntries (key present) to match what the sheet shows.
   const hasUsableEntries = value => Object.values(value || {}).some(entry =>
     entry?.key && entry.key !== '-' && String(entry.value ?? '').trim() !== '');
   const normalizeAction = value => ACTIONS.has(value) ? value : null;
@@ -36,8 +36,8 @@
   }
 
   /**
-   * 직접 공격 및 콤보 구성 이펙트의 수정치/공격력을 기존 weaponBonus 운반 형식으로 투영한다.
-   * 고정식은 즉시 수치화하고 다이스식은 명중/데미지 확정 시점까지 보존한다.
+   * Project a direct attack's / combo member effect's modifier and attack value into the existing weaponBonus carrier format.
+   * Fixed formulas are turned into numbers at once; dice formulas are preserved until accuracy / damage is settled.
    */
   function effectAttackBonus(item, actor, {includeComboModifiers = false} = {}) {
     if (item?.type !== 'effect' || (!isAttackItem(item) && !includeComboModifiers)) return null;
@@ -66,7 +66,7 @@
     return bonus;
   }
 
-  /** 기존 무기 보너스와 직접 공격 이펙트 보너스를 중복 평가 없이 한 운반 객체로 합친다. */
+  /** Merge the existing weapon bonus and the direct attack effect bonus into one carrier without evaluating anything twice. */
   function mergeAttackBonuses(...entries) {
     const bonuses = entries.flat().filter(Boolean);
     if (!bonuses.length) return null;
@@ -107,8 +107,8 @@
   }
 
   /**
-   * 자기 보정을 '활성화' 액션으로 **명시 저작**했는가(상시 여부와 무관).
-   * 효과 카드에서 액션을 「활성화」로 고르면 updateAction 이 이 두 필드를 함께 쓴다.
+   * Are the self modifiers **explicitly authored** with the 'activation' action (regardless of whether it is always-on)?
+   * Choosing "activation" on the effect card makes updateAction write both of these fields together.
    */
   function declaresActivationSelfModifiers(item) {
     return normalizeAction(item?.system?.active?.action) === 'activation'
@@ -116,13 +116,13 @@
   }
 
   /**
-   * 자기 보정 채널이 '활성화'인가 — 즉 발동/해제가 active.state 토글로 이뤄지는가.
-   * 시트의 활성 체크박스, 직접 사용 게이트, 콤보 멤버 처리가 **모두 이 한 함수만** 본다.
-   * 규칙을 호출부에서 다시 쓰면 미묘하게 갈라져, 토글도 없고 사용에도 안 걸리는
-   * 이펙트가 생긴다(실제로 그 버그가 있었다).
+   * Is the self-modifier channel 'activation' — that is, does firing / clearing happen through the active.state toggle?
+   * The sheet's active checkbox, the direct-use gate and combo member handling ALL look only at this one function.
+   * Rewriting the rule at a call site makes them drift subtly apart, producing an effect that neither toggles
+   * nor applies on use (that bug actually happened).
    *
-   * 채널 기본값이 동결이어도, 보정 항목 하나라도 「활성화」로 **명시 저작**돼 있으면
-   * 그 아이템에는 켜고 끌 상태가 필요하다(항목별 발현 액션 — modifierBuckets 참조).
+   * Even when the channel default is frozen, a single modifier row **explicitly authored** as "activation" means
+   * the item needs a state to turn on and off (the per-row trigger action — see modifierBuckets).
    */
   function usesActivationSelfChannel(item) {
     if (!item) return false;
@@ -131,9 +131,9 @@
   }
 
   /**
-   * 아이템을 직접 사용/공격했을 때, 자기 보정을 동결이 아니라 토글로 켜야 하는가.
-   * 장비(무기/방어구/비클)는 장착 체크(system.equipment)가 활성 상태의 원본이므로 제외한다 —
-   * 사용만으로 켜면 미장착 장비의 보정이 살아난다.
+   * When the item is used / attacks directly, should the self modifiers be toggled on rather than frozen?
+   * Equipment (weapon/protect/vehicle) is excluded because the equipped checkbox (system.equipment) is the source of the active state —
+   * turning it on by use alone would revive the modifiers of unequipped gear.
    */
   function useMeansActivation(item) {
     if (!item || EQUIPMENT_TYPES.includes(item.type)) return false;
@@ -141,37 +141,37 @@
   }
 
   /**
-   * 지금 자기 보정을 걸어야 하는가(instant 발동점 공통 게이트).
-   * 단독 사용·콤보 멤버 두 경로가 `!active.state` 를 각자 복붙하고 있었는데, 그 조건은
-   * **활성화 채널에만** 맞는 판정이다. 활성화 채널은 active.state 가 곧 적용 상태이므로
-   * 이미 켜져 있으면 할 일이 없다. 반면 동결 채널(applyMode='onUse')의 상태는 AE 쪽에 있고
-   * active.state 와 무관하다 — 사용할 때마다 그 시점 값으로 새로 걸어야 한다.
-   * 둘을 같은 조건으로 막아 두면, 어쩌다 state 가 켜진 동결 채널 아이템(구버전 장착 훅이
-   * 켜 둔 선언형 장비, 시트 체크박스)은 사용해도 영영 아무 일도 하지 않는다.
+   * Should the self modifiers be applied right now (the shared gate at every instant trigger point)?
+   * The standalone-use and combo-member paths each copy-pasted `!active.state`, but that condition is only
+   * correct for **the activation channel**. There active.state IS the applied state, so nothing is left to do
+   * once it is on. The frozen channel's state (applyMode='onUse') lives on the AE side and has nothing to do
+   * with active.state — it must be re-applied with the values of the moment on every use.
+   * Gating both on the same condition means a frozen-channel item whose state happens to be on (declaration
+   * equipment turned on by an old equip hook, or the sheet checkbox) would do nothing forever, however often it is used.
    */
   function selfModifiersPending(item) {
     if (!item) return false;
     if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
     if (usesActivationSelfChannel(item)) {
       if (item.system?.active?.state !== true) return true;
-      // 활성화 버킷은 이미 켜져 있어도, 같은 아이템에 「사용/공격 시」로 저작된 동결 버킷이
-      // 있으면 그쪽은 사용할 때마다 새로 걸어야 한다.
+      // Even with the activation bucket already on, a frozen bucket authored as "on use / on attack" on the
+      // same item still has to be re-applied on every use.
       return hasFrozenSelfBucket(item);
     }
     return true;
   }
 
   // ---------------------------------------------------------------------------
-  // 항목별 발현 액션(지속 효과 보정 버킷)
+  // Per-row trigger action (the persistent-effect modifier buckets)
   //
-  // 자기 보정(system.attributes)·대상 보정(system.effect.attributes)은 각각 채널 하나이고
-  // 발현 액션도 채널당 하나였다. 그래서 「장착하고 있는 동안 +1, 선언하면 추가로 +2」처럼
-  // 한 아이템 안에서 발현 시점이 다른 지속 보정을 나눠 저작할 수 없었다 — 보정을 몇 개
-  // 추가하든 액션은 하나로 묶였다.
+  // Self modifiers (system.attributes) and target modifiers (system.effect.attributes) were one channel each,
+  // with one trigger action per channel. So persistent modifiers with different trigger points could not be
+  // authored separately within one item — "+1 while equipped, +2 more when declared" — however many modifiers
+  // you added, they were bound to a single action.
   //
-  // 보정 항목마다 선택적 `action` 필드를 두어 버킷으로 나눈다. 미지정(레거시 데이터 전량)은
-  // 채널 기본값을 그대로 상속하므로 기존 아이템의 동작은 바뀌지 않는다. 게이트를 넓히는 것도
-  // **명시 저작이 있을 때만**이다.
+  // An optional `action` field per modifier row splits a channel into buckets. Unspecified (all legacy data)
+  // inherits the channel default, so existing items behave exactly as before. The gate widens **only when
+  // there is explicit authoring**.
   // ---------------------------------------------------------------------------
 
   function attributeEntries(map) {
@@ -184,40 +184,62 @@
 
   const EQUIPMENT_TYPES = ['weapon', 'protect', 'vehicle'];
 
-  /** 항목에 **명시 저작된** 발현 액션(없으면 null). */
+  /**
+   * Does an invocation with `action` fire a bucket authored for `bucket`?
+   *
+   * For anything but equipment, attacking IS using. An attack effect has no separate "use" invocation:
+   * invocationAction returns 'attack' whenever attackRoll is authored, and the use/attack chooser in
+   * handleItemUse is weapon/vehicle only. So a card authored as "on use" on an attack effect never fired
+   * at all — the modifier was silently unreachable (yuricross's '포텐스': 백병 공격력 +[level]d10 on the
+   * 사용 card of an attackRoll='melee' effect, which never reached the damage roll).
+   *
+   * Equipment is the exception **on purpose**, and the two halves must stay together: there the chooser
+   * exists, so "use" is separately reachable, and attackDefersUsage keeps an attack from spending what
+   * only the use card would. Widening this to equipment would undo that.
+   *
+   * Structural questions ("is a bucket authored for X" — hasExplicitBucket, hasActionEffects,
+   * comboMemberAction, selfToggleBucketMatches) stay exact. Only invocation-time matching goes through here.
+   */
+  function actionCoversBucket(item, action, bucket) {
+    if (!bucket || action === bucket) return true;
+    if (action !== 'attack' || bucket !== 'use') return false;
+    return !!item && !EQUIPMENT_TYPES.includes(item.type);
+  }
+
+  /** The trigger action **explicitly authored** on a row (null when absent). */
   function explicitAction(item, channel, entry) {
     return normalizeAction(entry?.action);
   }
 
-  /** 채널 기본 발현 액션 — 항목에 명시가 없을 때 상속되는 값(지금까지의 채널 판정 그대로). */
+  /** The channel's default trigger action — what a row with no explicit value inherits (the channel decision as it always was). */
   function channelAction(item, channel) {
     return channel === 'self'
       ? inferAction(item, 'selfModifiers', item?.system?.active || {})
       : inferAction(item, 'targetModifiers', item?.system?.effect || {});
   }
 
-  /** 항목의 실효 발현 액션(표시·버킷 분류용). */
+  /** A row's effective trigger action (for display and bucket classification). */
   function attributeAction(item, channel, entry) {
     return explicitAction(item, channel, entry) || channelAction(item, channel);
   }
 
   /**
-   * 버킷 하나의 발현·소멸 타이밍.
+   * One bucket's trigger and expiry timing.
    *
-   * 발현 액션(활성화/사용/공격)과 발현 타이밍(즉시/성공 후/데미지 후)은 **다른 축**이다.
-   * 액션만 버킷으로 나누고 타이밍을 채널 필드 하나로 두면, 대상 채널의 `runTiming` 이
-   * 발현점을 하나로 못 박기 때문에 사용/공격 버킷 중 한쪽은 어느 발현점에도 걸리지 못하고
-   * 조용히 죽는다(afterDamage 경로는 runTiming==='afterDamage' 를, instant 경로는
-   * runTiming==='instant' 를 요구한다). 그래서 버킷마다 자기 타이밍을 갖는다.
+   * The trigger action (activation / use / attack) and the trigger timing (instant / after success / after damage)
+   * are **different axes**. Splitting only the action into buckets while leaving the timing in a single channel
+   * field lets the target channel's `runTiming` pin the trigger point to one moment, so one of the use / attack
+   * buckets can never fire and dies silently (the afterDamage path requires runTiming==='afterDamage', the
+   * instant path requires runTiming==='instant'). So every bucket carries its own timing.
    *
-   * 기본 버킷(채널 기본 액션)은 채널의 평탄 필드를 그대로 쓰고, 명시 버킷만
-   * `system.<active|effect>.buckets.<action>` 에 자기 값을 둔다(없는 값은 채널에서 상속).
-   * 이 규칙 덕에 기존 데이터는 손댈 것이 없다. 버킷은 문서 스키마
-   * (`scripts/data/document-schema.js`)에서 채널마다 선택 ObjectField 로 선언돼 있어
-   * 저작하기 전에는 생기지 않고, 저작한 내용은 그대로 보존된다.
+   * The default bucket (the channel's default action) uses the channel's flat fields as-is; only an explicit
+   * bucket keeps its own values in `system.<active|effect>.buckets.<action>` (anything absent is inherited from the channel).
+   * That rule is what leaves existing data untouched. Buckets are declared in the document schema
+   * (`scripts/data/document-schema.js`) as an optional ObjectField per channel, so they do not exist before
+   * they are authored, and what is authored is preserved.
    *
-   * 게이트 판정은 **전부 이 함수를 통과해야 한다** — 호출부가 system.effect.runTiming 을
-   * 직접 읽으면 버킷별 타이밍이 무시돼 위의 사문화가 되살아난다.
+   * Every gate decision **must go through this function** — a call site reading system.effect.runTiming
+   * directly ignores the per-bucket timing and brings the dead-bucket bug above right back.
    */
   function bucketLifecycle(item, channel, action = null) {
     const chan = channel === 'self' ? 'self' : 'target';
@@ -234,7 +256,7 @@
       channel: chan, action: expected, isDefault,
       overridden: !!override,
       disable: pick('disable', root.disable ?? fallbackDisable),
-      // 활성화 버킷의 발현점은 상태가 켜지는 순간 하나뿐이다 — 판정 타이밍을 갖지 않는다.
+      // An activation bucket has exactly one trigger point — the moment the state turns on. It has no check timing.
       runTiming: expected === 'activation' ? 'instant' : pick('runTiming', root.runTiming || 'instant'),
       path: isDefault
         ? (chan === 'self' ? 'system.active' : 'system.effect')
@@ -242,7 +264,7 @@
     };
   }
 
-  /** 그 발현 액션의 대상 보정이 이 타이밍에 걸리는가(버킷 자기 runTiming 기준). */
+  /** Do that trigger action's target modifiers fire at this timing (by the bucket's own runTiming)? */
   function targetFiresAt(item, action = null, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
     const lifecycle = bucketLifecycle(item, 'target', expected);
@@ -250,17 +272,17 @@
     return lifecycle.runTiming === '-' || lifecycle.runTiming === timing;
   }
 
-  /** 그 발현 액션에 속한 자기 보정 전부. 토글/동결 여부는 적용 시점에서 따로 결정한다. */
+  /** Every self modifier belonging to that trigger action. Toggle vs frozen is decided separately, at apply time. */
   function selfBucketAttributes(item, action = null) {
     const expected = normalizeAction(action) || channelAction(item, 'self');
     const out = {};
     for (const [key, entry] of attributeEntries(attributeMap(item, 'self'))) {
-      if (attributeAction(item, 'self', entry) === expected) out[key] = entry;
+      if (actionCoversBucket(item, expected, attributeAction(item, 'self', entry))) out[key] = entry;
     }
     return out;
   }
 
-  /** 그 자기 보정 버킷이 이 타이밍에 발현하는가(버킷 자체 수명 기준). */
+  /** Does that self-modifier bucket fire at this timing (by the bucket's own lifetime)? */
   function selfFiresAt(item, action = null, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
     const lifecycle = bucketLifecycle(item, 'self', expected);
@@ -277,9 +299,9 @@
   }
 
   /**
-   * 자기 보정 채널이 토글(활성화)인가 — 즉 **미지정** 항목이 활성화 버킷에 속하는가.
-   * applySelfModifiers 의 채널 분기와 반드시 같은 기준이어야 한다. 어긋나면 미지정 항목이
-   * 토글 AE 와 동결 AE 중 어디에도 없거나(보정 소멸) 양쪽에 다 들어간다(이중 가산).
+   * Is the self-modifier channel a toggle (activation) — that is, do **unspecified** rows belong to the activation bucket?
+   * This MUST use the same test as applySelfModifiers' channel branch. Drifting apart leaves unspecified rows in
+   * neither the toggle AE nor the frozen AE (the modifier vanishes) or in both (counted twice).
    */
   function selfChannelIsToggle(item) {
     if (!item) return false;
@@ -289,58 +311,58 @@
   }
 
   /**
-   * active.state 가 켜져 있는 동안 세는 자기 보정 항목인가.
-   * actor.prepareData 의 자체계산(activeItems)과 토글 AE(DX3rdAppliedToggle)의 공통 규칙.
+   * Is this a self-modifier row counted while active.state is on?
+   * The shared rule for actor.prepareData's self-computation (activeItems) and the toggle AE (DX3rdAppliedToggle).
    */
   function appliesWhileActive(item, entry) {
     const explicit = explicitAction(item, 'self', entry);
     if (explicit) return explicit === 'activation';
-    // 미지정 항목은 지금까지처럼 전부 센다. 채널 기본을 상속시키면 rois/connection 처럼
-    // 채널 액션은 '사용'으로 잡히면서 상태가 곧 적용 상태인 타입의 보정이 통째로 사라진다.
-    // 예외는 동결 채널에 「활성화」 항목이 섞여 있는 경우다 — 그때 미지정 항목은 동결 AE 가
-    // 들고 있으므로 여기서 또 세면 같은 보정이 두 번 붙는다.
+    // Unspecified rows are all counted, as they always were. Inheriting the channel default would wipe out every
+    // modifier on types like rois / connection, whose channel action resolves to 'use' while the state IS the applied state.
+    // The exception is a frozen channel with "activation" rows mixed in — there the unspecified rows are held by the
+    // frozen AE, so counting them here too would attach the same modifier twice.
     return selfChannelIsToggle(item) || !hasExplicitBucket(item, 'self', 'activation');
   }
 
   /**
-   * 이 발현 액션으로 발동할 때 active.state(토글)를 켜야 하는가.
+   * Should firing with this trigger action turn active.state (the toggle) on?
    *
-   * 자기 채널의 토글 상태는 아이템당 불리언 **하나**다. 그래서 「공격 시」처럼 동결 버킷만
-   * 있는 액션으로 발동했을 때 그것까지 켜면, 그 아이템의 **활성화 버킷이 공격만으로 함께
-   * 터진다** — 장비라면 장착이 상태의 원본이므로 표시까지 어긋난다(dx3rd-applied-toggle 의
-   * sync 가 되돌린다). 액션 미지정 호출은 지금까지의 의미(채널 판정에 맡김)를 유지한다.
+   * A channel's toggle state is **one** boolean per item. So turning it on when firing with an action that only
+   * has frozen buckets — "on attack", say — makes **that item's activation bucket go off from the attack alone**;
+   * for equipment, where equipping is the source of the state, even the display goes wrong (dx3rd-applied-toggle's
+   * sync undoes it). A call with no action keeps its existing meaning (leave it to the channel decision).
    */
   function selfToggleBucketMatches(item, action = null) {
     const expected = normalizeAction(action);
     if (!expected) return true;
     if (expected === 'activation') return true;
-    // 미지정 행이 토글 AE 에 들어가는 채널이면, 그 행들의 소속(채널 기본 버킷)으로 발동할
-    // 때는 토글이 맞다. 예: applyMode='toggle' + 채널 기본이 '사용'.
+    // When unspecified rows go into the toggle AE for this channel, firing with the action those rows belong to
+    // (the channel's default bucket) is a toggle. e.g. applyMode='toggle' with a channel default of 'use'.
     return selfChannelIsToggle(item) && channelAction(item, 'self') === expected;
   }
 
   /**
-   * 사용/공격 시 동결로 걸 **실제 값이 있는** 자기 보정이 하나라도 있는가.
-   * 시트가 저장하는 빈 행(key '-' / 값 공백)까지 세면, 걸 것이 없는데도 동결 경로가 돌아
-   * 이미 붙어 있던 자기 AE 를 지운다(_applyItemAttributes 의 "걸 게 없으면 제거" 분기).
+   * Is there at least one self modifier **with an actual value** to freeze on use / attack?
+   * Counting the empty rows the sheet stores (key '-' / blank value) makes the frozen path run with nothing to apply,
+   * deleting the self AE that was already attached (_applyItemAttributes' "remove when there is nothing to apply" branch).
    */
   function hasFrozenSelfBucket(item, action = null) {
     return hasUsableEntries(selfFrozenAttributes(item, action));
   }
 
   /**
-   * 사용/공격 시 동결 적용할 자기 보정만 골라낸다(applySelfFrozenBuff 전용).
+   * Pick out only the self modifiers to freeze on use / attack (for applySelfFrozenBuff).
    * @param {Item} item
-   * @param {string|null} action - 'use' | 'attack' (null 이면 활성화가 아닌 전부)
+   * @param {string|null} action - 'use' | 'attack' (null means everything that is not activation)
    */
   function selfFrozenAttributes(item, action = null) {
     const expected = normalizeAction(action);
     const toggleChannel = selfChannelIsToggle(item);
-    // 미지정 행은 채널 기본 버킷의 것이다. 다만 동결 채널의 기존 데이터는 사용/공격 어느
-    // 액션으로 발동해도 걸려야 한다 — 같은 아이템이 판정 다이얼로그의 선언(use)으로도,
-    // 그 무기로 공격(attack)으로도 들어온다. 그래서 액션을 따지지 않는 것이 기본이고,
-    // **저작자가 이 채널을 실제로 나눈 경우에만** 기본 버킷으로 좁힌다. 좁히지 않으면
-    // 「선언 시 A / 공격 시 B」를 저작한 아이템이 공격 때 A+B 를 함께 걸어 버린다.
+    // An unspecified row belongs to the channel's default bucket. But existing frozen-channel data has to apply
+    // whichever action fires it — the same item arrives both through the roll dialog's declaration (use) and
+    // through attacking with that weapon (attack). So ignoring the action is the default, and it narrows to the
+    // default bucket **only when the author actually split this channel**. Without that narrowing, an item authored
+    // as "A on declaration / B on attack" would apply A+B together on an attack.
     const split = ['use', 'attack'].some(candidate => hasExplicitBucket(item, 'self', candidate));
     const fallback = channelAction(item, 'self');
     const out = {};
@@ -348,41 +370,41 @@
       const explicit = explicitAction(item, 'self', entry);
       if (explicit) {
         if (explicit === 'activation') continue;
-        if (expected && explicit !== expected) continue;
+        if (expected && !actionCoversBucket(item, expected, explicit)) continue;
       } else if (toggleChannel) {
-        continue;   // 미지정 항목은 토글 AE 가 들고 있다
-      } else if (split && expected && fallback !== expected) {
-        continue;   // 나뉜 채널에서 미지정 항목은 기본 버킷에만 속한다
+        continue;   // unspecified rows are held by the toggle AE
+      } else if (split && expected && !actionCoversBucket(item, expected, fallback)) {
+        continue;   // in a split channel, unspecified rows belong to the default bucket only
       }
       out[key] = entry;
     }
     return out;
   }
 
-  /** 지금 발현 액션에서 대상에게 걸 보정만 골라낸다(applyToTargets 전용). */
+  /** Pick out only the modifiers to apply to targets for the current trigger action (for applyToTargets). */
   function targetBucketAttributes(item, action = null, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
-    const channelMatches = channelAction(item, 'target') === expected;
+    const channelMatches = actionCoversBucket(item, expected, channelAction(item, 'target'));
     const out = {};
     for (const [key, entry] of attributeEntries(attributeMap(item, 'target'))) {
       const explicit = explicitAction(item, 'target', entry);
-      if (explicit ? explicit === expected : channelMatches) out[key] = entry;
+      if (explicit ? actionCoversBucket(item, expected, explicit) : channelMatches) out[key] = entry;
     }
     return out;
   }
 
   /**
-   * 시트에 그릴 지속 보정 버킷. 채널(자신/대상) × 실효 발현 액션으로 묶는다.
-   * 기본 버킷(= 미지정 항목이 속하는 채널 기본 액션)만 레거시 카드 id 를 그대로 쓴다 —
-   * 확장 도구의 채널 설정과 액터 시트가 그 id 로 자기/대상 채널을 찾는다.
+   * The persistent-modifier buckets drawn on the sheet, grouped by channel (self/target) × effective trigger action.
+   * Only the default bucket (= the channel default action that unspecified rows belong to) keeps the legacy card id —
+   * the extend dialog's channel setting and the actor sheet find the self / target channel by that id.
    */
-  /** 카드 = 버킷 = 편집 페인. 기본 버킷만 레거시 id 를 유지한다(액터 시트·확장 도구가 참조). */
+  /** Card = bucket = edit pane. Only the default bucket keeps the legacy id (referenced by the actor sheet and the extend dialog). */
   function bucketId(item, channel, action) {
     const base = channel === 'self' ? 'modifiers.self' : 'modifiers.target';
     return action === channelAction(item, channel) ? base : `${base}@${action}`;
   }
 
-  /** 버킷 카드 id 를 (채널, 액션)으로 되돌린다. 'main'/'sub' 는 기본 버킷의 옛 별칭이다. */
+  /** Turn a bucket card id back into (channel, action). 'main'/'sub' are the old aliases of the default bucket. */
   function parseBucketId(item, id) {
     const raw = String(id || '');
     if (raw === 'main' || raw === 'sub') {
@@ -399,7 +421,7 @@
     };
   }
 
-  /** 그 채널에서 아직 버킷이 없는 발현 액션. 카드 추가(=버킷 추가)가 고를 후보다. */
+  /** The trigger actions with no bucket yet in that channel. These are the candidates for adding a card (= a bucket). */
   function freeBucketActions(item, channel) {
     const used = new Set(modifierBuckets(item).filter(bucket => bucket.channel === channel)
       .map(bucket => bucket.action));
@@ -435,26 +457,26 @@
   function inferAction(item, kind, data = {}) {
     const explicit = normalizeAction(data?.action);
 
-    // 장비(무기/방어구/비클)의 자기 보정 버킷에는 성격이 다른 두 가지가 섞여 있다.
-    //  ① 상시 속성 — 「장비하고 있는 동안 …」(기타의 〈예술:음악〉 +1, 레이저 라이플의 관통).
-    //     장착이 상태의 원본이고 '사용 선언'이라는 개념 자체가 없다.
-    //  ② 선언형 일시 보정 — 「마이너 액션을 소비해서 선언하면 …」(볼트액션 라이플 명중 +5,
-    //     가드 실드의 가드치 +5). 선언해야 붙고 소멸 타이밍에 꺼진다.
-    // 타입만 보고 전부 ①로 단정하면 ②까지 장착만으로 켜졌다가, 첫 소멸 훅
-    // (disable-hooks 는 active.state 를 내린다)에 꺼진 뒤 장착 중인데도 재장착 전까지
-    // 다시 안 켜진다. 구분 축은 이미 applyMode 에 있으니 그것을 존중한다 —
-    // 장비의 template 기본값이 'toggle'(=①)이므로 명시 저작이 없는 기존 데이터의 동작은 그대로다.
+    // The self-modifier bucket of equipment (weapon/protect/vehicle) mixes two things of different character.
+    //  (1) Always-on properties — "while equipped, …" (a guitar's <Art: Music> +1, a laser rifle's penetration).
+    //      Equipping is the source of the state and there is no notion of "declaring a use" at all.
+    //  (2) Declared temporary modifiers — "spend a minor action to declare, then …" (a bolt-action rifle's accuracy +5,
+    //      a guard shield's guard value +5). They attach on declaration and go off at their expiry timing.
+    // Deciding everything is (1) from the type alone turns (2) on from equipping too; it then goes off at the first
+    // expiry hook (disable-hooks lowers active.state) and never comes back until re-equipped, even while still equipped.
+    // The distinguishing axis already exists in applyMode, so it is honored — the template default for equipment
+    // is 'toggle' (= (1)), so existing data with no explicit authoring behaves exactly as before.
     //
-    //  ③ 그 무기로 공격할 때만 붙는 보정 — 「공격 시」. ①과 달리 장착만으로는 안 붙고
-    //     (①은 그 무기를 들고 **다른** 무기로 공격해도 붙는다), ②와 달리 선언도 소비도 없다.
-    //
-    // **②가 공격으로 자동 발동하는 일은 ③을 열어도 없다.** 룰이 「명중판정을 실행하기 직전에
-    // 선언할 것」이라, 그 무기로 공격하는 것만으로 ②가 터지면 한 번뿐인 회수를 쓸지 말지 고를
-    // 자리가 사라진다 — 그 선택이 곧 이 계열 장비의 전부다. 불변식을 지키는 것은 두 가지다:
-    // ②는 판정 다이얼로그의 선언 토글이 action:'use' 로 확정할 때만 걸리고(declared-equipment 의
-    // declaredAttributes = selfFrozenAttributes(item,'use')), ③에는 「공격 시」로 **명시 저작한
-    // 행만** 들어간다. 미지정 데이터는 아래 applyMode 폴백이 반드시 ①/② 중 하나로 보내므로
-    // ③으로 흘러들 경로가 없다(컴펜디움 실측: 장비의 명시 저작 22건 전부 'use', 'attack' 0건).
+    //  (3) A modifier that attaches only when attacking with that weapon — "on attack". Unlike (1) it does not attach
+    //      from equipping alone ((1) attaches even when you hold that weapon and attack with **another** one), and
+    //      unlike (2) there is no declaration and nothing is spent.
+    // **Opening (3) does not make (2) fire automatically from an attack.** The rules say to "declare it immediately
+    // before making the accuracy check", so if (2) went off merely by attacking with that weapon there would be no
+    // place left to choose whether to spend the single use — and that choice is the whole point of this class of gear.
+    // Two things hold the invariant: (2) attaches only when the roll dialog's declaration toggle settles it as
+    // action:'use' (declared-equipment's declaredAttributes = selfFrozenAttributes(item,'use')), and (3) contains
+    // **only rows explicitly authored** as "on attack". Unspecified data is always sent to (1) or (2) by the applyMode
+    // fallback below, so there is no path into (3) (measured across the compendium: all 22 explicit gear rows are 'use', 0 are 'attack').
     if (kind === 'selfModifiers' && EQUIPMENT_TYPES.includes(item.type)) {
       if (explicit) return explicit;
       const mode = data?.applyMode || item.system?.active?.applyMode || 'toggle';
@@ -465,8 +487,8 @@
     const timing = data?.timing || data?.runTiming || 'instant';
     if (kind === 'selfModifiers') {
       if ((item.system?.active?.applyMode || 'onUse') === 'toggle') return 'activation';
-      // 기존 액터 시트에서 자기 보정만 가진 상시 비공격 이펙트는 이름 클릭으로 on/off하던
-      // 지속 토글이었다. 명시 action이 없는 기존 데이터는 이 의미를 그대로 보존한다.
+      // In the old actor sheet an always-on non-attack effect with only self modifiers was a persistent toggle
+      // switched on and off by clicking its name. Existing data with no explicit action preserves that meaning.
       if (item.type === 'effect' && item.system?.timing === 'always' && !isAttackItem(item)
         && hasUsableEntries(item.system?.attributes)
         && !hasUsableEntries(item.system?.effect?.attributes)) return 'activation';
@@ -529,8 +551,8 @@
   function formulaSummary(data = {}) {
     const dice = String(data.formulaDice ?? data.dice ?? '').trim();
     const add = String(data.formulaAdd ?? data.add ?? '').trim();
-    // 레거시 확장 데이터는 주사위가 없을 때 formulaDice: 0을 저장한다.
-    // 이를 주사위 개수로 해석하면 빈 수식이 카드에서 0d10으로 보이므로 제외한다.
+    // Legacy extension data stores formulaDice: 0 when there are no dice.
+    // Reading that as a dice count would show an empty formula as 0d10 on the card, so it is excluded.
     const diceTerm = dice && dice !== '0'
       ? (window.DX3rdFormulaEvaluator?.hasDice?.(dice) ? dice : `${dice}d10`)
       : '';
@@ -560,8 +582,8 @@
   }
 
   /**
-   * 기존 종류별 슬롯과 신규 무제한 cards[]를 하나의 실행 목록으로 정규화한다.
-   * 신규 카드는 {id, type, data}이며 같은 type을 몇 개든 가질 수 있다.
+   * Normalize the existing per-type slots and the new unbounded cards[] into one execution list.
+   * A new card is {id, type, data} and there may be any number of cards of the same type.
    */
   function extensionEntries(itemOrExtend) {
     const ext = itemOrExtend?.getFlag
@@ -650,10 +672,10 @@
     const ext = item.getFlag?.(SCOPE, 'itemExtend') || {};
     const selfData = {...(system.active || {}), timing: system.active?.runTiming || 'instant'};
     const targetData = {...(system.effect || {}), timing: system.effect?.runTiming || 'instant'};
-    // 보정 카드는 채널 × 실효 발현 액션(버킷)마다 한 장이다. 예전에는 채널당 한 장이라
-    // 「장착 중 상시 +1」과 「선언하면 +2」를 한 아이템에 나눠 저작할 방법이 없었다.
-    // 버킷이 하나도 없는(보정 행이 없는) 채널도 카드 한 장은 남긴다 — hasActionEffects /
-    // requiresTarget 이 카드 목록으로 진입점을 판정하고, 시트는 count 로 걸러 그린다.
+    // There is one modifier card per channel × effective trigger action (bucket). It used to be one per channel,
+    // so there was no way to author "+1 always while equipped" and "+2 when declared" separately on one item.
+    // A channel with no bucket at all (no modifier rows) still keeps one card — hasActionEffects / requiresTarget
+    // decide entry points from the card list, and the sheet filters on count before drawing.
     const buckets = modifierBuckets(item);
     const bucketsFor = channel => {
       const own = buckets.filter(bucket => bucket.channel === channel);
@@ -669,22 +691,22 @@
       const card = cards[cards.length - 1];
       card.count = bucket.keys.length;
       card.isDefaultBucket = bucket.isDefault;
-      // 카드가 곧 버킷이므로 수명 필드도 카드가 들고 있다(시트 배지·확장 도구 페인이 함께 읽는다).
+      // The card IS the bucket, so it also holds the lifetime fields (the sheet badge and the extend pane read them together).
       card.disable = bucket.lifecycle.disable;
       card.runTiming = bucket.lifecycle.runTiming;
       card.bucketOverridden = bucket.lifecycle.overridden;
-      // 기본 버킷은 채널 그 자체라 지울 수 없다(지우면 채널의 미지정 행이 통째로 사라진다).
+      // The default bucket is the channel itself and cannot be deleted (deleting it would drop every unspecified row in the channel).
       card.deletable = !bucket.isDefault && bucket.keys.length > 0;
     };
     for (const bucket of bucketsFor('self')) {
       pushBucketCard(bucket, {
         id: bucket.id, family: 'persistent', kind: 'selfModifiers',
         data: {...selfData, action: bucket.action, timing: bucket.lifecycle.runTiming},
-        // 「살아 있는가」의 기준은 버킷마다 다르다. 활성화 버킷은 active.state 가 곧 적용
-        // 상태지만, 동결 버킷(사용/공격 시)의 상태는 AE 가 들고 있고 active.state 는
-        // 쓰지 않는다 — 저작돼 있으면 살아 있는 카드다(대상 보정 카드와 같은 판정).
-        // state 로 단정하면 시트에서 늘 회색이고, 그보다 나쁘게는 hasActionEffects 가
-        // false 를 반환해 무기 모드 메뉴의 「사용」 진입점이 통째로 닫힌다.
+        // What counts as "alive" differs per bucket. For an activation bucket active.state IS the applied state,
+        // but a frozen bucket's (on use / on attack) state is held by the AE and does not use active.state —
+        // if it is authored, the card is alive (the same test as a target-modifier card).
+        // Deciding from state alone would leave it permanently grey on the sheet and, worse, make hasActionEffects
+        // return false, closing the weapon mode menu's "use" entry point entirely.
         active: bucket.keys.length > 0 && (bucket.action === 'activation'
           ? !!system.active?.state
           : bucket.lifecycle.disable !== 'notCheck'),
@@ -732,51 +754,51 @@
       selfCount: selfModifierCount,
       targetCount: targetModifierCount,
       totalCount: selfModifierCount + targetModifierCount,
-      // 확장 도구의 채널 설정은 "기본 발현 액션"(명시가 없는 행이 상속하는 값)이다.
-      // 기본 버킷 카드가 없을 수도 있으므로(모든 행을 명시 저작한 경우) 채널에서 직접 읽는다.
+      // The extend dialog's channel setting is the "default trigger action" (what a row with no explicit value inherits).
+      // The default bucket card may not exist (when every row is explicitly authored), so it is read from the channel directly.
       selfAction: channelAction(item, 'self'),
       targetAction: channelAction(item, 'target'),
       initialScope: targetModifierCount > 0 && selfModifierCount === 0 ? 'modifiers.target' : 'modifiers.self',
       summary: `${localize('DX3rd.Self')} ${selfModifierCount} / ${localize('DX3rd.Target')} ${targetModifierCount}`
     };
-    // 지속 효과 보정 카드는 축이 두 개다. 한 장에 묶여 있던 시절엔 둘 다 안 보였다:
-    //  ① 적용 대상 — 자신(system.attributes) / 대상(system.effect.attributes). 데이터는 원래
-    //     분리돼 있는데 카드가 하나라 "자신 N / 대상 M" 요약으로만 보였고, 소멸 타이밍·발현
-    //     액션도 채널마다 따로인 것이 드러나지 않았다.
-    //  ② 발현 액션 — 활성화 / 사용 시 / 공격 시. 채널당 하나로 묶여 있어, 보정을 몇 개
-    //     추가하든 한 아이템의 지속 효과는 같은 시점에만 발현할 수 있었다. 이제 항목마다
-    //     액션을 저작할 수 있고(확장 도구의 행별 「발현 액션」), 카드도 버킷마다 한 장이다.
+    // A persistent-modifier card has two axes. While they were bundled into one card, neither was visible:
+    //  (1) Who it applies to — self (system.attributes) / target (system.effect.attributes). The data was always
+    //      separate, but one card showed only a "self N / target M" summary, and the fact that expiry timing and
+    //      trigger action are per-channel too never surfaced.
+    //  (2) The trigger action — activation / on use / on attack. Bound to one per channel, an item's persistent
+    //      effects could only fire at a single moment however many modifiers you added. Now the action can be
+    //      authored per row (the extend dialog's per-row "trigger action"), and there is one card per bucket.
     const isEquipment = EQUIPMENT_TYPES.includes(item.type);
     const actionOptions = [
       {value: 'activation', label: actionLabel('activation')},
       {value: 'use', label: actionLabel('use')},
       {value: 'attack', label: actionLabel('attack')}
     ];
-    // 장비의 자기 보정도 세 갈래를 다 내준다. 「사용 시」(=선언)와 「공격 시」는 다른 것이고
-    // (inferAction 의 ②/③), 「공격 시」로 옮기지 않는 한 선언형은 선언에서만 걸린다.
+    // Equipment's self modifiers offer all three too. "On use" (= declaration) and "on attack" are different things
+    // ((2) and (3) in inferAction), and unless it is moved to "on attack", a declared modifier fires only on declaration.
     const selfActionOptions = actionOptions;
     modifierOverview.selfActionOptions = selfActionOptions;
     modifierOverview.targetActionOptions = actionOptions;
-    // 카드의 두 번째 축. 적용 대상(자신/대상)은 데이터 채널 그 자체이므로 카드에서 고른다 —
-    // 편집 페인이나 행에 두면 카드 제목이 말하는 채널과 안쪽 값이 어긋날 수 있다.
+    // The card's second axis. Who it applies to (self/target) IS the data channel, so it is chosen on the card —
+    // putting it in the edit pane or on a row lets the channel the card title states disagree with the value inside.
     const channelOptions = [
       {value: 'self', label: localize('DX3rd.Self')},
       {value: 'target', label: localize('DX3rd.Target')}
     ];
     modifierOverview.channelOptions = channelOptions;
-    // 버킷마다 한 장. 보정 행이 하나도 없는 채널의 자리표시 카드는 그리지 않는다
-    // (collectPersistent 가 진입점 판정을 위해 남겨 둔 count:0 카드).
+    // One card per bucket. The placeholder card for a channel with no modifier rows is not drawn
+    // (the count:0 card collectPersistent keeps for the entry-point decision).
     const drawn = persistent
       .filter(card => ['selfModifiers', 'targetModifiers'].includes(card.kind) && card.count > 0);
-    // 같은 채널의 카드가 두 장 이상이면 제목이 똑같아 구분이 안 된다 — 요약에 발현 액션을 적는다.
+    // Two or more cards in the same channel share a title and become indistinguishable — so the summary names the trigger action.
     const multiBucket = kind => drawn.filter(card => card.kind === kind).length > 1;
     const modifierCards = drawn
       .map(card => multiBucket(card.kind)
         ? {...card, summary: `${card.actionLabel} · ${card.summary}`}
         : card)
       .map(card => {
-        // 버킷의 수명 필드는 그 버킷이 소유한다 — 기본 버킷은 채널의 평탄 필드,
-        // 명시 버킷은 자기 buckets.<action> 경로. 확장 도구의 페인이 이 name 으로 직접 쓴다.
+        // A bucket's lifetime fields belong to that bucket — the channel's flat fields for the default bucket,
+        // its own buckets.<action> path for an explicit one. The extend dialog's pane writes through this name directly.
         const lifecycle = bucketLifecycle(item, card.kind === 'selfModifiers' ? 'self' : 'target', card.action);
         const bucketFields = {
           disableName: `${lifecycle.path}.disable`,
@@ -784,37 +806,37 @@
           bucketPath: lifecycle.path,
           channel: card.kind === 'selfModifiers' ? 'self' : 'target',
           channelOptions,
-          // 발현 타이밍은 대상 채널의 버킷만 자기 것을 가질 수 있다. 자기 채널의 발현은
-          // active.state 플래그 하나라 버킷마다 다른 시점이 있을 수 없으므로, 명시 버킷
-          // 페인에는 아예 내주지 않는다(읽는 곳이 없는 필드를 고르게 두면 안 걸리는 저작이 된다).
+          // Only a target-channel bucket can have its own trigger timing. Self-channel triggering is a single
+          // active.state flag, so there cannot be a different moment per bucket — an explicit bucket's pane does
+          // not offer the field at all (offering a field nothing reads produces authoring that never applies).
           showRunTiming: card.kind === 'targetModifiers' || lifecycle.isDefault,
           bucketLabel: `${localize(card.kind === 'selfModifiers' ? 'DX3rd.Self' : 'DX3rd.Target')} · ${card.actionLabel}`
         };
         if (card.kind === 'targetModifiers') {
           return {...card, ...bucketFields, editor: 'modifiers', toggleable: false, actionOptions};
         }
-        // 켜고 끌 것이 있는 쪽은 활성화 버킷뿐이다. 동결 버킷(사용/공격 시)의 상태는 AE 에
-        // 있고 active.state 는 쓰지 않는데도 체크박스를 내주면, 그걸 켠 아이템은 이중
-        // 가산되거나(장비 자체계산 + 동결 AE) 발동 게이트에 걸려 사용해도 아무 일이 없었다.
-        // 상시로 쓰고 싶으면 그 카드의 「발현 액션」을 '활성화'로 바꾸면 체크박스가 나타난다.
+        // Only the activation bucket has anything to turn on and off. A frozen bucket's (on use / on attack) state
+        // lives in the AE and does not use active.state, so offering a checkbox there made an item turned on that way
+        // either count twice (equipment self-computation + the frozen AE) or hit the trigger gate and do nothing on use.
+        // To use it as always-on, change that card's "trigger action" to 'activation' and the checkbox appears.
         return {
           ...card, ...bucketFields,
           editor: 'modifiers', toggleable: card.action === 'activation',
           actionOptions: selfActionOptions,
-          // active(카드가 살아 있는가)는 여기서 손보지 않는다 — collectPersistent 가 버킷별로
-          // 이미 판정한다. 시트에서만 덧칠했더니 같은 카드가 hasActionEffects 에는 죽은 것으로
-          // 보여, 선언형 무기의 「사용」 진입점이 열리지 않았다.
-          // 장비의 상시 버킷은 '활성화 시'가 아니라 장착이 상태의 원본이다.
+          // active (is the card alive) is not touched up here — collectPersistent already decides it per bucket.
+          // Painting over it only on the sheet made the same card look dead to hasActionEffects, so a declaration
+          // weapon's "use" entry point never opened.
+          // For equipment, an always-on bucket's state comes from being equipped, not from "on activation".
           triggerLabel: isEquipment && card.action === 'activation'
             ? localize('DX3rd.EffectTriggerEquipped')
             : card.triggerLabel
         };
       });
-    // 확장 도구는 카드(=버킷)마다 페인 한 장이다. 행이 없는 채널도 기본 버킷 페인은 남겨
-    // 첫 보정을 넣을 자리를 준다. **행의 소속을 고르는 드롭다운은 없다** — 행은 자기가 추가된
-    // 카드의 것이고, 카드의 두 축(적용 대상 · 발현 액션)은 시트 카드에서 고른다. 페인 안이나
-    // 행마다 같은 축을 또 내주면 한 축을 세 군데서 고르게 되어 어느 값이 실제로 걸리는지
-    // 알 수 없다(그 상태가 실제로 오작동을 냈다).
+    // The extend dialog has one pane per card (= bucket). A channel with no rows keeps its default-bucket pane so
+    // there is somewhere to put the first modifier. **There is no dropdown for choosing a row's bucket** — a row
+    // belongs to the card it was added to, and a card's two axes (who it applies to · the trigger action) are chosen
+    // on the sheet card. Offering the same axis again inside the pane or per row would mean choosing one axis in three
+    // places, leaving it impossible to tell which value actually applies (that state really did misbehave).
     const bucketPaneFor = (channel, action) => {
       const drawnCard = modifierCards.find(card =>
         (card.kind === 'selfModifiers' ? 'self' : 'target') === channel && card.action === action);
@@ -828,7 +850,7 @@
         bucketPath: lifecycle.path,
         showRunTiming: channel === 'target' || lifecycle.isDefault,
         bucketLabel: `${localize(channel === 'self' ? 'DX3rd.Self' : 'DX3rd.Target')} · ${actionLabel(action)}`
-        // actionOptions 는 시트 카드만 쓴다 — 확장 도구 페인은 발현 액션을 고르지 않는다.
+        // actionOptions is used by the sheet card only — the extend pane does not choose a trigger action.
       };
     };
     const bucketPanes = [];
@@ -844,7 +866,7 @@
         bucketPanes.push({...bucketPaneFor(channel, fallbackAction), isSelf: channel === 'self'});
       }
     }
-    // 보정 행 목록. 행마다 소속 버킷을 들려 보낸다(계산·필터용이며, 고르는 UI 는 없다).
+    // The modifier row list. Each row carries its owning bucket (for calculation and filtering; there is no UI to pick it).
     const allRows = ['self', 'target'].flatMap(channel =>
       attributeEntries(attributeMap(item, channel)).map(([key, entry]) => ({
         key, attr: entry,
@@ -852,10 +874,10 @@
         path: channel === 'self' ? `system.attributes.${key}` : `system.effect.attributes.${key}`,
         bucket: bucketId(item, channel, attributeAction(item, channel, entry))
       })));
-    // 그리고 **버킷마다 자기 행만** 들고 있어야 한다. 카드를 발현 액션별로 갈라 놓고 행 목록을
-    // 한 벌 공유하면 「활성화」 카드를 열어도 「사용 시」 카드의 행이 그대로 실려, 카드를 나눈
-    // 의미가 사라진다(어느 카드를 편집하는지도 알 수 없다). 행을 다른 카드로 옮기려면 그
-    // 카드의 축(적용 대상/발현 액션)을 바꾸거나, 옮길 카드에서 다시 추가한다.
+    // And **each bucket must hold only its own rows**. Splitting the cards by trigger action while sharing one row
+    // list means opening the "activation" card still shows the "on use" card's rows, so splitting the cards means
+    // nothing (and you cannot even tell which card you are editing). To move a row to another card, change that
+    // card's axis (who it applies to / the trigger action), or add it again from the target card.
     modifierOverview.buckets = bucketPanes.map(pane =>
       ({...pane, rows: allRows.filter(row => row.bucket === pane.id)}));
     modifierOverview.rows = allRows;
@@ -863,8 +885,8 @@
       modifierOverview.initialScope = bucketPanes[0]?.id || 'modifiers.self';
     }
     const immediateAddOptions = DIRECT_TYPES.map(type => ({value: type, label: directTitle(type)}));
-    // 지속 효과 보정 카드는 버킷 한 개다 — 추가하면 그 채널에서 아직 안 쓰는 발현 액션으로
-    // 새 카드가 생긴다. 더 만들 발현 액션이 없을 때만 "추가됨"으로 비활성화한다.
+    // A persistent-modifier card is one bucket — adding one creates a new card with a trigger action not yet used
+    // in that channel. It is disabled as "already added" only when there is no trigger action left to create.
     const addedLabel = localize('DX3rd.AlreadyAdded');
     const bucketSlotsLeft = freeBucketActions(item, 'self').length + freeBucketActions(item, 'target').length;
     const persistentAddOptions = [
@@ -884,13 +906,13 @@
 
   function extensionActionMatches(item, kind, data, action, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
-    return inferAction(item, kind, data) === expected;
+    return actionCoversBucket(item, expected, inferAction(item, kind, data));
   }
 
   /**
-   * 대상 보정을 지금 발현 액션에서 걸어야 하는가.
-   * 채널 기본이 다르더라도, 항목 하나라도 그 액션으로 **명시 저작**돼 있으면 통과시킨다 —
-   * 그렇지 않으면 항목별 발현 액션을 저작해도 채널 게이트에서 통째로 막힌다.
+   * Should the target modifiers be applied for the current trigger action?
+   * Even when the channel default differs, a single row **explicitly authored** with that action lets it through —
+   * otherwise authoring a per-row trigger action would still be blocked wholesale by the channel gate.
    */
   function targetActionMatches(item, action, timing = 'instant') {
     if (extensionActionMatches(item, 'targetModifiers', item.system?.effect || {}, action, timing)) return true;
@@ -902,7 +924,7 @@
     return extensionActionMatches(item, 'macro', macro || {}, action, timing);
   }
 
-  /** 액션과 무관하게 선택 대상이 필요한 활성 효과가 하나라도 있는가(콤보 멤버 사전 검사용). */
+  /** Is there any active effect that needs a selected target, regardless of action? (a pre-check for combo members) */
   function requiresAnyTarget(item) {
     return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
       card.active && ['targetToken', 'damagedTargets'].includes(card.target));
@@ -911,10 +933,11 @@
   function requiresTarget(item, action = invocationAction(item)) {
     const expected = normalizeAction(action) || invocationAction(item);
     const targetCards = collectPersistent(item).filter(card => card.kind === 'targetModifiers');
-    if (targetCards.some(card => card.active && card.action === expected
+    if (targetCards.some(card => card.active && actionCoversBucket(item, expected, card.action)
       && ['targetToken', 'damagedTargets'].includes(card.target))) return true;
     return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
-      card.active && card.action === expected && ['targetToken', 'damagedTargets'].includes(card.target));
+      card.active && actionCoversBucket(item, expected, card.action)
+      && ['targetToken', 'damagedTargets'].includes(card.target));
   }
 
   function hasActionEffects(item, action) {
@@ -936,7 +959,7 @@
     return hasActionEffects(item, parent) ? parent : intrinsic;
   }
 
-  /** 채널 자체의 발현 액션을 옮기는 갱신 데이터(기본 버킷을 옮길 때만 쓴다). */
+  /** The update data that moves the channel's own trigger action (used only when moving the default bucket). */
   function channelActionUpdates(channel, action) {
     if (channel === 'self') {
       return {
@@ -952,13 +975,13 @@
   }
 
   /**
-   * 보정 버킷 하나의 발현 액션을 바꾼다.
-   *  · 기본 버킷(id 에 @액션 이 없는 카드) — 채널 자체를 옮긴다(지금까지의 동작). 이 버킷에
-   *    있던 명시 저작은 채널과 같은 값이었으므로 지워, 옮긴 채널을 함께 따라가게 한다.
-   *  · 명시 버킷(id 가 modifiers.self@use 같은 카드) — 그 항목들만 옮긴다. 새 액션이 채널
-   *    기본과 같아지면 명시를 지워 기본 버킷으로 합친다(카드가 두 장으로 갈라지지 않게).
+   * Change one modifier bucket's trigger action.
+   *  · A default bucket (a card whose id has no @action) — the channel itself moves (the behavior so far). Explicit
+   *    authoring in this bucket had the same value as the channel, so it is cleared to follow the moved channel.
+   *  · An explicit bucket (a card whose id is like modifiers.self@use) — only those rows move. When the new action
+   *    equals the channel default, the explicit value is cleared so it merges into the default bucket (rather than splitting into two cards).
    */
-  /** 버킷 수명 오버라이드(buckets.<action>) 삭제 갱신. v13/v14 삭제 표기를 함께 지원한다. */
+  /** The update that deletes a bucket lifetime override (buckets.<action>). Supports both the v13 and v14 deletion notations. */
   function bucketOverrideDeletion(channel, action) {
     const root = channel === 'self' ? 'system.active' : 'system.effect';
     const ForcedDeletion = foundry.data?.operators?.ForcedDeletion;
@@ -975,8 +998,8 @@
     const explicitBucket = normalizeAction(bucketSuffix);
     const current = explicitBucket || channelAction(item, channel);
     if (current === action) return true;
-    // 옮기기 전의 수명(발현·소멸 타이밍)을 새 자리로 들고 간다 — 발현 액션만 바꿨는데
-    // 타이밍이 채널 기본으로 되돌아가면 카드가 조용히 다른 시점에 걸린다.
+    // Carry the pre-move lifetime (trigger and expiry timing) to the new place — changing only the trigger action
+    // while the timing reverts to the channel default would silently fire the card at a different moment.
     const carried = bucketLifecycle(item, channel, current);
 
     const updates = {};
@@ -988,11 +1011,11 @@
         updates[`${path}.${key}.action`] = merged ? '' : action;
       }
       if (!Object.keys(updates).length) return false;
-      // 기본 버킷으로 합쳐지면 그 채널의 평탄 필드가 수명의 주인이 된다(오버라이드는 버린다).
+      // Once merged into the default bucket, the channel's flat fields own the lifetime (the override is discarded).
       if (!merged) {
         updates[`${root}.buckets.${action}.disable`] = carried.disable;
-        // 발현 타이밍을 버킷이 가질 수 있는 것은 대상 채널뿐이다 — 자기 채널의 발현은
-        // active.state 플래그 하나로 표현되므로 버킷마다 다른 시점을 가질 수가 없다.
+        // Only a target channel can have a per-bucket trigger timing — self-channel triggering is expressed by the
+        // single active.state flag, so it cannot have a different moment per bucket.
         if (channel === 'target' && action !== 'activation') {
           updates[`${root}.buckets.${action}.runTiming`] = carried.runTiming;
         }
@@ -1007,8 +1030,8 @@
       if (explicitAction(item, channel, entry) === current) updates[`${path}.${key}.action`] = '';
     }
     await item.update(updates);
-    // 옮겨 온 액션에 이미 명시 버킷이 있었다면 그것은 이제 기본 버킷이다 — 채널의 평탄 필드가
-    // 수명의 주인이므로 오버라이드를 지운다(두 버킷이 한 카드로 합쳐진다).
+    // If the action moved to already had an explicit bucket, that is now the default bucket — the channel's flat
+    // fields own the lifetime, so the override is deleted (the two buckets merge into one card).
     if ((item.system?.[channel === 'self' ? 'active' : 'effect']?.buckets || {})[action]) {
       await item.update(bucketOverrideDeletion(channel, action));
     }
@@ -1022,18 +1045,18 @@
   }
 
   /**
-   * 보정 카드의 적용 대상(채널)을 바꾼다 — 그 카드의 행 전부를 같은 발현 액션을 가진
-   * 반대 채널의 버킷으로 옮긴다. 카드 = 버킷이므로 축을 바꾸면 카드 id 도 바뀐다
-   * (호출부가 새 id 를 기억해야 펴 둔 페인이 유지된다).
+   * Change a modifier card's target channel — move every row of that card to the bucket with the same trigger
+   * action in the opposite channel. Card = bucket, so changing an axis changes the card id too
+   * (the caller must remember the new id for the open pane to stay open).
    *
-   * 수명은 들고 가지 않는다. 자기 보정(system.active.*)과 대상 보정(system.effect.*)은 수명
-   * 필드가 애초에 다른 축이고, 목적지에서는 그 채널의 규칙(기본 버킷 = 평탄 필드, 명시 버킷 =
-   * 채널 상속)이 주인이어야 한다 — 옮겨 온 값을 덮어쓰면 그 채널에 원래 있던 행의 수명까지
-   * 같이 바뀐다.
+   * The lifetime is not carried over. Self modifiers (system.active.*) and target modifiers (system.effect.*) have
+   * lifetime fields on different axes to begin with, and at the destination that channel's rule must own them
+   * (default bucket = the flat fields, explicit bucket = inherited from the channel) — overwriting with the carried
+   * value would also change the lifetime of the rows already in that channel.
    *
-   * 목적지에 같은 발현 액션의 카드가 이미 있으면 두 카드는 **합쳐진다** — 같은 채널 × 같은
-   * 액션은 정의상 한 버킷이다. 카드가 사라진 것처럼 보이므로 합쳐졌다는 사실을 반환값으로
-   * 알려 호출부가 알릴 수 있게 한다.
+   * When the destination already has a card with the same trigger action, the two cards **merge** — the same channel ×
+   * the same action is one bucket by definition. It looks like a card disappeared, so the merge is reported in the
+   * return value for the caller to announce.
    */
   async function updateModifierChannel(item, id, channel) {
     if (!item) return null;
@@ -1049,7 +1072,7 @@
     const merged = attributeEntries(attributeMap(item, to))
       .some(([, entry]) => attributeAction(item, to, entry) === action);
     for (const key of keys) await moveModifierToBucket(item, key, id, toId);
-    // 명시 버킷을 통째로 비웠으면 그 수명 오버라이드는 주인 없는 값이다.
+    // Emptying an explicit bucket entirely leaves its lifetime override without an owner.
     if (!from.isDefault) await item.update(bucketOverrideDeletion(from.channel, action));
     return {id: bucketId(item, to, action), merged};
   }
@@ -1101,8 +1124,8 @@
 
   async function toggleEffect(item, id, active) {
     if (!item) return false;
-    // 'modifiers' 는 자신/대상이 한 장이던 시절의 카드 id 다. 분리 후에도 남겨 둔다 —
-    // 켜고 끄는 대상은 어느 버킷이든 자기 보정의 상태(system.active.state) 하나뿐이다.
+    // 'modifiers' is the card id from when self and target were one card. It is kept after the split —
+    // whichever bucket, what gets turned on and off is the one self-modifier state (system.active.state).
     if (id === 'modifiers' || String(id).startsWith('modifiers.self')) {
       const selfCount = Object.keys(item.system?.attributes || {}).length;
       if (!selfCount) return false;
@@ -1196,10 +1219,10 @@
   }
 
   /**
-   * 지속 보정 버킷(=카드)을 새로 만든다. 채널에서 아직 안 쓰는 발현 액션 하나를 잡아 빈 보정
-   * 한 줄을 그 액션으로 저작하고, 수명 필드를 채널 값에서 복사해 자기 것으로 갖게 한다.
-   * 채널 기본 버킷이 아직 비어 있으면 새 버킷을 만들지 않고 그 자리에 줄을 넣는다 —
-   * 첫 보정을 추가하는 흐름(지금까지의 동작)이 그대로 유지된다.
+   * Create a new persistent-modifier bucket (= card). It takes a trigger action not yet used in the channel,
+   * authors one empty modifier row with that action, and copies the lifetime fields from the channel so the bucket owns its own.
+   * When the channel's default bucket is still empty, no new bucket is created and the row goes there instead —
+   * the "add your first modifier" flow (the behavior so far) is preserved.
    */
   async function addModifierBucket(item, channel = null, action = null) {
     if (!item) return null;
@@ -1209,7 +1232,7 @@
       const existing = modifierBuckets(item).filter(bucket => bucket.channel === chan);
       const fallbackAction = channelAction(item, chan);
       const key = foundry.utils.randomID();
-      // 기본 버킷이 비어 있으면 거기에 넣는다(action 미지정 = 채널 상속).
+      // Put it in the default bucket when that one is empty (no action = inherit from the channel).
       if (!existing.some(bucket => bucket.action === fallbackAction)) {
         await item.update({[`${path}.${key}`]: {key: '-', label: '-', value: '', action: ''}});
         return bucketId(item, chan, fallbackAction);
@@ -1230,7 +1253,7 @@
     return null;
   }
 
-  /** 명시 버킷 하나를 지운다(그 버킷의 보정 행 + 수명 오버라이드). 기본 버킷은 지울 수 없다. */
+  /** Delete one explicit bucket (its modifier rows plus the lifetime override). A default bucket cannot be deleted. */
   async function deleteModifierBucket(item, id) {
     const {channel, isDefault, action} = parseBucketId(item, id);
     if (isDefault) return false;
@@ -1288,9 +1311,9 @@
   }
 
   /**
-   * 보정 행을 자신↔대상 채널로 옮긴다.
-   * @param {string} [action] 옮긴 자리에서 찍을 발현 액션('' = 채널 기본 상속).
-   * @returns {Promise<string|false>} 옮긴 자리의 키(채널 안에서 키가 겹치면 새로 발급된다).
+   * Move a modifier row between the self and target channels.
+   * @param {string} [action] the trigger action to stamp at the destination ('' = inherit the channel default).
+   * @returns {Promise<string|false>} the key at the destination (a new one is issued when the key collides within the channel).
    */
   async function moveModifier(item, attributeKey, source, target, action = undefined) {
     if (!item || !attributeKey || source === target) return false;
@@ -1311,8 +1334,8 @@
     if (ForcedDeletion) updates[sourceParent] = {[attributeKey]: new ForcedDeletion()};
     else updates[`${sourceParent}.-=${attributeKey}`] = null;
 
-    // 대상을 고른 첫 순간부터 실제 적용 가능한 기본 상태로 만든다. 이후 수명과
-    // 장면 대상 여부는 통합 채널 설정에서 사용자가 계속 조절할 수 있다.
+    // From the moment a target is chosen, put it in a state that can actually apply. The lifetime and whether
+    // it is scene-targeted stay adjustable by the user in the shared channel settings.
     if (target === 'sub') {
       if (item.system?.effect?.disable === 'notCheck') updates['system.effect.disable'] = '-';
       if (!item.system?.scene) updates['system.getTarget'] = true;
@@ -1322,9 +1345,9 @@
   }
 
   /**
-   * 보정 행의 소속 버킷을 바꾼다(채널 이동 + 발현 액션 태깅을 한 번에).
-   * 확장 도구의 행별 선택이 이것 하나만 부른다 — 자신/대상 드롭다운과 발현 액션 드롭다운을
-   * 따로 두면 같은 행에 두 번 손대야 하고, 그 사이 상태가 어긋난 버킷이 생긴다.
+   * Change a modifier row's owning bucket (the channel move and the trigger-action tagging in one).
+   * The extend dialog's per-row choice calls only this — keeping the self/target dropdown and the trigger-action
+   * dropdown separate would mean touching the same row twice, with a mismatched bucket state in between.
    */
   async function moveModifierToBucket(item, attributeKey, fromId, toId) {
     if (!item || !attributeKey || String(fromId) === String(toId)) return false;
@@ -1347,9 +1370,9 @@
     if (typeof loadTemplatesCompat === 'function') await loadTemplatesCompat(PARTIALS);
   });
 
-  // 장착/활성 토글은 기존 문서 상태가 진실의 원본이다. 그 상태가 false→true로
-  // 바뀐 순간에만 '활성화'로 묶인 기존 실행기들을 호출해, 별도 효과 엔진 없이
-  // 세 번째 발현 액션을 완성한다. userId로 발신 클라이언트 한 곳만 실행한다.
+  // For an equip / active toggle the existing document state is the source of truth. Only the moment that state
+  // flips false→true are the existing executors bound to 'activation' called, completing the third trigger action
+  // without a separate effect engine. userId restricts execution to the originating client alone.
   Hooks.on('updateItem', async (item, changed, options, userId) => {
     if (userId && userId !== game.user?.id) return;
     const actor = item?.parent;
@@ -1357,13 +1380,15 @@
     const changedValue = path => Object.prototype.hasOwnProperty.call(changed || {}, path)
       ? changed[path]
       : foundry.utils.getProperty(changed, path);
-    const activeOn = changedValue('system.active.state') === true;
+    const activeState = changedValue('system.active.state');
+    const activeOn = activeState === true;
+    const activeOff = activeState === false;
     const equipmentChange = changedValue('system.equipment');
     const equippedOn = equipmentChange === true;
     const equippedOff = equipmentChange === false;
 
-    // 장비가 제공하는 상태(현재는 비행)는 장착 여부가 원본이다. 같은 상태를 제공하는
-    // 다른 장비가 남아 있으면 한 장비를 해제해도 상태를 끄지 않는다.
+    // A status provided by equipment (currently flight) has being equipped as its source. Unequipping one item
+    // does not clear the status while another item providing the same one is still equipped.
     if (equippedOn || equippedOff) {
       const changedStatuses = item.getFlag?.(SCOPE, 'equipmentStatuses') || [];
       for (const statusId of changedStatuses) {
@@ -1376,21 +1401,21 @@
       }
     }
 
-    // 장비 보너스(system.attributes)는 actor.prepareData가 active.state를 기준으로 소비한다.
-    // 활성화 액션으로 묶인 장비의 장착 상태를 이 원본 상태와 동기화하고, true 갱신에서
-    // 다시 들어온 훅 한 번만 나머지 활성화 효과를 실행한다.
+    // Equipment bonuses (system.attributes) are consumed by actor.prepareData based on active.state.
+    // The equipped state of gear bound to the activation action is synced to that source state, and only the hook
+    // that comes back in on the true update runs the remaining activation effects.
     const isEquipment = EQUIPMENT_TYPES.includes(item.type);
-    // 장착 해제는 채널과 무관하게 끈다. actor.prepareData 의 activeItems 는 active.state 만
-    // 보고 system.equipment 를 보지 않으므로, 선언(사용)으로 켜 둔 장비 보정이 벗은 뒤에도
-    // 남으면 그대로 새어 나간다.
+    // Unequipping turns it off regardless of channel. actor.prepareData's activeItems looks only at active.state
+    // and never at system.equipment, so gear modifiers turned on by declaration (use) would leak straight through
+    // if they survived being taken off.
     if (isEquipment && equippedOff && item.system?.active?.state === true) {
       await item.update({'system.active.state': false}, {dx3rdActivationFromEquipment: true});
       return;
     }
-    // 장착으로 켜는 것은 상시 채널(applyMode 'toggle')뿐이다 — 선언형(onUse)은
-    // 사용 시점에 handleItemUse 가 켠다(inferAction 의 장비 분기 주석 참조).
-    // 항목 하나만 「활성화」로 저작한 선언형 장비도 그 버킷을 위해 상태를 켜야 한다
-    // (usesActivationSelfChannel 이 명시 버킷까지 본다).
+    // Only the always-on channel (applyMode 'toggle') is turned on by equipping — a declaration type (onUse) is
+    // turned on by handleItemUse at use time (see the equipment branch comment in inferAction).
+    // Declaration gear with even one row authored as "activation" must turn the state on for that bucket too
+    // (usesActivationSelfChannel looks at explicit buckets as well).
     const equipmentSelfActivation = isEquipment
       && usesActivationSelfChannel(item)
       && item.system?.active?.disable !== 'notCheck';
@@ -1398,9 +1423,17 @@
       await item.update({'system.active.state': true}, {dx3rdActivationFromEquipment: true});
       return;
     }
-    if (!activeOn && !equippedOn) return;
     const handler = window.DX3rdUniversalHandler;
     if (!handler) return;
+    // Switching the activation off is the same event as deleting the marker for whatever that activation created:
+    // an activation-bound creation ("활성화" on the card) lives exactly as long as the item is on. Creations made by
+    // *using* the item keep their own lifetime and are left alone (clearActivationGrants filters on the action).
+    if (activeOff) {
+      try { await handler.clearActivationGrants?.(actor, item); }
+      catch (error) { console.error('DX3rd | activation grant cleanup failed:', item?.name, error); }
+      return;
+    }
+    if (!activeOn && !equippedOn) return;
     try {
       await handler.executeMacros(item, 'instant', 'activation');
       await handler.applyToTargets(actor, item, 'instant', null, 'activation');
@@ -1412,6 +1445,85 @@
     }
   });
 
+  // ---- Defence bypass ------------------------------------------------------------------
+  // "이 이펙트를 조합한 공격에 대해서는 가드를 실행할 수 없다" and its two siblings. Three axes,
+  // because the rules print three and the counters key off which one was used.
+
+  const BYPASS_AXES = ['armor', 'guard', 'reaction'];
+  const RESTORE_AXES = ['armor', 'guard', 'reaction'];
+
+  function readFlags(source, axes) {
+    const out = {};
+    for (const axis of axes) out[axis] = source?.[axis] === true;
+    return out;
+  }
+
+  /** What this one item says the attack ignores. @returns {{armor: boolean, guard: boolean, reaction: boolean}} */
+  function bypassDefense(item) {
+    return readFlags(item?.system?.bypassDefense, BYPASS_AXES);
+  }
+
+  /** What this one item says it gives back. @returns {{armor: boolean, guard: boolean, reaction: boolean}} */
+  function restoreDefense(item) {
+    return readFlags(item?.system?.restoreDefense, RESTORE_AXES);
+  }
+
+  function registeredWeapons(actor, item) {
+    const ids = Array.isArray(item?.system?.weapon) ? item.system.weapon : [];
+    return ids.map(id => actor?.items?.get?.(String(id ?? ''))).filter(Boolean);
+  }
+
+  /**
+   * Everything that contributes a bypass to one attack.
+   *
+   * Not just the item used: a combo inherits its members' bypass (that is what "이 이펙트를 조합한
+   * 공격" means), and it inherits the registered weapon's too — 《레일 건》 and 《디스트로이어》 print
+   * "가드를 실행할 수 없다" on the weapon, so firing them through a combo must carry it along.
+   */
+  function bypassSources(actor, item) {
+    if (!item) return [];
+    const members = window.DX3rdUniversalHandler?.comboMemberItems?.(actor, item) || [];
+    const heads = [item, ...members];
+    return [...heads, ...heads.flatMap(head => registeredWeapons(actor, head))];
+  }
+
+  /** Union of every bypass taking part in one attack. */
+  function attackBypassDefense(actor, item) {
+    const out = { armor: false, guard: false, reaction: false };
+    for (const source of bypassSources(actor, item)) {
+      const flags = bypassDefense(source);
+      for (const axis of BYPASS_AXES) if (flags[axis]) out[axis] = true;
+    }
+    return out;
+  }
+
+  /**
+   * What the defender may actually do, once the attacker's bypass and the defender's counter are
+   * both accounted for. This is the only place that resolution is written — the defense dialog,
+   * its damage maths and its warnings must all ask here, or they drift apart.
+   *
+   * The asymmetry is the rules text, not an oversight. 《마그넷 체인》《비호하는 짐승》《에너지 실드》 read
+   * "「리액션을 실행할 수 없다」거나 「가드를 실행할 수 없다」는 효과를 가진 공격에 대해서도 **가드를**
+   * 실행할 수 있다" — either bypassed axis opens the guard, and none of them opens the reaction.
+   * Giving the reaction back is a different card: 《전지의 파편》 "…공격에 대해서도 **닷지를** 실행할 수
+   * 있다". So a guard counter never substitutes for a reaction counter, or the other way round.
+   *
+   * @param {{armor: boolean, guard: boolean, reaction: boolean}} bypass  Frozen on the attacker's client.
+   * @param {{armor: boolean, guard: boolean, reaction: boolean}} restore Declared by the defender.
+   */
+  function resolveDefense(bypass = {}, restore = {}) {
+    const guardRestored = restore.guard === true && (bypass.guard === true || bypass.reaction === true);
+    const reactionRestored = restore.reaction === true && bypass.reaction === true;
+    return {
+      // 《이지스 링》: "장갑치가 유효한 상태로 데미지를 산출한다".
+      armorIgnored: bypass.armor === true && restore.armor !== true,
+      guardBlocked: bypass.guard === true && !guardRestored,
+      reactionBlocked: bypass.reaction === true && !reactionRestored,
+      guardRestored,
+      reactionRestored
+    };
+  }
+
   window.DX3rdItemEffectAdapter = {
     ACTIONS, DIRECT_TYPES, PARTIALS,
     isAttackItem, effectAttackBonus, mergeAttackBonuses, invocationAction, eventAction, inferAction, triggerFor,
@@ -1420,11 +1532,14 @@
     extensionActionMatches, targetActionMatches, macroActionMatches, requiresTarget, requiresAnyTarget, extensionEntries,
     hasActionEffects, comboMemberAction, updateAction, toggleEffect, addEffect, deleteEffect, moveModifier,
     directTitle, isConfiguredCondition,
-    // 지속 효과 버킷(카드 = 채널 × 발현 액션, 카드마다 자기 발현·소멸 타이밍)
+    // The persistent-effect buckets (card = channel × trigger action, each card with its own trigger and expiry timing)
     channelAction, attributeAction, selfChannelIsToggle, appliesWhileActive, hasExplicitBucket,
+    actionCoversBucket,
     selfToggleBucketMatches,
     selfFrozenAttributes, selfBucketAttributes, hasFrozenSelfBucket, targetBucketAttributes, modifierBuckets, actionLabel,
     bucketLifecycle, selfFiresAt, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
-    addModifierBucket, deleteModifierBucket, moveModifierToBucket, updateModifierChannel
+    addModifierBucket, deleteModifierBucket, moveModifierToBucket, updateModifierChannel,
+    // Defence bypass (attacker) and its counter (defender)
+    BYPASS_AXES, RESTORE_AXES, bypassDefense, restoreDefense, attackBypassDefense, resolveDefense
   };
 })();

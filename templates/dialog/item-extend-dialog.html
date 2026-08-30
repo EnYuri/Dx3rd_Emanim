@@ -4,7 +4,7 @@
 <div class="top-tabs">
     <button type="button" class="top-tab" data-tab="affectCharacter">{{localize "DX3rd.AffectCharacter"}}</button>
     <button type="button" class="top-tab" data-tab="createItem">{{localize "DX3rd.CreateItem"}}</button>
-    {{#ifEquals item.type "effect"}}<button type="button" class="top-tab" data-tab="other">{{localize "DX3rd.Other"}}</button>{{/ifEquals}}
+    <button type="button" class="top-tab" data-tab="other">{{localize "DX3rd.Other"}}</button>
 </div>
 
 <!-- Sub Navigation -->
@@ -26,11 +26,12 @@
         <button type="button" class="sub-tab" data-tab="vehicle">{{localize "DX3rd.Vehicle"}}</button>
     </div>
 
-    {{#ifEquals item.type "effect"}}
     <div class="sub-tabs" id="other-sub-tabs">
+        {{#ifEquals item.type "effect"}}
         <button type="button" class="sub-tab" data-tab="effectSettings">{{localize "DX3rd.EffectAdvancedSettings"}}</button>
+        {{/ifEquals}}
+        <button type="button" class="sub-tab" data-tab="defenseBypass">{{localize "DX3rd.BypassDefenseLabel"}}</button>
     </div>
-    {{/ifEquals}}
 </div>
 {{/unless}}
 
@@ -142,6 +143,41 @@
     </section>
     {{/if}}
     {{/ifEquals}}
+
+    {{!-- 방어 무시와 그 무효화. 공격자 3축(장갑/가드/리액션)과 방어자 2축이 한 판에 있는 것은
+         둘이 짝이기 때문이다 — 무엇을 무시당했는지가 어느 무효화가 듣는지를 정한다.
+         전 타입에 뜬다: 《레일 건》은 무기, 《이지스 링》은 소지품, 《No.59》는 D로이스다. --}}
+    {{#if showDefenseBypass}}
+    <section class="content-section" id="defenseBypass-content">
+        <div class="form-grid">
+            <div class="form-label" title="{{localize "DX3rd.BypassDefenseArmorHint"}}">{{localize "DX3rd.BypassDefenseArmor"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="bypassDefenseArmor" {{#if item.system.bypassDefense.armor}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.BypassDefenseGuardHint"}}">{{localize "DX3rd.BypassDefenseGuard"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="bypassDefenseGuard" {{#if item.system.bypassDefense.guard}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.BypassDefenseReactionHint"}}">{{localize "DX3rd.BypassDefenseReaction"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="bypassDefenseReaction" {{#if item.system.bypassDefense.reaction}}checked{{/if}}>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RestoreDefenseArmorHint"}}">{{localize "DX3rd.RestoreDefenseArmor"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="restoreDefenseArmor" {{#if item.system.restoreDefense.armor}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RestoreDefenseGuardHint"}}">{{localize "DX3rd.RestoreDefenseGuard"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="restoreDefenseGuard" {{#if item.system.restoreDefense.guard}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RestoreDefenseReactionHint"}}">{{localize "DX3rd.RestoreDefenseReaction"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="restoreDefenseReaction" {{#if item.system.restoreDefense.reaction}}checked{{/if}}>
+            </div>
+        </div>
+    </section>
+    {{/if}}
 
     <!-- HP Recovery Tab -->
     {{#if showHeal}}

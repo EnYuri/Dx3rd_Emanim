@@ -2868,6 +2868,23 @@ body.fe-retro-theme .dx3rd-emanim prose-mirror .ProseMirror * {
     font-size: 14px;
 }
 
+/* 장비 변경 표식을 겸하는 행: 지우면 보정만이 아니라 그 아이템이 만든 것까지 회수된다는 뜻이므로
+   왼쪽 띠와 꼬리표로 구분한다. 보정 AE 가 없는 생성 전용 아이템의 단독 표식 행도 같은 표기를 쓴다. */
+.dx3rd-emanim .applied-item.applied-grant-item {
+    border-left: 3px solid rgba(200, 160, 60, 0.9);
+    padding-left: 5px;
+}
+
+.dx3rd-emanim .applied-item .applied-grant-badge {
+    font-size: 12px;
+    vertical-align: middle;
+    padding: 1px 6px;
+    border: 1px solid rgba(200, 160, 60, 0.9);
+    border-radius: 8px;
+    color: rgba(150, 115, 30, 1);
+    white-space: nowrap;
+}
+
 /* 숨기기·편집·제거 버튼: 이펙트 탭과 동일한 모노톤 아이콘(테두리·배경 없음) */
 .dx3rd-emanim .applied-item .applied-controls {
     display: flex;
@@ -3889,4 +3906,67 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
     color: #999 !important;
     font-style: italic !important;
     margin: 0 !important;
+}
+
+/* Defence bypass notice in the defense dialog. Only rendered when the attack actually
+   bypasses something, so it never takes room in an ordinary defense. */
+.dx3rd-bypass-section {
+  margin: 6px 0 4px;
+  padding: 6px 8px;
+  border: 1px solid rgba(180, 40, 40, 0.55);
+  border-radius: 4px;
+  background: rgba(180, 40, 40, 0.08);
+}
+
+.dx3rd-bypass-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.dx3rd-bypass-tag {
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(180, 40, 40, 0.75);
+  color: #fff;
+  font-weight: bold;
+}
+
+.dx3rd-bypass-restores {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 5px;
+}
+
+.dx3rd-bypass-restore {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Same convention as the reaction dropdown: an exhausted entry stays selectable
+   (the world setting decides whether it blocks) but reads as spent. */
+.dx3rd-bypass-restore.is-exhausted {
+  opacity: 0.6;
+}
+
+/* A soft lock: the defense input the attack bypasses, drawn as if disabled but still usable.
+   Which of the two it gets is the `allowDefenseBypassViolation` gate's call — the same axis as every
+   other usage gate, where the default warns instead of blocking. The tooltip carries the reason. */
+.application.dialog.dx3rd-emanim .dx3rd-soft-locked,
+.dx3rd-emanim .dx3rd-soft-locked {
+  opacity: 0.45;
+  border-style: dashed;
+  cursor: help;
+}
+
+.application.dialog.dx3rd-emanim .dx3rd-soft-locked:hover,
+.application.dialog.dx3rd-emanim .dx3rd-soft-locked:focus {
+  opacity: 1;
 }

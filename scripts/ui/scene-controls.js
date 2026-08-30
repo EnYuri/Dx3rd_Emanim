@@ -1,20 +1,20 @@
 /**
- * Double Cross 3rd - 씬 컨트롤 툴바
- * main.js 에서 분리. 좌측 씬 컨트롤에 등장/충동/공포 판정 도구를 추가하고
- * 그 선택 다이얼로그와 판정 절차를 담당한다.
+ * Double Cross 3rd - the scene control toolbar
+ * Split out of main.js. It adds the appearance / impulse / fear roll tools to the left scene controls and owns
+ * their selection dialog and roll procedures.
  */
 
 /**
- * 장면 등장에 따른 침식률 상승을 적용하고 결과를 채팅에 출력한다.
- * `entryEncroachment` 설정이 켜져 있으면 +1 고정, 꺼져 있으면 1d10 굴림으로 처리한다.
- * 씬 컨트롤의 등장 도구와 장면 개막 다이얼로그가 공유한다.
+ * Apply the encroachment rise from appearing in a scene and print the result to chat.
+ * With the `entryEncroachment` setting on it is a fixed +1; with it off, a 1d10 roll.
+ * Shared by the scene control's appearance tool and the scene opening dialog.
  * @param {Actor} character
  */
 async function dx3rdApplyEntryEncroachment(character) {
     const speaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(character);
     const useFixedValue = game.settings.get('dx3rd-emanim', 'entryEncroachment');
 
-    // 고정값이 아니면 1d10을 굴려 상승분을 정한다.
+    // When it is not a fixed value, roll 1d10 to decide the rise.
     let roll = null;
     let increase = 1;
     if (!useFixedValue) {
@@ -37,31 +37,31 @@ async function dx3rdApplyEntryEncroachment(character) {
         speaker
     });
 
-    // 굴림이 있었던 경우에만 주사위 결과를 이어서 출력한다.
+    // The dice result is printed afterwards only when a roll actually happened.
     if (roll) await ChatMessage.create({ speaker, rolls: [roll] });
 }
 
 /**
- * 등장 / 충동 판정 / 공포 판정 선택 다이얼로그를 띄우고 선택된 절차를 실행한다.
- * 씬 컨트롤 툴바와 액터 시트 헤더 버튼이 공유한다.
- * @param {Actor} [preferredActor] - 액터 시트에서 호출한 경우 그 시트의 액터.
- *   지정하면 선택 토큰/할당 캐릭터보다 우선한다.
+ * Show the appearance / impulse roll / fear roll selection dialog and run the chosen procedure.
+ * Shared by the scene control toolbar and the actor sheet's header buttons.
+ * @param {Actor} [preferredActor] - the sheet's actor when called from an actor sheet.
+ *   When given, it takes precedence over the selected token / assigned character.
  */
 function dx3rdOpenEnterSceneDialog(preferredActor = null) {
-    // 등장/충동/공포 판정 선택 다이얼로그 표시 (DOM 방식)
+    // Show the appearance / impulse / fear roll selection dialog (the DOM way)
     const choice = new Promise((resolve) => {
         const onSelect = (selection) => {
             dialog.remove();
             resolve(selection);
         };
 
-        // CRC 스테이지 설정 확인
+        // Check the CRC stage setting
         const stageCRCEnabled = game.settings.get("dx3rd-emanim", "stageCRC");
 
         const dialog = document.createElement("div");
         dialog.id = "dx3rd-urge-dialog";
 
-        // 공포 판정 버튼은 CRC 스테이지 설정이 켜져 있을 때만 표시
+        // The fear roll button is shown only when the CRC stage setting is on
         const panicButtonHTML = stageCRCEnabled ? `
                 <button
                     id="dx3rd-panic-test-button"
@@ -89,14 +89,14 @@ function dx3rdOpenEnterSceneDialog(preferredActor = null) {
             </div>
         `;
 
-        // 이미 열려 있는 다이얼로그는 먼저 치운다.
-        // 겹쳐 두면 id가 중복되어 아래 querySelector가 옛 다이얼로그의 버튼을 잡고,
-        // 위에 보이는 다이얼로그는 리스너가 없어 취소조차 안 되는 상태가 된다.
+        // An already open dialog is cleared away first.
+        // Stacking them duplicates the id, so the querySelector below grabs the old dialog's buttons and the dialog
+        // visible on top has no listeners at all — it cannot even be cancelled.
         document.querySelectorAll("#dx3rd-urge-dialog").forEach(el => el.remove());
 
         document.body.appendChild(dialog);
 
-        // 조회 범위를 이 다이얼로그로 한정한다(document 전역 조회 금지 — 위 중복 문제의 원인).
+        // The lookup is scoped to this dialog (never query the whole document — that is what caused the duplication above).
         dialog.querySelector("#dx3rd-enter-scene-button").addEventListener("click", () => onSelect("enterScene"));
         dialog.querySelector("#dx3rd-urge-test-button").addEventListener("click", () => onSelect("urgeTest"));
         if (stageCRCEnabled) {
@@ -105,11 +105,11 @@ function dx3rdOpenEnterSceneDialog(preferredActor = null) {
         dialog.querySelector("#dx3rd-cancel-button").addEventListener("click", () => onSelect(null));
     });
 
-    // 선택된 항목에 따라 처리
+    // Handle it according to the chosen entry
     choice.then(async (selection) => {
         if (!selection) return;
 
-        // 시트에서 부른 경우 그 액터, 아니면 할당된 캐릭터, 그것도 없으면 선택한 토큰의 액터
+        // The sheet's actor when called from a sheet, else the assigned character, else the selected token's actor
         let character = preferredActor || game.user.character;
         if (!character) {
             const controlledTokens = canvas.tokens?.controlled || [];
@@ -135,11 +135,11 @@ function dx3rdOpenEnterSceneDialog(preferredActor = null) {
 /**
  * @param {'urge'|'panic'} kind
  * @param {Actor} fallbackCharacter
- * @param {boolean} [isExplicitActor] - 액터 시트에서 온 호출이면 true.
- *   이 경우 선택 토큰으로 대상을 덮어쓰지 않는다(시트의 주인이 대상이어야 하므로).
+ * @param {boolean} [isExplicitActor] - true when the call came from an actor sheet.
+ *   In that case the target is not overwritten by the selected token (the sheet's owner has to be the target).
  */
 async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false) {
-    // 선택한 토큰이 있으면 해당 액터 사용, 없으면 할당된 캐릭터 사용
+    // Use the selected token's actor when there is one, otherwise the assigned character
     let targetCharacter = fallbackCharacter;
     const controlledTokens = canvas.tokens?.controlled || [];
     if (!isExplicitActor && controlledTokens.length > 0 && controlledTokens[0].actor) {
@@ -148,7 +148,7 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
     const speaker = window.DX3rdRuntimeUtils.getActorOnlySpeaker(targetCharacter);
     const testLabelKey = kind === 'urge' ? 'DX3rd.UrgeTest' : 'DX3rd.PanicTest';
 
-    // 의지 기능 판정 실행 (없으면 mind로 대체)
+    // Run the Will skill roll (falling back to mind when it is absent)
     let willSkill = targetCharacter.system.attributes.skills?.will;
     let willSkillName = '';
 
@@ -157,7 +157,7 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
             ? game.i18n.localize(willSkill.name)
             : (willSkill.name || game.i18n.localize('DX3rd.will'));
     } else {
-        // 의지 기능이 없으면 mind 능력치 사용
+        // With no Will skill, use the mind attribute
         const mindStat = targetCharacter.system.attributes?.mind;
         if (!mindStat) {
             ui.notifications.warn('의지 기능과 정신 능력치를 찾을 수 없습니다.');
@@ -167,14 +167,14 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
         willSkillName = game.i18n.localize('DX3rd.Mind');
     }
 
-    // 침식률 상승 콜백 함수 정의
+    // Define the encroachment rise callback
     const handleEncroachmentIncrease = async () => {
-        // 2d10 굴리기 (침식률 상승용)
+        // Roll 2d10 (for the encroachment rise)
         const encroachmentRoll = new Roll("2d10");
         await encroachmentRoll.evaluate();
         const rollValue = encroachmentRoll.total;
 
-        // 현재 침식률 가져오기 (숫자로 명시적 변환)
+        // Get the current encroachment (converted to a number explicitly)
         const currentEncroachment = Number(targetCharacter.system.attributes.encroachment.value) || 0;
         const newEncroachment = currentEncroachment + rollValue;
 
@@ -182,7 +182,7 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
             'system.attributes.encroachment.value': newEncroachment
         });
 
-        // GM인 경우 침식률 변화 표시 제거
+        // For a GM, drop the encroachment change display
         const encroachmentText = game.user.isGM
             ? `${game.i18n.localize("DX3rd.Encroachment")} +${rollValue}`
             : `${game.i18n.localize("DX3rd.Encroachment")} +${rollValue} ( ${currentEncroachment} → ${newEncroachment} )`;
@@ -198,13 +198,13 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
             </div>
         `;
 
-        // 침식률 정보를 먼저 출력 (컨텐트에 포함)
+        // Print the encroachment information first (included in the content)
         await ChatMessage.create({ content: messageContent, speaker });
-        // 주사위 굴림 결과를 아래에 출력
+        // Print the dice roll result below it
         await ChatMessage.create({ speaker, rolls: [encroachmentRoll] });
     };
 
-    // 의지 기능 판정 다이얼로그 표시 (난이도 필수, 판정 플래그, 침식률 상승 콜백)
+    // Show the Will skill roll dialog (difficulty required, the roll flags, the encroachment rise callback)
     if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler.showStatRollDialog) {
         window.DX3rdUniversalHandler.showStatRollDialog(
             targetCharacter,
@@ -217,16 +217,16 @@ async function dx3rdRunWillTest(kind, fallbackCharacter, isExplicitActor = false
             null, // comboAfterSuccessData
             null, // comboAfterDamageData
             null, // predefinedDifficulty
-            true, // requireDifficulty: 난이도 필수 입력
-            kind === 'urge',  // isUrgeTest: 충동 판정 플래그
-            handleEncroachmentIncrease, // afterRollCallback: 침식률 상승 콜백
-            kind === 'panic'  // isPanicTest: 공포 판정 플래그
+            true, // requireDifficulty: the difficulty must be entered
+            kind === 'urge',  // isUrgeTest: the impulse roll flag
+            handleEncroachmentIncrease, // afterRollCallback: the encroachment rise callback
+            kind === 'panic'  // isPanicTest: the fear roll flag
         );
     }
 }
 
 Hooks.on('getSceneControlButtons', (controls) => {
-    // v13/v14 호환: tools가 Map(v14) 또는 Object(v13) 형태일 수 있음
+    // v13/v14 compatibility: tools may be a Map (v14) or an Object (v13)
     function addTool(toolsObj, name, data) {
         if (toolsObj instanceof Map) {
             toolsObj.set(name, data);
@@ -235,7 +235,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
         }
     }
     if (controls.tokens?.tools) {
-        // GM 전용: 장면 개막 버튼 (등장/충동 버튼보다 위에 배치)
+        // GM only: the scene opening button (placed above the appearance / impulse buttons)
         if (game.user.isGM) {
             addTool(controls.tokens.tools, "sceneOpen", {
                 name: "sceneOpen",
@@ -287,7 +287,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                     const tempItemText = game.i18n.localize("DX3rd.TemporaryItem");
                                     const conditionsToRemove = ["rigor", "pressure", "dazed", "poisoned", "hatred", "fear", "berserk", "boarding", "fly", "stealth"];
 
-                                    // 1. 캐릭터 액터 Fist 초기화 — 변경 전 스냅샷으로만 되돌린다(리터럴 덮어쓰기 금지).
+                                    // 1. Reset the character actors' fists — reverted only from the pre-change snapshot (never overwritten with literals).
                                     for (const actor of characterActors) {
                                         await window.DX3rdUniversalHandler.clearItemGrants(actor);
                                         await window.DX3rdUniversalHandler.restoreFistItems(actor);
@@ -300,7 +300,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                         }
                                     }
 
-                                    // 2. 모든 액터 action_end / action_delay / extra-turn 초기화
+                                    // 2. Reset action_end / action_delay / extra-turn on every actor
                                     for (const actor of allActors) {
                                         const updates = {
                                             "system.conditions.action_end.active": false,
@@ -314,7 +314,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                         await actor.update(updates);
                                     }
 
-                                    // 3. Disable Hooks (캐릭터 + 에너미 대상)
+                                    // 3. Disable Hooks (for characters and enemies)
                                     if (typeof DX3rdDisableHooks !== "undefined") {
                                         const timings = ["roll", "major", "reaction", "guard", "main", "round", "scene"];
                                         for (const timing of timings) {
@@ -322,7 +322,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                         }
                                     }
 
-                                    // 4. 모든 액터 상태이상 일괄 해제
+                                    // 4. Clear every actor's conditions in bulk
                                     if (!window.DX3rdConditionTriggerMap) {
                                         window.DX3rdConditionTriggerMap = new Map();
                                     }
@@ -380,7 +380,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                     const tempItemText = game.i18n.localize("DX3rd.TemporaryItem");
                                                     const conditionsToRemove = ["rigor", "pressure", "dazed", "poisoned", "hatred", "fear", "berserk", "boarding", "fly", "stealth"];
 
-                                                    // 1. 캐릭터 액터 Fist 초기화 — 변경 전 스냅샷으로만 되돌린다(리터럴 덮어쓰기 금지).
+                                                    // 1. Reset the character actors' fists — reverted only from the pre-change snapshot (never overwritten with literals).
                                                     for (const actor of characterActors) {
                                                         await window.DX3rdUniversalHandler.clearItemGrants(actor);
                                                         await window.DX3rdUniversalHandler.restoreFistItems(actor);
@@ -393,7 +393,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                         }
                                                     }
 
-                                                    // 2. 모든 액터 action_end / action_delay / extra-turn 초기화
+                                                    // 2. Reset action_end / action_delay / extra-turn on every actor
                                                     for (const actor of allActors) {
                                                         const updates = {
                                                             "system.conditions.action_end.active": false,
@@ -407,7 +407,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                         await actor.update(updates);
                                                     }
 
-                                                    // 3. Disable Hooks (캐릭터 + 에너미 대상, 'session' 타이밍 포함)
+                                                    // 3. Disable Hooks (for characters and enemies, including the 'session' timing)
                                                     if (typeof DX3rdDisableHooks !== "undefined") {
                                                         const timings = ["roll", "major", "reaction", "guard", "main", "round", "scene", "session"];
                                                         for (const timing of timings) {
@@ -415,7 +415,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                         }
                                                     }
 
-                                                    // 4. 모든 액터 상태이상 일괄 해제
+                                                    // 4. Clear every actor's conditions in bulk
                                                     if (!window.DX3rdConditionTriggerMap) {
                                                         window.DX3rdConditionTriggerMap = new Map();
                                                     }
@@ -434,10 +434,10 @@ Hooks.on('getSceneControlButtons', (controls) => {
                                                         }
                                                     }
 
-                                                    // 장면 넘버링 초기화
+                                                    // Reset the scene numbering
                                                     game.settings.set("dx3rd-emanim", "sceneOpenNumber", 0);
 
-                                                    // 채팅 메시지 출력
+                                                    // Print the chat message
                                                     await ChatMessage.create({
                                                         content: `<h3 class="dx3rd-chat-heading">${game.i18n.localize("DX3rd.SessionEnd")}</h3>`,
                                                         speaker: { alias: game.user.name }
@@ -460,7 +460,7 @@ Hooks.on('getSceneControlButtons', (controls) => {
             });
         }
 
-        // CRC 스테이지 설정 확인하여 버튼 이름 결정
+        // Check the CRC stage setting to decide the button name
         const stageCRCEnabled = game.settings.get("dx3rd-emanim", "stageCRC");
         const buttonTitle = stageCRCEnabled ? "DX3rd.EnterUrgePanic" : "DX3rd.EnterUrge";
 

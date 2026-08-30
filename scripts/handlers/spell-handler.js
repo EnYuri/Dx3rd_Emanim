@@ -1,4 +1,4 @@
-// Spell 아이템 핸들러
+// The spell item handler
 (function() {
 const DialogV2 = foundry.applications?.api?.DialogV2;
 
@@ -7,7 +7,7 @@ const DialogV2 = foundry.applications?.api?.DialogV2;
  * @param {string} prefix - Macro name prefix
  */
 async function executeMacrosByPrefix(prefix) {
-    // GM만 매크로 실행
+    // The GM alone runs macros
     if (!game.user.isGM) {
         return;
     }
@@ -46,7 +46,7 @@ async function promptRoisSelection({ title, content }) {
                     const selectedId = button.form?.querySelector('#rois-select')?.value;
                     if (!selectedId) {
                         ui.notifications.warn('로이스를 선택해주세요.');
-                        // nullish 를 돌려주면 DialogV2 가 버튼의 action 문자열로 바꿔치기한다.
+                        // Returning nullish would let DialogV2 substitute the button's action string.
                         return false;
                     }
                     return selectedId;
@@ -64,9 +64,9 @@ async function promptRoisSelection({ title, content }) {
 }
 
 /**
- * 스펠 표(재액/재앙/파국) 공통 메타데이터.
- * 세 표는 로컬라이즈 키 / 효과 키 접두사 / 효과 지속시간만 다르고 생성 절차가 동일하다.
- * 설명 텍스트 키는 `${i18n}Text${결과번호}` 규약을 따른다.
+ * Shared metadata for the three spell tables (disaster / calamity / catastrophe).
+ * They differ only in localization key, effect key prefix and effect lifetime; the procedure is identical.
+ * Description text keys follow the `${i18n}Text${resultNumber}` convention.
  */
 const SPELL_TABLES = {
     disaster:    { i18n: 'DX3rd.SpellDisaster',    keyPrefix: 'spell_disaster',    disable: 'scene' },
@@ -78,31 +78,31 @@ window.DX3rdSpellHandler = {
     async handle(actorId, itemId, getTarget) {
         const actor = game.actors.get(actorId);
         if (!actor) { ui.notifications.warn(game.i18n.localize('DX3rd.ActorNotFound')); return; }
-        // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
+        // Look in the actor's items first, then fall back to game.items
         const item = actor.items.get(itemId) || game.items.get(itemId);
         if (!item) { ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound')); return; }
 
-        // 스펠 롤 타입 분기: '-'는 기존 로직, 'CastingRoll'은 별도 처리
+        // Branch on the spell roll type: '-' is the original logic, 'CastingRoll' is handled separately
         const rollType = item.system?.roll ?? '-';
         if (rollType === 'CastingRoll') {
             await this.handleCastingRoll(actor, item, getTarget);
             return;
         }
 
-        // 기본(-) 동작: 침식률/활성화/익스텐션은 이미 handleItemUse에서 처리됨
+        // Default ('-') behavior: encroachment, activation and extensions are already done in handleItemUse
     }
     ,
     async handleCastingRoll(actor, item, getTarget) {
-        // 주의: CastingRoll 분기에서는 침식률 증가/매크로 실행/타겟 적용을 즉시 수행하지 않음
-        // 여기는 난이도 선택 및 이후 로직의 진입점만 담당
+        // Note: the CastingRoll branch does NOT immediately raise encroachment, run macros or apply to targets.
+        // This is only the entry point for choosing a difficulty and everything that follows.
 
-        // 난이도 선택/출력
+        // Choose and display the difficulty
         const invokeStr = String(item.system?.invoke?.value ?? '').trim();
         const evocationStr = String(item.system?.evocation?.value ?? '').trim();
         const hasInvoke = invokeStr !== '' && invokeStr !== '-';
         const hasEvocation = evocationStr !== '' && evocationStr !== '-';
 
-        // 둘 중 하나만 있는 경우: 해당 값을 난이도로 콘솔 출력
+        // Only one of the two is set: use it as the difficulty
         if (hasInvoke && !hasEvocation) {
             await this.showCastingRollDialog(actor, item, invokeStr, getTarget);
             return;
@@ -112,7 +112,7 @@ window.DX3rdSpellHandler = {
             return;
         }
 
-        // 둘 다 있는 경우: 다이얼로그로 선택
+        // Both are set: ask which one
         if (hasInvoke && hasEvocation) {
             if (!DialogV2?.wait) {
                 ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
@@ -142,12 +142,12 @@ window.DX3rdSpellHandler = {
             return;
         }
 
-        // 둘 다 비어있거나 '-'인 경우: 마술 굴림 없이 바로 발동 버튼 생성
+        // Both empty or '-': skip the casting roll and create the invocation button directly
         const handler = window.DX3rdUniversalHandler;
         if (handler) {
             await handler.ensureActivated(item, actor);
             
-            // 발동 버튼 생성
+            // Create the invocation button
             await this._createInvokeButton(actor, item, getTarget);
         }
     }
@@ -171,10 +171,10 @@ window.DX3rdSpellHandler = {
         const castRollFormula = actor.system?.attributes?.cast?.rollFormula || {};
         const eibonDice = Number(actor.system?.attributes?.cast?.eibon ?? 0);
 
-        // 세 칸 모두 직접 수정할 수 있다. 마술 주사위 칸은 (에이본 포함) 최종 개수를 뜻하고,
-        // 굴림 시점에 여기 적힌 값을 그대로 쓴다.
-        // 주사위/수정은 굴림식에서 산술로 쓰이므로 type=number로 정수만 받는다(다이스식 불가).
-        // 발동치는 아이템 데이터가 숫자가 아닐 수도 있어 text로 두고 입력값만 검사한다.
+        // All three fields are editable. The magic-dice field means the FINAL count (Eibon included),
+        // and whatever it says at roll time is what gets rolled.
+        // Dice and add are arithmetic in the roll formula, so type=number takes integers only (no dice formulas).
+        // The invocation value may be non-numeric in the item data, so it stays text and only the input is checked.
         const overrideHint = l('DX3rd.RollFieldOverrideHint');
         const content = `
             <div class="dx3rd-casting-dialog">
@@ -226,8 +226,8 @@ window.DX3rdSpellHandler = {
                         const useEibon = form?.elements?.eibon?.checked || false;
                         const useAngel = form?.elements?.angel?.checked || false;
 
-                        // 잠금을 풀었으므로 굴림 값은 상수가 아니라 입력칸에서 읽는다.
-                        // 숫자가 아니면 원래 값으로 되돌려 오타 하나에 판정이 0이 되지 않게 한다.
+                        // The fields are unlocked, so the roll reads the inputs rather than constants.
+                        // A non-numeric entry falls back to the original, so one typo cannot zero the check.
                         const readNumber = (name, fallback) => {
                             const raw = String(form?.elements?.[name]?.value ?? '').trim();
                             const parsed = Number(raw);
@@ -260,14 +260,14 @@ window.DX3rdSpellHandler = {
             render: (event, dialog) => {
                 const root = dialog.element;
                 if (!root) return;
-                // 체크박스 변경 이벤트 리스너 추가
+                // Wire up the checkbox change listeners
                 root.querySelector('#eibon-checkbox')?.addEventListener('change', () => {
                     this.updateDiceDisplay(root, castDice, eibonDice);
                 });
                 root.querySelector('#angel-checkbox')?.addEventListener('change', () => {
                     this.updateDiceDisplay(root, castDice, eibonDice);
                 });
-                // 직접 고친 칸은 색으로 표시한다(마술 주사위 칸은 에이본 표시 색과 겹치므로 제외).
+                // Color a field the user edited (the magic-dice field is excluded — that color means Eibon).
                 for (const name of ['add', 'difficulty']) {
                     const el = root.querySelector(`input[name="${name}"]`);
                     const original = el?.value ?? '';
@@ -284,16 +284,16 @@ window.DX3rdSpellHandler = {
         const diceInput = root.querySelector('input[name="dice"]');
         if (!diceInput) return;
         
-        // 잠금을 푼 뒤로 이 칸은 "최종 마술주사위 개수"를 뜻한다. 에이본 체크 시에도
-        // "5 + 2" 같은 문자열이 아니라 합계를 넣어야 사용자가 그 값을 이어서 고칠 수 있다.
-        // 체크를 토글하면 자동 계산값으로 되돌아가므로 직접 고친 값은 여기서 덮인다.
+        // Since the field was unlocked it means "the final magic-dice count". Even with Eibon checked it must
+        // hold the sum rather than a string like "5 + 2", so the user can keep editing from that value.
+        // Toggling the checkbox restores the computed value, overwriting a hand-edited one.
         if (useEibon && eibonDice > 0) {
-            // 에이본의 금주법이 체크된 경우: 마술주사위 + 에이본의 주사위(빨간색)
+            // Eibon's forbidden law is checked: magic dice + Eibon dice (in red)
             diceInput.value = castDice + eibonDice;
             diceInput.title = `${castDice} + ${eibonDice} (${game.i18n.localize('DX3rd.EibonDice')})`;
             diceInput.style.color = '#ff8a80';
         } else {
-            // 에이본의 금주법이 체크되지 않은 경우: 기본 마술주사위
+            // Eibon's forbidden law is unchecked: the plain magic dice
             diceInput.value = castDice;
             diceInput.title = game.i18n.localize('DX3rd.RollFieldOverrideHint');
             diceInput.style.color = '#f5f5f5';
@@ -301,16 +301,16 @@ window.DX3rdSpellHandler = {
     }
     ,
     /**
-     * 마술 굴림 실행
+     * Perform the casting roll
      * @param {Object} options
-     *   - dialogDice: 다이얼로그의 마술 주사위 칸에서 확정된 최종 개수(에이본 포함, 사용자 수정 반영)
-     *   - castAdd: 마술 수정치(사용자 수정 반영)
-     *   - eibonDice: DS 제거 옵션 산출용 에이본 주사위 수
+     *   - dialogDice: the final count settled in the dialog's magic-dice field (Eibon and user edits included)
+     *   - castAdd: the magic modifier (user edits included)
+     *   - eibonDice: the Eibon dice count, used to build the DS-removal options
      */
     async performCastingRoll(actor, item, options) {
         const { dialogDice, castAdd, castRollFormula = {}, eibonDice, difficulty, useEibon, useAngel, getTarget } = options;
 
-        // cast_* 다이스식은 마술 굴림 버튼을 누른 지금 한 번만 굴린다.
+        // cast_* dice formulas are rolled exactly once, here, when the casting-roll button is pressed.
         const rollFormulaBonus = async (kind) => {
             const formula = castRollFormula?.[kind];
             if (!formula) return { total: 0, text: '' };
@@ -327,12 +327,12 @@ window.DX3rdSpellHandler = {
             rollFormulaBonus('dice'), rollFormulaBonus('add')
         ]);
 
-        // 주사위 개수 계산: dialogDice에 에이본 주사위가 이미 포함되어 있으므로 여기서 다시 더하지 않는다.
-        // cast_dice 다이스식(굴림 결과)만 지금 더한다 — 다이얼로그가 보여줄 수 없는 값이다.
-        // 0개 이하는 ds 다이스텀이 만들 수 없는 식이라 최소 1개는 굴린다(직접 입력 방어).
+        // Dice count: dialogDice already includes the Eibon dice, so they are not added again here.
+        // Only the cast_dice formula result is added now — a value the dialog could not have shown.
+        // Zero or fewer is not a formula the ds dice term can build, so at least one die is rolled (guarding hand input).
         const totalDice = Math.max(1, dialogDice + formulaDice.total);
 
-        // DS 제거 옵션 구성
+        // Build the DS-removal options
         let dsOptions = [];
         if (useEibon && eibonDice > 0) {
             dsOptions.push(eibonDice);
@@ -341,7 +341,7 @@ window.DX3rdSpellHandler = {
             dsOptions.push('a');
         }
 
-        // 롤 공식 구성
+        // Build the roll formula
         let formula = `${totalDice}ds`;
         if (dsOptions.length > 0) {
             formula += `[${dsOptions.join(', ')}]`;
@@ -351,17 +351,17 @@ window.DX3rdSpellHandler = {
             formula += totalAdd >= 0 ? `+${totalAdd}` : `${totalAdd}`;
         }
 
-        // 주사위 굴림 실행
+        // Roll the dice
         const roll = await (new Roll(formula)).roll();
 
-        // 성공/실패 판정
+        // Success / failure
         const difficultyNum = Number(difficulty) || 0;
         const isSuccess = roll.total >= difficultyNum;
         const resultText = isSuccess ? 
             game.i18n.localize('DX3rd.Success') : 
             game.i18n.localize('DX3rd.Failure');
 
-        // 채팅 메시지 생성
+        // Build the chat message
         const invokeStr = String(item.system?.invoke?.value ?? '').trim();
         const evocationStr = String(item.system?.evocation?.value ?? '').trim();
         const hasInvoke = invokeStr !== '' && invokeStr !== '-';
@@ -369,7 +369,7 @@ window.DX3rdSpellHandler = {
         
         let difficultyDisplay = difficulty;
         
-        // 둘 다 있는 경우 선택한 발동치를 볼드체로 강조
+        // With both set, bold the chosen invocation value
         if (hasInvoke && hasEvocation) {
             const selectedDifficulty = difficulty;
             if (selectedDifficulty === invokeStr) {
@@ -379,7 +379,7 @@ window.DX3rdSpellHandler = {
             }
         }
         
-        // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함
+        // Render the roll result as HTML for the message
         const rollHTML = await roll.render();
         const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
         
@@ -403,7 +403,7 @@ window.DX3rdSpellHandler = {
             rolls: [roll]
         });
 
-        // 3. 최종 폭주 주사위(10) 개수 확인 및 재앙 버튼 생성
+        // 3. Count the final overflow dice (10s) and create the disaster button
         let finalOverflowCount = 0;
         for (const term of roll.terms) {
             if (term.constructor.name === 'DS3rdDiceTerm' && term.overflowCount !== undefined) {
@@ -412,14 +412,14 @@ window.DX3rdSpellHandler = {
             }
         }
 
-        // 폭주 주사위 개수에 따라 재앙 버튼 생성
+        // Create the disaster button according to the overflow count
         if (finalOverflowCount >= 1) {
             await this._createDisasterButton(actor, item, finalOverflowCount);
         }
 
-        // 4. 성공 시 처리 - 발동 버튼만 생성 (활성화/매크로/효과는 발동 버튼에서)
+        // 4. On success — create only the invocation button (activation, macros and effects happen there)
         if (isSuccess) {
-            // 마술 굴림 성공 시 발동 버튼 생성
+            // The casting roll succeeded, so create the invocation button
             await this._createInvokeButton(actor, item, getTarget);
         }
     },
@@ -428,15 +428,15 @@ window.DX3rdSpellHandler = {
      * Create a spell invocation button in chat
      * @param {Actor} actor
      * @param {Item} item
-     * @param {boolean} getTarget - getTarget 체크 유무
+     * @param {boolean} getTarget - whether the getTarget box is checked
      */
     async _createInvokeButton(actor, item, getTarget) {
         const invokeLabel = game.i18n.localize('DX3rd.Invoking');
         
-        // getTarget 값 결정 (인자로 받은 값 우선, 없으면 아이템 시스템 값)
+        // Settle getTarget (the argument wins; otherwise the item's own system value)
         const finalGetTarget = getTarget !== undefined ? getTarget : (item.system.getTarget || false);
         
-        // 아이템 정보를 저장 (효과 데이터 포함)
+        // Store the item information (effect data included)
         const itemData = {
             id: item.id,
             name: item.name,
@@ -479,7 +479,7 @@ window.DX3rdSpellHandler = {
         let disasterType = '';
         let disasterLabel = '';
 
-        // 폭주 주사위 개수에 따라 재앙 타입 결정
+        // Pick the disaster type from the overflow-dice count
         if (overflowCount === 1) {
             disasterType = 'disaster';
             disasterLabel = game.i18n.localize('DX3rd.SpellDisaster');
@@ -538,27 +538,27 @@ window.DX3rdSpellHandler = {
      * @param {Item} item
      */
     async rollSpellDisaster(actor, item) {
-        // 1d10 굴림
+        // Roll 1d10
         const roll = await new Roll("1d10").roll();
         const result = roll.total;
 
-        // 결과에 따른 텍스트 가져오기
+        // Fetch the text for this result
         const textKey = `DX3rd.SpellDisasterText${result}`;
         let resultText = game.i18n.localize(textKey);
 
-        // {count} 치환 (결과 1번만 사용)
+        // Substitute {count} (only result 1 uses it)
         if (result === 1 && resultText.includes('{count}')) {
-            // 결과 1: count = 10 - body.total (최소 1)
+            // Result 1: count = 10 - body.total (minimum 1)
             const bodyTotal = actor.system?.attributes?.body?.total || 0;
             const count = Math.max(1, 10 - bodyTotal);
             resultText = resultText.replace('{count}', count);
         }
 
-        // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함
+        // Render the roll result as HTML for the message
         const rollHTML = await roll.render();
         const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
 
-        // 채팅 메시지 생성
+        // Build the chat message
         const content = `
             <div class="dx3rd-item-chat">
                 <div class="item-header">
@@ -580,38 +580,38 @@ window.DX3rdSpellHandler = {
             rolls: [roll]
         });
 
-        // 특정 결과에 대한 효과 적용
+        // Apply the effects tied to specific results
         if (result === 3) {
-            // 3번: 행동치 -2
+            // 3: initiative -2
             await this.createSpellTableEffect(actor, 'disaster', 3, {
                 init: -2
             });
         } else if (result === 4) {
-            // 4번: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+            // 4: roll this table once more. The result applies to one of your Lois (the GM decides).
             await this.handleSpellDisaster4(actor, item);
         } else if (result === 8) {
-            // 8번: 마술 주사위 -1
+            // 8: magic dice -1
             await this.createSpellTableEffect(actor, 'disaster', 8, {
                 cast_dice: -1
             });
         } else if (result === 9) {
-            // 9번: 폭주 상태이상 활성화
+            // 9: apply the berserk status
             await actor.toggleStatusEffect("berserk", { active: true });
         } else if (result === 10) {
-            // 10번: SpellCalamity 굴림
+            // 10: roll SpellCalamity
             await this.rollSpellCalamity(actor, item);
         }
 
-        // 매크로 호출
+        // Run the macros
         await executeMacrosByPrefix(`spell-disaster-${result}-macro`);
     },
 
     /**
-     * 스펠 표 결과에 따른 applied 효과를 생성한다. 같은 이름의 효과가 이미 있으면 중복 적용하지 않는다.
+     * Create the applied effect for a spell-table result. An effect of the same name is not applied twice.
      * @param {Actor} actor
-     * @param {'disaster'|'calamity'|'catastrophe'} kind - 표 종류 (SPELL_TABLES 참조)
-     * @param {number} resultNumber - 표 결과 번호
-     * @param {Object} attributes - 효과 속성 (예: {init: -2})
+     * @param {'disaster'|'calamity'|'catastrophe'} kind - which table (see SPELL_TABLES)
+     * @param {number} resultNumber - the table result number
+     * @param {Object} attributes - the effect attributes (e.g. {init: -2})
      */
     async createSpellTableEffect(actor, kind, resultNumber, attributes) {
         const table = SPELL_TABLES[kind];
@@ -620,7 +620,7 @@ window.DX3rdSpellHandler = {
         try {
             const effectName = `${game.i18n.localize(table.i18n)}(${resultNumber})`;
 
-            // 중복 체크: 같은 이름의 효과가 이미 있는지 확인
+            // Duplicate check: is an effect of the same name already present?
             const appliedEffects = window.DX3rdAppliedEffects?.collect
                 ? window.DX3rdAppliedEffects.collect(actor)
                 : (actor.system?.attributes?.applied || {});
@@ -633,7 +633,7 @@ window.DX3rdSpellHandler = {
                 return;
             }
 
-            // 네이티브 ActiveEffect 로 저장
+            // Store it as a native ActiveEffect
             await window.DX3rdAppliedEffects.set(actor, `${table.keyPrefix}_${resultNumber}_${Date.now()}`, {
                 name: effectName,
                 source: actor.name,
@@ -651,12 +651,12 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * 스펠 표 결과에 따른 레코드 아이템을 생성하고 기본침식률을 올린다.
+     * Create the record item for a spell-table result and raise the base encroachment.
      * @param {Actor} actor
-     * @param {'disaster'|'calamity'|'catastrophe'} kind - 표 종류 (SPELL_TABLES 참조)
-     * @param {number} resultNumber - 표 결과 번호
-     * @param {number} encroachmentValue - 상승시킬 기본침식률
-     * @param {string} [description] - 설명 텍스트. 생략 시 표 기본 문구를 쓴다.
+     * @param {'disaster'|'calamity'|'catastrophe'} kind - which table (see SPELL_TABLES)
+     * @param {number} resultNumber - the table result number
+     * @param {number} encroachmentValue - how much base encroachment to add
+     * @param {string} [description] - description text; the table's default wording when omitted.
      */
     async createSpellTableRecord(actor, kind, resultNumber, encroachmentValue = 1, description = null) {
         const table = SPELL_TABLES[kind];
@@ -689,27 +689,27 @@ window.DX3rdSpellHandler = {
      * @param {Item} item
      */
     async rollSpellCalamity(actor, item) {
-        // 1d10 굴림
+        // Roll 1d10
         const roll = await new Roll("1d10").roll();
         const result = roll.total;
 
-        // 결과에 따른 텍스트 가져오기
+        // Fetch the text for this result
         const textKey = `DX3rd.SpellCalamityText${result}`;
         let resultText = game.i18n.localize(textKey);
 
-        // 5번과 9번 결과는 count를 1d10으로 먼저 계산
+        // Results 5 and 9 settle count with a 1d10 first
         let countValue = null;
         let countRollObj = null;
         if ((result === 5 || result === 9) && resultText.includes('{count}')) {
             countRollObj = await new Roll("1d10").roll();
             countValue = countRollObj.total;
             
-            // 9번 결과는 simplifiedDistance에 따라 메시지 다르게 처리
+            // Result 9 words the message differently depending on simplifiedDistance
             if (result === 9) {
                 const simplifiedDistance = game.settings.get('dx3rd-emanim', 'simplifiedDistance');
-                // {count}점은 항상 countValue 사용
+                // {count}점 always uses countValue
                 resultText = resultText.replace('{count}점', `${countValue}점`);
-                // {count}m은 simplifiedDistance에 따라 다르게 처리
+                // {count}m depends on simplifiedDistance
                 if (simplifiedDistance) {
                     const displayCount = Math.floor(countValue / 2);
                     resultText = resultText.replace('{count}m', `${displayCount}칸`);
@@ -717,15 +717,15 @@ window.DX3rdSpellHandler = {
                     resultText = resultText.replace('{count}m', `${countValue}m`);
                 }
             } else {
-                resultText = resultText.replace(/{count}/g, countValue); // replaceAll 대신 정규식 사용
+                resultText = resultText.replace(/{count}/g, countValue); // a regex instead of replaceAll
             }
         } else if (resultText.includes('{count}')) {
-            // 기타 결과는 1d6 사용
+            // Every other result uses 1d6
             const countRoll = await new Roll("1d6").roll();
             resultText = resultText.replace('{count}', countRoll.total);
         }
 
-        // 7번 결과는 damage를 2d10으로 먼저 계산
+        // Result 7 settles damage with a 2d10 first
         let damageValue = null;
         let damageRollObj = null;
         if (result === 7 && resultText.includes('{damage}')) {
@@ -733,16 +733,16 @@ window.DX3rdSpellHandler = {
             damageValue = damageRollObj.total;
             resultText = resultText.replace('{damage}', damageValue);
         } else if (resultText.includes('{damage}')) {
-            // 기타 결과는 1d6 사용
+            // Every other result uses 1d6
             const damageRoll = await new Roll("1d6").roll();
             resultText = resultText.replace('{damage}', damageRoll.total);
         }
 
-        // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함
+        // Render the roll result as HTML for the message
         const rollHTML = await roll.render();
         const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
 
-        // 채팅 메시지 생성
+        // Build the chat message
         const content = `
             <div class="dx3rd-item-chat">
                 <div class="item-header">
@@ -764,20 +764,20 @@ window.DX3rdSpellHandler = {
             rolls: [roll]
         });
 
-        // 특정 결과에 대한 효과 적용
+        // Apply the effects tied to specific results
         if (result === 1) {
-            // 1번: 이동력 절반
+            // 1: movement halved
             await this.createSpellTableEffect(actor, 'calamity', 1, {
                 move_half: true
             });
         } else if (result === 4) {
-            // 4번: 기본침식률 영구적으로 +1 (레코드 아이템 생성)
+            // 4: base encroachment permanently +1 (creates a record item)
             await this.createSpellTableRecord(actor, 'calamity', 4);
         } else if (result === 5) {
-            // 5번: 혀가 꼬부라진다 (count 라운드 동안 마술 사용 불가)
-            // countValue는 이미 위에서 1d10으로 계산됨
+            // 5: your tongue ties up (magic unusable for count rounds)
+            // countValue was already settled with a 1d10 above
             if (countValue === null) {
-                // 혹시 countValue가 없으면 다시 굴림
+                // Roll again should countValue somehow be missing
                 const countRoll = await new Roll("1d10").roll();
                 countValue = countRoll.total;
             }
@@ -786,32 +786,32 @@ window.DX3rdSpellHandler = {
                 spell_disabled_count: countValue
             });
         } else if (result === 7) {
-            // 7번: 2d10 HP 데미지 (장갑치 무시)
-            // damageValue와 damageRollObj는 이미 위에서 2d10으로 계산됨
+            // 7: 2d10 HP damage (ignoring armor)
+            // damageValue and damageRollObj were already settled with a 2d10 above
             if (damageValue === null || damageRollObj === null) {
-                // 혹시 값이 없으면 다시 굴림
+                // Roll again should the values somehow be missing
                 damageRollObj = await new Roll("2d10").roll();
                 damageValue = damageRollObj.total;
             }
             await this.applySpellCalamityDamage(actor, 7, damageValue, damageRollObj);
         } else if (result === 8) {
-            // 8번: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+            // 8: roll this table once more. The result applies to one of your Lois (the GM decides).
             await this.handleSpellCalamity8(actor, item);
         } else if (result === 9) {
-            // 9번: count만큼 하이라이트 + count만큼 HP 데미지
-            // countValue와 countRollObj는 이미 위에서 1d10으로 계산됨
+            // 9: count highlights plus count HP damage
+            // countValue and countRollObj were already settled with a 1d10 above
             if (countValue === null || countRollObj === null) {
-                // 혹시 값이 없으면 다시 굴림
+                // Roll again should the values somehow be missing
                 countRollObj = await new Roll("1d10").roll();
                 countValue = countRollObj.total;
             }
             await this.applySpellCalamityHighlightAndDamage(actor, 9, countValue, countRollObj);
         } else if (result === 10) {
-            // 10번: SpellCatastrophe 굴림
+            // 10: roll SpellCatastrophe
             await this.rollSpellCatastrophe(actor, item);
         }
 
-        // 매크로 호출
+        // Run the macros
         await executeMacrosByPrefix(`spell-calamity-${result}-macro`);
     },
 
@@ -829,11 +829,11 @@ window.DX3rdSpellHandler = {
      */
     async applySpellCalamityResultToActor(actor, item, result, resultText, roll, countValue = null, countRollObj = null, damageValue = null, damageRollObj = null) {
         try {
-            // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함
+            // Render the roll result as HTML for the message
             const rollHTML = await roll.render();
             const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
 
-            // 채팅 메시지 생성
+            // Build the chat message
             const content = `
                 <div class="dx3rd-item-chat">
                     <div class="item-header">
@@ -855,17 +855,17 @@ window.DX3rdSpellHandler = {
                 rolls: [roll]
             });
 
-            // 특정 결과에 대한 효과 적용
+            // Apply the effects tied to specific results
             if (result === 1) {
-                // 1번: 이동력 절반
+                // 1: movement halved
                 await this.createSpellTableEffect(actor, 'calamity', 1, {
                     move_half: true
                 });
             } else if (result === 4) {
-                // 4번: 기본침식률 영구적으로 +1 (레코드 아이템 생성)
+                // 4: base encroachment permanently +1 (creates a record item)
                 await this.createSpellTableRecord(actor, 'calamity', 4);
             } else if (result === 5) {
-                // 5번: 혀가 꼬부라진다 (count 라운드 동안 마술 사용 불가)
+                // 5: your tongue ties up (magic unusable for count rounds)
                 if (countValue === null) {
                     if (countRollObj) {
                         countValue = countRollObj.total;
@@ -879,7 +879,7 @@ window.DX3rdSpellHandler = {
                     spell_disabled_count: countValue
                 });
             } else if (result === 7) {
-                // 7번: 2d10 HP 데미지 (장갑치 무시)
+                // 7: 2d10 HP damage (ignoring armor)
                 if (damageValue === null || damageRollObj === null) {
                     if (damageRollObj) {
                         damageValue = damageRollObj.total;
@@ -890,10 +890,10 @@ window.DX3rdSpellHandler = {
                 }
                 await this.applySpellCalamityDamage(actor, 7, damageValue, damageRollObj);
             } else if (result === 8) {
-                // 8번: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+                // 8: roll this table once more. The result applies to one of your Lois (the GM decides).
                 await this.handleSpellCalamity8(actor, item);
             } else if (result === 9) {
-                // 9번: count만큼 하이라이트 + count만큼 HP 데미지
+                // 9: count highlights plus count HP damage
                 if (countValue === null || countRollObj === null) {
                     if (countRollObj) {
                         countValue = countRollObj.total;
@@ -904,11 +904,11 @@ window.DX3rdSpellHandler = {
                 }
                 await this.applySpellCalamityHighlightAndDamage(actor, 9, countValue, countRollObj);
             } else if (result === 10) {
-                // 10번: SpellCatastrophe 굴림
+                // 10: roll SpellCatastrophe
                 await this.rollSpellCatastrophe(actor, item);
             }
 
-            // 매크로 호출
+            // Run the macros
             await executeMacrosByPrefix(`spell-calamity-${result}-macro`);
         } catch (error) {
             console.error("DX3rd | Error in applySpellCalamityResultToActor:", error);
@@ -922,15 +922,15 @@ window.DX3rdSpellHandler = {
      * @param {Item} item
      */
     async rollSpellCatastrophe(actor, item) {
-        // 1d10 굴림
+        // Roll 1d10
         const roll = await new Roll("1d10").roll();
         const result = roll.total;
 
-        // 결과에 따른 텍스트 가져오기
+        // Fetch the text for this result
         const textKey = `DX3rd.SpellCatastropheText${result}`;
         let resultText = game.i18n.localize(textKey);
 
-        // {count} 치환 (2번 결과: 1d10)
+        // Substitute {count} (result 2: 1d10)
         let countValue = null;
         if (result === 2 && resultText.includes('{count}')) {
             const countRoll = await new Roll("1d10").roll();
@@ -938,19 +938,19 @@ window.DX3rdSpellHandler = {
             resultText = resultText.replace('{count}', countValue);
         }
 
-        // {damage} 치환 (7번 결과)
-        // 주: 실제 데미지는 executeSpellCatastrophe7이 5d10을 굴려 대상별로 별도 메시지에 적용한다.
-        //   여기서 1d6을 굴려 표시하면 적용값(5d10)과 무관한 유령 숫자가 되므로, 실제 적용식 "5d10"을
-        //   그대로 표기해 표시==적용식을 맞춘다(구체 총계는 뒤따르는 데미지 메시지가 담당).
+        // Substitute {damage} (result 7)
+        // Note: the real damage is 5d10, rolled by executeSpellCatastrophe7 and applied per target in its own message.
+        //   Rolling a 1d6 here to display would be a phantom number unrelated to what is applied, so the actual
+        //   formula "5d10" is printed instead (the concrete total belongs to the damage message that follows).
         if (result === 7 && resultText.includes('{damage}')) {
             resultText = resultText.replace('{damage}', '5d10');
         }
 
-        // 주사위 굴림 결과를 HTML로 변환하여 메시지에 포함
+        // Render the roll result as HTML for the message
         const rollHTML = await roll.render();
         const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
 
-        // 채팅 메시지 생성
+        // Build the chat message
         const content = `
             <div class="dx3rd-item-chat">
                 <div class="item-header">
@@ -972,68 +972,68 @@ window.DX3rdSpellHandler = {
             rolls: [roll]
         });
 
-        // 특정 결과에 대한 효과 적용
+        // Apply the effects tied to specific results
         if (result === 2) {
-            // 2번: 기본침식률 영구적으로 +count (레코드 아이템 생성)
-            // countValue는 이미 위에서 1d10으로 계산됨
+            // 2: base encroachment permanently +count (creates a record item)
+            // countValue was already settled with a 1d10 above
             if (countValue === null) {
-                // 혹시 countValue가 없으면 다시 굴림
+                // Roll again should countValue somehow be missing
                 const countRoll = await new Roll("1d10").roll();
                 countValue = countRoll.total;
             }
             await this.createSpellTableRecord(actor, 'catastrophe', 2, countValue, resultText);
         } else if (result === 3) {
-            // 3번: 시나리오 동안 마술 사용 불가
+            // 3: magic unusable for the rest of the scenario
             await this.createSpellTableEffect(actor, 'catastrophe', 3, {
                 spell_disabled: true
             });
         } else if (result === 5) {
-            // 5번: 로이스 하나를 타이터스로 변경
+            // 5: turn one Lois into a Titus
             await this.handleSpellCatastrophe5(actor);
         } else if (result === 7) {
-            // 7번: 폭발 - 5d10 데미지 (자신 + 인접 그리드의 모든 캐릭터)
+            // 7: explosion — 5d10 damage (self plus every character in an adjacent grid)
             await this.handleSpellCatastrophe7(actor);
         } else if (result === 8) {
-            // 8번: 마술 대폭주표를 굴린다. 그 결과는 당신을 포함하여 당신과 같은 인게이지에 있는 모든 캐릭터에게 적용된다.
+            // 8: roll the magic-overflow table. The result applies to you and everyone in your engagement.
             await this.handleSpellCatastrophe8(actor, item);
         } else if (result === 9) {
-            // 9번: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+            // 9: roll this table once more. The result applies to one of your Lois (the GM decides).
             await this.handleSpellCatastrophe9(actor, item);
         } else if (result === 10) {
-            // 10번: 캐릭터가 게임에서 영원히 제거된다(타이터스 소비로 무효화 가능).
-            // 비가역적이므로 자동 상태변화는 하지 않고 경고만 표시 — 실제 제거/타이터스 소비는 GM이 수동 처리.
+            // 10: the character is removed from the game forever (a Titus can negate it).
+            // Irreversible, so no automatic state change — only a warning. The GM handles removal / Titus spending by hand.
             ui.notifications.warn(`${actor.name}: ${game.i18n.localize('DX3rd.SpellCatastropheText10')}`);
         }
 
-        // 매크로 호출
+        // Run the macros
         await executeMacrosByPrefix(`spell-catastrophe-${result}-macro`);
     },
 
     /**
-     * Handle SpellCatastrophe 5: 로이스 하나를 타이터스로 변경
+     * Handle SpellCatastrophe 5: turn one Lois into a Titus
      * @param {Actor} actor
      */
     async handleSpellCatastrophe5(actor) {
         try {
-            // 타이터스가 체크되지 않은 로이스 아이템 필터링
-            // system.type이 "M", "D", "E"인 경우 제외, "S"와 "-"만 포함
-            // system.titus가 true가 아닌 경우만 포함
+            // Keep only Lois items whose Titus box is unchecked.
+            // system.type "M", "D" and "E" are excluded; only "S" and "-" remain.
+            // Only items whose system.titus is not true are kept.
             const availableRois = actor.items.filter(item => {
                 if (item.type !== 'rois') return false;
                 
                 const roisType = item.system?.type;
-                // "M", "D", "E"인 경우 제외
+                // Exclude "M", "D" and "E"
                 if (roisType === 'M' || roisType === 'D' || roisType === 'E') return false;
                 
-                // "S" 또는 "-" 또는 undefined인 경우만 포함
-                // system.titus가 true가 아닌 경우만 포함
+                // Keep only "S", "-" or undefined
+                // Keep only items whose system.titus is not true
                 const titus = item.system?.titus;
                 const isTitusChecked = titus === true || titus === "true" || titus === 1 || titus === "1";
                 
                 return !isTitusChecked;
             });
 
-            // 타이터스화할 로이스가 없으면 메시지 출력
+            // Report when there is no Lois left to turn into a Titus
             if (availableRois.length === 0) {
                 const content = `
                     <div class="dx3rd-item-chat">
@@ -1053,7 +1053,7 @@ window.DX3rdSpellHandler = {
                 return;
             }
 
-            // 드롭다운 옵션 생성
+            // Build the dropdown options
             const options = availableRois.map(rois => 
                 `<option value="${window.DX3rdRuntimeUtils.escapeHTML(rois.id)}">${window.DX3rdRuntimeUtils.escapeHTML(rois.name)}</option>`
             ).join('');
@@ -1106,12 +1106,12 @@ window.DX3rdSpellHandler = {
                 return;
             }
 
-            // 타이터스 체크
+            // Check the Titus box
             await selectedRois.update({
                 'system.titus': true
             });
 
-            // 채팅 메시지 출력
+            // Emit the chat message
             const content = `
                 <div class="dx3rd-item-chat">
                     <div class="item-details">
@@ -1144,7 +1144,7 @@ window.DX3rdSpellHandler = {
      */
     async selectRoisForSpellEffect(actor, textKey, title, requestType = null, item = null) {
         try {
-            // GM이 아닌 경우 소켓으로 GM에게 전송
+            // A non-GM sends the request to the GM over the socket
             if (!game.user.isGM && requestType) {
                 const availableRois = actor.items.filter(item => {
                     if (item.type !== 'rois') return false;
@@ -1160,7 +1160,7 @@ window.DX3rdSpellHandler = {
                     return null;
                 }
 
-                // 소켓으로 GM에게 전송
+                // Send it to the GM over the socket
                 window.DX3rdSocketRouter.emit({
                     type: 'spellRoisSelectRequest',
                     requestData: {
@@ -1174,21 +1174,21 @@ window.DX3rdSpellHandler = {
                 });
 
                 ui.notifications.info('GM에게 로이스 선택 요청을 보냈습니다.');
-                return null; // 비동기 처리이므로 null 반환
+                return null; // handled asynchronously, so null is returned
             }
 
-            // GM인 경우 직접 다이얼로그 표시
-            // 로이스 아이템 필터링
-            // system.type이 "M", "D", "E"인 경우 제외
-            // system.sublimation이 체크된 경우 제외
+            // The GM shows the dialog directly
+            // Filter the Lois items
+            // Exclude system.type "M", "D" and "E"
+            // Exclude items whose system.sublimation is checked
             const availableRois = actor.items.filter(item => {
                 if (item.type !== 'rois') return false;
                 
                 const roisType = item.system?.type;
-                // "M", "D", "E"인 경우 제외
+                // Exclude "M", "D" and "E"
                 if (roisType === 'M' || roisType === 'D' || roisType === 'E') return false;
                 
-                // system.sublimation이 체크된 경우 제외
+                // Exclude items whose system.sublimation is checked
                 const sublimation = item.system?.sublimation;
                 const isSublimationChecked = sublimation === true || sublimation === "true" || sublimation === 1 || sublimation === "1";
                 
@@ -1200,7 +1200,7 @@ window.DX3rdSpellHandler = {
                 return null;
             }
 
-            // 드롭다운 옵션 생성
+            // Build the dropdown options
             const options = availableRois.map(rois => 
                 `<option value="${window.DX3rdRuntimeUtils.escapeHTML(rois.id)}">${window.DX3rdRuntimeUtils.escapeHTML(rois.name)}</option>`
             ).join('');
@@ -1267,19 +1267,19 @@ window.DX3rdSpellHandler = {
      * @returns {Actor|null} Actor with matching name or null
      */
     findActorByRoisName(roisName) {
-        // 모든 액터에서 같은 이름을 가진 액터 찾기
+        // Look through every actor for one with this name
         const matchingActor = game.actors.find(actor => actor.name === roisName);
         return matchingActor || null;
     },
 
     /**
-     * Handle SpellDisaster 4: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+     * Handle SpellDisaster 4: roll this table once more. The result applies to one of your Lois (the GM decides).
      * @param {Actor} actor
      * @param {Item} item
      */
     async handleSpellDisaster4(actor, item) {
         try {
-            // 로이스 선택
+            // Choose the Lois
             const selectedRois = await this.selectRoisForSpellEffect(
                 actor,
                 'DX3rd.SpellDisasterText4',
@@ -1289,17 +1289,17 @@ window.DX3rdSpellHandler = {
             );
 
             if (!selectedRois) {
-                return; // 취소됨 또는 비GM 유저가 소켓 전송
+                return; // cancelled, or a non-GM sent it over the socket
             }
 
-            // 선택한 로이스와 같은 이름의 액터 찾기
+            // Find the actor whose name matches the chosen Lois
             const targetActor = this.findActorByRoisName(selectedRois.name);
             if (!targetActor) {
                 ui.notifications.error(`"${selectedRois.name}"와 같은 이름을 가진 액터를 찾을 수 없습니다.`);
                 return;
             }
 
-            // SpellDisaster를 다시 굴림 (대상 액터에게)
+            // Roll SpellDisaster again (on the target actor)
             await this.rollSpellDisaster(targetActor, item);
         } catch (error) {
             console.error("DX3rd | Error in handleSpellDisaster4:", error);
@@ -1308,13 +1308,13 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Handle SpellCalamity 8: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+     * Handle SpellCalamity 8: roll this table once more. The result applies to one of your Lois (the GM decides).
      * @param {Actor} actor
      * @param {Item} item
      */
     async handleSpellCalamity8(actor, item) {
         try {
-            // 로이스 선택
+            // Choose the Lois
             const selectedRois = await this.selectRoisForSpellEffect(
                 actor,
                 'DX3rd.SpellCalamityText8',
@@ -1324,17 +1324,17 @@ window.DX3rdSpellHandler = {
             );
 
             if (!selectedRois) {
-                return; // 취소됨 또는 비GM 유저가 소켓 전송
+                return; // cancelled, or a non-GM sent it over the socket
             }
 
-            // 선택한 로이스와 같은 이름의 액터 찾기
+            // Find the actor whose name matches the chosen Lois
             const targetActor = this.findActorByRoisName(selectedRois.name);
             if (!targetActor) {
                 ui.notifications.error(`"${selectedRois.name}"와 같은 이름을 가진 액터를 찾을 수 없습니다.`);
                 return;
             }
 
-            // SpellCalamity를 다시 굴림 (대상 액터에게)
+            // Roll SpellCalamity again (on the target actor)
             await this.rollSpellCalamity(targetActor, item);
         } catch (error) {
             console.error("DX3rd | Error in handleSpellCalamity8:", error);
@@ -1343,13 +1343,13 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Handle SpellCatastrophe 9: 이 표를 다시 한 번 굴린다. 그 결과는 당신의 로이스 중 한 명(GM이 결정)에게 적용된다.
+     * Handle SpellCatastrophe 9: roll this table once more. The result applies to one of your Lois (the GM decides).
      * @param {Actor} actor
      * @param {Item} item
      */
     async handleSpellCatastrophe9(actor, item) {
         try {
-            // 로이스 선택
+            // Choose the Lois
             const selectedRois = await this.selectRoisForSpellEffect(
                 actor,
                 'DX3rd.SpellCatastropheText9',
@@ -1359,17 +1359,17 @@ window.DX3rdSpellHandler = {
             );
 
             if (!selectedRois) {
-                return; // 취소됨 또는 비GM 유저가 소켓 전송
+                return; // cancelled, or a non-GM sent it over the socket
             }
 
-            // 선택한 로이스와 같은 이름의 액터 찾기
+            // Find the actor whose name matches the chosen Lois
             const targetActor = this.findActorByRoisName(selectedRois.name);
             if (!targetActor) {
                 ui.notifications.error(`"${selectedRois.name}"와 같은 이름을 가진 액터를 찾을 수 없습니다.`);
                 return;
             }
 
-            // SpellCatastrophe를 다시 굴림 (대상 액터에게)
+            // Roll SpellCatastrophe again (on the target actor)
             await this.rollSpellCatastrophe(targetActor, item);
         } catch (error) {
             console.error("DX3rd | Error in handleSpellCatastrophe9:", error);
@@ -1378,14 +1378,14 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Handle SpellCatastrophe 8: 마술 대폭주표를 굴린다. 그 결과는 당신을 포함하여 당신과 같은 인게이지에 있는 모든 캐릭터에게 적용된다.
-     * GM이 아닌 경우 소켓으로 전송, GM인 경우 직접 처리
+     * Handle SpellCatastrophe 8: roll the magic-overflow table. The result applies to you and everyone in your engagement.
+     * A non-GM sends it over the socket; the GM handles it directly.
      * @param {Actor} actor
      * @param {Item} item
      */
     async handleSpellCatastrophe8(actor, item) {
         try {
-            // GM이 아닌 경우 소켓으로 전송
+            // A non-GM sends it over the socket
             if (!game.user.isGM) {
                 window.DX3rdSocketRouter.emit({
                     type: 'spellCatastrophe8Request',
@@ -1398,7 +1398,7 @@ window.DX3rdSpellHandler = {
                 return;
             }
 
-            // GM인 경우 직접 처리
+            // The GM handles it directly
             await this.executeSpellCatastrophe8(actor, item);
         } catch (error) {
             console.error("DX3rd | Error in handleSpellCatastrophe8:", error);
@@ -1407,38 +1407,38 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Execute SpellCatastrophe 8: 마술 대폭주표를 굴린다. 그 결과는 당신을 포함하여 당신과 같은 인게이지에 있는 모든 캐릭터에게 적용된다.
+     * Execute SpellCatastrophe 8: roll the magic-overflow table. The result applies to you and everyone in your engagement.
      * @param {Actor} actor
      * @param {Item} item
      */
     async executeSpellCatastrophe8(actor, item) {
         try {
-            // 대상 액터 찾기 (본인 + 인접 그리드의 다른 토큰 액터)
+            // Collect the target actors (self plus other token actors in adjacent grids)
             const targetActors = [];
             
-            // 본인 추가
+            // Add self
             targetActors.push(actor);
             
-            // 자신의 토큰 찾기
+            // Find this actor's token
             const actorToken = actor.getActiveTokens()[0] || canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
             if (actorToken) {
-                // 인접 그리드 찾기
+                // Find the adjacent grids
                 const handler = window.DX3rdUniversalHandler;
                 if (handler && handler.getAdjacentGrids) {
                     const adjacentGrids = handler.getAdjacentGrids(actorToken);
                     
-                    // 각 인접 그리드에 있는 토큰 찾기
+                    // Find the tokens standing in each adjacent grid
                     for (const gridPos of adjacentGrids) {
-                        // gridPos는 { x, y } 픽셀 좌표
-                        // 해당 위치에 있는 토큰 찾기
+                        // gridPos is an { x, y } pixel coordinate
+                        // Find the tokens at that position
                         const tokensAtGrid = canvas.tokens.placeables.filter(t => {
                             if (!t.actor || t.actor.type !== 'character') return false;
-                            if (t.actor.id === actor.id) return false; // 자신은 이미 추가됨
+                            if (t.actor.id === actor.id) return false; // self is already added
                             
-                            // 토큰의 중심점
+                            // The token's center point
                             const tokenCenter = t.center;
                             
-                            // 그리드 좌표로 변환하여 거리 계산
+                            // Convert to grid coordinates and measure the distance
                             const tokenGrid = canvas.grid.getOffset({ x: tokenCenter.x, y: tokenCenter.y });
                             const targetGrid = canvas.grid.getOffset({ x: gridPos.x, y: gridPos.y });
                             
@@ -1446,11 +1446,11 @@ window.DX3rdSpellHandler = {
                             const dy = tokenGrid.j - targetGrid.j;
                             const distance = Math.sqrt(dx * dx + dy * dy);
                             
-                            // 거리가 0.5 이하면 같은 그리드로 간주
+                            // A distance of 0.5 or less counts as the same grid
                             return distance <= 0.5;
                         });
                         
-                        // 중복 제거하면서 추가
+                        // Add them, skipping duplicates
                         for (const token of tokensAtGrid) {
                             if (token.actor && !targetActors.find(a => a.id === token.actor.id)) {
                                 targetActors.push(token.actor);
@@ -1460,27 +1460,27 @@ window.DX3rdSpellHandler = {
                 }
             }
 
-            // SpellCalamity를 한 번만 굴림
+            // Roll SpellCalamity exactly once
             const roll = await new Roll("1d10").roll();
             const result = roll.total;
 
-            // 결과에 따른 텍스트 가져오기
+            // Fetch the text for this result
             const textKey = `DX3rd.SpellCalamityText${result}`;
             let resultText = game.i18n.localize(textKey);
 
-            // 5번과 9번 결과는 count를 1d10으로 먼저 계산
+            // Results 5 and 9 settle count with a 1d10 first
             let countValue = null;
             let countRollObj = null;
             if ((result === 5 || result === 9) && resultText.includes('{count}')) {
                 countRollObj = await new Roll("1d10").roll();
                 countValue = countRollObj.total;
                 
-                // 9번 결과는 simplifiedDistance에 따라 메시지 다르게 처리
+                // Result 9 words the message differently depending on simplifiedDistance
                 if (result === 9) {
                     const simplifiedDistance = game.settings.get('dx3rd-emanim', 'simplifiedDistance');
-                    // {count}점은 항상 countValue 사용
+                    // {count}점 always uses countValue
                     resultText = resultText.replace('{count}점', `${countValue}점`);
-                    // {count}m은 simplifiedDistance에 따라 다르게 처리
+                    // {count}m depends on simplifiedDistance
                     if (simplifiedDistance) {
                         const displayCount = Math.max(1, Math.floor(countValue / 2));
                         resultText = resultText.replace('{count}m', `${displayCount}칸`);
@@ -1491,12 +1491,12 @@ window.DX3rdSpellHandler = {
                     resultText = resultText.replace(/{count}/g, countValue);
                 }
             } else if (resultText.includes('{count}')) {
-                // 기타 결과는 1d6 사용
+                // Every other result uses 1d6
                 const countRoll = await new Roll("1d6").roll();
                 resultText = resultText.replace('{count}', countRoll.total);
             }
 
-            // 7번 결과는 damage를 2d10으로 먼저 계산
+            // Result 7 settles damage with a 2d10 first
             let damageValue = null;
             let damageRollObj = null;
             if (result === 7 && resultText.includes('{damage}')) {
@@ -1504,12 +1504,12 @@ window.DX3rdSpellHandler = {
                 damageValue = damageRollObj.total;
                 resultText = resultText.replace('{damage}', damageValue);
             } else if (resultText.includes('{damage}')) {
-                // 기타 결과는 1d6 사용
+                // Every other result uses 1d6
                 const damageRoll = await new Roll("1d6").roll();
                 resultText = resultText.replace('{damage}', damageRoll.total);
             }
 
-            // 각 대상 액터에게 동일한 SpellCalamity 결과 적용
+            // Apply the one SpellCalamity result to every target actor
             for (const targetActor of targetActors) {
                 if (!targetActor) continue;
                 await this.applySpellCalamityResultToActor(
@@ -1532,13 +1532,13 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Handle SpellCatastrophe 7: 폭발 - 5d10 데미지 (자신 + 인접 그리드의 모든 캐릭터)
-     * GM이 아닌 경우 소켓으로 전송, GM인 경우 직접 처리
+     * Handle SpellCatastrophe 7: explosion — 5d10 damage (self plus every character in an adjacent grid)
+     * A non-GM sends it over the socket; the GM handles it directly.
      * @param {Actor} actor
      */
     async handleSpellCatastrophe7(actor) {
         try {
-            // GM이 아닌 경우 소켓으로 전송
+            // A non-GM sends it over the socket
             if (!game.user.isGM) {
                 window.DX3rdSocketRouter.emit({
                     type: 'spellCatastrophe7Request',
@@ -1550,7 +1550,7 @@ window.DX3rdSpellHandler = {
                 return;
             }
 
-            // GM인 경우 직접 처리
+            // The GM handles it directly
             await this.executeSpellCatastrophe7(actor);
         } catch (error) {
             console.error("DX3rd | Error in handleSpellCatastrophe7:", error);
@@ -1559,45 +1559,45 @@ window.DX3rdSpellHandler = {
     },
 
     /**
-     * Execute SpellCatastrophe 7: 폭발 - 5d10 데미지 (자신 + 인접 그리드의 모든 캐릭터)
+     * Execute SpellCatastrophe 7: explosion — 5d10 damage (self plus every character in an adjacent grid)
      * @param {Actor} actor
      */
     async executeSpellCatastrophe7(actor) {
         try {
-            // 5d10 데미지 굴림
+            // Roll the 5d10 damage
             const damageRoll = await new Roll("5d10").roll();
             const damageAmount = damageRoll.total;
 
-            // 롤 결과를 HTML로 변환
+            // Render the roll result as HTML
             const rollHTML = await damageRoll.render();
             const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
 
-            // 대상 토큰 찾기 (자신 + 인접 그리드의 모든 캐릭터)
+            // Collect the target tokens (self plus every character in an adjacent grid)
             const targetActors = [];
             
-            // 자신의 토큰 찾기
+            // Find this actor's token
             const actorToken = actor.getActiveTokens()[0] || canvas.tokens.placeables.find(t => t.actor?.id === actor.id);
             if (actorToken) {
-                // 토큰이 있으면 인접한 캐릭터까지 포함
+                // With a token present, adjacent characters are included too
                 targetActors.push(actor);
                 
-                // 인접 그리드 찾기
+                // Find the adjacent grids
                 const handler = window.DX3rdUniversalHandler;
                 if (handler && handler.getAdjacentGrids) {
                     const adjacentGrids = handler.getAdjacentGrids(actorToken);
                     
-                    // 각 인접 그리드에 있는 토큰 찾기
+                    // Find the tokens standing in each adjacent grid
                     for (const gridPos of adjacentGrids) {
-                        // gridPos는 { x, y } 픽셀 좌표
-                        // 해당 위치에 있는 토큰 찾기
+                        // gridPos is an { x, y } pixel coordinate
+                        // Find the tokens at that position
                         const tokensAtGrid = canvas.tokens.placeables.filter(t => {
                             if (!t.actor || t.actor.type !== 'character') return false;
-                            if (t.actor.id === actor.id) return false; // 자신은 이미 추가됨
+                            if (t.actor.id === actor.id) return false; // self is already added
                             
-                            // 토큰의 중심점
+                            // The token's center point
                             const tokenCenter = t.center;
                             
-                            // 그리드 좌표로 변환하여 거리 계산
+                            // Convert to grid coordinates and measure the distance
                             const tokenGrid = canvas.grid.getOffset({ x: tokenCenter.x, y: tokenCenter.y });
                             const targetGrid = canvas.grid.getOffset({ x: gridPos.x, y: gridPos.y });
                             
@@ -1605,11 +1605,11 @@ window.DX3rdSpellHandler = {
                             const dy = tokenGrid.j - targetGrid.j;
                             const distance = Math.sqrt(dx * dx + dy * dy);
                             
-                            // 거리가 0.5 이하면 같은 그리드로 간주
+                            // A distance of 0.5 or less counts as the same grid
                             return distance <= 0.5;
                         });
                         
-                        // 중복 제거하면서 추가
+                        // Add them, skipping duplicates
                         for (const token of tokensAtGrid) {
                             if (token.actor && !targetActors.find(a => a.id === token.actor.id)) {
                                 targetActors.push(token.actor);
@@ -1618,33 +1618,33 @@ window.DX3rdSpellHandler = {
                     }
                 }
             } else {
-                // 토큰이 없으면 해당 액터에게만 데미지
+                // With no token, only this actor takes damage
                 targetActors.push(actor);
             }
 
-            // 각 대상에게 데미지 적용
+            // Apply the damage to each target
             const damageMessages = [];
             for (const targetActor of targetActors) {
                 if (!targetActor) continue;
 
-                // 현재 HP와 reduce 값 가져오기
+                // Read the current HP and reduce value
                 const currentHP = targetActor.system?.attributes?.hp?.value || 0;
                 const reduce = targetActor.system?.attributes?.reduce?.value || 0;
 
-                // 실제 데미지 = 롤 데미지 - 데미지 경감 (장갑치는 무시, reduce만 고려)
+                // Actual damage = rolled damage - reduction (armor is ignored; only reduce counts)
                 const actualDamage = Math.max(0, damageAmount - reduce);
 
-                // HP 업데이트
+                // Write the HP
                 const newHP = Math.max(0, currentHP - actualDamage);
                 const actualHpLoss = currentHP - newHP;
                 await targetActor.update({ 'system.attributes.hp.value': newHP });
 
-                // 데미지 메시지 생성
+                // Build the damage message
                 const damageText = `${targetActor.name}: HP ${actualHpLoss} 데미지 (${game.i18n.localize('DX3rd.SpellCatastrophe')})`;
                 damageMessages.push(damageText);
             }
 
-            // 통합 데미지 메시지 출력
+            // Emit the merged damage message
             const damageText = damageMessages.join('<br>');
             const content = `<div class="dx3rd-item-chat"><div class="item-details"><p>${damageText}</p></div>${rollMessage}</div>`;
 
@@ -1674,29 +1674,29 @@ window.DX3rdSpellHandler = {
      */
     async applySpellCalamityDamage(actor, resultNumber, damageAmount = null, damageRoll = null) {
         try {
-            // damageAmount나 damageRoll이 없으면 2d10 굴림
+            // Roll 2d10 when no damageAmount / damageRoll was passed in
             if (damageAmount === null || damageRoll === null) {
                 damageRoll = await new Roll("2d10").roll();
                 damageAmount = damageRoll.total;
             }
             
-            // 롤 결과를 HTML로 변환
+            // Render the roll result as HTML
             const rollHTML = await damageRoll.render();
             const rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
             
-            // 현재 HP와 reduce 값 가져오기
+            // Read the current HP and reduce value
             const currentHP = actor.system?.attributes?.hp?.value || 0;
             const reduce = actor.system?.attributes?.reduce?.value || 0;
             
-            // 실제 데미지 = 롤 데미지 - 데미지 경감 (장갑치는 무시, reduce만 고려)
+            // Actual damage = rolled damage - reduction (armor is ignored; only reduce counts)
             const actualDamage = Math.max(0, damageAmount - reduce);
             
-            // HP 업데이트
+            // Write the HP
             const newHP = Math.max(0, currentHP - actualDamage);
-            const actualHpLoss = currentHP - newHP;  // 실제 HP 감소량
+            const actualHpLoss = currentHP - newHP;  // the HP actually lost
             await actor.update({ 'system.attributes.hp.value': newHP });
             
-            // 데미지 메시지 출력 (extend처럼)
+            // Emit the damage message (as an extension would)
             const damageText = `HP ${actualHpLoss} 데미지 (${game.i18n.localize('DX3rd.SpellCalamity')})`;
             const content = `<div class="dx3rd-item-chat"><div class="item-details"><p>${damageText}</p></div>${rollMessage}</div>`;
             
@@ -1727,17 +1727,17 @@ window.DX3rdSpellHandler = {
         try {
             const simplifiedDistance = game.settings.get('dx3rd-emanim', 'simplifiedDistance');
             
-            // 하이라이트 칸 수 계산 (최소값 1)
+            // Highlight radius in grid squares (minimum 1)
             const highlightRange = simplifiedDistance ? Math.max(1, Math.floor(count / 2)) : count;
             
-            // 하이라이트 설정 (캔버스에 직접 그리기, 토큰을 따라오지 않음)
+            // Draw the highlight straight onto the canvas — it does not follow the token
             const tokens = actor.getActiveTokens();
             if (tokens.length > 0 && highlightRange > 0) {
                 const token = tokens[0];
                 const handler = window.DX3rdUniversalHandler;
                 
                 if (handler) {
-                    // 토큰의 현재 위치 저장 (하이라이트는 이 위치에 고정)
+                    // Freeze the token's current position (the highlight is pinned there)
                     const tokenPosition = {
                         x: token.document.x,
                         y: token.document.y,
@@ -1745,7 +1745,7 @@ window.DX3rdSpellHandler = {
                         height: token.document.height
                     };
                     
-                    // 사용자 색상 가져오기
+                    // Read the user color
                     const useUserColor = game.settings.get('dx3rd-emanim', 'rangeHighlightColor') === true;
                     let userColorValue = null;
                     
@@ -1760,7 +1760,7 @@ window.DX3rdSpellHandler = {
                         }
                     }
                     
-                    // 하이라이트 데이터 저장 (토큰 이동 감지용)
+                    // Store the highlight data (used to detect token movement)
                     const highlightData = {
                         actorId: actor.id,
                         tokenId: token.id,
@@ -1770,22 +1770,22 @@ window.DX3rdSpellHandler = {
                         timestamp: Date.now()
                     };
                     
-                    // SpellCalamity 하이라이트 데이터 저장 (토큰 이동 감지용)
+                    // Store the SpellCalamity highlight data (used to detect token movement)
                     if (!window.DX3rdSpellCalamityHighlightData) {
                         window.DX3rdSpellCalamityHighlightData = [];
                     }
                     window.DX3rdSpellCalamityHighlightData.push(highlightData);
                     
-                    // 하이라이트 그리기 (캔버스에 직접, 저장된 위치 사용)
+                    // Draw the highlight (straight onto the canvas, at the stored position)
                     await this.drawSpellCalamityHighlight(token, highlightRange, userColorValue, tokenPosition);
                     
-                    // 다른 사용자들에게도 소켓으로 전송
+                    // Send it to the other clients over the socket
                     window.DX3rdSocketRouter.emit({
                         type: 'setSpellCalamityHighlight',
                         data: highlightData
                     });
                     
-                    // 토큰 이동 감지 후크 등록 (한 번만)
+                    // Register the token-move hook (once)
                     if (!window.DX3rdSpellCalamityTokenMoveHook) {
                         window.DX3rdSpellCalamityTokenMoveHook = Hooks.on('updateToken', async (tokenDoc, updateData, options, userId) => {
                             if (window.DX3rdSpellHandler && window.DX3rdSpellHandler.handleTokenMoveForSpellCalamity) {
@@ -1796,24 +1796,24 @@ window.DX3rdSpellHandler = {
                 }
             }
             
-            // HP 데미지 적용 (count만큼)
+            // Apply the HP damage (equal to count)
             const currentHP = actor.system?.attributes?.hp?.value || 0;
             const reduce = actor.system?.attributes?.reduce?.value || 0;
             
-            // 실제 데미지 = count - 데미지 경감 (장갑치는 무시, reduce만 고려)
+            // Actual damage = count - reduction (armor is ignored; only reduce counts)
             const actualDamage = Math.max(0, count - reduce);
             
-            // HP 업데이트
+            // Write the HP
             const newHP = Math.max(0, currentHP - actualDamage);
-            const actualHpLoss = currentHP - newHP;  // 실제 HP 감소량
+            const actualHpLoss = currentHP - newHP;  // the HP actually lost
             await actor.update({ 'system.attributes.hp.value': newHP });
             
-            // 데미지 메시지 출력 (주사위 결과 포함)
+            // Emit the damage message (with the roll result)
             let damageText = `HP ${actualHpLoss} 데미지 (${game.i18n.localize('DX3rd.SpellCalamity')})`;
             let rollMessage = '';
             
             if (countRoll) {
-                // 주사위 결과를 HTML로 변환
+                // Render the roll result as HTML
                 const rollHTML = await countRoll.render();
                 rollMessage = `<div class="dice-roll">${rollHTML}</div>`;
             }
@@ -1850,12 +1850,12 @@ window.DX3rdSpellHandler = {
             const handler = window.DX3rdUniversalHandler;
             if (!handler) return;
             
-            // Graphics 객체 배열 초기화
+            // Initialize the Graphics array
             if (!window.DX3rdSpellCalamityHighlights) {
                 window.DX3rdSpellCalamityHighlights = [];
             }
             
-            // 기존 Graphics 객체 제거
+            // Remove the previous Graphics objects
             for (const graphics of window.DX3rdSpellCalamityHighlights) {
                 if (graphics && graphics.parent) {
                     graphics.parent.removeChild(graphics);
@@ -1864,7 +1864,7 @@ window.DX3rdSpellHandler = {
             }
             window.DX3rdSpellCalamityHighlights = [];
             
-            // 저장된 위치 사용 (토큰을 따라오지 않도록)
+            // Use the stored position, so the highlight does not follow the token
             const usePosition = position || {
                 x: token.document.x,
                 y: token.document.y,
@@ -1872,11 +1872,11 @@ window.DX3rdSpellHandler = {
                 height: token.document.height
             };
             
-            // 위치를 그리드 좌표로 변환 (기존 시스템과 동일한 방식)
-            // getSnappedPosition은 doc에서 호출해야 하므로, 직접 그리드 좌표 계산
+            // Convert the position to grid coordinates (the same way as elsewhere in the system).
+            // getSnappedPosition has to be called on the doc, so the grid offset is computed directly.
             const baseOff = canvas.grid.getOffset({ x: usePosition.x, y: usePosition.y });
             
-            // 토큰이 점유하는 그리드 계산
+            // The grids the token occupies
             const tokenWidth = usePosition.width || 1;
             const tokenHeight = usePosition.height || 1;
             const occupied = [];
@@ -1886,7 +1886,7 @@ window.DX3rdSpellHandler = {
                 }
             }
             
-            // 범위 내 그리드 계산 (기존 시스템과 동일한 방식)
+            // The grids within range (the same way as elsewhere in the system)
             const minI = Math.min(...occupied.map(c => c.i));
             const maxI = Math.max(...occupied.map(c => c.i));
             const minJ = Math.min(...occupied.map(c => c.j));
@@ -1895,16 +1895,16 @@ window.DX3rdSpellHandler = {
             const key = (i, j) => `${i},${j}`;
             const occSet = new Set(occupied.map(c => key(c.i, c.j)));
             
-            // 후보 그리드 생성
+            // Build the candidate grids
             const candidates = [];
             for (let i = minI - range; i <= maxI + range; i++) {
                 for (let j = minJ - range; j <= maxJ + range; j++) {
-                    if (occSet.has(key(i, j))) continue; // 점유 칸 제외
+                    if (occSet.has(key(i, j))) continue; // skip occupied squares
                     candidates.push({ i, j });
                 }
             }
             
-            // 거리 계산 (기존 시스템과 동일: measurePath 사용)
+            // Distance (the same as elsewhere in the system: measurePath)
             const centerOf = ({ i, j }) => canvas.grid.getCenterPoint({ i, j });
             function gridDistCenters(a, b) {
                 const res = canvas.grid.measurePath([a, b], { gridSpaces: true });
@@ -1926,21 +1926,21 @@ window.DX3rdSpellHandler = {
                 if (dmin >= 1 && dmin <= range) within.push({ ...c, dist: dmin });
             }
             
-            // 중복 제거 + 정렬
+            // Dedupe and sort
             const result = [...new Map(within.map(c => [key(c.i, c.j), c])).values()]
                 .sort((a, b) => a.j - b.j || a.i - b.i);
             
-            // 토큰 중심점 계산 (저장된 위치 기준)
+            // The token's center point (from the stored position)
             const tokenCenterX = usePosition.x + (usePosition.width * canvas.grid.size) / 2;
             const tokenCenterY = usePosition.y + (usePosition.height * canvas.grid.size) / 2;
             const tokenCenter = { x: tokenCenterX, y: tokenCenterY };
             
-            // 벽 충돌 체크 후 최종 그리드 선택
+            // Pick the final grids after a wall-collision check
             const grids = [];
             for (const { i, j } of result) {
                 const centerPoint = centerOf({ i, j });
                 
-                // 벽 충돌 체크: 토큰 중심에서 그리드 중심까지
+                // Wall collision: from the token's center to the grid's center
                 const hasWall = handler.checkWallCollision 
                     ? handler.checkWallCollision(tokenCenter, centerPoint)
                     : false;
@@ -1950,39 +1950,39 @@ window.DX3rdSpellHandler = {
                 }
             }
             
-            // 하이라이트 그리기 (기존 시스템과 동일한 방식)
+            // Draw the highlight (the same way as elsewhere in the system)
             const gridSize = canvas.grid.size;
-            const color = userColor || 0x00FF00; // 기본 색상: 녹색
+            const color = userColor || 0x00FF00; // default color: green
             const gridType = canvas.grid.type;
             
             for (const grid of grids) {
                 const graphics = new PIXI.Graphics();
                 
-                // 기존 시스템과 동일하게 beginFill만 사용 (lineStyle 없음)
+                // Like the rest of the system, beginFill only (no lineStyle)
                 graphics.beginFill(color, 0.2);
                 
                 if (gridType === CONST.GRID_TYPES.SQUARE || gridType === CONST.GRID_TYPES.GRIDLESS) {
-                    // 정사각형 그리드: 사각형 (중심점 기준, 1px 안쪽)
-                    const centerX = grid.x; // 이미 중심점
-                    const centerY = grid.y; // 이미 중심점
-                    const halfSize = (gridSize / 2) - 1; // 1px 안쪽
+                    // A square grid: a rectangle (centered, inset by 1px)
+                    const centerX = grid.x; // already the center point
+                    const centerY = grid.y; // already the center point
+                    const halfSize = (gridSize / 2) - 1; // inset by 1px
                     graphics.drawRect(centerX - halfSize, centerY - halfSize, gridSize - 2, gridSize - 2);
                 } else if (gridType === CONST.GRID_TYPES.HEXODDR || 
                           gridType === CONST.GRID_TYPES.HEXEVENR ||
                           gridType === CONST.GRID_TYPES.HEXODDQ ||
                           gridType === CONST.GRID_TYPES.HEXEVENQ) {
-                    // 육각형 그리드: 실제 육각형 모양으로 하이라이트
+                    // A hex grid: highlight the actual hexagon shape
                     if (handler && handler.drawHexHighlight) {
                         handler.drawHexHighlight(graphics, grid.x, grid.y, gridSize);
                     } else {
-                        // fallback: 원으로 대체
+                        // fallback: a circle instead
                         graphics.drawCircle(grid.x, grid.y, gridSize / 2 - 1);
                     }
                 }
                 
                 graphics.endFill();
                 
-                // Canvas의 그리드 레이어에 추가
+                // Add it to the canvas grid layer
                 canvas.interface.grid.addChild(graphics);
                 window.DX3rdSpellCalamityHighlights.push(graphics);
             }
@@ -1999,17 +1999,17 @@ window.DX3rdSpellHandler = {
      */
     async handleTokenMoveForSpellCalamity(tokenDoc, updateData) {
         try {
-            // 위치가 변경되었는지 확인
+            // Did the position actually change?
             if (!updateData.x && !updateData.y) return;
             
-            // SpellCalamity 하이라이트 데이터 확인
+            // Is there any SpellCalamity highlight data?
             if (!window.DX3rdSpellCalamityHighlightData) return;
             
             const highlights = window.DX3rdSpellCalamityHighlightData;
             const index = highlights.findIndex(h => h.tokenId === tokenDoc.id);
             
             if (index !== -1) {
-                // 하이라이트 제거
+                // Remove the highlight
                 this.clearSpellCalamityHighlight(tokenDoc.id);
             }
             
@@ -2024,10 +2024,10 @@ window.DX3rdSpellHandler = {
      */
     clearSpellCalamityHighlight(tokenId = null) {
         try {
-            // Graphics 객체 배열에서 하이라이트 제거
+            // Remove the highlights from the Graphics array
             if (window.DX3rdSpellCalamityHighlights && Array.isArray(window.DX3rdSpellCalamityHighlights)) {
-                // 하이라이트 데이터와 Graphics 객체를 분리해서 관리
-                // 여기서는 모든 Graphics 객체를 제거
+                // The highlight data and the Graphics objects are managed separately;
+                // here every Graphics object is removed.
                 for (const graphics of window.DX3rdSpellCalamityHighlights) {
                     if (graphics && graphics.parent) {
                         graphics.parent.removeChild(graphics);
@@ -2037,7 +2037,7 @@ window.DX3rdSpellHandler = {
                 window.DX3rdSpellCalamityHighlights = [];
             }
             
-            // 하이라이트 데이터도 제거
+            // Drop the highlight data too
             if (window.DX3rdSpellCalamityHighlightData) {
                 if (tokenId) {
                     window.DX3rdSpellCalamityHighlightData = window.DX3rdSpellCalamityHighlightData.filter(
@@ -2048,7 +2048,7 @@ window.DX3rdSpellHandler = {
                 }
             }
             
-            // 다른 사용자들에게도 소켓으로 전송
+            // Send it to the other clients over the socket
             if (tokenId) {
                 window.DX3rdSocketRouter.emit({
                     type: 'clearSpellCalamityHighlight',

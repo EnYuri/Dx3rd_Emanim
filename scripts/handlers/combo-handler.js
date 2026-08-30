@@ -1,11 +1,11 @@
-// Combo 아이템 핸들러
+// The combo item handler
 (function() {
 window.DX3rdDebug.log("DX3rd | ComboHandler script loading...");
 
 window.DX3rdComboHandler = {
     /**
-     * 비용을 지불하기 전에 판정형 콤보가 실제로 판정에 진입할 수 있는지 확인한다.
-     * 에너미의 고정 명중 달성치 공격은 stat 없이도 기존 단축 경로를 쓸 수 있다.
+     * Before paying the cost, confirm that a check-type combo can actually enter its check.
+     * An enemy's fixed accuracy-result attack can use the existing shortcut path without a stat.
      */
     validateUse(actor, item) {
         const rollType = item?.system?.roll ?? '-';
@@ -21,18 +21,18 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 스킬 키로부터 표시 이름 가져오기 (커스텀 스킬 및 로컬라이징 처리)
+     * Get the display name from a skill key (custom skills and localization included)
      */
-    /** 스킬 표시 이름. 실제 로직은 DX3rdSkillManager 가 effect 와 공유한다. */
+    /** The skill display name. The actual logic is shared with effect through DX3rdSkillManager. */
     getSkillDisplayName(skillKey, skillStat) {
         return window.DX3rdSkillManager.getSkillDisplayName(skillKey, skillStat);
     },
 
     /**
-     * 콤보의 기능(skill) 설정으로부터 판정 stat/label 해석 (공용)
-     * - 능력치(body/sense/mind/social), 신드롬, 텍스트, 크툴루 신화, 일반 스킬(+커스텀 base) 모두 처리
-     * - Finding F: 무기 판정 경로(handleComboRollWithWeapon)와 일반 경로가 동일한 해석을 쓰도록 단일화
-     * @returns {{stat:object, label:string}|null} 실패 시 경고 표시 후 null
+     * Resolve the check stat / label from a combo's skill setting (shared).
+     * - Handles attributes (body/sense/mind/social), syndromes, text, Cthulhu Mythos and ordinary skills (+ a custom base)
+     * - Finding F: unified so the weapon check path (handleComboRollWithWeapon) and the ordinary path resolve identically
+     * @returns {{stat:object, label:string}|null} null after a warning on failure
      */
     resolveComboStat(actor, item) {
         const skillKey = item.system?.skill;
@@ -46,39 +46,39 @@ window.DX3rdComboHandler = {
         let label = '';
 
         if (attributes.includes(skillKey)) {
-            // 능력치
+            // An attribute
             stat = actor.system.attributes[skillKey];
             label = game.i18n.localize(`DX3rd.${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
         } else if (skillKey === 'syndrome') {
-            // 신드롬
+            // A syndrome
             stat = actor.system.attributes.syndrome;
             label = stat?.name || game.i18n.localize('DX3rd.Syndrome');
             if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
         } else if (skillKey === 'text') {
-            // 텍스트
+            // Text
             stat = actor.system.attributes.text;
             label = stat?.name || game.i18n.localize('DX3rd.Text');
             if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
         } else if (skillKey === 'cthulhu') {
-            // 크툴루 신화
+            // Cthulhu Mythos
             stat = actor.system.attributes.skills?.cthulhu;
             label = stat?.name || game.i18n.localize('DX3rd.cthulhu');
             if (label && label.startsWith('DX3rd.')) label = game.i18n.localize(label);
         } else {
-            // 스킬 - system.base 설정 확인
+            // A skill — check the system.base setting
             const customBase = item.system?.base;
             if (customBase && customBase !== '-' && attributes.includes(customBase)) {
-                // 커스텀 base 사용 - 스킬 보정 계산
+                // Using a custom base — compute the skill's modifier
                 const baseStat = actor.system.attributes[customBase];
                 const skillStat = actor.system.attributes.skills?.[skillKey];
                 const originalBaseStat = actor.system.attributes[skillStat?.base];
 
                 if (baseStat && skillStat && originalBaseStat) {
-                    // 스킬의 순수 보정 계산
+                    // The skill's own modifier
                     const skillDiceBonus = (skillStat.dice || 0) - (originalBaseStat.dice || 0);
                     const skillAddBonus = (skillStat.add || 0) - (originalBaseStat.add || 0);
 
-                    // 커스텀 base + 스킬 보정으로 새로운 stat 객체 생성
+                    // Build a new stat object from the custom base plus the skill modifier
                     stat = {
                         ...baseStat,
                         dice: (baseStat.dice || 0) + skillDiceBonus,
@@ -105,12 +105,12 @@ window.DX3rdComboHandler = {
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Using custom base: ${customBase} for skill: ${skillKey}`);
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Skill bonus: dice=${skillDiceBonus}, add=${skillAddBonus}`);
                 } else {
-                    // 폴백: 기본 base 사용
+                    // Fallback: use the default base
                     stat = baseStat;
                     label = game.i18n.localize(`DX3rd.${customBase.charAt(0).toUpperCase() + customBase.slice(1)}`);
                 }
             } else {
-                // 기본 스킬 사용
+                // Use the default skill
                 stat = actor.system.attributes.skills?.[skillKey];
                 if (stat) label = this.getSkillDisplayName(skillKey, stat);
             }
@@ -133,17 +133,17 @@ window.DX3rdComboHandler = {
             return false;
         }
         
-        // itemIdOrObject가 문자열이면 액터의 아이템에서 조회, 객체면 그대로 사용 (임시 콤보)
+        // A string itemIdOrObject is looked up in the actor's items; an object is used as-is (a temporary combo)
         let item;
         if (typeof itemIdOrObject === 'string') {
-            // 액터의 아이템에서 먼저 찾고, 없으면 game.items에서 찾기
+            // Look in the actor's items first, then fall back to game.items
             item = actor.items.get(itemIdOrObject) || game.items.get(itemIdOrObject);
             if (!item) { 
                 ui.notifications.warn(game.i18n.localize('DX3rd.ItemNotFound'));
                 return false;
             }
         } else if (typeof itemIdOrObject === 'object') {
-            // 임시 콤보 아이템 객체
+            // A temporary combo item object
             item = itemIdOrObject;
             window.DX3rdDebug.log("DX3rd | ComboHandler - Using temporary combo item", item);
         } else {
@@ -153,10 +153,10 @@ window.DX3rdComboHandler = {
         const comboAction = window.DX3rdItemEffectAdapter?.invocationAction?.(item) || 'attack';
         if (!this.validateUse(actor, item)) return false;
 
-        // 0. 임시 콤보(빌더에서 생성된 객체)는 handleItemUse를 거치지 않으므로 여기서 코스트를 정산한다.
-        //    저장된 콤보(문자열 id)는 handleItemUse가 이미 processItemUsageCost를 호출했으므로 중복 정산하지 않는다.
-        //    정산 내용: 침식치 합계(룰 807-809)·HP 코스트·사용 게이트·통합 사용 메시지.
-        //    이펙트 사용횟수 증가는 processInstantExtensions가 담당하므로 코스트 정산과 이중으로 겹치지 않는다.
+        // 0. A temporary combo (an object built in the builder) never goes through handleItemUse, so the cost is settled here.
+        //    A stored combo (a string id) has already had processItemUsageCost called by handleItemUse, so it is not settled twice.
+        //    What is settled: the encroachment total (rules 807-809), the HP cost, the use gates and the unified use message.
+        //    Incrementing the effects' use counts belongs to processInstantExtensions, so it does not overlap with the cost settlement.
         if (typeof itemIdOrObject === 'object') {
             const usageAllowed = await window.DX3rdUniversalHandler.processItemUsageCost(actor, item, {
                 action: comboAction,
@@ -168,26 +168,26 @@ window.DX3rdComboHandler = {
             }
         }
 
-        // 1. instant 익스텐션 병합·실행 (공통 - 롤 타입 무관)
+        // 1. Merge and run the instant extensions (shared — independent of roll type)
         await this.processInstantExtensions(actor, item, comboAction, {
             skipWeaponAttackSpend: options.reroll === true
         });
 
-        // 2. 콤보 롤 타입 분기
+        // 2. Branch on the combo roll type
         const rollType = window.DX3rdUniversalHandler.resolveInvocationRollType(item, options);
         
         if (rollType === '-') {
-            // No-roll: instant만 처리했으므로 끝
+            // No-roll: only the instant work was needed, so we are done
             window.DX3rdDebug.log("DX3rd | ComboHandler - No-roll combo completed");
         } else {
-            // Roll: 롤 다이얼로그 표시 (afterSuccess는 채팅 버튼에서 처리)
+            // Roll: show the roll dialog (afterSuccess is handled from the chat button)
             const rollStarted = await this.handleComboRoll(actor, item, rollType, getTarget, options);
             if (rollStarted === false) return false;
         }
 
-        // 호출 문맥(방어 다이얼로그 등)이 붙인 사용 직후 콜백. 판정형 콤보는 롤 다이얼로그를
-        // 기다리지 않으므로, 여기서는 이미 반영된 instant 익스텐션·자기효과까지가 대상이다.
-        // 판정 결과 자체는 meta.afterRollCallback 으로 따로 돌아간다.
+        // The post-use callback attached by the calling context (a defense dialog, say). A check-type combo does not
+        // wait for the roll dialog, so what it covers here is the instant extensions and self effects already applied.
+        // The check result itself comes back separately through meta.afterRollCallback.
         const afterUseCallback = item.meta?.afterUseCallback;
         if (typeof afterUseCallback === 'function') {
             try {
@@ -200,8 +200,8 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * 조합된 멤버 아이템의 기존 발동 액션. 콤보 포함은 이 값을 바꾸지 않으며,
-     * 특히 「활성화」를 암시하지 않는다.
+     * A combined member item's existing trigger action. Combo inclusion never changes it,
+     * and in particular never implies "activation".
      */
     comboMemberAction(memberItem, fallback = 'attack') {
         const adapter = window.DX3rdItemEffectAdapter;
@@ -211,8 +211,8 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 콤보의 일반 구성 슬롯. 무기 슬롯은 공격 수치·attack-used 경로가 별도로 담당하며,
-     * 여기에 합쳐 무기의 선택형 「사용」 효과까지 자동 발동시키지 않는다.
+     * A combo's ordinary member slots. The weapon slot is handled separately by the attack-value and attack-used paths;
+     * merging it in here would also fire a weapon's optional "use" effects automatically.
      */
     comboMemberEntries(actor, comboItem) {
         const handler = window.DX3rdUniversalHandler;
@@ -221,8 +221,8 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 구성 멤버의 자기 보정 중 지금 액션·타이밍에 발현할 버킷이 있는가.
-     * 활성화 버킷은 콤보로 자동 점등하지 않으며, 명시적인 사용 버킷만 별도로 허용한다.
+     * Does a member's self modifiers have a bucket that fires at the current action and timing?
+     * An activation bucket is never lit automatically by a combo; only an explicit use bucket is allowed separately.
      */
     memberSelfModifiersFireAt(effectItem, action, timing) {
         const adapter = window.DX3rdItemEffectAdapter;
@@ -249,16 +249,16 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 주어진 소스 아이템들(콤보 본체 + 포함 이펙트)에서 익스텐션 정의를 수집한다.
-     * 기존 3개 메서드(processInstant/collectAfterSuccess/collectAfterDamage)에 복붙되어 있던
-     * pushExtensionsFrom 로직을 단일화한 것.
+     * Collect the extension definitions from the given source items (the combo itself plus its included effects).
+     * A unification of the pushExtensionsFrom logic that was copy-pasted across three methods
+     * (processInstant / collectAfterSuccess / collectAfterDamage).
      * @param {Actor} actor
-     * @param {Array} srcItems - 익스텐션 플래그를 가진 아이템 배열 (앞에서부터 순서대로 수집)
+     * @param {Array} srcItems - the items carrying extension flags (collected in order, front first)
      * @param {Object} [opts]
-     * @param {boolean} [opts.includeItemCreation=true] - weapon/protect/vehicle 생성 익스텐션 포함 여부 (afterDamage는 instant 전용이라 false)
-     * @param {string|null} [opts.comboItemId=null] - 콤보 본체의 id. 지정 시 액션 게이트는
-     *   본체에만 적용하고, 구성 멤버 익스텐션은 이전 동작대로 모두 수집한다.
-     * @returns {Array} 수집된 익스텐션 정의 배열
+     * @param {boolean} [opts.includeItemCreation=true] - whether weapon/protect/vehicle creation extensions are included (false for afterDamage, which is instant-only)
+     * @param {string|null} [opts.comboItemId=null] - the combo's own id. When given, the action gate applies to the
+     *   combo itself only, and member extensions are all collected as before.
+     * @returns {Array} the collected extension definitions
      */
     collectExtensions(actor, srcItems, { includeItemCreation = true, action = 'attack', comboItemId = null } = {}) {
         const collected = [];
@@ -267,7 +267,7 @@ window.DX3rdComboHandler = {
             if (!srcItem) continue;
             const gated = gatedByAction(srcItem);
             const ext = srcItem.getFlag('dx3rd-emanim', 'itemExtend') || {};
-            // 부모 아이템의 runTiming 저장 (익스텐션의 등록 타이밍 결정에 사용)
+            // Store the parent item's runTiming (used to decide the extension's registration timing)
             const parentRunTiming = srcItem.system?.active?.runTiming || 'instant';
             const baseData = {
                 itemId: srcItem.id,
@@ -278,8 +278,8 @@ window.DX3rdComboHandler = {
 
             const pushIf = (typeKey, d) => {
                 if (!d || !d.activate) return;
-                // 구성 멤버 익스텐션은 기존처럼 use/attack 양쪽을 모두 보존한다.
-                // 단, 콤보 포함만으로 activation 동작이 일어나서는 안 된다.
+                // Member extensions preserve both use and attack as before.
+                // But combo inclusion alone must never cause activation behavior.
                 if (!gated && window.DX3rdItemEffectAdapter
                     && window.DX3rdItemEffectAdapter.inferAction(srcItem, typeKey, d) === 'activation') return;
                 if (typeKey === 'heal' || typeKey === 'damage' || typeKey === 'condition') {
@@ -309,14 +309,14 @@ window.DX3rdComboHandler = {
                         extensionData: d
                     });
                 } else if (typeKey === 'weapon' || typeKey === 'protect' || typeKey === 'vehicle') {
-                    // 아이템 생성 익스텐션은 instant만 지원 (afterDamage 수집에서는 제외)
+                    // Item creation extensions are instant-only (excluded from the afterDamage collection)
                     if (!includeItemCreation) return;
                     if (gated && window.DX3rdItemEffectAdapter
                         && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, 'instant')) return;
                     collected.push({
                         type: typeKey, ...baseData,
                         timing: 'instant',
-                        extensionData: d // 전체 데이터 보존
+                        extensionData: d // keep the full data
                     });
                 }
             };
@@ -328,8 +328,8 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * instant 익스텐션 병합 및 실행 (롤 타입 무관 공통 처리)
-     * 콤보 + 포함된 이펙트들의 instant 익스텐션을 수집·병합·실행
+     * Merge and run the instant extensions (shared handling, independent of roll type).
+     * Collects, merges and runs the instant extensions of the combo plus its included effects.
      */
     async processInstantExtensions(actor, item, action = null, options = {}) {
         window.DX3rdDebug.log("DX3rd | ComboHandler - Processing instant extensions (common for all roll types)");
@@ -337,36 +337,36 @@ window.DX3rdComboHandler = {
         if (!handler) return;
         action ||= window.DX3rdItemEffectAdapter?.invocationAction?.(item) || 'attack';
 
-        // 콤보 본체의 instant 매크로/어플라이드는 이미 handleItemUse에서 실행됨 → 중복 방지
+        // The combo's own instant macros / applied were already run in handleItemUse → avoid duplicates
         window.DX3rdDebug.log('DX3rd | ComboHandler - Skipping combo item instant macro/apply (already done in handleItemUse)');
 
-        // 2) 구성 아이템의 즉시 처리 + 익스텐드 수집
+        // 2) Immediate handling of the member items + extension collection
         const memberEntries = this.comboMemberEntries(actor, item);
         window.DX3rdDebug.log('DX3rd | ComboHandler - Members normalized', {
             members: memberEntries.map(entry => ({ id: entry.item.id, type: entry.item.type, role: entry.role }))
         });
 
-        // 현재 선택된 타겟을 저장(instant 병합 실행 시 공유)
+        // Save the currently selected targets (shared when the merged instant work runs)
         const selectedTargetIds = Array.from(game.user.targets || []).map(t => t.id);
 
-        // 콤보 본체 즉시 활성화/매크로/어플라이드는 handleItemUse에서 처리됨 → 익스텐드는 아래에서 일괄 수집
+        // The combo's own immediate activation / macros / applied are handled in handleItemUse → the extensions are collected together below
         window.DX3rdDebug.log('DX3rd | ComboHandler - Collecting extensions from combo item:', item.name);
 
-        // 포함된 무기의 공격 횟수 증가.
+        // Increment the attack count of the included weapons.
         //
-        // **여기서 올리는 경우는 에너미 명중 달성치 경로 하나뿐이다.**
-        // ⑴ 공격 판정 콤보(attackRoll !== '-')는 실제 데미지 롤 시점에 chat-ui 의 damage-roll-btn
-        //    핸들러가 실제로 사용된 무기(data-weapon-ids)만 +1 한다. 여기서 미리 올리면 이중 증가일
-        //    뿐 아니라, calculateRegisteredWeaponBonus 가 그 무기를 「이미 소진」으로 보고 보너스를
-        //    빼 버려 정작 그 공격에서 무기 수치가 사라진다.
-        // ⑵ 비공격 콤보(attackRoll === '-')는 **등록 무기를 아예 쓰지 않는다** —
-        //    calculateRegisteredWeaponBonus 의 호출부 두 곳이 모두 attackRoll 게이트 안에 있어
-        //    무기가 판정에도 데미지에도 실리지 않는다. 그런데도 예전에는 여기서 공격 횟수만
-        //    소비했고, 게다가 이 자리에는 소진 게이트가 없어(다른 소비 지점은 전부
-        //    allowExhaustedUse 를 보거나 reportUsageExhausted 로 알린다) max 를 조용히 넘겼다.
-        //    콤보 시트의 무기 픽커는 attackRoll 과 무관하게 뜨므로 저작만으로 걸리는 경로다.
-        // ⑶ 에너미 명중 달성치 경로만 롤 없이 처리되어 데미지 버튼에 무기 ID를 싣지 않으므로
-        //    (chat-ui 의 증가 핸들러가 동작하지 않음) 이 자리에서 올려야 한다.
+        // **The only case incremented here is the enemy accuracy-result path.**
+        // (1) An attack-check combo (attackRoll !== '-') has chat-ui's damage-roll-btn handler increment only the
+        //     weapons actually used (data-weapon-ids) at damage-roll time. Incrementing early here is not only a
+        //     double increment — calculateRegisteredWeaponBonus would see that weapon as "already exhausted" and drop
+        //     its bonus, so the weapon's values vanish from the very attack that used it.
+        // (2) A non-attack combo (attackRoll === '-') **never uses the registered weapons at all** —
+        //     both call sites of calculateRegisteredWeaponBonus are inside the attackRoll gate, so the weapon rides
+        //     into neither the check nor the damage. It nonetheless used to spend the attack count here, and since
+        //     this spot has no exhaustion gate (every other spend site either reads allowExhaustedUse or reports
+        //     through reportUsageExhausted) it quietly went over max.
+        //     The combo sheet's weapon picker appears regardless of attackRoll, so authoring alone reaches this path.
+        // (3) Only the enemy accuracy-result path is handled without a roll and puts no weapon id on the damage button
+        //     (chat-ui's increment handler never runs), so it must be incremented here.
         const isAttackCombo = item.system?.attackRoll && item.system.attackRoll !== '-';
         const isEnemyAchievementShortcut = actor.type === 'enemy' &&
             item.system?.attackAchievement && item.system.attackAchievement !== '-' && item.system.attackAchievement !== '' &&
@@ -381,7 +381,7 @@ window.DX3rdComboHandler = {
                     console.warn('DX3rd | ComboHandler - Weapon item not found:', weaponId);
                     continue;
                 }
-                // weapon 타입만 attack-used 증가 (vehicle은 attack-used 필드 없음)
+                // Only the weapon type increments attack-used (a vehicle has no attack-used field)
                 if (weaponItem.type === 'weapon') {
                     const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
                     if (attackUsedDisable !== 'notCheck') {
@@ -398,12 +398,12 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log(`DX3rd | ComboHandler - Skipping weapon attack-used pre-increment (${reason})`);
         }
 
-        // 일반 구성 아이템의 사용 횟수 증가 (notCheck가 아닌 경우) — 무기 슬롯은 별도의
-        // attack-used 경로가 담당한다. 멤버 수만큼 개별 update 를 하면
-        // 그 수만큼 DB 왕복 + 액터 재파생 + 시트 재렌더가 연쇄돼 콤보 발동이 눈에 띄게 느려진다.
-        // 콤보는 하나의 사용 행위이므로 카운터는 한 번에 올린다(멤버 처리 전에 전원 반영).
-        // 타입 판정은 comboMemberEntries(→ isComboMemberItem)가 이미 끝냈다 — 여기서 다시 쓰면
-        // 「검사·증가·실행」의 기준이 또 갈린다.
+        // Increment the use count of the ordinary member items (unless notCheck) — the weapon slot is handled by
+        // the separate attack-used path. Doing one update per member would chain that many DB round trips,
+        // actor re-derivations and sheet re-renders, making combo activation noticeably slow.
+        // A combo is one act of use, so the counters go up in a single write (all of them, before the members run).
+        // The type decision was already made by comboMemberEntries (→ isComboMemberItem) — rewriting it here would
+        // split the basis of "check, increment, run" yet again.
         const usedUpdates = memberEntries
             .filter(entry => entry.role !== 'weapon')
             .map(entry => entry.item)
@@ -418,7 +418,7 @@ window.DX3rdComboHandler = {
         for (const { item: memberItem, role } of memberEntries) {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Processing member item:', memberItem.name, 'ID:', memberItem.id, 'role:', role);
 
-            // 구성 아이템 즉시 처리
+            // Immediate handling of the member items
             try {
                 const memberAction = this.comboMemberAction(memberItem, action);
                 if (this.memberSelfModifiersFireAt(memberItem, memberAction, 'instant')) {
@@ -433,11 +433,11 @@ window.DX3rdComboHandler = {
 
             processedMemberItems.push(memberItem);
         }
-        // updateItem 훅의 AE 동기화는 비동기다. 현재 액션 버킷이 토글 채널인 구성 멤버의
-        // 보정이 공격 판정 전에 actor 파생값에 반영되도록 진행 중인 동기화까지 완료를 대기한다.
+        // The updateItem hook's AE sync is asynchronous. Wait for any sync in flight so a member whose current
+        // action bucket is the toggle channel has its modifiers in the actor's derived values before the attack check.
         await window.DX3rdAppliedToggle?.sync?.(actor);
 
-        // 익스텐드 일괄 수집 (콤보 본체 + 전체 구성 아이템)
+        // Collect all the extensions (the combo itself + every member item)
         const collectedExtensions = this.collectExtensions(actor, [item, ...processedMemberItems], {
             includeItemCreation: true, action, comboItemId: item.id
         });
@@ -445,7 +445,7 @@ window.DX3rdComboHandler = {
         window.DX3rdDebug.log('DX3rd | ComboHandler - Total collected extensions before merge:', collectedExtensions.length);
         window.DX3rdDebug.log('DX3rd | ComboHandler - Collected extensions:', collectedExtensions);
 
-        // 3) 익스텐드 병합 (같은 타이밍 + 같은 대상, custom 분리)
+        // 3) Merge the extensions (same timing + same target, custom kept separate)
         try {
             const buckets = handler.groupExtensionsByKey(collectedExtensions);
             const merged = handler.mergeGroupedExtensionBuckets(actor, buckets);
@@ -458,13 +458,13 @@ window.DX3rdComboHandler = {
                 afterDamage: merged.filter(b => b.timing === 'afterDamage').length
             });
 
-            // instant 및 afterMain 버킷 처리
+            // Handle the instant and afterMain buckets
             for (const b of merged) {
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Processing bucket:', b.type, 'timing:', b.timing, 'target:', b.target, 'parentRunTiming:', b.parentRunTiming);
                 
-                // instant는 즉시 실행, afterMain은 큐에 등록, 나머지는 건너뜀
+                // instant runs at once, afterMain is queued, everything else is skipped
                 if (b.timing === 'instant') {
-                    // instant 타이밍 즉시 실행
+                    // The instant timing runs immediately
                     window.DX3rdDebug.log('DX3rd | ComboHandler - Executing instant extension:', b.type);
                     if (b.type === 'heal' && !b.custom) {
                     const healData = {
@@ -474,7 +474,7 @@ window.DX3rdComboHandler = {
                         selectedTargetIds,
                         resurrect: b.resurrect || false,
                         rivival: b.rivival || false,
-                        // 콤보 병합 트리거 - 트리거 아이템 이름은 콤보 이름
+                        // A merged combo trigger — the trigger item name is the combo's name
                         triggerItemName: item.name
                     };
                     await handler.executeHealExtensionNow(actor, healData, null);
@@ -485,7 +485,7 @@ window.DX3rdComboHandler = {
                     });
                     await handler.executeDamageExtensionNow(actor, damageData, null);
                 } else if (b.type === 'condition' && !b.custom) {
-                    // 같은 대상이면 서로 다른 컨디션도 한 번의 다이얼로그로 병합 처리
+                    // For the same target, different conditions are merged into a single dialog
                     const conditionTypes = b.merged?.conditions || [];
                     await handler.executeConditionExtensionsNowBulk(actor, {
                         conditionTypes,
@@ -508,7 +508,7 @@ window.DX3rdComboHandler = {
                         }, srcItem || null);
                     }
                 } else if (b.type === 'weapon' || b.type === 'protect' || b.type === 'vehicle') {
-                    // 아이템 생성은 병합하지 않고 각 소스별로 개별 생성
+                    // Item creation is not merged; one is created per source
                     for (const src of b.sources) {
                         const srcItem = actor.items.get(src.itemId);
                         if (!srcItem) continue;
@@ -521,8 +521,8 @@ window.DX3rdComboHandler = {
                     }
                     }
                 } else if (b.timing === 'afterMain' && b.parentRunTiming === 'instant') {
-                    // afterMain 타이밍은 큐에 등록
-                    // 단, parentRunTiming이 instant인 경우만 여기서 등록 (afterSuccess/afterDamage는 해당 타이밍에서 등록)
+                    // The afterMain timing is queued.
+                    // But only when parentRunTiming is instant (afterSuccess / afterDamage register at their own timing)
                     window.DX3rdDebug.log('DX3rd | ComboHandler - Registering afterMain extension (parentRunTiming=instant):', b.type, 'merged data:', b.merged);
                     if (b.type === 'heal') {
                         const healData = {
@@ -568,7 +568,7 @@ window.DX3rdComboHandler = {
                         }
                     }
                 } else {
-                    // instant, afterMain이 아닌 타이밍은 건너뜀 (afterSuccess, afterDamage는 별도 처리)
+                    // Timings other than instant and afterMain are skipped (afterSuccess and afterDamage are handled separately)
                     window.DX3rdDebug.log('DX3rd | ComboHandler - Skipping bucket (not instant/afterMain):', b.type, 'timing:', b.timing);
                 }
             }
@@ -578,8 +578,8 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * afterSuccess 익스텐션 수집 및 병합 (롤 있는 콤보용)
-     * 활성화/매크로/어플라이드도 함께 수집하여 반환
+     * Collect and merge the afterSuccess extensions (for a combo with a roll).
+     * Activations, macros and applied are collected and returned along with them.
      * @returns {Object} { activations: [], macros: [], applies: [], extensions: [merged buckets] }
      */
     async collectAfterSuccessData(actor, item) {
@@ -594,7 +594,7 @@ window.DX3rdComboHandler = {
             macros: [],      // { itemId, itemName, macroName, timing }
             applies: [],     // { itemId, itemName }
             extensions: [],  // merged buckets (afterSuccess)
-            afterMainExtensions: [], // merged buckets (afterMain, runTiming이 afterSuccess인 경우)
+            afterMainExtensions: [], // merged buckets (afterMain, when runTiming is afterSuccess)
             // The hidden source normally remains embedded, but a serialized fallback keeps old chat
             // cards and post-cleanup rerolls able to execute combo-body work.
             comboItemSnapshot: window.DX3rdIsInstantCombo?.(item)
@@ -611,7 +611,7 @@ window.DX3rdComboHandler = {
             ? { selectedTargetIds: [...selectedTargetIds] }
             : {};
 
-        // 콤보 본체 수집
+        // Collect from the combo itself
         window.DX3rdDebug.log('DX3rd | ComboHandler - Checking combo body for afterSuccess:', {
             activeRunTiming: item.system?.active?.runTiming,
             activeState: item.system?.active?.state,
@@ -619,7 +619,7 @@ window.DX3rdComboHandler = {
             getTarget: item.system?.getTarget
         });
         
-        // 1) 자기 보정. 평탄 active 필드가 아니라 지금 액션 버킷의 발현·소멸 타이밍을 본다.
+        // 1) Self modifiers. Read the current action bucket's trigger and expiry timing, not the flat active fields.
         const adapter = window.DX3rdItemEffectAdapter;
         const comboSelfFires = adapter
             ? adapter.selfFiresAt(item, action, 'afterSuccess')
@@ -632,13 +632,13 @@ window.DX3rdComboHandler = {
             result.activations.push({ itemId: item.id, itemName: item.name, action });
             window.DX3rdDebug.log('DX3rd | ComboHandler - Added combo activation:', item.name);
         }
-        // 2) 매크로. 실제 실행기와 같은 판정으로, 아이템·타이밍·액션당 한 번만 예약한다.
-        // executeMacros가 그 실행에서 매칭되는 레거시/내장 매크로 전부를 순서대로 처리한다.
+        // 2) Macros. Using the same test as the actual executor, reserve once per item, timing and action.
+        // executeMacros handles every legacy and embedded macro matching that execution, in order.
         if (handler.hasExecutableMacros?.(item, 'afterSuccess', action)) {
             result.macros.push({ itemId: item.id, itemName: item.name, timing: 'afterSuccess', action });
             window.DX3rdDebug.log('DX3rd | ComboHandler - Added combo macro run:', item.name);
         }
-        // 3) 어플라이드 (콤보는 어플라이드가 있는지 확인 필요)
+        // 3) Applied (a combo needs a check for whether applied is present)
         const comboTargetFires = window.DX3rdItemEffectAdapter
             ? window.DX3rdItemEffectAdapter.targetFiresAt(item, action, 'afterSuccess')
             : item.system?.effect?.runTiming === 'afterSuccess';
@@ -646,9 +646,9 @@ window.DX3rdComboHandler = {
             result.applies.push({ itemId: item.id, itemName: item.name, action, ...frozenTargetData(item) });
             window.DX3rdDebug.log('DX3rd | ComboHandler - Added combo apply:', item.name);
         }
-        // 4) 익스텐션은 아래에서 일괄 수집
+        // 4) The extensions are all collected below
 
-        // 전체 구성 아이템 수집
+        // Collect from every member item
         const memberItems = [];
         for (const { item: memberItem, role } of memberEntries) {
             memberItems.push(memberItem);
@@ -662,12 +662,12 @@ window.DX3rdComboHandler = {
             });
 
             const memberAction = this.comboMemberAction(memberItem, action);
-            // 1) 자기 지속 보정. 기존 발동 액션만 예약하며 활성화 버킷은 켜지 않는다.
+            // 1) Self persistent modifiers. Only the existing trigger action is reserved; the activation bucket is not lit.
             if (this.memberSelfModifiersFireAt(memberItem, memberAction, 'afterSuccess')) {
                 result.activations.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction });
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Added member modifiers:', memberItem.name, memberAction);
             }
-            // 2) 매크로 — 내장 매크로만 있는 아이템도 후속 실행을 예약한다.
+            // 2) Macros — an item with only embedded macros also reserves a follow-up execution.
             if (handler.hasExecutableMacros?.(memberItem, 'afterSuccess', memberAction)) {
                 result.macros.push({
                     itemId: memberItem.id,
@@ -677,7 +677,7 @@ window.DX3rdComboHandler = {
                 });
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Added member macro run:', memberItem.name);
             }
-            // 3) 어플라이드
+            // 3) Applied
             const memberTargetFires = window.DX3rdItemEffectAdapter
                 ? window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterSuccess')
                 : memberItem.system?.effect?.runTiming === 'afterSuccess';
@@ -690,18 +690,18 @@ window.DX3rdComboHandler = {
                 });
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Added member apply:', memberItem.name);
             }
-            // 4) 익스텐션은 아래에서 일괄 수집
+            // 4) The extensions are all collected below
         }
 
-        // 익스텐드 일괄 수집 (콤보 본체 + 전체 구성 아이템)
+        // Collect all the extensions (the combo itself + every member item)
         const collectedExtensions = this.collectExtensions(actor, [item, ...memberItems], {
             includeItemCreation: true, action, comboItemId: item.id
         });
 
-        // 익스텐션 병합 (afterSuccess + afterMain)
+        // Merge the extensions (afterSuccess + afterMain)
         window.DX3rdDebug.log('DX3rd | ComboHandler - Collected extensions count:', collectedExtensions.length);
         
-        // afterSuccess 타이밍 익스텐션 병합
+        // Merge the afterSuccess-timing extensions
         const afterSuccessExtensions = collectedExtensions.filter(e => e.timing === 'afterSuccess');
         window.DX3rdDebug.log('DX3rd | ComboHandler - AfterSuccess extensions count:', afterSuccessExtensions.length);
         if (afterSuccessExtensions.length > 0) {
@@ -710,11 +710,11 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Merged afterSuccess buckets:', merged.length);
             result.extensions = merged.map(b => ({
                 ...b,
-                selectedTargetIds // 현재 타겟 저장
+                selectedTargetIds // save the current targets
             }));
         }
         
-        // afterMain 타이밍 익스텐션 병합 (parentRunTiming이 afterSuccess인 것만)
+        // Merge the afterMain-timing extensions (only those whose parentRunTiming is afterSuccess)
         const afterMainExtensions = collectedExtensions.filter(e => 
             e.timing === 'afterMain' && e.parentRunTiming === 'afterSuccess'
         );
@@ -725,7 +725,7 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Merged afterMain buckets:', merged.length);
             result.afterMainExtensions = merged.map(b => ({
                 ...b,
-                selectedTargetIds // 현재 타겟 저장
+                selectedTargetIds // save the current targets
             }));
         }
 
@@ -734,8 +734,8 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * afterDamage 익스텐션 수집 및 병합 (롤 있는 콤보용)
-     * afterSuccess와 동일한 구조이지만 afterDamage 타이밍만 필터
+     * Collect and merge the afterDamage extensions (for a combo with a roll).
+     * The same structure as afterSuccess, but filtered to the afterDamage timing only.
      * @returns {Object} { activations: [], macros: [], applies: [], extensions: [merged buckets] }
      */
     async collectAfterDamageData(actor, item) {
@@ -749,7 +749,7 @@ window.DX3rdComboHandler = {
             macros: [],      // { itemId, itemName, macroName, timing }
             applies: [],     // { itemId, itemName }
             extensions: [],  // merged buckets (afterDamage)
-            afterMainExtensions: [], // merged buckets (afterMain, runTiming이 afterDamage인 경우)
+            afterMainExtensions: [], // merged buckets (afterMain, when runTiming is afterDamage)
             comboItemSnapshot: window.DX3rdIsInstantCombo?.(item)
                 ? window.DX3rdSerializeInstantCombo(item) : null
         };
@@ -757,10 +757,10 @@ window.DX3rdComboHandler = {
         const memberEntries = this.comboMemberEntries(actor, item);
         const selectedTargetIds = Array.from(game.user.targets || []).map(t => t.id);
 
-        // 콤보 본체 수집
-        // 1) 자기 보정. 성공 후 경로와 마찬가지로 공격 버킷 자체의 수명 계약을 본다.
-        // 평탄 active.disable을 직접 읽으면 기본 버킷과 다른 disable을 가진 명시 attack
-        // 버킷이 조용히 누락되거나, 반대로 notCheck 버킷이 적용된다.
+        // Collect from the combo itself
+        // 1) Self modifiers. As on the after-success path, read the attack bucket's own lifetime contract.
+        // Reading the flat active.disable directly would silently drop an explicit attack bucket whose disable
+        // differs from the default bucket's, or conversely apply a notCheck bucket.
         const adapter = window.DX3rdItemEffectAdapter;
         const comboSelfFires = adapter
             ? adapter.selfFiresAt(item, 'attack', 'afterDamage')
@@ -772,31 +772,31 @@ window.DX3rdComboHandler = {
         if (comboSelfFires && comboSelfPending) {
             result.activations.push({ itemId: item.id, itemName: item.name, action: 'attack' });
         }
-        // 2) 매크로 — 레거시/내장을 같은 판정기로 확인하고 실행 예약은 한 번만 만든다.
+        // 2) Macros — legacy and embedded are checked by the same test and reserve one execution only.
         if (handler.hasExecutableMacros?.(item, 'afterDamage', 'attack')) {
             result.macros.push({ itemId: item.id, itemName: item.name, timing: 'afterDamage', action: 'attack' });
             window.DX3rdDebug.log('DX3rd | ComboHandler - Added combo macro run (afterDamage):', item.name);
         }
-        // 3) 어플라이드
+        // 3) Applied
         const comboTargetFires = window.DX3rdItemEffectAdapter
             ? window.DX3rdItemEffectAdapter.targetFiresAt(item, 'attack', 'afterDamage')
             : item.system?.effect?.runTiming === 'afterDamage';
         if ((item.system?.getTarget || item.system?.scene) && comboTargetFires) {
             result.applies.push({ itemId: item.id, itemName: item.name, action: 'attack' });
         }
-        // 4) 익스텐션은 아래에서 일괄 수집
+        // 4) The extensions are all collected below
 
-        // 전체 구성 아이템 수집
+        // Collect from every member item
         const memberItems = [];
         for (const { item: memberItem, role } of memberEntries) {
             memberItems.push(memberItem);
 
             const memberAction = this.comboMemberAction(memberItem, 'attack');
-            // 1) 자기 지속 보정
+            // 1) Self persistent modifiers
             if (this.memberSelfModifiersFireAt(memberItem, memberAction, 'afterDamage')) {
                 result.activations.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction });
             }
-            // 2) 매크로
+            // 2) Macros
             if (handler.hasExecutableMacros?.(memberItem, 'afterDamage', memberAction)) {
                 result.macros.push({
                     itemId: memberItem.id,
@@ -806,25 +806,25 @@ window.DX3rdComboHandler = {
                 });
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Added member macro run (afterDamage):', memberItem.name);
             }
-            // 3) 어플라이드
+            // 3) Applied
             const memberTargetFires = window.DX3rdItemEffectAdapter
                 ? window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterDamage')
                 : memberItem.system?.effect?.runTiming === 'afterDamage';
             if ((memberItem.system?.getTarget || memberItem.system?.scene) && memberTargetFires) {
                 result.applies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction });
             }
-            // 4) 익스텐션은 아래에서 일괄 수집
+            // 4) The extensions are all collected below
         }
 
-        // 익스텐드 일괄 수집 (콤보 본체 + 전체 구성 아이템). afterDamage는 아이템 생성 제외
+        // Collect all the extensions (the combo itself + every member item). afterDamage excludes item creation
         const collectedExtensions = this.collectExtensions(actor, [item, ...memberItems], {
             includeItemCreation: false, action: 'attack', comboItemId: item.id
         });
 
-        // 익스텐션 병합 (afterDamage + afterMain)
+        // Merge the extensions (afterDamage + afterMain)
         window.DX3rdDebug.log('DX3rd | ComboHandler - Collected extensions count:', collectedExtensions.length);
         
-        // afterDamage 타이밍 익스텐션 병합
+        // Merge the afterDamage-timing extensions
         const afterDamageExtensions = collectedExtensions.filter(e => e.timing === 'afterDamage');
         window.DX3rdDebug.log('DX3rd | ComboHandler - AfterDamage extensions count:', afterDamageExtensions.length);
         if (afterDamageExtensions.length > 0) {
@@ -833,11 +833,11 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Merged afterDamage buckets:', merged.length);
             result.extensions = merged.map(b => ({
                 ...b,
-                selectedTargetIds // 현재 타겟 저장
+                selectedTargetIds // save the current targets
             }));
         }
         
-        // afterMain 타이밍 익스텐션 병합 (parentRunTiming이 afterDamage인 것만)
+        // Merge the afterMain-timing extensions (only those whose parentRunTiming is afterDamage)
         const afterMainExtensions = collectedExtensions.filter(e => 
             e.timing === 'afterMain' && e.parentRunTiming === 'afterDamage'
         );
@@ -848,7 +848,7 @@ window.DX3rdComboHandler = {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Merged afterMain buckets:', merged.length);
             result.afterMainExtensions = merged.map(b => ({
                 ...b,
-                selectedTargetIds // 현재 타겟 저장
+                selectedTargetIds // save the current targets
             }));
         }
 
@@ -857,8 +857,8 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * 판정 콤보 처리 (system.roll !== '-')
-     * 침식률/활성화는 이미 handleItemUse에서 처리됨
+     * Handle a check combo (system.roll !== '-').
+     * Encroachment and activation were already handled in handleItemUse.
      */
     async handleComboRoll(actor, item, rollType, getTarget, options = {}) {
         window.DX3rdDebug.log("DX3rd | ComboHandler - Combo roll processing", { rollType });
@@ -871,7 +871,7 @@ window.DX3rdComboHandler = {
         }
         const effectAttackBonus = this.calculateEffectAttackBonus(actor, item);
         
-        // 에너미이고 명중 달성치가 입력되어 있으면 롤 없이 바로 데미지 롤 버튼 생성 (다이스/수정치 보정 반영)
+        // For an enemy with an accuracy result entered, create the damage-roll button directly without a roll (dice / modifier corrections included)
         if (actor.type === 'enemy' && item.system?.attackAchievement && 
             item.system.attackAchievement !== '-' && item.system.attackAchievement !== '' &&
             item.system?.attackRoll && item.system.attackRoll !== '-') {
@@ -887,51 +887,51 @@ window.DX3rdComboHandler = {
             }
         }
         
-        // 무기 선택이 활성화된 경우, 무기 선택 다이얼로그 표시
+        // With weapon selection enabled, show the weapon selection dialog
         if (item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
             await this.showWeaponSelectionForAttack(actor, item, rollType, options, effectAttackBonus);
             return true;
         }
         
-        // 무기 선택이 비활성화되어 있지만 공격 판정인 경우, 등록된 무기 보너스 적용
+        // With weapon selection disabled but this being an attack check, apply the registered weapon bonus
         if (!item.system?.weaponSelect && item.system?.attackRoll && item.system.attackRoll !== '-') {
             window.DX3rdDebug.log('DX3rd | ComboHandler - Attack roll without weapon selection, using registered weapons');
             const registeredWeaponBonus = this.calculateRegisteredWeaponBonus(actor, item);
             
-            // 등록된 무기 중 사용 가능한 무기가 하나라도 있으면 보너스 적용
+            // Apply the bonus when at least one of the registered weapons is still usable
             const hasAvailableWeapons = registeredWeaponBonus.weaponIds.length > 0;
             
             if (hasAvailableWeapons) {
-                // 조합된 이펙트의 자체 수치와 무기를 함께 적용한다.
+                // Apply the combined effects' own values together with the weapon.
                 const weaponBonus = adapter?.mergeAttackBonuses?.(effectAttackBonus, registeredWeaponBonus)
                     || registeredWeaponBonus;
                 return this.handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options);
             }
-            // weaponSelect가 false이면 무기 선택 다이얼로그를 열지 않고 일반 판정으로 진행
+            // With weaponSelect false, do not open the weapon dialog and proceed as an ordinary check
         }
 
         if (effectAttackBonus) {
             return this.handleComboRollWithWeapon(actor, item, rollType, effectAttackBonus, options);
         }
         
-        // 북 해독 콤보 / 방어 다이얼로그 임시 콤보 등에서 전달된 메타데이터 복원
+        // Restore the metadata handed in by a book-decipher combo, a defense dialog's temporary combo, and the like
         const predefinedDifficulty = item.meta?.predefinedDifficulty || null;
         const originalItem = item.meta?.originalItem || null;
         const metaAfterRoll = item.meta?.afterRollCallback || null;
         const rollItemForDialog = originalItem || item;
 
-        // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용)
+        // Get the stat data from the item's skill (Finding F: through the shared resolver)
         const resolved = this.resolveComboStat(actor, item);
         if (!resolved) return false;
         const { stat, label } = resolved;
 
-        // afterSuccess와 afterDamage 데이터 수집
+        // Collect the afterSuccess and afterDamage data
         const afterSuccessData = await this.collectAfterSuccessData(actor, item);
         const afterDamageData = await this.collectAfterDamageData(actor, item);
         await this.retainInstantComboFollowups(item, afterSuccessData, afterDamageData);
 
-        // 판정 다이얼로그 표시 (afterSuccess와 afterDamage 데이터 전달)
-        // 마도서 해독 콤보인 경우, 원본 북 아이템과 미리 정의된 난이도를 사용
+        // Show the check dialog (passing the afterSuccess and afterDamage data).
+        // For a grimoire-decipher combo, use the original book item and the predefined difficulty
         handler.showStatRollDialog(
             actor,
             stat,
@@ -953,18 +953,18 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 공격용 무기 선택 다이얼로그 표시
+     * Show the weapon selection dialog for an attack
      */
     async showWeaponSelectionForAttack(actor, item, rollType, options = {}, effectAttackBonus = null) {
         const attackRollType = item.system.attackRoll;
         
-        // 액터의 모든 무기 + 비클 가져오기 (종별 필터링 제거)
+        // Get all the actor's weapons plus vehicles (no type filtering)
         const allWeapons = actor.items.filter(w => w.type === 'weapon' || w.type === 'vehicle');
-        // 「무기 없음」 한 장을 맨 위에 노출 - 무기가 하나도 없어도 판정으로 넘어갈 수 있게.
+        // Expose the single "no weapon" row at the top, so the check can proceed even with no weapons at all.
         const virtualWeapons = window.DX3rdVirtualWeapons?.list?.(attackRollType) || [];
         const weapons = [...virtualWeapons, ...allWeapons];
 
-        // 무기 선택 다이얼로그 표시
+        // Show the weapon selection dialog
         new window.DX3rdWeaponForAttackDialog({
             actor: actor,
             weapons: weapons,
@@ -979,7 +979,7 @@ window.DX3rdComboHandler = {
         return true;
     },
 
-    /** 콤보에 포함된 이펙트의 자체 수정치/공격력을 합산한다. */
+    /** Sum the combined effects' own modifiers and attack values. */
     calculateEffectAttackBonus(actor, item) {
         const adapter = window.DX3rdItemEffectAdapter;
         if (!adapter) return null;
@@ -990,12 +990,12 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * 무기 탭에 등록된 무기들의 보너스 계산 (공격 횟수가 남은 무기만)
+     * Compute the bonus of the weapons registered on the weapon tab (only those with attacks left)
      */
     calculateRegisteredWeaponBonus(actor, item) {
         const weaponBonus = { attack: 0, add: 0, attackFormula: '', addFormula: '', weaponName: '', weaponIds: [] };
         
-        // 무기 탭에 등록된 무기들 가져오기
+        // Get the weapons registered on the weapon tab
         const registeredWeapons = item.system?.weapon || [];
         const multiWeapon = this.comboMemberEntries(actor, item)
             .map(({item: effect}) => effect.system?.multiWeapon)
@@ -1007,13 +1007,13 @@ window.DX3rdComboHandler = {
         
         window.DX3rdDebug.log('DX3rd | ComboHandler - Registered weapons:', registeredWeapons);
         
-        // 각 등록된 무기의 보너스 합산 (공격 횟수가 남은 무기만)
+        // Sum each registered weapon's bonus (only those with attacks left)
         for (const weaponId of selectedWeapons) {
             if (weaponId && weaponId !== '-') {
-                // 액터의 아이템 또는 가상 무기에서 무기 데이터 가져오기
+                // Get the weapon data from the actor's items or from the virtual weapons
                 const weaponItem = window.DX3rdResolveWeapon(actor, weaponId);
-                // 비클도 무기 슬롯의 정당한 등재 대상이다(공격력만 쓰고 add·attack-used 는 없다).
-                // 자세한 근거는 universal-handler 의 같은 이름 함수 주석 참조.
+                // A vehicle is a legitimate entry in the weapon slot too (it uses only the attack value; no add, no attack-used).
+                // See the comment on the function of the same name in universal-handler for the full rationale.
                 if (weaponItem && (weaponItem.type === 'weapon' || weaponItem.type === 'vehicle')) {
                     const isVehicle = weaponItem.type === 'vehicle';
                     if (!isVehicle && multiWeapon?.weaponType && multiWeapon.weaponType !== '-' && weaponItem.system?.type !== multiWeapon.weaponType) {
@@ -1026,20 +1026,20 @@ window.DX3rdComboHandler = {
                         }
                     }
                     if (!isVehicle) {
-                        // 공격 횟수 체크 (weapon만, vehicle은 attack-used 없음)
+                        // Check the attack count (weapon only; a vehicle has no attack-used)
                         const attackUsedDisable = weaponItem.system['attack-used']?.disable || 'notCheck';
                         const attackUsedState = weaponItem.system['attack-used']?.state || 0;
                         const attackUsedMax = weaponItem.system['attack-used']?.max || 0;
                         const isAttackExhausted = attackUsedDisable !== 'notCheck' && (attackUsedMax <= 0 || attackUsedState >= attackUsedMax);
 
-                        // 공격 횟수가 소진된 무기는 제외 — 차단 여부는 월드 설정이 정한다.
+                        // Exclude a weapon whose attacks are spent — whether that blocks is decided by the world setting.
                         if (isAttackExhausted && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) {
                             window.DX3rdDebug.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name} attack exhausted, skipping (${attackUsedState}/${attackUsedMax})`);
                             continue;
                         }
                     }
 
-                    // 고정 보정은 즉시 합산하고, 다이스식은 공격/데미지 확정 시점까지 보존한다.
+                    // Fixed modifiers are summed at once; dice formulas are preserved until attack / damage is settled.
                     const formula = window.DX3rdFormulaEvaluator;
                     const addFormulaTerm = (target, raw) => {
                         const prepared = formula.prepareRollFormula(String(raw ?? '0'), weaponItem, actor);
@@ -1049,7 +1049,7 @@ window.DX3rdComboHandler = {
                     addFormulaTerm('attackFormula', weaponItem.system?.attack);
                     if (!isVehicle) addFormulaTerm('addFormula', weaponItem.system?.add);
 
-                    // 무기 이름 추가 (루비 텍스트 제거)
+                    // Add the weapon name (ruby text removed)
                     const cleanWeaponName = weaponItem.name.split('||')[0].trim();
                     if (!weaponBonus.weaponName) {
                         weaponBonus.weaponName = cleanWeaponName;
@@ -1057,7 +1057,7 @@ window.DX3rdComboHandler = {
                         weaponBonus.weaponName += `, ${cleanWeaponName}`;
                     }
                     
-                    // 무기 ID 추가
+                    // Add the weapon id
                     weaponBonus.weaponIds.push(weaponId);
                     
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Weapon ${weaponItem.name}:`, {
@@ -1079,23 +1079,23 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 무기 보너스를 적용한 판정 처리
+     * Handle a check with the weapon bonus applied
      */
     async handleComboRollWithWeapon(actor, item, rollType, weaponBonus, options = {}) {
         const handler = window.DX3rdUniversalHandler;
         
-        // 북 해독 콤보 / 방어 다이얼로그 임시 콤보 등에서 전달된 메타데이터 복원
+        // Restore the metadata handed in by a book-decipher combo, a defense dialog's temporary combo, and the like
         const predefinedDifficulty = item.meta?.predefinedDifficulty || null;
         const originalItem = item.meta?.originalItem || null;
         const metaAfterRoll = item.meta?.afterRollCallback || null;
         const rollItemForDialog = originalItem || item;
 
-        // 아이템의 스킬로 stat 데이터 가져오기 (Finding F: 공용 해석기 사용 — syndrome/text/cthulhu 분기 포함)
+        // Get the stat data from the item's skill (Finding F: through the shared resolver — syndrome/text/cthulhu branches included)
         const resolved = this.resolveComboStat(actor, item);
         if (!resolved) return false;
         const { stat, label } = resolved;
 
-        // afterSuccess와 afterDamage 데이터 수집
+        // Collect the afterSuccess and afterDamage data
         const afterSuccessData = await this.collectAfterSuccessData(actor, item);
         const afterDamageData = await this.collectAfterDamageData(actor, item);
         await this.retainInstantComboFollowups(item, afterSuccessData, afterDamageData);
@@ -1122,12 +1122,12 @@ window.DX3rdComboHandler = {
     },
 
     /**
-     * 에너미 명중 달성치에 다이스/수정치 보정 반영 (다이스 1개당 +2, 수정치는 그대로 가산)
-     * 전체·메이저·해당 판정 능력치/기능의 다이스·수정치 보정을 합산하여 반영
-     * @param {Actor} actor - 에너미 액터
-     * @param {Item} item - 콤보 아이템
-     * @param {number} baseAchievement - 시트의 명중 달성치
-     * @returns {number} 보정 반영된 달성치
+     * Fold the dice / modifier corrections into an enemy's accuracy result (+2 per die; a modifier adds as-is).
+     * Sums the overall, major and this-check attribute/skill dice and modifier corrections.
+     * @param {Actor} actor - the enemy actor
+     * @param {Item} item - the combo item
+     * @param {number} baseAchievement - the accuracy result from the sheet
+     * @returns {number} the corrected result
      */
     async getAchievementWithModifiers(actor, item, baseAchievement, attackBonus = null) {
         const fixedItemAdd = Number(attackBonus?.add) || 0;
@@ -1175,7 +1175,7 @@ window.DX3rdComboHandler = {
         
         if (!stat) return Math.max(1, Math.floor(itemAdjustedAchievement));
         
-        // 스킬인데 .major가 없으면 (에너미 등) 해당 능력치의 메이저 보정을 반영
+        // For a skill with no .major (an enemy, say), fold in that attribute's major correction
         let majorDice = stat.major?.dice ?? stat.dice ?? 0;
         let majorAdd = stat.major?.add ?? stat.add ?? 0;
         if ((stat.major == null) && stat.base && actor.system.attributes[stat.base]?.major) {
@@ -1206,10 +1206,10 @@ window.DX3rdComboHandler = {
     },
     
     /**
-     * 에너미의 명중 달성치를 사용하여 공격 메시지 및 데미지 롤 버튼 생성 (롤 없이)
-     * @param {Actor} actor - 액터
-     * @param {Item} item - 콤보 아이템
-     * @param {number} achievementValue - 명중 달성치
+     * Create the attack message and the damage-roll button from an enemy's accuracy result (with no roll).
+     * @param {Actor} actor - the actor
+     * @param {Item} item - the combo item
+     * @param {number} achievementValue - the accuracy result
      */
     async createAttackMessageWithAchievement(actor, item, achievementValue, attackBonus = null, sourceMessage = null) {
         const handler = window.DX3rdUniversalHandler;
@@ -1218,12 +1218,12 @@ window.DX3rdComboHandler = {
             return;
         }
         
-        // 판정을 이미 한 것이므로, 일반 공격과 동일하게 afterSuccess/afterDamage 데이터 수집 (데미지 롤 버튼 클릭 시 메인 프로세스 이후 처리용)
+        // The check has already been made, so the afterSuccess / afterDamage data is collected exactly as for an ordinary attack (for the post-main work when the damage-roll button is clicked)
         const afterSuccessData = await this.collectAfterSuccessData(actor, item);
         const afterDamageData = await this.collectAfterDamageData(actor, item);
         await this.retainInstantComboFollowups(item, afterSuccessData, afterDamageData);
         
-        // 스킬 이름 가져오기
+        // Get the skill name
         const skillKey = item.system?.skill;
         let skillName = '';
         if (skillKey && skillKey !== '-') {
@@ -1239,19 +1239,19 @@ window.DX3rdComboHandler = {
             }
         }
         
-        // 참조값만 명중 시점으로 고정하고, 공격력 다이스식은 데미지 굴림 확정까지 보류한다.
+        // Only the references are frozen at accuracy time; the attack's dice formula is held until the damage roll is settled.
         //
-        // 여기서 `system.attack.value` 를 쓰면 안 된다. 그 값은 시트 표시용 **총합**이라
-        // (combo-data.calculateSubmittedAttack: 액터 공격력 + 무기 + 이펙트) 액터 공격력을
-        // 이미 품고 있는데, 데미지 기본치는 아래 preservedValues.actorAttack 을 따로 더한다
-        // → 액터 공격력이 두 번 세어졌다. 게다가 시트의 그 칸은 disabled 표시 전용이라
-        // 손으로 넣은 값이 실릴 일도 없다. PC 경로(executeStatRoll)와 같은 성분 —
-        // 무기·이펙트 보너스만 — 을 실어 두 경로의 전제를 하나로 맞춘다.
+        // `system.attack.value` must NOT be used here. That value is the sheet's display **total**
+        // (combo-data.calculateSubmittedAttack: actor attack + weapon + effect), so it already contains the
+        // actor's attack, while the damage base adds preservedValues.actorAttack below separately
+        // → the actor's attack would be counted twice. On top of that, that sheet field is display-only and
+        // disabled, so a hand-entered value could never ride along. The same components as the PC path
+        // (executeStatRoll) — weapon and effect bonuses only — are carried, keeping both paths on one premise.
         const preservedItemAttackFormula = handler.joinFormulaTerms(
             attackBonus?.attack, attackBonus?.attackFormula);
 
-        // 공격 타입/액터 보너스 산출 (명중·데미지 시점과 동일 경로)
-        // 관통 다이스식은 이 판정 시점에 굴려 숫자로 굳힌다.
+        // Derive the attack type and actor bonuses (the same path as at accuracy and damage time).
+        // The penetrate dice formula is rolled at this check and frozen to a number.
         const bonuses = await handler.resolveAttackBonusesRolled(actor, item);
 
         const preservedValues = {
@@ -1261,12 +1261,12 @@ window.DX3rdComboHandler = {
             weaponAttackFormula: preservedItemAttackFormula
         };
 
-        // 공격 굴림 메시지 출력 (루비 텍스트 제거)
+        // Emit the attack roll message (ruby text removed)
         const cleanItemName = item.name.split('||')[0].trim();
         let flavorText = `${cleanItemName} - ${skillName} (${game.i18n.localize('DX3rd.AttackRoll')})`;
         flavorText += `\n· ${game.i18n.localize('DX3rd.Achievement')}: ${achievementValue}`;
         
-        // 대상 정보 추가
+        // Add the target information
         const targets = Array.from(game.user.targets);
         if (targets.length > 0) {
             const rollResult = achievementValue;
@@ -1277,7 +1277,7 @@ window.DX3rdComboHandler = {
                 const targetName = targetActor?.name || target.name;
                 if (!targetName) continue;
                 
-                // 대상이 에너미이고 이베이전이 활성화되어 있는 경우 확인
+                // Check whether the target is an enemy with evasion enabled
                 if (targetActor && targetActor.type === 'enemy') {
                     const evasionDisabled = targetActor.system?.attributes?.evasion?.disabled;
                     const evasionValue = targetActor.system?.attributes?.evasion?.value;
@@ -1302,7 +1302,7 @@ window.DX3rdComboHandler = {
             }
         }
         
-        // 데미지 롤 버튼 생성
+        // Create the damage-roll button
         let damageRollButtonContent = `<button class="damage-roll-btn" 
                     data-actor-id="${actor.id}" 
                     data-item-id="${item.id}"
@@ -1311,7 +1311,7 @@ window.DX3rdComboHandler = {
                     data-preserved-actor-attack-formula="${encodeURIComponent(preservedValues.actorAttackFormula || '')}"
                     data-preserved-actor-penetrate="${preservedValues.actorPenetrate}"`;
         
-        // 아이템 타입별 공격력 데이터 속성 추가
+        // Add the attack-value data attributes per item type
         if (item.type === 'weapon') {
             damageRollButtonContent += `\n                    data-preserved-attack-formula="${encodeURIComponent(preservedValues.weaponAttackFormula)}"`;
             damageRollButtonContent += `\n                    data-weapon-ids="${item.id}"`;
@@ -1325,7 +1325,7 @@ window.DX3rdComboHandler = {
                 ${game.i18n.localize('DX3rd.DamageRoll')}
             </button>`;
         
-        // 공격 메시지, 대상 정보, 롤 결과, 데미지 롤 버튼을 하나의 메시지로 묶기
+        // Bundle the attack message, target info, roll result and damage-roll button into one message
         const attackMessageContent = window.DX3rdUniversalHandler.renderAttackChatCard({
             actor,
             item,
@@ -1333,7 +1333,7 @@ window.DX3rdComboHandler = {
             actionContent: `${window.DX3rdUniversalHandler.renderAttackRollButton(actor, item, {repeatable: true})}${damageRollButtonContent}`
         });
         
-        // 콤보 afterSuccess/afterDamage 플래그 저장 (데미지 롤 버튼 클릭 시 processComboAfterSuccess 등 메인 프로세스 이후 처리 실행용)
+        // Store the combo afterSuccess / afterDamage flags (so clicking the damage-roll button runs processComboAfterSuccess and the rest of the post-main work)
         const messageData = {
             speaker: ChatMessage.getSpeaker({ actor: actor }),
             content: attackMessageContent
@@ -1376,7 +1376,7 @@ window.DX3rdComboHandler = {
         } else {
             attackMessage = await ChatMessage.create(messageData);
         }
-        // 메이저 롤 후 비활성화 훅 실행 (자기 자신에게만)
+        // Run the disable hooks after the major roll (on this actor only)
         if (window.DX3rdDisableHooks) {
             await window.DX3rdDisableHooks.executeDisableHook('roll', actor);
             await window.DX3rdDisableHooks.executeDisableHook('major', actor);

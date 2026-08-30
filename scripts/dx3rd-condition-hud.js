@@ -38,7 +38,7 @@
     hudEl.style.display = 'none';
     // dnd5e 식 상호작용(위임 리스너, 재렌더에도 유지):
     //  · 우클릭(contextmenu) → 편집기
-    //  · 더블클릭(dblclick) → 활성/비활성 토글
+    //  · 더블클릭(dblclick) → 내장 상태이상은 해제, 표식은 제거, 그 밖은 활성/비활성 토글
     hudEl.addEventListener('contextmenu', onHudContextMenu);
     hudEl.addEventListener('dblclick', onHudDblClick);
     document.body.appendChild(hudEl);
@@ -56,14 +56,67 @@
     if (window.DX3rdActorAppliedDialogs?.edit) window.DX3rdActorAppliedDialogs.edit(actor, key);
   }
 
-  /** 더블클릭: 커스텀 applied → 활성/비활성 토글. */
-  function onHudDblClick(event) {
+  /**
+   * 확인 다이얼로그. 되돌리기 어려운 방향(해제·제거)에만 물어본다 —
+   * 다시 켜는 것은 잃는 것이 없으므로 묻지 않는다.
+   */
+  async function confirmDestructive(message) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2?.confirm) return true; // 물어볼 수단이 없으면 막지 않는다(기존 동작 유지)
+    return !!(await DialogV2.confirm({
+      window: { title: game.i18n.localize('DX3rd.HudRemoveTitle') },
+      content: `<p>${message}</p>`,
+      rejectClose: false,
+      modal: true
+    }));
+  }
+
+  /**
+   * 더블클릭: 커스텀 applied → 활성/비활성 토글, 장비 변경 표식 → 제거(생성물 회수).
+   * 둘 다 화면에서 아이콘이 사라지는 방향이라 실수로 눌리기 쉬워, 그 방향에서만 확인을 받는다.
+   */
+  async function onHudDblClick(event) {
+    const actor = getTargetToken()?.actor;
+    if (!actor) return;
+
+    // 내장 상태이상: 해제. 상태 AE 를 끄는 것이 유일한 통로이고(condtions.js 의 훅이 system.conditions 를
+    // 따라 내린다), 액터를 직접 고치면 그 동기화를 건너뛰어 시트와 토큰이 갈린다.
+    const conditionIcon = event.target.closest('.dx3rd-condition-hud-icon[data-condition]');
+    if (conditionIcon) {
+      event.preventDefault();
+      const key = conditionIcon.dataset.condition;
+      const meta = CONDITION_META[key];
+      if (!meta) return;
+      if (!actor.isOwner) {
+        ui.notifications.warn(game.i18n.localize('DX3rd.NoPermission'));
+        return;
+      }
+      const label = game.i18n.localize(meta.i18n);
+      if (!await confirmDestructive(game.i18n.format('DX3rd.HudConditionClearConfirm', { name: label }))) return;
+      await actor.toggleStatusEffect(meta.status, { active: false });
+      return;
+    }
+
+    const grantIcon = event.target.closest('.dx3rd-grant-hud-icon[data-effect-id]');
+    if (grantIcon) {
+      event.preventDefault();
+      const effect = actor.effects?.get?.(grantIcon.dataset.effectId);
+      if (!effect) return;
+      const name = effect.name || game.i18n.localize('DX3rd.Effect');
+      if (!await confirmDestructive(game.i18n.format('DX3rd.HudGrantRemoveConfirm', { name }))) return;
+      // 회수는 deleteActiveEffect 훅 한 곳이 한다 — 여기에 다시 쓰면 두 벌이 되어 반드시 갈린다.
+      await actor.deleteEmbeddedDocuments('ActiveEffect', [effect.id]);
+      return;
+    }
+
     const appliedIcon = event.target.closest('.dx3rd-applied-hud-icon[data-applied-key]');
     if (!appliedIcon) return;
     event.preventDefault();
-    const actor = getTargetToken()?.actor;
-    if (!actor) return;
     const key = appliedIcon.dataset.appliedKey;
+    if (appliedIcon.dataset.disabled !== 'true') {
+      const name = appliedIcon.dataset.effectName || game.i18n.localize('DX3rd.Applied');
+      if (!await confirmDestructive(game.i18n.format('DX3rd.HudAppliedDisableConfirm', { name }))) return;
+    }
     // 단일 소스 라우팅: toggle 파생은 아이템 토글, 그 외는 AE.disabled.
     if (window.DX3rdAppliedEffects?.toggleActive) window.DX3rdAppliedEffects.toggleActive(actor, key);
   }
@@ -84,10 +137,39 @@
         name: eff.name || payload.name || game.i18n.localize('DX3rd.Applied'),
         img: eff.img || payload.img || 'icons/svg/aura.svg',
         disable: payload.disable || '-',
-        disabled: !!eff.disabled
+        disabled: !!eff.disabled,
+        // 같은 AE 가 그 아이템이 만든 것의 표식을 겸할 수 있다(한 아이템 = 한 AE). 표식만 따로 세우면
+        // 이름·아이콘이 같은 아이콘이 둘 서므로, 여기서는 이 아이콘에 표식 테두리를 준다.
+        hasGrant: !!window.DX3rdUniversalHandler?.grantPayload?.(eff)
       });
     }
     return result;
+  }
+
+  /**
+   * 장비 변경 표식(무기·방어구·비클 생성, 맨손 데이터 변경)의 AE 목록.
+   *
+   * 이 표식이 생성물의 수명을 쥔 유일한 주인인데도 지금까지 이 HUD 에 나오지 않았다 — appliedKey 가 없기
+   * 때문이다. 그래서 사용자가 여기 보이는 (같은 이름의) 보정 AE 를 지우고 「무기가 안 사라진다」고 읽었다.
+   * 둘은 다른 AE 이고 수명도 다르므로, 보정 AE 삭제에 생성물 회수를 묶는 대신 표식 자신을 여기에 세운다.
+   */
+  function getGrantEffects(actor) {
+    const H = window.DX3rdUniversalHandler;
+    if (!H?.grantPayload) return [];
+    const rows = [];
+    for (const eff of (actor?.effects || [])) {
+      const grant = H.grantPayload(eff);
+      if (!grant) continue;
+      // 보정 AE 가 겸하고 있는 표식은 그 아이콘이 대신 표시한다(위의 hasGrant).
+      if (eff.getFlag?.(MODULE_ID, 'appliedKey')) continue;
+      rows.push({
+        id: eff.id,
+        name: eff.name || game.i18n.localize('DX3rd.Effect'),
+        img: eff.img || 'icons/svg/sword.svg',
+        kind: grant.kind
+      });
+    }
+    return rows;
   }
 
   /** 사이드바 폭을 고려해 우측 오프셋을 갱신한다. */
@@ -160,7 +242,8 @@
 
     const active = getActiveConditions(actor);
     const applied = getAppliedEffects(actor);
-    if (active.length === 0 && applied.length === 0) {
+    const grants = getGrantEffects(actor);
+    if (active.length === 0 && applied.length === 0 && grants.length === 0) {
       hudEl.style.display = 'none';
       hudEl.replaceChildren();
       return;
@@ -176,8 +259,10 @@
       const iconWrap = document.createElement('div');
       iconWrap.className = 'dx3rd-condition-hud-icon';
       iconWrap.dataset.condition = key;
-      iconWrap.setAttribute('data-tooltip', title);
-      iconWrap.title = title;
+      const hint = `${title} — ${game.i18n.localize('DX3rd.HudConditionHint')}`;
+      iconWrap.setAttribute('data-tooltip', hint);
+      iconWrap.title = hint;
+      iconWrap.style.cursor = 'pointer';
 
       const img = document.createElement('img');
       img.src = getStatusImg(meta.status);
@@ -195,15 +280,41 @@
     }
 
     // 커스텀 applied 효과(우클릭 → 편집기 / 더블클릭 → 활성 토글)
-    for (const { key, name, img: imgSrc, disable, disabled } of applied) {
+    for (const { key, name, img: imgSrc, disable, disabled, hasGrant } of applied) {
       const disableLabel = Handlebars?.helpers?.disable ? String(Handlebars.helpers.disable(disable)) : disable;
       const baseTitle = `${name}${disable && disable !== '-' ? ` (${game.i18n.localize('DX3rd.DisableTiming')}: ${disableLabel})` : ''}`;
       // 상호작용 안내를 툴팁에 덧붙인다(우클릭 편집 / 더블클릭 토글).
       const title = `${baseTitle}${disabled ? ` — ${game.i18n.localize('DX3rd.DisableTiming')}` : ''}`;
 
       const iconWrap = document.createElement('div');
-      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-applied-hud-icon' + (disabled ? ' dx3rd-applied-disabled' : '');
+      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-applied-hud-icon'
+        + (disabled ? ' dx3rd-applied-disabled' : '')
+        + (hasGrant ? ' dx3rd-grant-hud-icon' : '');
       iconWrap.dataset.appliedKey = key;
+      iconWrap.dataset.effectName = name;
+      iconWrap.dataset.disabled = String(!!disabled);
+      iconWrap.setAttribute('data-tooltip', title);
+      iconWrap.title = title;
+      iconWrap.style.cursor = 'pointer';
+
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.alt = name;
+      iconWrap.appendChild(img);
+
+      hudEl.appendChild(iconWrap);
+    }
+
+    // 장비 변경 표식(더블클릭 → 제거, 생성물 회수)
+    for (const { id, name, img: imgSrc, kind } of grants) {
+      const description = game.i18n.localize(kind === 'fist'
+        ? 'DX3rd.GrantFistDescription' : 'DX3rd.GrantItemDescription');
+      const title = `${name} — ${description}`;
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'dx3rd-condition-hud-icon dx3rd-grant-hud-icon';
+      iconWrap.dataset.effectId = id;
+      iconWrap.dataset.effectName = name;
       iconWrap.setAttribute('data-tooltip', title);
       iconWrap.title = title;
       iconWrap.style.cursor = 'pointer';

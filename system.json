@@ -12,13 +12,14 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "2.3.9",
+  "version": "2.4.0",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/data/document-schema.js",
     "scripts/application-compat.js",
     "scripts/import-compat.js",
     "scripts/core/runtime-utils.js",
+    "scripts/dialog/overlay-dialog.js",
     "scripts/chat-message-types.js",
     "scripts/virtual-weapons.js",
     "scripts/helpers.js",
@@ -120,7 +121,8 @@
     "styles/turn-process-ui.css",
     "styles/dx3rd-condition-hud.css",
     "styles/appv2-sheets.css",
-    "styles/after-main-queue-manager.css"
+    "styles/after-main-queue-manager.css",
+    "styles/overlay-dialog.css"
   ],
   "languages": [
     {

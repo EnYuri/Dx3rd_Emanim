@@ -1,9 +1,9 @@
-// Movement Ruler - 토큰 이동 시 경로 색상 표시
+// Movement Ruler - colors the path while a token moves
 (function() {
 
     const MODULE_ID = "dx3rd-emanim";
     
-    // 설정 ID
+    // The setting IDs
     const SETTING_IDS = {
         battle: 'battleMoveColor',
         full: 'fullMoveColor',
@@ -11,47 +11,47 @@
         enabled: 'movementRulerEnabled'
     };
 
-    // 기본 색상 (Hex)
+    // The default colors (hex)
     const DEFAULT_COLORS = {
-        battle: '#00ff00',  // 전투 이동 - 초록
-        full: '#ffff00',    // 전력 이동 - 노랑
-        over: '#ff0000'     // 이동 불능 - 빨강
+        battle: '#00ff00',  // battle movement - green
+        full: '#ffff00',    // full movement - yellow
+        over: '#ff0000'     // cannot move - red
     };
 
     /**
-     * 현재 waypoint가 어느 이동 범위에 속하는지 판단
-     * @param {TokenRuler} ruler - Ruler 객체
-     * @param {Object} waypoint - 경로점
-     * @param {number} epsilon - 부동소수점 오차 허용치
+     * Decide which movement range the current waypoint falls into
+     * @param {TokenRuler} ruler - the Ruler object
+     * @param {Object} waypoint - the path point
+     * @param {number} epsilon - the floating-point tolerance
      * @returns {string} 'battle' | 'full' | 'over'
      */
     function getNowInRange(ruler, waypoint, epsilon = 1e-6) {
         const actor = ruler?.token?.actor;
 
-        // 액터가 없으면 over
+        // With no actor, it is over
         if (!actor) return 'over';
 
-        // DX3rd의 이동력 가져오기
+        // Get the DX3rd movement value
         const battle = actor.system?.attributes?.move?.battle ?? 0;
         const full = actor.system?.attributes?.move?.full ?? 0;
 
-        // 이동력이 없으면 over
+        // With no movement value, it is over
         if (battle <= 0 && full <= 0) return 'over';
         
-        // 현재까지의 이동 비용
+        // The movement cost so far
         const cost = waypoint.measurement?.cost ?? 0;
         
-        // 3단계 범위 판단
-        if (cost <= battle + epsilon) return 'battle';  // 전투 이동 범위
-        if (cost <= full + epsilon) return 'full';      // 전력 이동 범위
-        return 'over';                                   // 이동 불능
+        // The three-step range test
+        if (cost <= battle + epsilon) return 'battle';  // within battle movement
+        if (cost <= full + epsilon) return 'full';      // within full movement
+        return 'over';                                   // cannot move
     }
 
     /**
-     * 이동 범위가 전투 이동 범위 내인지 확인
-     * @param {TokenRuler} ruler - Ruler 객체
-     * @param {Object} waypoint - 경로점
-     * @param {number} epsilon - 부동소수점 오차 허용치
+     * Check whether the movement range is within battle movement
+     * @param {TokenRuler} ruler - the Ruler object
+     * @param {Object} waypoint - the path point
+     * @param {number} epsilon - the floating-point tolerance
      * @returns {boolean}
      */
     function isWithinBattleMove(ruler, waypoint, epsilon = 1e-6) {
@@ -62,9 +62,9 @@
         return cost <= battle + epsilon;
     }
 
-    // 설정 등록
+    // Register the settings
     function registerSettings() {
-        // 기능 활성화/비활성화
+        // Enable / disable the feature
         game.settings.register(MODULE_ID, SETTING_IDS.enabled, {
             name: "이동 경로 색상 표시",
             hint: "토큰 이동 시 전투 이동/전력 이동 범위를 색상으로 표시합니다.",
@@ -74,7 +74,7 @@
             default: true
         });
 
-        // Ruler를 다른 사용자에게도 보이기
+        // Show the Ruler to other users too
         game.settings.register(MODULE_ID, 'showRulerToAll', {
             name: "모든 사용자에게 이동 경로 표시",
             hint: "플레이어가 토큰을 이동할 때 GM과 다른 플레이어에게도 경로를 표시합니다.",
@@ -84,7 +84,7 @@
             default: true
         });
 
-        // 전투 이동 색상
+        // The battle movement color
         game.settings.register(MODULE_ID, SETTING_IDS.battle, {
             name: "전투 이동 색상",
             hint: "move.battle 범위 내 경로 색상",
@@ -94,7 +94,7 @@
             default: DEFAULT_COLORS.battle
         });
 
-        // 전력 이동 색상
+        // The full movement color
         game.settings.register(MODULE_ID, SETTING_IDS.full, {
             name: "전력 이동 색상",
             hint: "move.battle 초과 ~ move.full 범위 경로 색상",
@@ -104,7 +104,7 @@
             default: DEFAULT_COLORS.full
         });
 
-        // 이동 불능 색상
+        // The cannot-move color
         game.settings.register(MODULE_ID, SETTING_IDS.over, {
             name: "이동 불능 색상",
             hint: "move.full 초과 경로 색상",
@@ -115,7 +115,7 @@
         });
     }
 
-    // Ruler 메서드 직접 래핑
+    // Wrap the Ruler methods directly
     function patchRuler() {
         const TokenRuler = foundry.canvas.placeables.tokens.TokenRuler;
         if (!TokenRuler) {
@@ -123,33 +123,33 @@
             return;
         }
             
-        // _getSegmentStyle 패치 (원본 저장 및 래핑)
+        // Patch _getSegmentStyle (keeping the original and wrapping it)
         if (!TokenRuler.prototype._getSegmentStyle._dx3rdOriginal) {
-            // 원본 메서드를 변수에 저장
+            // Keep the original method in a variable
             const originalGetSegmentStyle = TokenRuler.prototype._getSegmentStyle;
             if (typeof originalGetSegmentStyle !== 'function') {
                 console.warn("DX3rd | MovementRuler - _getSegmentStyle is not a function.");
                 return;
             }
             
-            // 원본 메서드 저장
+            // Keep the original method
             TokenRuler.prototype._getSegmentStyle._dx3rdOriginal = originalGetSegmentStyle;
             
-            // 새 메서드로 교체
+            // Replace it with the new method
             TokenRuler.prototype._getSegmentStyle = function(waypoint) {
-                // 원본 메서드 호출 (저장된 변수 사용)
+                // Call the original method (through the stored variable)
                 const style = originalGetSegmentStyle.call(this, waypoint);
                     
-                    // 기능이 비활성화되어 있으면 기본 동작
+                    // With the feature disabled, the default behaviour
                     if (!game.settings.get(MODULE_ID, SETTING_IDS.enabled)) {
                         return style;
                     }
                     
-                    // 현재 범위 확인
+                    // Check the current range
                     const rangeType = getNowInRange(this, waypoint);
                     const colorId = SETTING_IDS[rangeType];
                     
-                    // 설정에서 색상 가져오기
+                    // Get the color from the settings
                     const colorString = game.settings.get(MODULE_ID, colorId);
                     const hex = foundry.utils.Color.fromString(colorString);
                     
@@ -160,33 +160,33 @@
             };
         }
 
-        // _getGridHighlightStyle 패치 (원본 저장 및 래핑)
+        // Patch _getGridHighlightStyle (keeping the original and wrapping it)
         if (!TokenRuler.prototype._getGridHighlightStyle._dx3rdOriginal) {
-            // 원본 메서드를 변수에 저장
+            // Keep the original method in a variable
             const originalGetGridHighlightStyle = TokenRuler.prototype._getGridHighlightStyle;
             if (typeof originalGetGridHighlightStyle !== 'function') {
                 console.warn("DX3rd | MovementRuler - _getGridHighlightStyle is not a function.");
                 return;
             }
             
-            // 원본 메서드 저장
+            // Keep the original method
             TokenRuler.prototype._getGridHighlightStyle._dx3rdOriginal = originalGetGridHighlightStyle;
             
-            // 새 메서드로 교체
+            // Replace it with the new method
             TokenRuler.prototype._getGridHighlightStyle = function(waypoint, ...rest) {
-                // 원본 메서드 호출 (저장된 변수 사용)
+                // Call the original method (through the stored variable)
                 const style = originalGetGridHighlightStyle.call(this, waypoint, ...rest);
                     
-                    // 기능이 비활성화되어 있으면 기본 동작
+                    // With the feature disabled, the default behaviour
                     if (!game.settings.get(MODULE_ID, SETTING_IDS.enabled)) {
                         return style;
                     }
                     
-                    // 현재 범위 확인
+                    // Check the current range
                     const rangeType = getNowInRange(this, waypoint);
                     const colorId = SETTING_IDS[rangeType];
                     
-                    // 설정에서 색상 가져오기
+                    // Get the color from the settings
                     const colorString = game.settings.get(MODULE_ID, colorId);
                     const hex = foundry.utils.Color.fromString(colorString);
                     
@@ -198,22 +198,22 @@
         }
     }
 
-    // Init Hook에서 설정 등록
+    // Register the settings on the Init hook
     Hooks.once('init', () => {
         registerSettings();
     });
 
-    // Ready Hook에서 Ruler 패치
+    // Patch the Ruler on the Ready hook
     Hooks.once('ready', () => {
         patchRuler();
         
-        // Ruler를 모든 사용자에게 보이게 설정
+        // Make the Ruler visible to every user
         if (game.settings.get(MODULE_ID, 'showRulerToAll')) {
-            // TokenRuler의 broadcast 설정
+            // The TokenRuler's broadcast setting
             if (foundry.canvas?.placeables?.tokens?.TokenRuler) {
                 const originalBroadcast = foundry.canvas.placeables.tokens.TokenRuler.prototype._broadcast;
                 foundry.canvas.placeables.tokens.TokenRuler.prototype._broadcast = function(action, data) {
-                    // 항상 브로드캐스트
+                    // Always broadcast
                     return originalBroadcast?.call(this, action, data);
                 };
             }
@@ -221,7 +221,7 @@
         }
     });
 
-    // 전역 노출
+    // Expose globally
     window.DX3rdMovementRuler = {
         getNowInRange,
         isWithinBattleMove
