@@ -57,12 +57,12 @@
           : {runTiming: item.system?.effect?.runTiming ?? '-', disable: item.system?.effect?.disable || '-'};
 
         // When runTiming is not '-', check that the timing matches
-        if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== timing) {
+        if (!adapter && lifecycle.runTiming !== '-' && lifecycle.runTiming !== timing) {
           return;
         }
 
         // A notCheck expiry timing must never be applied
-        if (lifecycle.disable === 'notCheck') {
+        if (!adapter && lifecycle.disable === 'notCheck') {
           return;
         }
 
@@ -248,6 +248,15 @@
       const entries = Object.values(targetAttributes || {});
       const effective = new Set(entries.map(attr =>
         adapter ? adapter.attributeAction(item, channel, attr) : null));
+      if (adapter && effective.size > 1) {
+        // Split even frozen/socket payloads here, so every entry point keeps card-owned AEs.
+        for (const action of effective) {
+          const attributes = Object.fromEntries(Object.entries(targetAttributes).filter(([, attr]) =>
+            adapter.attributeAction(item, channel, attr) === action));
+          await this._applyItemAttributes(actor, item, targetActor, attributes, opts);
+        }
+        return;
+      }
       const channelDefault = adapter ? adapter.channelAction(item, channel) : null;
       const single = effective.size === 1 ? [...effective][0] : null;
       const bucketAction = single && single !== channelDefault ? single : null;
@@ -363,12 +372,12 @@
      * It is added only to the actorAttack / penetrate preserved at accuracy time, so a major modifier already
      * folded in is not read again and counted twice.
      */
-    async resolveAfterSuccessDamageBonus(actor, sourceItem, action, attackItem) {
+    async resolveAfterSuccessDamageBonus(actor, sourceItem, action, attackItem, bucketAttributes = null) {
       const result = { attack: 0, attackFormula: '', penetrate: 0 };
       const adapter = window.DX3rdItemEffectAdapter;
       if (!actor || !sourceItem || !attackItem || !adapter) return result;
 
-      const attributes = adapter.selfBucketAttributes(sourceItem, action);
+      const attributes = bucketAttributes || adapter.selfBucketAttributes(sourceItem, action);
       const attackType = this.resolveAttackType?.(attackItem) || null;
       let fistAttack = false;
       if (attackItem.type === 'weapon') {
@@ -438,13 +447,22 @@
       const hasToggle = adapter.selfToggleBucketMatches(item, expected);
       if (!hasFrozen && (!hasToggle || item.system?.active?.state === true)) return empty;
 
-      const contribution = await this.resolveAfterSuccessDamageBonus(actor, item, expected, attackItem);
-      const lifecycle = adapter.bucketLifecycle(item, 'self', expected);
-      if (!new Set(expiredTimings).has(lifecycle.disable)) {
-        await this.applySelfModifiers(actor, item, {
-          action: expected,
-          ...(forceFrozen ? { forceFrozen: true } : {})
-        });
+      const contribution = { ...empty };
+      const expired = new Set(expiredTimings);
+      const buckets = adapter.modifierExecutionBuckets(item, 'self', expected, 'afterSuccess', {
+        frozen: !forceFrozen
+      });
+      for (const bucket of buckets) {
+        const bonus = await this.resolveAfterSuccessDamageBonus(actor, item, expected, attackItem, bucket.attributes);
+        contribution.attack += bonus.attack;
+        contribution.attackFormula = this.joinFormulaTerms(contribution.attackFormula, bonus.attackFormula);
+        contribution.penetrate += bonus.penetrate;
+        if (!expired.has(bucket.lifecycle.disable)) {
+          await this.applySelfModifiers(actor, item, {
+            action: bucket.action, timing: 'afterSuccess', bucketAttributes: bucket.attributes,
+            ...(forceFrozen ? {forceFrozen: true} : {})
+          });
+        }
       }
       return contribution;
     },
@@ -458,14 +476,18 @@
      * @param {Actor} actor - the using actor (= the target)
      * @param {Item} item - the item being used
      */
-    async applySelfFrozenBuff(actor, item, action = null) {
+    async applySelfFrozenBuff(actor, item, action = null, timing = null) {
       // Among the buckets split by per-row "trigger action", pick only what this action should freeze.
       // Rows authored as "activation" are held by the toggle AE (DX3rdAppliedToggle) and are excluded —
       // applying them here too would attach the same modifier twice.
       const adapter = window.DX3rdItemEffectAdapter;
-      const attrs = adapter
-        ? adapter.selfFrozenAttributes(item, action)
-        : item.system?.attributes;
+      if (adapter) {
+        for (const bucket of adapter.modifierExecutionBuckets(item, 'self', action, timing, {frozen: true})) {
+          await this._applyItemAttributes(actor, item, actor, bucket.attributes, {channel: 'self'});
+        }
+        return;
+      }
+      const attrs = item.system?.attributes;
       if (!attrs || Object.keys(attrs).length === 0) return;
       // The lifetime (active.disable or that bucket's override) is resolved from the bucket directly by
       // _applyItemAttributes — pinning the channel value here would ignore the per-bucket expiry timing.
@@ -484,7 +506,7 @@
      * _dx3rdRuntimeInput has already been cleaned up, so a value like [consumedHP] cannot be freshly frozen — but
      * splitting toggle and frozen types by the same rule to prevent double counting matters more.
      * An afterSuccess modifier whose roll/major lifetime has already ended is folded into the current damage
-     * snapshot only, by processAfterSuccessSelfModifiers, which never calls this function.
+     * snapshot only, by processAfterSuccessSelfModifiers; only buckets whose lifetime survives are applied here.
      *
      * opts.forceToggle: use the toggle channel regardless of applyMode. Used by the path that turns on an item whose
      *   self-modifier action is 'activation' (an always-on effect, say) by using it directly — such items default to
@@ -500,15 +522,21 @@
      * @param {string|null} [opts.action=null]
      * @returns {boolean} true when active.state was turned on
      */
-    async applySelfModifiers(actor, item, { forceToggle = false, forceFrozen = false, action = null } = {}) {
+    async applySelfModifiers(actor, item, { forceToggle = false, forceFrozen = false, action = null, timing = null, bucketAttributes = null } = {}) {
       const active = item.system?.active || {};
       const applyMode = active.applyMode || 'onUse';
       const adapter = window.DX3rdItemEffectAdapter;
+      if (bucketAttributes) {
+        await this._applyItemAttributes(actor, item, actor, bucketAttributes, {channel: 'self'});
+        return false;
+      }
       // A serialized instant-combo body has no Document state left to toggle. Preserve the authored
       // bucket as a normal frozen AE with the same lifecycle, so post-cleanup chat rerolls remain
       // meaningful without inventing a non-existent active.state update.
       if (forceFrozen) {
-        const attrs = adapter?.selfBucketAttributes?.(item, action) || item.system?.attributes || {};
+        const attrs = adapter && timing !== null
+          ? Object.assign({}, ...adapter.modifierExecutionBuckets(item, 'self', action, timing).map(bucket => bucket.attributes))
+          : adapter?.selfBucketAttributes?.(item, action) || item.system?.attributes || {};
         await this._applyItemAttributes(actor, item, actor, attrs, {channel: 'self'});
         return false;
       }
@@ -536,7 +564,7 @@
         if (item.system?.active?.state === true && !usesActivationChannel) {
           await item.update({ 'system.active.state': false });
         }
-        await this.applySelfFrozenBuff(actor, item, action);
+        await this.applySelfFrozenBuff(actor, item, action, timing);
         return false;
       }
       // Even on the toggle channel, the state is left alone **when this action has no toggle bucket**. e.g. an always-on
@@ -546,14 +574,14 @@
       // forceToggle is the exception, because the caller has already decided "this trigger includes an activation"
       // (useMeansActivation — the path that turns on an always-on effect by using it directly).
       if (!forceToggle && !(adapter?.selfToggleBucketMatches?.(item, action) ?? true)) {
-        await this.applySelfFrozenBuff(actor, item, action);
+        await this.applySelfFrozenBuff(actor, item, action, timing);
         return false;
       }
       await item.update({ 'system.active.state': true });
       // Even on the toggle channel, rows authored as "on use / on attack" never go into the toggle AE, so they are
       // frozen here instead (explicitly authored rows only → they cannot overlap with unspecified ones).
       if (adapter?.hasFrozenSelfBucket?.(item, action)) {
-        await this.applySelfFrozenBuff(actor, item, action);
+        await this.applySelfFrozenBuff(actor, item, action, timing);
       }
       return true;
     },

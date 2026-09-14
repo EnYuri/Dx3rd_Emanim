@@ -20,7 +20,7 @@
         condition1: {width: 500, height: 330},
         condition2: {width: 500, height: 330},
         condition3: {width: 500, height: 330},
-        weapon: {width: 520, height: 390},
+        weapon: {width: 520, height: 430},
         protect: {width: 500, height: 310},
         vehicle: {width: 520, height: 360},
         effectSettings: {width: 560, height: 500},
@@ -209,13 +209,9 @@
                 this.switchSubTab(target.dataset.tab);
             });
             this._on(root, 'input[name="weaponFist"]', 'change', (event, target) => {
-                const weaponContent = this._query('#weapon-content');
-                this.toggleWeaponFields(
-                    target.checked,
-                    this._query('input[name="weaponName"]', weaponContent),
-                    this._query('input[name="weaponAmount"]', weaponContent)
-                );
+                this.setupWeaponFistToggle();
             });
+            this._on(root, 'input[name="weaponFistAdditive"]', 'change', () => this.setupWeaponFistToggle());
             this._on(root, 'input[name="healResurrect"]', 'change', (event, target) => {
                 this.toggleHealResurrectFields(target.checked, this._healResurrectFields(this._query('#heal-content')));
             });
@@ -489,17 +485,26 @@
             const nameField = this._query('input[name="weaponName"]', weaponContent);
             const amountField = this._query('input[name="weaponAmount"]', weaponContent);
             const permanentField = this._query('input[name="weaponFistPermanent"]', weaponContent);
+            const additiveField = this._query('input[name="weaponFistAdditive"]', weaponContent);
+            const stackableField = this._query('input[name="weaponFistStackable"]', weaponContent);
 
-            this.toggleWeaponFields(Boolean(fistCheckbox?.checked), nameField, amountField, permanentField);
+            this.toggleWeaponFields(
+                Boolean(fistCheckbox?.checked), nameField, amountField, permanentField, additiveField, stackableField);
         }
 
-        toggleWeaponFields(isFistMode, nameField, amountField, permanentField = null) {
+        toggleWeaponFields(isFistMode, nameField, amountField, permanentField = null, additiveField = null, stackableField = null) {
             this._setDisabled(nameField, false);
             this._setDisabled(amountField, isFistMode);
+            this._setDisabled(additiveField, !isFistMode);
+            if (additiveField && !isFistMode) additiveField.checked = false;
             // "Permanent change" means something only when the fist itself is modified — the path that creates a
-            // separate weapon has no original to revert to. Turning it off clears the value so no authoring remains.
-            this._setDisabled(permanentField, !isFistMode);
-            if (permanentField && !isFistMode) permanentField.checked = false;
+            // separate weapon has no original to revert to. An additive layer also needs a marker so it survives later
+            // replacements, and therefore cannot use the marker-less permanent-replacement route.
+            const additive = isFistMode && Boolean(additiveField?.checked);
+            this._setDisabled(permanentField, !isFistMode || additive);
+            if (permanentField && (!isFistMode || additive)) permanentField.checked = false;
+            this._setDisabled(stackableField, !additive);
+            if (stackableField && !additive) stackableField.checked = false;
         }
 
         setupHealResurrectToggle() {
@@ -733,7 +738,9 @@
                         this._checked('input[name="weaponFist"]', weaponContent),
                         this._query('input[name="weaponName"]', weaponContent),
                         this._query('input[name="weaponAmount"]', weaponContent),
-                        this._query('input[name="weaponFistPermanent"]', weaponContent)
+                        this._query('input[name="weaponFistPermanent"]', weaponContent),
+                        this._query('input[name="weaponFistAdditive"]', weaponContent),
+                        this._query('input[name="weaponFistStackable"]', weaponContent)
                     );
                 }
 
@@ -807,6 +814,10 @@
                     range: this._value('input[name="weaponRange"]', root),
                     amount: this._value('input[name="weaponAmount"]', root),
                     fist: this._checked('input[name="weaponFist"]', root),
+                    // Explicit opt-in: legacy and unmarked fist changes remain full replacements.
+                    fistAdditive: this._checked('input[name="weaponFistAdditive"]', root),
+                    // Reusing the same additive source refreshes it unless its rules explicitly permit self-stacking.
+                    fistStackable: this._checked('input[name="weaponFistStackable"]', root),
                     // A permanent change (the Cyber Arm family): no snapshot is left to revert to.
                     fistPermanent: this._checked('input[name="weaponFistPermanent"]', root),
                     activate: this._checked('input[name="weaponActivate"]', root)

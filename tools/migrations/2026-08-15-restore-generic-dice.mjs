@@ -8,7 +8,9 @@ const row = (key, label, value) => ({key, label, value: String(value)});
 
 export const restoreEntries = [
   {pack: "effects", id: "LflB5mpaoHvWrPXA", name: "완전수화", type: "effect",
-    before: [row("stat_dice", "body", "+[level]+2")], after: [row("dice", "dice", "+[level]+2")]},
+    before: [row("stat_dice", "body", "+[level]+2")], after: [row("dice", "dice", "+[level]+2")],
+    // The 2026-09-14 correction follows the explicit body-only description.
+    later: [row("stat_dice", "body", "+[level]+2")]},
   {pack: "effects", id: "OxH5eAPyDIpmILVm", name: "사이코메트리", type: "effect",
     before: [row("stat_dice", "info", "+[level]+2")], after: [row("dice", "dice", "+[level]+2")],
     later: [row("major_dice", "major_dice", "+[level]+2")]},
@@ -22,7 +24,8 @@ export const restoreEntries = [
     ], after: [row("dice", "dice", "+[level]")],
     later: [row("major_dice", "major_dice", "+[level]")]},
   {pack: "effects", id: "ztVoNcNikaCI4UJe", name: "짐승의 혼", type: "effect",
-    before: [row("stat_dice", "body", "+5")], after: [row("dice", "dice", "+5")]},
+    before: [row("stat_dice", "body", "+5")], after: [row("dice", "dice", "+5")],
+    later: [row("stat_dice", "body", "+5")]},
   {pack: "weapons", id: "f5jDBE2tXOZLEDkJ", name: "스네이크 블레이드", type: "weapon",
     before: [row("stat_dice", "melee", "-1")], after: [row("dice", "dice", "-(1)")]},
   {pack: "armors", id: "iDW6bsRv5rvHhHib", name: "완전열광학미채복", type: "protect",

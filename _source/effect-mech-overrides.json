@@ -356,7 +356,7 @@
   },
   "봉인의 주술": {
     "effect": {
-      "disable": "major",
+      "disable": "roll",
       "runTiming": "afterDamage",
       "attributes": [
         {
@@ -364,7 +364,8 @@
           "label": "critical",
           "value": "+1"
         }
-      ]
+      ],
+      "action": ""
     },
     "getTarget": true,
     "active": {
@@ -387,7 +388,7 @@
   },
   "선혈의 사슬": {
     "effect": {
-      "disable": "major",
+      "disable": "roll",
       "runTiming": "afterDamage",
       "attributes": [
         {
@@ -395,7 +396,8 @@
           "label": "critical",
           "value": "+1"
         }
-      ]
+      ],
+      "action": ""
     },
     "getTarget": true,
     "active": {
@@ -1354,6 +1356,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "무형의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1387,6 +1390,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "사이버 암",
         "type": "melee",
         "skill": "melee",
@@ -1421,6 +1425,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "백열",
         "type": "melee",
         "skill": "melee",
@@ -1454,6 +1459,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "일각귀",
         "type": "melee",
         "skill": "melee",
@@ -1487,6 +1493,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "뼈의 검",
         "type": "melee",
         "skill": "melee",
@@ -1520,6 +1527,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "에어로 드라이브",
         "type": "melee",
         "skill": "melee",
@@ -1553,6 +1561,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "멸망의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1586,6 +1595,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "파괴의 손톱",
         "type": "melee",
         "skill": "melee",
@@ -1619,6 +1629,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "독사",
         "type": "melee",
         "skill": "melee",
@@ -2039,11 +2050,12 @@
       "runTiming": "afterDamage",
       "attributes": [
         {
-          "key": "critical",
-          "label": "critical",
+          "key": "major_critical",
+          "label": "major_critical",
           "value": "+1"
         }
-      ]
+      ],
+      "action": ""
     },
     "active": {
       "state": false,
@@ -5286,10 +5298,30 @@
           "key": "attack",
           "label": "-",
           "value": "+[level]*3"
+        },
+        {
+          "key": "major_critical",
+          "label": "major_critical",
+          "value": "-1"
+        },
+        {
+          "key": "critical_min",
+          "label": "critical_min",
+          "value": "6"
         }
       ],
       "action": ""
-    }
+    },
+    "itemExtend": {
+      "condition": {
+        "timing": "instant",
+        "target": "self",
+        "type": "berserk",
+        "activate": true
+      }
+    },
+    "manualTargetOtherOnly": true,
+    "getTarget": true
   },
   "공포의 독": {
     "active": {
@@ -14595,6 +14627,18 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "effect": {
+      "attributes": [
+        {
+          "key": "major_add",
+          "label": "major_add",
+          "value": "+5"
+        }
+      ],
+      "disable": "major",
+      "runTiming": "instant",
+      "action": ""
     }
   },
   "뼈의 총": {
@@ -15492,6 +15536,7 @@
       "weapon": {
         "activate": true,
         "fist": true,
+        "fistAdditive": false,
         "name": "샤이닝 암",
         "type": "melee",
         "skill": "melee",
@@ -19758,6 +19803,22 @@
     "description": "<p>그 씬 동안, 아래의 데이터를 가진 무기를 작성하여 장비할 수 있다. 이 무기로 공격하거나 가드를 실행할 경우 당신은 3점의 HP를잃는다.<br>종별: 백병 기능: 〈백병〉<br>명중: -2 공격력: 5<br>가드치: [LV×2]+5 사정거리: 지근</p><p><em>중력을 집중시킨 방패를 만드는 이펙트.</em></p>"
   },
   "역전의 수아": {
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": true,
+        "fistAdditive": true,
+        "fistStackable": false,
+        "name": "역전의 수아",
+        "type": "melee",
+        "skill": "melee",
+        "amount": "1",
+        "add": "0",
+        "attack": "+[level]*3",
+        "guard": "0",
+        "range": "지근"
+      }
+    },
     "active": {
       "state": false,
       "disable": "-",
@@ -20722,7 +20783,14 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>그 씬 동안, 【육체】를 사용하여 실행하는 모든 판정에 [LV+2]개의 다이스를 추가한다. 단, 이 이펙트가 지속되는 동안 맨손 이외의 모든 아이템을 장비 및 사용할 수 없다.</p><p><em>육체를 완전전투형태로 변화시키는 이펙트.</em></p>"
+    "description": "<p>그 씬 동안, 【육체】를 사용하여 실행하는 모든 판정에 [LV+2]개의 다이스를 추가한다. 단, 이 이펙트가 지속되는 동안 맨손 이외의 모든 아이템을 장비 및 사용할 수 없다.</p><p><em>육체를 완전전투형태로 변화시키는 이펙트.</em></p>",
+    "attributes": [
+      {
+        "key": "stat_dice",
+        "label": "body",
+        "value": "+[level]+2"
+      }
+    ]
   },
   "완전연기": {
     "active": {
@@ -22612,7 +22680,19 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>대상이 다음에 실행할 메이저 액션 판정의 달성치에 +[LV×2] 한다. 단, 매입판정에는 효과가 발휘되지 않는다.</p><p><em>영역을 조정하여 동료의 행동에 방해가 될 법한 요소들을 처리하는 이펙트.</em></p>"
+    "description": "<p>대상이 다음에 실행할 메이저 액션 판정의 달성치에 +[LV×2] 한다. 단, 매입판정에는 효과가 발휘되지 않는다.</p><p><em>영역을 조정하여 동료의 행동에 방해가 될 법한 요소들을 처리하는 이펙트.</em></p>",
+    "effect": {
+      "attributes": [
+        {
+          "key": "major_add",
+          "label": "major_add",
+          "value": "+[level]*2"
+        }
+      ],
+      "disable": "major",
+      "runTiming": "instant",
+      "action": ""
+    }
   },
   "인비지블 보디": {
     "active": {
@@ -26026,7 +26106,14 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>당신이 【육체】를 사용하는 판정을 실행하기 직전에 사용할 것. 그 판정에 5개의 다이스를 추가한다. 한 씬에 [LV]번 사용할 수 있다.</p><p><em>레니게이드를 활성화시켜 자신의 신체능력을 폭발적으로 상승시키는 이펙트.</em></p>"
+    "description": "<p>당신이 【육체】를 사용하는 판정을 실행하기 직전에 사용할 것. 그 판정에 5개의 다이스를 추가한다. 한 씬에 [LV]번 사용할 수 있다.</p><p><em>레니게이드를 활성화시켜 자신의 신체능력을 폭발적으로 상승시키는 이펙트.</em></p>",
+    "attributes": [
+      {
+        "key": "stat_dice",
+        "label": "body",
+        "value": "+5"
+      }
+    ]
   },
   "짐승의 힘": {
     "active": {
@@ -26106,6 +26193,22 @@
     "description": "<p>「공격력: +[LV+2]」인 사격공격을 실행한다.</p><p><em>불꽃의 탄환을 투사하여 적을 불태워버리는 이펙트. 이는 샐러맨더에게 있어 가장 초보적이면서도 기본적인 공격수단이다.</em></p>"
   },
   "찢고 꿰뚫는 자": {
+    "itemExtend": {
+      "weapon": {
+        "activate": true,
+        "fist": true,
+        "fistAdditive": true,
+        "fistStackable": false,
+        "name": "찢고 꿰뚫는 자",
+        "type": "melee",
+        "skill": "melee",
+        "amount": "1",
+        "add": "0",
+        "attack": "+[level]*3",
+        "guard": "0",
+        "range": "지근"
+      }
+    },
     "active": {
       "state": false,
       "disable": "-",

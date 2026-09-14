@@ -195,12 +195,13 @@
         return actor.items.get(itemId) || null;
     }
 
-    async function updateOwnedItemUsedState(actor, itemId, value) {
+    async function updateOwnedItemUsedState(actor, itemId, value, counter = "used") {
         const item = getOwnedItem(actor, itemId);
         if (!item) return null;
 
         const state = Number.parseInt(value, 10) || 0;
-        await item.update({ "system.used.state": state });
+        const axis = counter === "attack-used" ? "attack-used" : "used";
+        await item.update({ [`system.${axis}.state`]: state });
         return item;
     }
 
@@ -566,6 +567,10 @@
         // A render-only flag. It is never stored on the Item document data.
         item.showActiveToggle = usesSelfEffectActiveToggle(item);
         item.showRoisUse = roisHasActivation(item);
+        // Weapon rows show attack limits first; declaration limits are the fallback.
+        const attackCounter = item.system["attack-used"];
+        item.showAttackCounter = item.type === "weapon" && !!attackCounter
+            && attackCounter.disable !== "notCheck" && attackCounter.disable != null;
         if (item.system.used.disable === "notCheck") {
             item.system.used.displayMax = 0;
             if (item.system.used.level !== false) item.system.used.level = false;

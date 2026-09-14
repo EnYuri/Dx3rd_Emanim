@@ -73,10 +73,10 @@
             </td>
             <th>{{localize "DX3rd.DisableTiming"}}</th>
             <td>
-              <select name="system.active.disable" data-dtype="String">
+              <select title="{{localize "DX3rd.DisableTimingHint"}}" name="system.active.disable" data-dtype="String">
                 {{#select system.active.disable}}
                 <option value="-">-</option>
-                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
+                <option value="notCheck">{{localize "DX3rd.DisableTimingOff"}}</option>
                 <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
                 <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
                 <option value="main">{{localize "DX3rd.AfterMain"}}</option>

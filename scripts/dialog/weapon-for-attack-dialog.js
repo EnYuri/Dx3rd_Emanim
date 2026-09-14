@@ -71,24 +71,47 @@
             const root = this.element;
             if (!root) return;
 
+            // Listeners are attached on every render, so the previous batch must go first.
+            // Binding the row handler twice toggles the checkbox twice per click, which reads
+            // as "the row cannot be selected at all" and leaves confirm with an empty selection.
+            this._listeners?.abort();
+            this._listeners = new AbortController();
+            const signal = this._listeners.signal;
+
             root.addEventListener('click', event => {
                 const row = event.target.closest('.weapon-row');
                 if (!row || !root.contains(row)) return;
-                if (event.target.classList.contains('weapon-checkbox')) return;
                 const checkbox = row.querySelector('.weapon-checkbox');
                 if (!checkbox || checkbox.disabled) return;
-                checkbox.checked = !checkbox.checked;
-            });
+                // The checkbox toggles itself; clicking anywhere else on the row stands in for it.
+                if (event.target !== checkbox) checkbox.checked = !checkbox.checked;
+                this.syncRowSelection(row, checkbox);
+            }, {signal});
 
             root.querySelector('.weapon-confirm')?.addEventListener('click', event => {
                 event.preventDefault();
                 this.confirmSelection();
-            });
+            }, {signal});
 
             root.querySelector('.weapon-cancel')?.addEventListener('click', event => {
                 event.preventDefault();
                 this.close();
-            });
+            }, {signal});
+
+            for (const checkbox of root.querySelectorAll('.weapon-checkbox')) {
+                this.syncRowSelection(checkbox.closest('.weapon-row'), checkbox);
+            }
+        }
+
+        /** Make the checked state visible on the row, so an unselected confirm is never a surprise. */
+        syncRowSelection(row, checkbox) {
+            if (row) row.classList.toggle('weapon-selected', !!checkbox?.checked);
+        }
+
+        async close(options = {}) {
+            this._listeners?.abort();
+            this._listeners = null;
+            return super.close(options);
         }
 
         prepareWeaponData(weapon) {
@@ -187,26 +210,25 @@
             return localized !== `DX3rd.${skillKey}` ? localized : skillKey;
         }
 
-        async confirmSelection() {
+        /**
+         * Build the attack bonus from the checked rows. `null` = no weapon at all.
+         *
+         * An empty selection is not an error: the list already carries a `-` row meaning
+         * "no weapon", so confirming without a check means the same thing. Refusing it left
+         * the only way forward through the combo sheet's weapon slot — a dead end when the
+         * check was authored as "select at use time".
+         */
+        collectSelection() {
             const selectedWeaponIds = Array.from(this.element?.querySelectorAll('.weapon-checkbox:checked') || [])
                 .map(input => input.dataset.weaponId)
                 .filter(Boolean);
-
-            if (selectedWeaponIds.length === 0) {
-                ui.notifications.warn('무기를 선택해주세요.');
-                return;
-            }
 
             // 「무기 없음」 한 장은 운반값에 남기지 않는다 — 이름도 id 도 수치도 싣지 않아야
             // 판정 카드에 「무기: -」 줄이 생기지 않고, 정말 안 고른 것과 결과가 같아진다.
             // 그것만 골랐으면 무기 보너스 자체가 없는 것이므로 null 을 돌려준다.
             const isVirtual = (id) => window.DX3rdVirtualWeapons?.isVirtual?.(id);
             const realWeaponIds = selectedWeaponIds.filter(id => !isVirtual(id));
-            if (realWeaponIds.length === 0) {
-                await this.callback(null);
-                this.close();
-                return;
-            }
+            if (realWeaponIds.length === 0) return null;
 
             let totalAttack = 0;
             let totalAdd = 0;
@@ -231,15 +253,41 @@
                 weaponNames.push(this.cleanItemName(weapon.name));
             }
 
-            await this.callback({
+            return {
                 attack: totalAttack,
                 add: totalAdd,
                 attackFormula,
                 addFormula,
                 weaponName: weaponNames.join(', '),
                 weaponIds: realWeaponIds
-            });
-            this.close();
+            };
+        }
+
+        async confirmSelection() {
+            // The confirm listener is re-attached on every render; a second click while the
+            // callback is still running would open two roll dialogs for one use.
+            if (this._submitting) return;
+            this._submitting = true;
+
+            let bonus = null;
+            try {
+                bonus = this.collectSelection();
+            } catch (error) {
+                this._submitting = false;
+                console.error('DX3rd | WeaponForAttackDialog - Failed to read the weapon selection', error);
+                ui.notifications.error(game.i18n.localize('DX3rd.WeaponSelectionFailed'));
+                return;
+            }
+
+            // Close before handing off. The callback opens the roll dialog, and if it throws,
+            // leaving this window up with no message reads as "the process just stopped".
+            await this.close();
+            try {
+                await this.callback(bonus);
+            } catch (error) {
+                console.error('DX3rd | WeaponForAttackDialog - The roll could not be started', error);
+                ui.notifications.error(game.i18n.localize('DX3rd.WeaponSelectionFailed'));
+            }
         }
     }
 

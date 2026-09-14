@@ -120,10 +120,10 @@
             <td><input type="checkbox" name="system.active.state" {{#if system.active.state}} checked {{/if}}></td>
             <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
             <td>
-              <select name="system.active.disable" data-dtype="String" style="width: 100%;">
+              <select title="{{localize "DX3rd.DisableTimingHint"}}" name="system.active.disable" data-dtype="String" style="width: 100%;">
                 {{#select system.active.disable}}
                 <option value="-">-</option>
-                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
+                <option value="notCheck">{{localize "DX3rd.DisableTimingOff"}}</option>
                 <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
                 <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
                 <option value="main">{{localize "DX3rd.AfterMain"}}</option>
@@ -146,10 +146,10 @@
             <td><input type="checkbox" name="system.scene" {{#if system.scene}} checked {{/if}}></td>
             <th><span>{{localize "DX3rd.DisableTiming"}}</span></th>
             <td colspan="3">
-              <select name="system.effect.disable" data-dtype="String" style="width:90%; margin-left:10px;">
+              <select title="{{localize "DX3rd.DisableTimingHint"}}" name="system.effect.disable" data-dtype="String" style="width:90%; margin-left:10px;">
                 {{#select system.effect.disable}}
                 <option value="-">-</option>
-                <option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>
+                <option value="notCheck">{{localize "DX3rd.DisableTimingOff"}}</option>
                 <option value="roll">{{localize "DX3rd.AfterRoll"}}</option>
                 <option value="major">{{localize "DX3rd.AfterMajor"}}</option>
                 <option value="main">{{localize "DX3rd.AfterMain"}}</option>

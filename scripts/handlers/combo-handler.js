@@ -230,13 +230,15 @@ window.DX3rdComboHandler = {
             const active = effectItem.system?.active || {};
             return action === 'use' && active.runTiming === timing && active.disable !== 'notCheck';
         }
-        const actionMatches = adapter.extensionActionMatches(
-            effectItem, 'selfModifiers', effectItem.system?.active || {}, action, timing
-        ) || adapter.hasExplicitBucket(effectItem, 'self', action);
-        if (!actionMatches) return false;
-        const lifecycle = adapter.bucketLifecycle(effectItem, 'self', action);
-        if (lifecycle.disable === 'notCheck') return false;
-        return lifecycle.runTiming === '-' || lifecycle.runTiming === timing;
+        return adapter.selfFiresAt(effectItem, action, timing);
+    },
+
+    /** Legacy member extensions preserve use and attack, but never activation.
+     * Costs and runtime prompts use this same predicate as collection.
+     */
+    memberExtensionActionMatches(item, kind, data) {
+        const adapter = window.DX3rdItemEffectAdapter;
+        return !adapter || adapter.inferAction(item, kind, data) !== 'activation';
     },
 
     async retainInstantComboFollowups(item, afterSuccessData, afterDamageData) {
@@ -280,8 +282,7 @@ window.DX3rdComboHandler = {
                 if (!d || !d.activate) return;
                 // Member extensions preserve both use and attack as before.
                 // But combo inclusion alone must never cause activation behavior.
-                if (!gated && window.DX3rdItemEffectAdapter
-                    && window.DX3rdItemEffectAdapter.inferAction(srcItem, typeKey, d) === 'activation') return;
+                if (!gated && !this.memberExtensionActionMatches(srcItem, typeKey, d)) return;
                 if (typeKey === 'heal' || typeKey === 'damage' || typeKey === 'condition') {
                     if (gated && window.DX3rdItemEffectAdapter
                         && !window.DX3rdItemEffectAdapter.extensionActionMatches(srcItem, typeKey, d, action, d.timing || 'instant')) return;
@@ -422,7 +423,7 @@ window.DX3rdComboHandler = {
             try {
                 const memberAction = this.comboMemberAction(memberItem, action);
                 if (this.memberSelfModifiersFireAt(memberItem, memberAction, 'instant')) {
-                    const toggled = await handler.applySelfModifiers(actor, memberItem, { action: memberAction });
+                    const toggled = await handler.applySelfModifiers(actor, memberItem, { action: memberAction, timing: 'instant' });
                     window.DX3rdDebug.log(`DX3rd | ComboHandler - Member self modifiers applied (${toggled ? 'toggle' : 'frozen'}):`, memberItem.name);
                 }
                 await handler.executeMacros(memberItem, 'instant', memberAction);

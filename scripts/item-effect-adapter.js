@@ -151,7 +151,9 @@
    */
   function selfModifiersPending(item) {
     if (!item) return false;
-    if ((item.system?.active?.disable ?? '-') === 'notCheck') return false;
+    if ((item.system?.active?.disable ?? '-') === 'notCheck'
+      && !modifierExecutionBuckets(item, 'self', null, null, {frozen: true}).length
+      && bucketLifecycle(item, 'self', 'activation').disable === 'notCheck') return false;
     if (usesActivationSelfChannel(item)) {
       if (item.system?.active?.state !== true) return true;
       // Even with the activation bucket already on, a frozen bucket authored as "on use / on attack" on the
@@ -267,6 +269,9 @@
   /** Do that trigger action's target modifiers fire at this timing (by the bucket's own runTiming)? */
   function targetFiresAt(item, action = null, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
+    if (attributeEntries(attributeMap(item, 'target')).length) {
+      return modifierExecutionBuckets(item, 'target', expected, timing).length > 0;
+    }
     const lifecycle = bucketLifecycle(item, 'target', expected);
     if (lifecycle.disable === 'notCheck') return false;
     return lifecycle.runTiming === '-' || lifecycle.runTiming === timing;
@@ -285,10 +290,30 @@
   /** Does that self-modifier bucket fire at this timing (by the bucket's own lifetime)? */
   function selfFiresAt(item, action = null, timing = 'instant') {
     const expected = normalizeAction(action) || eventAction(item, timing);
-    const lifecycle = bucketLifecycle(item, 'self', expected);
-    if (lifecycle.disable === 'notCheck') return false;
-    if (lifecycle.runTiming !== '-' && lifecycle.runTiming !== timing) return false;
-    return hasUsableEntries(selfBucketAttributes(item, expected));
+    return modifierExecutionBuckets(item, 'self', expected, timing).length > 0;
+  }
+
+  /** Expand an invocation into exact buckets before checking timing or creating AEs.
+   * An attack may cover use too, but those cards must never share a lifetime or AE key.
+   * The frozen selector retains the legacy unsplit-channel compatibility rule.
+   */
+  function modifierExecutionBuckets(item, channel, action = null, timing = null, {frozen = false} = {}) {
+    const expected = normalizeAction(action) || eventAction(item, timing || 'instant');
+    const selected = channel === 'self' && frozen
+      ? selfFrozenAttributes(item, action)
+      : Object.fromEntries(attributeEntries(attributeMap(item, channel)).filter(([, entry]) =>
+        actionCoversBucket(item, expected, attributeAction(item, channel, entry))));
+    const groups = new Map();
+    for (const [key, entry] of attributeEntries(selected)) {
+      const bucketAction = attributeAction(item, channel, entry);
+      if (!groups.has(bucketAction)) groups.set(bucketAction, {});
+      groups.get(bucketAction)[key] = entry;
+    }
+    return [...groups].map(([bucketAction, attributes]) => ({
+      action: bucketAction, attributes, lifecycle: bucketLifecycle(item, channel, bucketAction)
+    })).filter(bucket => hasUsableEntries(bucket.attributes)
+      && bucket.lifecycle.disable !== 'notCheck'
+      && (timing === null || bucket.lifecycle.runTiming === '-' || bucket.lifecycle.runTiming === timing));
   }
 
   function hasExplicitBucket(item, channel, action) {
@@ -383,14 +408,8 @@
 
   /** Pick out only the modifiers to apply to targets for the current trigger action (for applyToTargets). */
   function targetBucketAttributes(item, action = null, timing = 'instant') {
-    const expected = normalizeAction(action) || eventAction(item, timing);
-    const channelMatches = actionCoversBucket(item, expected, channelAction(item, 'target'));
-    const out = {};
-    for (const [key, entry] of attributeEntries(attributeMap(item, 'target'))) {
-      const explicit = explicitAction(item, 'target', entry);
-      if (explicit ? actionCoversBucket(item, expected, explicit) : channelMatches) out[key] = entry;
-    }
-    return out;
+    return Object.assign({}, ...modifierExecutionBuckets(item, 'target', action, timing)
+      .map(bucket => bucket.attributes));
   }
 
   /**
@@ -915,6 +934,9 @@
    * otherwise authoring a per-row trigger action would still be blocked wholesale by the channel gate.
    */
   function targetActionMatches(item, action, timing = 'instant') {
+    if (attributeEntries(attributeMap(item, 'target')).length) {
+      return modifierExecutionBuckets(item, 'target', action, timing).length > 0;
+    }
     if (extensionActionMatches(item, 'targetModifiers', item.system?.effect || {}, action, timing)) return true;
     const expected = normalizeAction(action) || eventAction(item, timing);
     return hasExplicitBucket(item, 'target', expected);
@@ -1537,7 +1559,7 @@
     actionCoversBucket,
     selfToggleBucketMatches,
     selfFrozenAttributes, selfBucketAttributes, hasFrozenSelfBucket, targetBucketAttributes, modifierBuckets, actionLabel,
-    bucketLifecycle, selfFiresAt, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
+    bucketLifecycle, modifierExecutionBuckets, selfFiresAt, targetFiresAt, bucketId, parseBucketId, freeBucketActions,
     addModifierBucket, deleteModifierBucket, moveModifierToBucket, updateModifierChannel,
     // Defence bypass (attacker) and its counter (defender)
     BYPASS_AXES, RESTORE_AXES, bypassDefense, restoreDefense, attackBypassDefense, resolveDefense

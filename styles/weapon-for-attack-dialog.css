@@ -33,6 +33,23 @@
     text-align: center;
 }
 
+.weapon-for-attack-dialog .weapon-select-hint {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    text-align: center;
+    opacity: 0.75;
+}
+
+/* The checked state has to be visible on the row: an unselected confirm now proceeds
+   without a weapon, so "did my click register?" must never be a guess. */
+.weapon-row.weapon-selected {
+    background: rgba(33, 150, 243, 0.35);
+}
+
+.weapon-row.weapon-selected:hover {
+    background: rgba(33, 150, 243, 0.45);
+}
+
 .weapon-table-container {
     flex: 1;
     overflow-y: auto;

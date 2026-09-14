@@ -494,16 +494,13 @@
           let runtimeSourceItem = runtimeCfg ? item : null;
           if (!runtimeCfg && item.type === 'combo') {
             for (const {item: memberItem} of comboMemberEntries) {
-              const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, requestedAction);
               const ex = memberItem?.getFlag?.('dx3rd-emanim', 'itemExtend') || {};
               runtimeCfg = (window.DX3rdItemEffectAdapter?.extensionEntries?.(ex) || [])
                 .filter(entry => entry.type === 'damage')
                 .map(entry => entry.data)
                 .find(data => data?.runtimePrompt
                   && (!window.DX3rdItemEffectAdapter
-                    || window.DX3rdItemEffectAdapter.extensionActionMatches(
-                      memberItem, 'damage', data, memberAction, data.timing || 'instant'
-                    ))) || null;
+                    || window.DX3rdComboHandler.memberExtensionActionMatches(memberItem, 'damage', data))) || null;
               if (runtimeCfg) {
                 runtimeSourceItem = memberItem;
                 break;
@@ -570,10 +567,9 @@
           hpCostList.push({ raw: String(runtimeConsumeAmount), source: 'runtime' });
         }
 
-        // 1-D. For a combo, also collect every member's own/extend HP cost under its role action
+        // 1-D. Member costs share the extension collector's legacy use/attack inclusion.
         if (item.type === 'combo') {
           for (const {item: memberItem} of comboMemberEntries) {
-            const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, requestedAction);
 
             // A combo never runs its member effects through handleItemUse individually, so the
             // effect's own system.hp cost has to be summed explicitly here.
@@ -586,7 +582,7 @@
             for (const entry of (window.DX3rdItemEffectAdapter?.extensionEntries?.(memberExtend) || []).filter(entry => entry.type === 'damage')) {
               const data = entry.data || {};
               const matches = !window.DX3rdItemEffectAdapter
-                || window.DX3rdItemEffectAdapter.extensionActionMatches(memberItem, 'damage', data, memberAction, data.timing || 'instant');
+                || window.DX3rdComboHandler.memberExtensionActionMatches(memberItem, 'damage', data);
               const raw = data.hpCostActivate && data.hpCost && matches ? String(data.hpCost).trim() : '0';
               if (raw !== '0' && raw !== '') hpCostList.push({raw, source: `member:${memberItem.name}:${entry.id}`});
             }
@@ -1224,7 +1220,7 @@
               ...(item._dx3rdInstantSnapshot === true ? { forceFrozen: true } : {})
             }));
           } else {
-            await this.applySelfModifiers(actor, item, { action });
+            await this.applySelfModifiers(actor, item, { action, timing: 'afterSuccess' });
           }
         } else if (item.system?.active?.runTiming === 'afterSuccess' && !item.system?.active?.state) {
           await item.update({ 'system.active.state': true });
@@ -1373,6 +1369,7 @@
         if (action) {
           await this.applySelfModifiers(actor, item, {
             action,
+            timing: 'afterDamage',
             ...(item._dx3rdInstantSnapshot === true ? { forceFrozen: true } : {})
           });
         } else {
@@ -2093,25 +2090,29 @@
       const adapter = window.DX3rdItemEffectAdapter;
       // Items whose self-modifier channel resolves to the 'activation' action (always-on effects,
       // applyMode='toggle', or a card authored with action 'activation') did not match the use
-      // action ('use'/'attack') and so failed the gate. Yet the same effect placed in a combo does
-      // switch on, because combo-handler calls applySelfModifiers with no action gate — an
-      // asymmetry where standalone use silently did nothing and the effect stayed switched off.
-      // → A direct use is taken to include activation (the adapter's useMeansActivation decides).
-      const useMeansActivate = !!adapter?.useMeansActivation?.(item);
+      // action ('use'/'attack'). Direct use may explicitly include activation through useMeansActivation,
+      // unlike membership in a combo, which never activates the member's separate toggle channel.
+      const activationLifecycle = adapter?.bucketLifecycle(item, 'self', 'activation');
+      const useMeansActivate = !!adapter?.useMeansActivation?.(item)
+        && activationLifecycle.disable !== 'notCheck'
+        && (activationLifecycle.runTiming === '-' || activationLifecycle.runTiming === 'instant');
       const selfActionMatches = !adapter
         || adapter.extensionActionMatches(item, 'selfModifiers', item.system?.active || {}, action, 'instant')
         || useMeansActivate
         // A row whose own trigger action differs from the channel default would be blocked by the channel gate alone.
-        || adapter.hasExplicitBucket(item, 'self', action);
+        || adapter.selfFiresAt(item, action, 'instant');
       // "Is there anything left to apply" differs per channel — the adapter's selfModifiersPending decides.
       // (activation channel: !active.state / frozen channel: fresh on every use / notCheck: never)
       const selfPending = adapter ? adapter.selfModifiersPending(item)
         : (!item.system.active?.state && activeDisable !== 'notCheck');
-      if (selfActionMatches && item.system.active?.runTiming === 'instant' && selfPending && !skipToggle) {
+      const selfFiresNow = adapter
+        ? (adapter.selfFiresAt(item, action, 'instant') || useMeansActivate)
+        : item.system.active?.runTiming === 'instant';
+      if (selfActionMatches && selfFiresNow && selfPending && !skipToggle) {
         // Modifiers authored on the 'activation' channel are toggled on, not frozen. The sheet display
         // and the combo persistence checks (combo-data getPersistentEffectIds/calculateItemAttackBonus)
         // read active.state, so freezing an AE only would leave "applied, yet still inactive".
-        const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate, action });
+        const toggled = await this.applySelfModifiers(actor, item, { forceToggle: useMeansActivate, action, timing: 'instant' });
         window.DX3rdDebug.log(`DX3rd | handleItemUse - Self modifiers applied (${toggled ? 'toggle' : 'onUse frozen'}):`, item.name);
       }
       

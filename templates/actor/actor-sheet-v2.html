@@ -726,6 +726,15 @@
                     </span>
                   </h4>
                   <h4 class="item-addon">
+                    {{#if item.showAttackCounter}}
+                    <input type="number" class="checkbox-input used-input" data-counter="attack-used" title="{{localize "DX3rd.AttackCount"}}" value="{{item.system.attack-used.state}}"> /
+                    <input type="number" class="checkbox-input used-input" title="{{localize "DX3rd.AttackCount"}}" value="{{item.system.attack-used.max}}" disabled>
+                    {{else}}
+                    {{#unless (eq item.system.used.disable "notCheck")}}
+                    <input type="number" class="checkbox-input used-input" title="{{localize "DX3rd.UsedCount"}}" value="{{item.system.used.state}}"> /
+                    <input type="number" class="checkbox-input used-input" title="{{localize "DX3rd.UsedCount"}}" value="{{item.system.used.displayMax}}" disabled>
+                    {{/unless}}
+                    {{/if}}
                     <input type="checkbox" class="active-equipment" title="{{localize "DX3rd.Equipment"}}" {{#if item.system.equipment}} checked {{/if}}>
                     {{#if item.showActiveToggle}}<input type="checkbox" class="active-check" title="{{localize "DX3rd.Active"}}" {{#if item.system.active.state}} checked {{/if}}>{{/if}}
                   </h4>

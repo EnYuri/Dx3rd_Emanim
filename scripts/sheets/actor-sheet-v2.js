@@ -700,7 +700,7 @@
       if (!this._canEdit()) return;
       const item = this._getItemFromTarget(event.currentTarget);
       if (!item) return;
-      await window.DX3rdActorSheetData.updateOwnedItemUsedState(this.document, item.id, event.currentTarget.value);
+      await window.DX3rdActorSheetData.updateOwnedItemUsedState(this.document, item.id, event.currentTarget.value, event.currentTarget.dataset.counter);
     }
 
     async _onActiveChange(event) {

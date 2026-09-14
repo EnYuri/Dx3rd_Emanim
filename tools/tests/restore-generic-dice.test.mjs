@@ -21,7 +21,7 @@ function apply(entry, attributes = entry.before) {
   return document;
 }
 
-test("all seven narrowed modifiers return to generic dice", () => {
+test("historical restoration returns generic dice unless the body classification was later reinstated", () => {
   assert.equal(restoreEntries.length, 7);
   assert.equal(restoreEntries.filter(entry => entry.pack === "effects").length, 5);
   assert.equal(restoreEntries.filter(entry => entry.pack === "weapons").length, 1);
@@ -29,8 +29,9 @@ test("all seven narrowed modifiers return to generic dice", () => {
 
   for (const entry of restoreEntries) {
     const rows = Object.values(apply(entry).system.attributes);
-    assert.deepEqual(rows, entry.after, entry.name);
-    assert.deepEqual(rows.map(value => [value.key, value.label]), [["dice", "dice"]], entry.name);
+    const laterBody = entry.later?.[0]?.label === "body";
+    assert.deepEqual(rows, laterBody ? entry.later : entry.after, entry.name);
+    assert.deepEqual(rows.map(value => [value.key, value.label]), [laterBody ? ["stat_dice", "body"] : ["dice", "dice"]], entry.name);
   }
 });
 

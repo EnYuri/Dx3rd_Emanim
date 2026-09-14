@@ -477,6 +477,9 @@
      */
     FIST_MUTABLE_FIELDS: ['type', 'skill', 'add', 'attack', 'guard', 'range'],
 
+    /** Numeric fist fields that an explicitly additive fist change may contribute. */
+    FIST_ADDITIVE_FIELDS: ['add', 'attack', 'guard'],
+
     /**
      * The default data of the fist an actor first receives. Only `main.js`'s fist creation and **this one place** use it —
      * these values used to be scattered as literals across one creation site and three reset sites, so an actor whose fist
@@ -546,6 +549,84 @@
       return (actor?.effects ?? [])
         .filter(e => e.id !== excludeId && this.grantPayload(e)?.kind === 'fist')
         .sort((a, b) => (this.grantPayload(a).order ?? 0) - (this.grantPayload(b).order ?? 0));
+    },
+
+    /** Legacy fist grants have no mode and are replacement changes. */
+    isAdditiveFistGrant(grant) {
+      return grant?.mode === 'additive';
+    },
+
+    /** Keep the signed string convention used by weapon data. */
+    formatFistNumber(value) {
+      const number = Number(value) || 0;
+      return number > 0 ? `+${number}` : String(number);
+    },
+
+    /**
+     * Compose the visible fist from its immutable bottom and the live marker stack.
+     *
+     * Replacement changes are last-writer-wins. Additive changes never become that replacement layer: every live
+     * additive contribution is summed onto the newest replacement (or the original when there is no replacement),
+     * regardless of whether it was applied before or after that replacement.
+     */
+    composeFistData(original, grants) {
+      const payloads = (grants || []).map(entry => this.grantPayload(entry) || entry).filter(Boolean);
+      const replacements = payloads.filter(grant => !this.isAdditiveFistGrant(grant) && grant.applied);
+      const latestReplacement = replacements.at(-1)?.applied;
+      const base = latestReplacement || original || {};
+      const composed = { name: base.name };
+      for (const key of this.FIST_MUTABLE_FIELDS) {
+        if (base[key] !== undefined) composed[key] = base[key];
+      }
+      for (const grant of payloads.filter(entry => this.isAdditiveFistGrant(entry))) {
+        for (const key of this.FIST_ADDITIVE_FIELDS) {
+          composed[key] = this.formatFistNumber((Number(composed[key]) || 0) + (Number(grant.applied?.[key]) || 0));
+        }
+      }
+      return composed;
+    },
+
+    /** Recalculate the fist from all surviving markers instead of undoing one marker procedurally. */
+    async realignFistItem(actor, fistItem, excludeId = null) {
+      if (!actor || !fistItem) return false;
+      const original = fistItem.getFlag('dx3rd-emanim', 'fistOriginal');
+      if (!original) return false;
+      const applied = this.composeFistData(original, this.fistGrantEffects(actor, excludeId));
+      const update = { name: applied.name || game.i18n.localize('DX3rd.Fist') };
+      for (const key of this.FIST_MUTABLE_FIELDS) {
+        if (applied[key] !== undefined) update[`system.${key}`] = applied[key];
+      }
+      await fistItem.update(update);
+      return true;
+    },
+
+    /**
+     * Create a fist marker, or refresh the same additive source instead of accidentally stacking repeated uses.
+     * Separate source item ids still add normally. A rare self-stacking effect must opt in explicitly.
+     */
+    async createOrRefreshFistGrant(actor, item, fistItem, applied, data, mode) {
+      const stackable = mode === 'additive' && data?.fistStackable === true;
+      const sourceItemId = item?.id ?? null;
+      const action = window.DX3rdItemEffectAdapter?.inferAction?.(item, 'weapon', data) || null;
+      const payload = {
+        kind: 'fist', mode, action, sourceItemId,
+        fistItemId: fistItem?.id ?? null,
+        order: Date.now(), applied
+      };
+      if (mode === 'additive' && !stackable && sourceItemId) {
+        const existing = this.fistGrantEffects(actor).find(effect => {
+          const grant = this.grantPayload(effect);
+          return this.isAdditiveFistGrant(grant) && grant.sourceItemId === sourceItemId;
+        });
+        if (existing) {
+          // Keep its original ordering. Additive order is mathematically irrelevant, and retaining it avoids turning a
+          // refresh into a delete/recreate lifecycle event in the effects list.
+          payload.order = this.grantPayload(existing).order ?? payload.order;
+          await existing.setFlag('dx3rd-emanim', this.GRANT_FLAG, payload);
+          return existing;
+        }
+      }
+      return this.createGrantEffect(actor, item, payload);
     },
 
     /**
@@ -749,15 +830,10 @@
       const fistItem = actor.items.get(grant.fistItemId) || this.findFistItem(actor);
       if (!fistItem) return;
 
-      // This AE is already deleted. If any remain, the most recent state among them is the correct current value.
+      // This AE is already deleted. If any remain, rebuild from the newest replacement plus every additive marker.
       const remaining = this.fistGrantEffects(actor, effect.id);
-      const top = remaining.length ? this.grantPayload(remaining.at(-1)).applied : null;
-      if (top) {
-        const update = { name: top.name };
-        for (const key of this.FIST_MUTABLE_FIELDS) {
-          if (top[key] !== undefined) update[`system.${key}`] = top[key];
-        }
-        await fistItem.update(update);
+      if (remaining.length) {
+        await this.realignFistItem(actor, fistItem, effect.id);
         return;
       }
       // They are all gone → back to the bottom of the stack (the first original).
@@ -804,6 +880,14 @@
      */
     async updateFistItem(actor, data, item = null) {
       const fistName = game.i18n.localize('DX3rd.Fist');
+      const additive = data.fistAdditive === true;
+
+      // Additive changes need a marker so that later replacements can be recomposed around them. They therefore
+      // cannot use the marker-less permanent-replacement route.
+      if (additive && data.fistPermanent) {
+        console.warn('DX3rd | An additive fist change cannot also be a permanent replacement; treating it as temporary.');
+      }
+      const permanent = data.fistPermanent === true && !additive;
 
       // Find the existing fist item (named fist, or ending in [fist])
       const fistItem = this.findFistItem(actor);
@@ -818,7 +902,7 @@
         //
         // Using a scene-limited effect such as Claws of Destruction afterwards takes a snapshot at that moment, and the
         // restore's destination becomes **the Cyber Arm state** rather than the default fist. That is what the rules say.
-        if (!data.fistPermanent) await this.snapshotFistItem(fistItem);
+        if (!permanent) await this.snapshotFistItem(fistItem);
         // Get the item's level (1 when absent)
         const itemLevel = (item ? window.DX3rdFormulaEvaluator.getItemLevel(item) : 0) || 1;
         const itemForFormula = { type: item?.type || 'effect', system: { level: { value: itemLevel } } };
@@ -834,7 +918,11 @@
         const evaluatedRange = this.evaluateFormulaForExtension(data.range, itemForFormula, actor, true);
         
         // Update the existing fist item
-        const applied = {
+        const applied = additive ? {
+          add: evaluatedAdd,
+          attack: evaluatedAttack,
+          guard: evaluatedGuard
+        } : {
           name: newName,
           type: data.type || 'melee',
           skill: data.skill || 'melee',
@@ -843,25 +931,16 @@
           guard: evaluatedGuard,
           range: evaluatedRange
         };
-        await fistItem.update({
-          'name': applied.name,
-          'system.type': applied.type,
-          'system.skill': applied.skill,
-          'system.add': applied.add,
-          'system.attack': applied.attack,
-          'system.guard': applied.guard,
-          'system.range': applied.range
-        });
         // A permanent change gets no marker — with no basis to revert (no snapshot), a deletable marker would be
         // the lie of "I deleted it and nothing happened".
-        if (!data.fistPermanent) {
-          await this.createGrantEffect(actor, item, {
-            kind: 'fist',
-            sourceItemId: item?.id ?? null,
-            fistItemId: fistItem.id,
-            order: Date.now(),
-            applied
-          });
+        if (!permanent) {
+          await this.createOrRefreshFistGrant(
+            actor, item, fistItem, applied, data, additive ? 'additive' : 'replace');
+          await this.realignFistItem(actor, fistItem);
+        } else {
+          const update = { name: applied.name };
+          for (const key of this.FIST_MUTABLE_FIELDS) update[`system.${key}`] = applied[key];
+          await fistItem.update(update);
         }
       } else {
         // Create one when there is no fist item
@@ -909,7 +988,7 @@
           // This is the branch that creates a fist because none existed. The restore's destination is the default fist
           // rather than a "pre-change value", so the defaults go into the snapshot — without them this one item would
           // be left out of the restore forever. A permanent change leaves no snapshot at all, for the reason above.
-          flags: data.fistPermanent ? {} : {
+          flags: permanent ? {} : {
             'dx3rd-emanim': {
               fistOriginal: { name: fistName, ...this.defaultFistSystem() }
             }
@@ -917,13 +996,12 @@
         };
 
         const [madeFist] = await actor.createEmbeddedDocuments('Item', [itemData]);
-        if (!data.fistPermanent) {
-          await this.createGrantEffect(actor, item, {
-            kind: 'fist',
-            sourceItemId: item?.id ?? null,
-            fistItemId: madeFist?.id ?? null,
-            order: Date.now(),
-            applied: {
+        if (!permanent) {
+          const applied = additive ? {
+              add: evaluatedAdd,
+              attack: evaluatedAttack,
+              guard: evaluatedGuard
+            } : {
               name: newName,
               type: data.type || 'melee',
               skill: data.skill || 'melee',
@@ -931,8 +1009,10 @@
               attack: evaluatedAttack,
               guard: evaluatedGuard,
               range: evaluatedRange
-            }
-          });
+            };
+          await this.createOrRefreshFistGrant(
+            actor, item, madeFist, applied, data, additive ? 'additive' : 'replace');
+          await this.realignFistItem(actor, madeFist);
         }
       }
     },

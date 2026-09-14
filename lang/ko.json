@@ -396,6 +396,8 @@
   "DX3rd.AttackResetTiming": "공격 리셋",
 
   "DX3rd.NotCheck": "체크 안한다",
+  "DX3rd.DisableTimingOff": "적용 안 함",
+  "DX3rd.DisableTimingHint": "「-」는 적용되고 사라지지 않음. 「적용 안 함」은 이 채널의 보정을 아예 적용하지 않음(저작해도 발현하지 않는다).",
   "DX3rd.AfterRoll": "판정 이후",
   "DX3rd.AfterMajor": "메이저 이후",
   "DX3rd.AfterReaction": "리액션 이후",
@@ -518,6 +520,8 @@
 
   "DX3rd.Weapon": "무기",
   "DX3rd.WeaponSelection": "무기 선택",
+  "DX3rd.WeaponSelectionHint": "무기를 고르지 않고 확인하면 무기 없이 판정을 진행합니다.",
+  "DX3rd.WeaponSelectionFailed": "무기 선택을 처리하지 못했습니다. 콘솔(F12)의 오류를 확인해주세요.",
   "DX3rd.Select": "선택",
 
   "DX3rd.Protect": "방어구",
@@ -900,6 +904,10 @@
   "DX3rd.SkillDataNotFound": "기능 데이터를 찾을 수 없습니다.",
   "DX3rd.FistApply": "「맨손」에 적용",
   "DX3rd.FistApplyHint": "무기를 새로 만드는 대신 기존 맨손 아이템의 데이터를 변경합니다. 이름이 「<이펙트명>[맨손]」이 되어 맨손 한정 보정을 계속 받습니다.",
+  "DX3rd.FistAdditive": "맨손 수치 가산",
+  "DX3rd.FistAdditiveHint": "명시적으로 가산 가능한 이펙트에만 사용합니다. 명중·공격력·가드치를 현재 맨손 데이터에 더하며, 이후 다른 맨손 변경으로 데이터를 덮어써도 가산분은 유지됩니다.",
+  "DX3rd.FistStackable": "동일 효과 중첩",
+  "DX3rd.FistStackableHint": "같은 이펙트를 다시 사용했을 때 가산분을 한 번 더 더한다고 원문에 명시된 경우에만 사용합니다. 끄면 같은 이펙트의 기존 가산 표식을 갱신합니다.",
   "DX3rd.FistPermanent": "영구 변경",
   "DX3rd.FistPermanentHint": "맨손 변경이 씬 한정이 아니라 영구적일 때 켭니다. 전투·씬이 끝나도 원래 맨손으로 되돌아가지 않습니다(《사이버 암》 등 취득 시 맨손을 대체하는 이펙트).",
   "DX3rd.FistDescription": "맨손을 무기로 사용할 때의 데이터",

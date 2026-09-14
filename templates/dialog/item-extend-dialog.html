@@ -499,12 +499,25 @@
                 <label for="weaponActivate">{{localize "DX3rd.Activate"}}</label>
             </div>
 
-            <!-- Row 6 : 맨손 변경이 영구인가(《사이버 암》류). 맨손 체크가 켜져야 뜻이 있다. -->
+            <!-- Row 6 : 일반 맨손 변경은 대체가 기본이고, 명시된 일부만 가산 계층을 쓴다. -->
+            <div class="form-label">{{localize "DX3rd.FistAdditive"}}</div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="weaponFistAdditive" id="weaponFistAdditive"
+                       title="{{localize 'DX3rd.FistAdditiveHint'}}">
+            </div>
             <div class="form-label">{{localize "DX3rd.FistPermanent"}}</div>
             <div style="display: flex; align-items: center; gap: 0px;">
                 <input type="checkbox" name="weaponFistPermanent" id="weaponFistPermanent"
                        title="{{localize 'DX3rd.FistPermanentHint'}}">
             </div>
+
+            <!-- Row 7 : 같은 소스의 재사용까지 더하는 것은 원문이 명시한 경우만 허용한다. -->
+            <div class="form-label">{{localize "DX3rd.FistStackable"}}</div>
+            <div style="display: flex; align-items: center; gap: 0px;">
+                <input type="checkbox" name="weaponFistStackable" id="weaponFistStackable"
+                       title="{{localize 'DX3rd.FistStackableHint'}}">
+            </div>
+            <div></div><div></div>
         </div>
     </section>
     {{/if}}
@@ -611,7 +624,7 @@
                     {{#if bucket.showRunTiming}}
                     <label>{{localize "DX3rd.RunTiming"}} <select name="{{bucket.runTimingName}}" data-bucket="{{bucket.id}}" {{#if (eq bucket.action "activation")}}disabled{{/if}}>{{#select bucket.runTiming}}<option value="instant">{{localize "DX3rd.Instant"}}</option><option value="afterSuccess">{{localize "DX3rd.AfterSuccess"}}</option><option value="afterDamage">{{localize "DX3rd.AfterDamage"}}</option>{{/select}}</select></label>
                     {{/if}}
-                    <label>{{localize "DX3rd.DisableTiming"}} <select name="{{bucket.disableName}}" data-bucket="{{bucket.id}}">{{#select bucket.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.NotCheck"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
+                    <label>{{localize "DX3rd.DisableTiming"}} <select title="{{localize "DX3rd.DisableTimingHint"}}" name="{{bucket.disableName}}" data-bucket="{{bucket.id}}">{{#select bucket.disable}}<option value="-">-</option><option value="notCheck">{{localize "DX3rd.DisableTimingOff"}}</option><option value="roll">{{localize "DX3rd.AfterRoll"}}</option><option value="major">{{localize "DX3rd.AfterMajor"}}</option><option value="main">{{localize "DX3rd.AfterMain"}}</option><option value="reaction">{{localize "DX3rd.AfterReaction"}}</option><option value="guard">{{localize "DX3rd.AfterGuard"}}</option><option value="round">{{localize "DX3rd.AfterRound"}}</option><option value="scene">{{localize "DX3rd.AfterScene"}}</option><option value="session">{{localize "DX3rd.AfterSession"}}</option>{{/select}}</select></label>
                 </div>
                 {{!-- 보정 행은 **이 버킷의 것만** 싣는다. 행에 소속 드롭다운은 없다 — 행은 자기가
                       추가된 카드의 것이고, 옮기려면 카드의 축을 바꾸거나 옮길 카드에서 다시 추가한다. --}}

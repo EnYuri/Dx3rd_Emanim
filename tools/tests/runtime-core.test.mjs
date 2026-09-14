@@ -3675,9 +3675,9 @@ test('direct use may activate a toggle bucket, but combo members never force act
   const universal = source('scripts/handlers/universal-handler.js');
   const combo = source('scripts/handlers/combo-handler.js');
 
-  assert.match(universal, /applySelfModifiers\(actor, item, \{ forceToggle: useMeansActivate, action \}\)/,
+  assert.match(universal, /applySelfModifiers\(actor, item, \{ forceToggle: useMeansActivate, action, timing: 'instant' \}\)/,
     '단독 사용은 활성화 채널을 켤 수 있어야 한다');
-  assert.match(combo, /applySelfModifiers\(actor, memberItem, \{ action: memberAction \}\)/,
+  assert.match(combo, /applySelfModifiers\(actor, memberItem, \{ action: memberAction, timing: 'instant' \}\)/,
     '콤보 멤버는 기존 발동 액션만 넘겨야 한다');
   assert.doesNotMatch(combo, /applySelfModifiers\(actor, memberItem, \{[^}]*forceToggle/,
     '콤보에 넣었다는 이유로 활성화 버킷을 강제로 켜면 안 된다');
@@ -3828,7 +3828,7 @@ test('the actor sheet only shows a usage counter for items that have one', () =>
     '사용 횟수를 쓰지 않는 아이템에 비활성 「0 / 0」 칸을 내지 말 것');
   // 카운터를 그리는 자리는 전부 같은 게이트를 쓴다(이펙트·이지·엑스트라·사이오닉 + 장비 탭 4곳).
   const gates = sheet.match(/\{\{#unless \(eq item\.system\.used\.disable "notCheck"\)\}\}/g) || [];
-  const inputs = sheet.match(/class="checkbox-input used-input" value="\{\{item\.system\.used\.state\}\}"/g) || [];
+  const inputs = sheet.match(/class="checkbox-input used-input"[^>]*value="\{\{item\.system\.used\.state\}\}"/g) || [];
   assert.equal(gates.length, inputs.length,
     '사용 횟수 칸과 게이트 수가 같아야 한다 — 하나라도 게이트 밖이면 그 목록만 늘 표시된다');
 
@@ -3836,6 +3836,22 @@ test('the actor sheet only shows a usage counter for items that have one', () =>
   assert.match(source('styles/appv2-sheets.css').replace(/\s+/g, ' '),
     /\.item-addon \.used-input \{ flex: 0 0 30px; width: 30px;/,
     '사용 횟수 칸의 고정폭이 사라지면 두 자리가 다시 잘린다');
+});
+
+test('weapon row counters prioritize attacks and save only the selected schema axis', async () => {
+  const sheet = source('templates/actor/actor-sheet-v2.html');
+  assert.match(sheet, /\{\{#if item\.showAttackCounter\}\}[\s\S]*?data-counter="attack-used"[\s\S]*?item\.system\.attack-used\.state[\s\S]*?\{\{else\}\}[\s\S]*?item\.system\.used\.state/);
+  const context = baseContext();
+  load(context, 'scripts/sheets/actor-sheet-data.js');
+  const writes = [];
+  const item = { update: async change => writes.push(change) };
+  const actor = { items: { get: () => item } };
+  await context.DX3rdActorSheetData.updateOwnedItemUsedState(actor, 'weapon', '2', 'attack-used');
+  await context.DX3rdActorSheetData.updateOwnedItemUsedState(actor, 'weapon', '1');
+  await context.DX3rdActorSheetData.updateOwnedItemUsedState(actor, 'weapon', '3', 'unexpected');
+  assert.equal(JSON.stringify(writes), JSON.stringify([
+    { 'system.attack-used.state': 2 }, { 'system.used.state': 1 }, { 'system.used.state': 3 }
+  ]));
 });
 
 test('a non-attack combo does not spend its registered weapons on nothing', () => {
@@ -3999,14 +4015,14 @@ test('every activation gate refuses notCheck and a later runTiming', () => {
     ['scripts/handlers/universal-handler.js', /async activateItem[\s\S]{0,1300}?\n    },/],
     ['scripts/handlers/universal-handler.js', /async ensureActivated[\s\S]{0,1300}?\n    },/],
     // 콤보 멤버는 사용 버킷 전용 게이트가 bucketLifecycle 의 disable/runTiming 을 함께 본다.
-    ['scripts/handlers/combo-handler.js', /memberSelfModifiersFireAt[\s\S]{0,1000}?lifecycle\.disable === 'notCheck'[\s\S]{0,200}?lifecycle\.runTiming/],
-    ['scripts/handlers/universal-handler.js', /const selfPending[\s\S]{0,300}?selfPending && !skipToggle\)\s*\{/]
+    ['scripts/handlers/combo-handler.js', /memberSelfModifiersFireAt[\s\S]{0,1000}?return adapter\.selfFiresAt[^;]*;/],
+    ['scripts/handlers/universal-handler.js', /const selfPending[\s\S]{0,800}?selfPending && !skipToggle\)\s*\{/]
   ];
   for (const [path, pattern] of gates) {
     const text = readFileSync(resolve(root, path), 'utf8');
     const match = text.match(pattern);
     assert.ok(match, `${path} 에서 활성화 게이트를 찾지 못했다 — 정규식이 낡았다`);
-    assert.match(match[0], /notCheck|selfModifiersPending/,
+    assert.match(match[0], /notCheck|selfModifiersPending|selfFiresAt/,
       `${path} 의 게이트가 notCheck 를 거르지 않는다(직접 검사도, 어댑터 위임도 아니다)`);
   }
   // ensureActivated 는 runTiming 게이트가 없어 afterSuccess 저작을 캐스팅 시점에 켰다.
@@ -4352,6 +4368,98 @@ function bucketItem(overrides = {}) {
   return item;
 }
 
+test('one non-equipment attack preserves separate use and attack modifier lifetimes', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  context.Hooks = { once() {}, on() {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+  const actor = { id: 'a1', isOwner: true, effects: [] };
+  const item = bucketItem({
+    attributes: {
+      use: { key: 'dice', value: '1', action: 'use' },
+      attack: { key: 'add', value: '2', action: 'attack' },
+      activation: { key: 'guard', value: '9', action: 'activation' }
+    },
+    active: { action: 'use', applyMode: 'onUse', state: false, disable: 'scene', runTiming: 'instant',
+      buckets: { attack: { disable: 'round', runTiming: 'instant' } } }
+  });
+  await handler.applySelfModifiers(actor, item, { action: 'attack', timing: 'instant' });
+  assert.equal(writes.length, 2);
+  assert.deepEqual(writes.map(row => [row.key, row.payload.disable, Object.keys(row.payload.attributes)]), [
+    ['applied_self_i1', 'scene', ['dice']], ['applied_self_atk_i1', 'round', ['add']]
+  ]);
+  assert.equal(item.system.active.state, false);
+});
+
+test('attack expansion applies only the live modifier cards at the current timing', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  context.Hooks = { once() {}, on() {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+  const actor = { id: 'a1', isOwner: true, effects: [] };
+  const item = bucketItem({
+    attributes: { use: { key: 'dice', value: '1', action: 'use' }, attack: { key: 'add', value: '2', action: 'attack' } },
+    active: { action: 'use', applyMode: 'onUse', state: false, disable: 'notCheck', runTiming: 'instant',
+      buckets: { attack: { disable: 'round', runTiming: 'afterSuccess' } } }
+  });
+  const adapter = context.DX3rdItemEffectAdapter;
+  assert.equal(adapter.selfModifiersPending(item, 'attack'), true);
+  assert.equal(adapter.selfFiresAt(item, 'attack', 'instant'), false);
+  assert.equal(adapter.selfFiresAt(item, 'attack', 'afterSuccess'), true);
+  await handler.applySelfModifiers(actor, item, { action: 'attack', timing: 'instant' });
+  assert.equal(writes.length, 0);
+  await handler.applySelfModifiers(actor, item, { action: 'attack', timing: 'afterSuccess' });
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].payload.disable, 'round');
+  assert.deepEqual(Object.keys(writes[0].payload.attributes), ['add']);
+});
+
+test('combo member extension cost and prompt selection share legacy use/attack inclusion', () => {
+  const { context } = applyHandlerContext();
+  context.Hooks = { once() {}, on() {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  const item = bucketItem();
+  const matches = action => context.DX3rdComboHandler.memberExtensionActionMatches(item, 'damage', { action });
+  assert.equal(matches('use'), true);
+  assert.equal(matches('attack'), true);
+  assert.equal(matches('activation'), false);
+  const handlerSource = source('scripts/handlers/universal-handler.js');
+  assert.equal((handlerSource.match(/memberExtensionActionMatches\(memberItem, 'damage', data\)/g) || []).length, 2,
+    'both the runtime prompt and extension HP cost must use the collection predicate');
+});
+
+test('combo member attack extensions pay their HP and runtime costs even in a use combo', async () => {
+  const { context } = applyHandlerContext();
+  context.Hooks = { once() {}, on() {} };
+  context.CONFIG = { statusEffects: [] };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  const handler = context.DX3rdUniversalHandler;
+  const updates = [];
+  const actor = { id: 'a1', name: 'actor', system: { attributes: { hp: { value: 20 }, encroachment: { value: 0 } } },
+    update: async changes => updates.push(plain(changes)) };
+  const member = bucketItem();
+  member.getFlag = (_scope, key) => key === 'itemExtend' ? { damage: {
+    activate: true, action: 'attack', timing: 'instant', target: 'self', hpCostActivate: true, hpCost: '5',
+    runtimePrompt: true, runtimeConsumeHP: true, runtimeDefault: 3
+  } } : {};
+  const combo = bucketItem({ getTarget: false });
+  combo.type = 'combo';
+  handler.comboMemberItems = () => [member];
+  let prompts = 0;
+  context.DX3rdUniversalNumberPromptV2 = async () => { prompts++; return 3; };
+  assert.equal(await handler.processItemUsageCost(actor, combo, { action: 'use', skipMessage: true }), true);
+  assert.equal(prompts, 1);
+  assert.deepEqual(updates, [{ 'system.attributes.hp.value': 12 }]);
+  updates.length = 0;
+  context.DX3rdUniversalNumberPromptV2 = async () => null;
+  assert.equal(await handler.processItemUsageCost(actor, combo, { action: 'use', skipMessage: true }), false);
+  assert.equal(updates.length, 0, 'cancel must not deduct any cost');
+});
+
 test('one channel can hold several apply-action buckets, one card each', () => {
   const { adapter } = equipmentHookContext();
   const item = bucketItem({
@@ -4653,7 +4761,10 @@ test('each bucket owns its apply timing, so neither of them is dead on arrival',
   assert.equal(adapter.bucketLifecycle(item, 'target', 'attack').runTiming, 'afterDamage');
   assert.equal(adapter.targetFiresAt(item, 'use', 'instant'), true);
   assert.equal(adapter.targetFiresAt(item, 'attack', 'afterDamage'), true);
-  assert.equal(adapter.targetFiresAt(item, 'attack', 'instant'), false);
+  assert.equal(adapter.targetFiresAt(item, 'attack', 'instant'), true,
+    '비장비의 공격 발현은 즉시 사용 버킷도 커버하되 공격 버킷은 자기 시점을 기다린다');
+  assert.deepEqual(Object.keys(adapter.targetBucketAttributes(item, 'attack', 'instant')), ['b0']);
+  assert.deepEqual(Object.keys(adapter.targetBucketAttributes(item, 'attack', 'afterDamage')), ['b1']);
   // 소멸 타이밍도 버킷의 것이다(기본 버킷은 채널 필드를 그대로 상속).
   assert.equal(adapter.bucketLifecycle(item, 'target', 'use').disable, 'scene');
   assert.equal(adapter.bucketLifecycle(item, 'target', 'attack').disable, 'round');
@@ -4701,6 +4812,44 @@ test('a use bucket and an attack bucket never share one applied effect', async (
   assert.deepEqual(Object.keys(plain(declared.payload.attributes)), ['guard']);
   assert.deepEqual(Object.keys(plain(writes[1].payload.attributes)), ['attack']);
   assert.equal(writes[1].payload.action, 'attack', '버킷 판별자가 페이로드에 실려야 소멸 훅이 찾는다');
+});
+
+test('the disable-timing dropdown never reuses the usage-count wording for "off"', () => {
+  // 「비활성화」 드롭다운에서 `-` 는 「적용되고 사라지지 않음」이고 `notCheck` 는 「이 채널을 아예
+  // 적용하지 않음」이다. 그런데 그 옵션이 사용 횟수 칸과 문자열(DX3rd.NotCheck = 「체크 안한다」)을
+  // 공유하고 있어 「비활성화를 체크하지 않는다 = 안 사라진다」로 읽혔다 — 실측 월드 10문서가 그 값에
+  // 보정 행을 저작해 두고 통째로 죽어 있었다(오리진(정령)의 init/guard/armor +([level]*3) 등).
+  // 사용 횟수 칸에서는 같은 문자열이 자연스럽게 읽히므로 그쪽은 그대로 둔다.
+  const files = [
+    'templates/dialog/item-extend-dialog.html',
+    'templates/item/combo-sheet-v2.html',
+    'templates/item/connection-sheet-v2.html',
+    'templates/item/psionic-sheet-v2.html',
+    'templates/item/rois-sheet-v2.html',
+    'templates/item/spell-sheet-v2.html'
+  ];
+  const OFF = '<option value="notCheck">{{localize "DX3rd.DisableTimingOff"}}</option>';
+  const USED = '<option value="notCheck">{{localize "DX3rd.NotCheck"}}</option>';
+  let disableSelects = 0;
+  for (const file of files) {
+    const lines = source(file).split('\n');
+    lines.forEach((line, index) => {
+      // A disable-timing select is the one bound to a persistent-effect channel or bucket.
+      if (!/<select[^>]*name="(system\.(active|effect)\.disable|\{\{bucket\.disableName\}\})"/.test(line)) return;
+      disableSelects++;
+      assert.ok(/title="\{\{localize "DX3rd\.DisableTimingHint"\}\}"/.test(line),
+        `${file}:${index + 1} 비활성화 드롭다운은 -/적용 안 함의 차이를 툴팁으로 말해야 한다`);
+      // The option sits on the same line (single-line selects) or within the block that follows.
+      const block = lines.slice(index, index + 14).join('\n');
+      assert.ok(block.includes(OFF), `${file}:${index + 1} 비활성화의 notCheck 는 「적용 안 함」이어야 한다`);
+      assert.ok(!block.includes(USED), `${file}:${index + 1} 사용 횟수 문구를 재사용하면 안 된다`);
+    });
+  }
+  assert.equal(disableSelects, 9, '비활성화 드롭다운을 새로 만들면 이 검사에도 함께 들어와야 한다');
+
+  const ko = JSON.parse(source('lang/ko.json'));
+  assert.equal(ko['DX3rd.NotCheck'], '체크 안한다', '사용 횟수 쪽 문구는 그대로다');
+  assert.ok(ko['DX3rd.DisableTimingOff'] && ko['DX3rd.DisableTimingHint']);
 });
 
 test('an attack effect fires the card it was authored on, because attacking is using', () => {
@@ -4980,7 +5129,7 @@ test('after-success major damage bonuses affect only the preserved attack snapsh
   await context.DX3rdUniversalHandler.processAfterSuccessSelfModifiers(actor, shotgun, {
     action: 'use', attackItem: shotgun, expiredTimings: ['roll', 'major']
   });
-  assert.deepEqual(plain(applied), [{ action: 'use' }],
+  assert.deepEqual(plain(applied), [{ action: 'use', timing: 'afterSuccess', bucketAttributes: shotgun.system.attributes }],
     '아직 끝나지 않은 수명은 정상적으로 액터에 남아야 한다');
 });
 
@@ -5626,7 +5775,8 @@ test('the virtual weapon is a single blank row that carries nothing into the rol
   // 실무기와 함께 골라도 이름·id 목록에 끼지 않는다.
   const dialog = source('scripts/dialog/weapon-for-attack-dialog.js');
   assert.match(dialog, /realWeaponIds\s*=\s*selectedWeaponIds\.filter\(id => !isVirtual\(id\)\)/);
-  assert.match(dialog, /if \(realWeaponIds\.length === 0\) \{\s*\n\s*await this\.callback\(null\);/);
+  assert.match(dialog, /if \(realWeaponIds\.length === 0\) return null;/);
+  assert.match(dialog, /await this\.callback\(bonus\);/);
   assert.match(dialog, /for \(const weaponId of realWeaponIds\)/);
   assert.match(dialog, /weaponIds: realWeaponIds/);
 
@@ -5643,6 +5793,47 @@ test('the virtual weapon is a single blank row that carries nothing into the rol
     assert.match(source(path), /DX3rdVirtualWeapons\?\.list\?\.\(attackRollType\)/,
       `${path} 는 이 판정의 공격 종류로 「무기 없음」 행을 만들어야 한다`);
   }
+});
+
+// 「사용 시 무기를 고른다」로 저작한 공격은 이 창이 유일한 통로다. 그래서 이 창은
+// **막다른 길이 되어서는 안 된다** — 여기서 못 나가면 콤보 시트의 무기 슬롯에 고정하는
+// 것 말고 방법이 없어지고, 그것은 저작 의도를 되돌리는 것이다.
+test('the weapon picker is never a dead end: it can always hand the roll back', () => {
+  const dialog = source('scripts/dialog/weapon-for-attack-dialog.js');
+
+  // ⑴ 리스너는 렌더마다 다시 붙으므로 앞의 것을 끊어야 한다. 행 클릭 핸들러가 두 벌이면
+  //    한 번 누를 때 두 번 토글되어 **체크가 영영 들어가지 않고**, 확인은 빈 선택으로 떨어진다.
+  assert.match(dialog, /this\._listeners\?\.abort\(\)/,
+    '이전 렌더의 리스너를 끊는다');
+  assert.match(dialog, /this\._listeners = new AbortController\(\)/);
+  for (const bind of [/root\.addEventListener\('click'[\s\S]*?\{signal\}\)/,
+                      /weapon-confirm[\s\S]*?\{signal\}\)/,
+                      /weapon-cancel[\s\S]*?\{signal\}\)/]) {
+    assert.match(dialog, bind, '모든 리스너가 같은 signal 로 묶인다');
+  }
+
+  // ⑵ 빈 선택은 오류가 아니라 「무기 없음」이다. 목록의 `-` 행과 같은 뜻이므로 경고로
+  //    막지 않는다(예전에는 여기서 정지해 창을 닫는 것 말고 할 수 있는 일이 없었다).
+  assert.doesNotMatch(dialog, /무기를 선택해주세요/,
+    '고르지 않고 확인하는 것은 무기 없이 진행하는 것이다');
+
+  // ⑶ 콜백이 던져도 창이 남아 조용히 멈추지 않는다 — 먼저 닫고, 실패는 반드시 알린다.
+  const confirm = dialog.slice(dialog.indexOf('async confirmSelection()'));
+  const closeAt = confirm.indexOf('await this.close()');
+  const callbackAt = confirm.indexOf('await this.callback(bonus)');
+  assert.ok(closeAt > -1 && callbackAt > closeAt, '넘기기 전에 닫는다');
+  assert.match(confirm, /catch \(error\)[\s\S]*?ui\.notifications\.error\(game\.i18n\.localize\('DX3rd\.WeaponSelectionFailed'\)\)/,
+    '실패는 콘솔과 알림으로 남는다');
+  assert.match(confirm, /if \(this\._submitting\) return;/,
+    '확인 두 번 누른다고 판정 창이 둘 열리지 않는다');
+
+  // ⑷ 그 알림 문구와 목록 안내는 실제로 존재해야 한다.
+  const ko = JSON.parse(source('lang/ko.json'));
+  for (const key of ['DX3rd.WeaponSelectionFailed', 'DX3rd.WeaponSelectionHint']) {
+    assert.ok(ko[key], `${key} 가 ko.json 에 있어야 한다`);
+  }
+  assert.match(source('templates/dialog/weapon-for-attack-dialog.html'),
+    /DX3rd\.WeaponSelectionHint/, '고르지 않아도 된다는 것을 창에서 알린다');
 });
 
 // 공격력 보정 행의 라벨은 「능력치/기능」이 아니라 **공격 종류 버킷**이다
@@ -5793,25 +5984,170 @@ test('the fist item is restored from its pre-change snapshot, never from hardcod
   // 영구 변경(《사이버 암》)은 「복원하지 않음」을 **스냅샷을 남기지 않음**으로 표현한다.
   // 두 생성 가지가 모두 이 플래그를 봐야 한다 — 한쪽만 보면 맨손이 있느냐 없느냐에 따라
   // 같은 이펙트가 영구가 됐다 안 됐다 한다.
-  assert.match(ext, /if \(!data\.fistPermanent\) await this\.snapshotFistItem\(fistItem\)/,
+  assert.match(ext, /if \(!permanent\) await this\.snapshotFistItem\(fistItem\)/,
     '영구 변경이 스냅샷을 남기면 전투 종료마다 되돌아간다');
-  assert.match(ext, /flags: data\.fistPermanent \? \{\} :/,
+  assert.match(ext, /flags: permanent \? \{\} :/,
     '맨손을 새로 만드는 가지도 영구 변경이면 스냅샷을 두지 않아야 한다');
 
   // 저작 경로가 없으면 이 플래그는 영영 꺼진 채다(맨손 한정 `fist` 라벨이 그랬다).
   const dialog = source('scripts/dialog/item-extend-dialog.js');
   assert.match(dialog, /fistPermanent: this\._checked\('input\[name="weaponFistPermanent"\]', root\)/,
     '확장 도구가 영구 변경 값을 수집하지 않는다');
+  assert.match(dialog, /fistAdditive: this\._checked\('input\[name="weaponFistAdditive"\]', root\)/,
+    '확장 도구가 가산형 맨손 변경 값을 수집하지 않는다');
+  assert.match(dialog, /fistStackable: this\._checked\('input\[name="weaponFistStackable"\]', root\)/,
+    '확장 도구가 동일 가산 효과의 중첩 허용 값을 수집하지 않는다');
   assert.match(source('templates/dialog/item-extend-dialog.html'), /name="weaponFistPermanent"/,
     '확장 도구 무기 탭에 영구 변경 입력이 없다');
+  assert.match(source('templates/dialog/item-extend-dialog.html'), /name="weaponFistAdditive"/,
+    '확장 도구 무기 탭에 가산형 맨손 변경 입력이 없다');
+  assert.match(source('templates/dialog/item-extend-dialog.html'), /name="weaponFistStackable"/,
+    '확장 도구 무기 탭에 동일 효과 중첩 입력이 없다');
   // 맨손 체크가 꺼지면 뜻이 없는 값이므로 저작이 남지 않아야 한다.
-  assert.match(dialog, /if \(permanentField && !isFistMode\) permanentField\.checked = false/,
+  assert.match(dialog, /if \(permanentField && \(!isFistMode \|\| additive\)\) permanentField\.checked = false/,
     '맨손 모드가 꺼질 때 영구 변경 저작이 남으면 안 된다');
 
   const ko = JSON.parse(source('lang/ko.json'));
-  for (const key of ['DX3rd.FistPermanent', 'DX3rd.FistPermanentHint']) {
+  for (const key of ['DX3rd.FistPermanent', 'DX3rd.FistPermanentHint', 'DX3rd.FistAdditive', 'DX3rd.FistAdditiveHint',
+    'DX3rd.FistStackable', 'DX3rd.FistStackableHint']) {
     assert.ok(key in ko, `${key} 가 ko.json 에 없다`);
   }
+});
+
+test('additive fist changes survive replacement layers and only their numeric contribution stacks', () => {
+  const context = baseContext({
+    game: { i18n: { localize: key => key }, user: { id: 'u1' } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONST: { ACTIVE_EFFECT_SHOW_ICON: { ALWAYS: 2 } }
+  });
+  context.DX3rdUniversalHandler = {};
+  load(context, 'scripts/handlers/universal-extensions.js');
+  const handler = context.DX3rdUniversalHandler;
+
+  const original = {
+    name: '맨손', type: 'melee', skill: 'melee', add: '+0', attack: '-5', guard: '0', range: '지근'
+  };
+  const replace9 = {
+    kind: 'fist', mode: 'replace', order: 1,
+    applied: { name: '파괴의 손톱[맨손]', type: 'melee', skill: 'melee', add: '+0', attack: '+9', guard: '+1', range: '지근' }
+  };
+  const add4 = { kind: 'fist', mode: 'additive', order: 2, applied: { add: '+1', attack: '+4', guard: '+3' } };
+  const replace12 = {
+    kind: 'fist', mode: 'replace', order: 3,
+    applied: { name: '백열[맨손]', type: 'melee', skill: 'melee', add: '-1', attack: '+12', guard: '0', range: '지근' }
+  };
+  const add2 = { kind: 'fist', mode: 'additive', order: 4, applied: { add: '0', attack: '+2', guard: '+1' } };
+
+  const beforeReplacement = handler.composeFistData(original, [add4]);
+  assert.equal(beforeReplacement.attack, '-1', '가산형만 있으면 기본 맨손 -5에 더해야 한다');
+  assert.equal(beforeReplacement.name, '맨손', '가산형은 맨손 이름을 덮어쓰지 않는다');
+
+  const afterReplacement = handler.composeFistData(original, [add4, replace9]);
+  assert.equal(afterReplacement.attack, '+13', '나중 대체가 먼저 걸린 가산분을 지우면 안 된다');
+  assert.equal(afterReplacement.guard, '+4');
+  assert.equal(afterReplacement.name, '파괴의 손톱[맨손]');
+
+  const fullStack = handler.composeFistData(original, [replace9, add4, replace12, add2]);
+  assert.equal(fullStack.attack, '+18', '대체끼리는 최신 하나만 남고 가산형끼리는 전부 합산해야 한다');
+  assert.equal(fullStack.add, '0', '명중 수정치도 최신 대체값에 가산해야 한다');
+  assert.equal(fullStack.guard, '+4');
+  assert.equal(fullStack.name, '백열[맨손]', '가산형이 최신이어도 대체층의 이름을 유지해야 한다');
+
+  const withoutLatestReplacement = handler.composeFistData(original, [replace9, add4, add2]);
+  assert.equal(withoutLatestReplacement.attack, '+15', '최신 대체를 제거하면 이전 대체와 가산층을 재조합해야 한다');
+
+  const legacyReplacement = handler.composeFistData(original, [{ ...replace9, mode: undefined }, add4]);
+  assert.equal(legacyReplacement.attack, '+13', '모드가 없는 기존 표식은 대체형으로 호환해야 한다');
+});
+
+test('a combo awaits each fist change and keeps an earlier additive member over a later replacement', async () => {
+  const context = baseContext({
+    game: {
+      i18n: { localize: key => key === 'DX3rd.Fist' ? '맨손' : key, format: key => key },
+      user: { id: 'u1', targets: new Set() }, actors: new Map()
+    },
+    ui: { notifications: { warn: () => {}, error: () => {}, info: () => {} } },
+    Hooks: { on: () => {}, once: () => {} },
+    CONST: { ACTIVE_EFFECT_SHOW_ICON: { ALWAYS: 2 } },
+    CONFIG: { statusEffects: [] }
+  });
+  context.DX3rdUniversalHandler = {};
+  context.DX3rdFormulaEvaluator = {
+    getItemLevel: () => 1,
+    evaluate: formula => Number(String(formula).replace('+', '')) || 0
+  };
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  const handler = context.DX3rdUniversalHandler;
+  handler.executeMacros = async () => {};
+  handler.applyToTargets = async () => {};
+
+  const flags = {};
+  const fist = {
+    id: 'fist', name: '맨손', type: 'weapon',
+    system: { type: 'melee', skill: 'melee', add: '+0', attack: '-5', guard: '0', range: '지근' },
+    getFlag(scope, key) { return flags[scope]?.[key]; },
+    async setFlag(scope, key, value) { (flags[scope] ??= {})[key] = structuredClone(value); },
+    async unsetFlag(scope, key) { delete flags[scope]?.[key]; },
+    async update(changes) {
+      for (const [path, value] of Object.entries(changes)) {
+        if (path === 'name') this.name = value;
+        else if (path.startsWith('system.')) this.system[path.slice(7)] = value;
+      }
+    }
+  };
+  const extensionItem = (id, weapon) => ({
+    id, name: id, type: 'effect', img: '',
+    system: { active: { runTiming: 'instant' }, used: { disable: 'notCheck' } },
+    getFlag: (_scope, key) => key === 'itemExtend' ? { weapon: { activate: true, fist: true, ...weapon } } : undefined
+  });
+  const additive = extensionItem('가산', {
+    fistAdditive: true, add: '+1', attack: '+4', guard: '+3', type: 'melee', skill: 'melee', range: '지근'
+  });
+  const replacement = extensionItem('대체', {
+    name: '파괴의 손톱', add: '+0', attack: '+9', guard: '+1', type: 'melee', skill: 'melee', range: '지근'
+  });
+  const combo = {
+    id: 'combo', name: '맨손 조합', type: 'combo',
+    // A duplicate member id is deliberately included: the same additive source refreshes by default rather than
+    // silently doubling its scene-long modifier.
+    system: { effectIds: [additive.id, additive.id, replacement.id], weapon: [], attackRoll: '-', active: {} },
+    getFlag: (_scope, key) => key === 'itemExtend' ? {} : undefined
+  };
+  const items = new Map([[fist.id, fist], [additive.id, additive], [replacement.id, replacement], [combo.id, combo]]);
+  items.find = predicate => [...items.values()].find(predicate);
+  items.filter = predicate => [...items.values()].filter(predicate);
+  const effects = [];
+  const actor = {
+    id: 'actor', name: 'actor', type: 'character', uuid: 'Actor.actor', items, effects,
+    async updateEmbeddedDocuments() {},
+    async createEmbeddedDocuments(type, documents) {
+      assert.equal(type, 'ActiveEffect');
+      return documents.map(data => {
+        const effect = {
+          ...data, id: `ae${effects.length + 1}`, flags: structuredClone(data.flags || {}),
+          getFlag(scope, key) { return this.flags[scope]?.[key]; },
+          async setFlag(scope, key, value) { (this.flags[scope] ??= {})[key] = structuredClone(value); },
+          async unsetFlag(scope, key) { delete this.flags[scope]?.[key]; }
+        };
+        effects.push(effect);
+        return effect;
+      });
+    }
+  };
+  context.game.actors.set(actor.id, actor);
+
+  await context.DX3rdComboHandler.processInstantExtensions(actor, combo, 'attack');
+  assert.equal(fist.name, '파괴의 손톱[맨손]', '콤보의 나중 대체형이 맨손 데이터의 주인이 된다');
+  assert.equal(fist.system.attack, '+13', '앞서 실행된 가산형이 나중 대체형에 지워지면 안 된다');
+  assert.equal(fist.system.add, '+1');
+  assert.equal(fist.system.guard, '+4');
+  assert.equal(effects.length, 2, '서로 다른 소스마다 표식이 생기되 같은 가산 소스의 중복 등록은 갱신해야 한다');
+
+  const replacementEffect = effects.find(effect => handler.grantPayload(effect)?.sourceItemId === replacement.id);
+  await handler.revertItemGrant(actor, replacementEffect);
+  assert.equal(fist.system.attack, '-1', '대체형을 제거하면 기본 맨손과 남은 가산형을 다시 조립해야 한다');
 });
 
 test('an equipment grant is undone by deleting its marker, never by disabling it', () => {
@@ -5828,14 +6164,14 @@ test('an equipment grant is undone by deleting its marker, never by disabling it
   // 남은 것 중 최신 상태로 다시 맞추고, 전부 사라졌을 때만 스택의 바닥으로 되돌린다.
   assert.match(ext, /const remaining = this\.fistGrantEffects\(actor, effect\.id\)/,
     '삭제된 표식을 뺀 나머지로 재계산해야 중간 것을 지워도 일관된다');
-  assert.match(ext, /const top = remaining\.length \? this\.grantPayload\(remaining\.at\(-1\)\)\.applied : null/,
-    '남은 표식이 있으면 그중 최신 applied 가 현재값이다');
+  assert.match(ext, /await this\.realignFistItem\(actor, fistItem, effect\.id\)/,
+    '남은 표식이 있으면 최신 대체와 모든 가산형을 다시 조립해야 한다');
   assert.match(ext, /await this\.restoreFistItems\(actor\)/,
     '표식이 전부 사라지면 최초 원본으로 되돌아가야 한다');
 
   // 영구 변경에는 표식을 붙이지 않는다 — 되돌릴 스냅샷이 없으므로 지울 수 있는 표식을
   // 두면 「지웠는데 아무 일도 안 일어나는」 거짓말이 된다.
-  const grantCalls = ext.match(/if \(!data\.fistPermanent\) \{\s*await this\.createGrantEffect/g) ?? [];
+  const grantCalls = ext.match(/await this\.createOrRefreshFistGrant\(/g) ?? [];
   assert.equal(grantCalls.length, 2,
     '맨손을 고치는 가지와 새로 만드는 가지 둘 다 영구 변경을 걸러야 한다');
 

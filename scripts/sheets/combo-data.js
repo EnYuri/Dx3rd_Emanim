@@ -888,19 +888,12 @@
     const action = asComboMember
       ? (adapter.comboMemberAction?.(sourceItem, parentAction) || adapter.invocationAction(sourceItem))
       : adapter.invocationAction(sourceItem);
-    const fallback = adapter.channelAction(sourceItem, channel);
-    const split = ['use', 'attack'].some(candidate => adapter.hasExplicitBucket(sourceItem, channel, candidate));
     const activationFires = !asComboMember;
+    const firingRows = new Set(adapter.modifierExecutionBuckets(sourceItem, channel, action, 'instant')
+      .flatMap(bucket => Object.values(bucket.attributes)));
     return entry => {
-      const explicit = entry?.action;
-      if (!explicit || !adapter.ACTIONS.has(explicit)) {
-        // Unspecified = the channel's default bucket. On an item that split its channel, it counts only at that default
-        // bucket's trigger action (the same rule as selfFrozenAttributes). Otherwise the preview is higher than what applies.
-        if (fallback === 'activation') return activationFires;
-        return !split || fallback === action;
-      }
-      if (explicit === 'activation') return activationFires;
-      return explicit === action;
+      if (adapter.attributeAction(sourceItem, channel, entry) !== 'activation') return firingRows.has(entry);
+      return activationFires && adapter.bucketLifecycle(sourceItem, channel, 'activation').disable !== 'notCheck';
     };
   }
 
