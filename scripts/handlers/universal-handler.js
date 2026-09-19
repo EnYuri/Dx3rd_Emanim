@@ -1240,11 +1240,12 @@
       }
       
       // 3. Applied effects
-      for (const { itemId, itemName, action = null, selectedTargetIds = null } of applies) {
+      for (const { itemId, itemName, action = null, selectedTargetIds = null, frozenAttributes = null } of applies) {
         const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
           const forcedTargets = this.resolveComboFollowupTargets(selectedTargetIds);
-          await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action);
+          await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action,
+            { frozenAttributes });
         }
       }
       
@@ -1398,11 +1399,13 @@
       }
       
       // 3. Applied effects
-      for (const { itemId, itemName, action = 'attack' } of applies) {
+      for (const { itemId, itemName, action = 'attack', frozenAttributes = null } of applies) {
         const item = this.resolveComboFollowupItem(actor, comboData, itemId);
         if (item) {
-          // Pass damagedActors through as forcedTargets
-          await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action);
+          // Pass damagedActors through as forcedTargets. frozenAttributes was evaluated at
+          // use time on the item-use client, so runtime input / pre-use encroachment survive.
+          await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action,
+            { frozenAttributes });
         }
       }
       
@@ -1569,7 +1572,11 @@
             }
             
             // 2. Apply target effects for 'afterSuccess' (effect.runTiming === 'afterSuccess')
-            await this.applyToTargets(actor, item, 'afterSuccess', null, successAction);
+            // A snapshot armed at use time carries the bucket frozen while the runtime context was
+            // still alive; older cards without one fall back to evaluating now.
+            const frozenApplyAttrs = await this.takePendingAfterSuccessApply(actor, item, successAction);
+            await this.applyToTargets(actor, item, 'afterSuccess', null, successAction,
+              { frozenAttributes: frozenApplyAttrs });
             
             // 3. Route afterSuccess heal/damage/condition extensions through the GM
             const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
@@ -1771,7 +1778,17 @@
      */
     async armPendingAttackRider(actor, item, action = 'use') {
       const adapter = window.DX3rdItemEffectAdapter;
-      if (!actor || !item || action !== 'use' || adapter?.isAttackItem?.(item)) return false;
+      if (!actor || !item) return false;
+      const isAttackItem = adapter?.isAttackItem?.(item) === true;
+      // 'use' arms a non-attack preparation item's rider for the next attack. 'attack' carries the
+      // attack item's own afterDamage target bucket through the same frozen carrier — its formulas
+      // must be captured now, while _dx3rdRuntimeInput / _dx3rdUsageEncLevel are still alive, because
+      // the damage roll and the after-damage report run detached after this function's finally.
+      // A combo's own bucket is excluded: collectAfterDamageData freezes it into the apply entries.
+      // The fromAttackItem marker keeps processPendingAttackRiders (the on-hit path) from applying it —
+      // the activation path applies it to damaged targets only, as shouldApplyToTargets always did.
+      const selfAttack = action === 'attack' && isAttackItem && item.type !== 'combo';
+      if (!selfAttack && (action !== 'use' || isAttackItem)) return false;
       if (adapter && !adapter.targetFiresAt(item, 'attack', 'afterDamage')) return false;
       if (!adapter && item.system?.effect?.runTiming !== 'afterDamage') return false;
 
@@ -1785,7 +1802,8 @@
         itemName: item.name,
         targetAttributes: this.freezeTransferredItemAttributes(actor, item, targetAttributes),
         preEvaluated: true,
-        armedAt: Date.now()
+        armedAt: Date.now(),
+        ...(selfAttack ? { fromAttackItem: true } : {})
       };
       const pending = foundry.utils.deepClone(actor.getFlag?.('dx3rd-emanim', 'pendingAttackRiders') || []);
       const riders = Array.isArray(pending) ? pending.filter(entry => entry?.itemId !== item.id) : [];
@@ -1793,6 +1811,60 @@
       await actor.setFlag('dx3rd-emanim', 'pendingAttackRiders', riders);
       window.DX3rdDebug.log('DX3rd | Armed after-damage rider for the next attack:', item.name);
       return true;
+    },
+
+    /**
+     * Freeze a non-combo item's own afterSuccess target bucket for the success button.
+     * handleSuccessButton runs detached at click time — after handleItemUse has restored
+     * _dx3rdRuntimeInput / _dx3rdUsageEncLevel — so the snapshot must be taken now, like
+     * armPendingAttackRider does for the afterDamage bucket. Combos freeze theirs into
+     * collectAfterSuccessData's apply entries instead.
+     */
+    async armPendingAfterSuccessApply(actor, item) {
+      const adapter = window.DX3rdItemEffectAdapter;
+      if (!actor || !item || item.type === 'combo') return false;
+      const successAction = adapter?.eventAction?.(item, 'afterSuccess')
+        || (item.system?.attackRoll && item.system.attackRoll !== '-' ? 'attack' : 'use');
+      if (adapter && !adapter.targetFiresAt(item, successAction, 'afterSuccess')) return false;
+      if (!adapter && item.system?.effect?.runTiming !== 'afterSuccess') return false;
+
+      const targetAttributes = adapter
+        ? adapter.targetBucketAttributes(item, successAction, 'afterSuccess')
+        : (item.system?.effect?.attributes || {});
+      if (!this.hasUsableAttribute(targetAttributes)) return false;
+
+      const entry = {
+        itemId: item.id,
+        itemName: item.name,
+        action: successAction,
+        targetAttributes: this.freezeTransferredItemAttributes(actor, item, targetAttributes),
+        armedAt: Date.now()
+      };
+      const pending = foundry.utils.deepClone(actor.getFlag?.('dx3rd-emanim', 'pendingAfterSuccessApply') || []);
+      const entries = Array.isArray(pending) ? pending.filter(e => e?.itemId !== item.id) : [];
+      entries.push(entry);
+      await actor.setFlag('dx3rd-emanim', 'pendingAfterSuccessApply', entries);
+      window.DX3rdDebug.log('DX3rd | Armed after-success apply snapshot:', item.name);
+      return true;
+    },
+
+    /**
+     * Consume the afterSuccess apply snapshot armed at use time (see armPendingAfterSuccessApply).
+     * Returns the frozen target attributes, or null when this use carried none — callers then
+     * fall back to evaluating the bucket now, as they always did. When the caller's resolved
+     * action differs from the armed bucket's, the snapshot stays for a path that matches —
+     * feeding the wrong bucket to targetActionMatches would silently drop the apply.
+     */
+    async takePendingAfterSuccessApply(actor, item, action = null) {
+      if (!actor || !item) return null;
+      const pending = actor.getFlag?.('dx3rd-emanim', 'pendingAfterSuccessApply');
+      const entry = Array.isArray(pending) ? pending.find(e => e?.itemId === item.id) : null;
+      if (!entry) return null;
+      if (action && entry.action && entry.action !== action) return null;
+      const rest = pending.filter(e => e?.itemId !== item.id);
+      if (rest.length) await actor.setFlag('dx3rd-emanim', 'pendingAfterSuccessApply', rest);
+      else await actor.unsetFlag('dx3rd-emanim', 'pendingAfterSuccessApply');
+      return entry.targetAttributes || null;
     },
 
     /** Move every prepared rider onto one concrete attack card, then clear the actor-side pending state. */
@@ -1832,6 +1904,10 @@
       }
 
       for (const rider of riders) {
+        // The attack item's own bucket only rides along as a frozen snapshot; the activation path
+        // applies it to damaged targets (HP loss). Applying it here would hit even 0-damage targets
+        // and double-apply on real damage.
+        if (rider?.fromAttackItem === true) continue;
         const sourceItem = attacker.items.get(rider?.itemId);
         if (!sourceItem) {
           console.warn('DX3rd | Pending attack rider item not found:', rider?.itemId);
@@ -2199,6 +2275,8 @@
       // A standalone preparation item can carry its after-damage target bucket into the next
       // concrete attack. Arm it only after the type handler has completed successfully.
       await this.armPendingAttackRider(actor, item, action);
+      // The item's own afterSuccess target bucket freezes the same way, for the success button.
+      await this.armPendingAfterSuccessApply(actor, item);
 
       // Completed successfully
       return true;

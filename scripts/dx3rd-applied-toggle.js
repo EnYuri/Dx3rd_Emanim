@@ -131,10 +131,25 @@
   }
 
   // The paths under actor.system the formula evaluator (DX3rdFormulaEvaluator) reads while evaluating a payload are
-  // only the attribute totals (body/sense/mind/social), the skill totals and encroachment.level. If only the paths
-  // below changed, a re-evaluation is guaranteed to be a complete no-op, so the whole sync is skipped.
+  // only the attribute totals (body/sense/mind/social), the skill totals, encroachment.level and the applied map
+  // feeding them (the legacy bridge — an applied write changes both totals and the effect_level bonus).
+  // If only the paths below changed, a re-evaluation is guaranteed to be a complete no-op, so the whole sync is skipped.
+  // This is a deliberately growing IGNORE list, not a whitelist: forgetting one costs a wasted resync, while a
+  // forgotten whitelist entry would silently freeze payloads the day the evaluator learns a new token.
   //   · attributes.hp: the combat damage/heal hot path — no payload formula reads hp.
-  const PAYLOAD_IRRELEVANT_SYSTEM = ['attributes.hp'];
+  //   · conditions: condition flags drive usage gates and token statuses, never formulas.
+  //   · attributes.init/move/evasion/guard/armor/reduce/attack/critical/stock/saving/exp: derived combat displays —
+  //     modifier rows target these keys, but no formula token resolves them.
+  //   · description/details/emotions/actorType/codeName: sheet and bio data.
+  const PAYLOAD_IRRELEVANT_SYSTEM = [
+    'attributes.hp',
+    'conditions',
+    'description', 'details', 'emotions', 'actorType', 'codeName',
+    'attributes.init', 'attributes.move', 'attributes.evasion',
+    'attributes.guard', 'attributes.armor', 'attributes.reduce',
+    'attributes.attack', 'attributes.critical',
+    'attributes.stock', 'attributes.saving', 'attributes.exp'
+  ];
 
   /** Can a change to changed.system affect the payload evaluation (false when only irrelevant paths changed)? */
   function systemChangeAffectsPayload(changed) {
@@ -142,7 +157,11 @@
     if (!sys) return false;
     const leaves = Object.keys(foundry.utils.flattenObject(sys));
     if (!leaves.length) return false;
-    return leaves.some(k => !PAYLOAD_IRRELEVANT_SYSTEM.some(p => k === p || k.startsWith(p + '.')));
+    // '-=' marks a key deletion (e.g. 'attributes.-=hp') — strip it so deletions match the same path lists.
+    return leaves.some(k => {
+      const leaf = k.replace(/-=/g, '');
+      return !PAYLOAD_IRRELEVANT_SYSTEM.some(p => leaf === p || leaf.startsWith(p + '.'));
+    });
   }
 
   /** Do an existing AE's payload and the new payload differ materially (detecting formula following)? */

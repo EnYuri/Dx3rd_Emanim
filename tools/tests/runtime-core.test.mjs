@@ -898,9 +898,9 @@ test('combo follow-up target modifiers use each bucket lifecycle and preserve it
     '성공 후 적용을 실행할 때 수집 당시 멤버 액션을 잃으면 다른 버킷이 적용될 수 있다');
 
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
-  assert.ok(handler.includes("for (const { itemId, itemName, action = null, selectedTargetIds = null } of applies)"));
-  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action)"));
-  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action)"));
+  assert.ok(handler.includes("for (const { itemId, itemName, action = null, selectedTargetIds = null, frozenAttributes = null } of applies)"));
+  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterSuccess', forcedTargets, action, { frozenAttributes })"));
+  assert.ok(handler.includes("await this.applyToTargets(actor, item, 'afterDamage', damagedActors, action, { frozenAttributes })"));
   assert.ok(!handler.includes("if (item && item.system?.effect?.runTiming === 'afterDamage')"),
     '실행 단계에서 평탄 runTiming을 다시 확인하면 하위 버킷이 또 누락된다');
 });
@@ -2555,8 +2555,7 @@ test('every actor-owned socket route uses sender selection and receiver validati
     ['executeAfterDamageMacro', 'attacker'],
     ['showAfterDamageDialog', 'actor'],
     ['executeAfterDamageActivation', 'actor'],
-    ['showNoDamageNotification', 'actor'],
-    ['applyEffectToTarget', 'targetActor']
+    ['showNoDamageNotification', 'actor']
   ]) {
     assert.match(genericBranch(type), new RegExp(`isActorExecutorMessage\\(data, ${actorName}\\)`),
       `${type} must validate the sender-selected actor owner`);
@@ -2567,7 +2566,6 @@ test('every actor-owned socket route uses sender selection and receiver validati
     'showAfterDamageDialog',
     'executeAfterDamageActivation',
     'showNoDamageNotification',
-    'applyEffectToTarget',
     'showDefenseDialog',
     'applyItemAttributes'
   ]);
@@ -2579,7 +2577,7 @@ test('every actor-owned socket route uses sender selection and receiver validati
   const emissions = [...emissionSource.matchAll(
     /DX3rdSocketRouter\.(emitToActorExecutor|emit)\(\{\s*type:\s*'([^']+)'/g
   )].filter(match => ownerTypes.has(match[2]));
-  assert.equal(emissions.length, 14, 'actor-owned emission 목록이 바뀌면 새 경로도 명시적으로 분류해야 한다');
+  assert.equal(emissions.length, 12, 'actor-owned emission 목록이 바뀌면 새 경로도 명시적으로 분류해야 한다');
   for (const [, method, type] of emissions) {
     assert.equal(method, 'emitToActorExecutor', `${type} must use actor-executor routing`);
   }

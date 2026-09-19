@@ -579,8 +579,10 @@ window.DX3rdChatToggleManager = {
                 await new Promise(resolve => setTimeout(resolve, 50));
                 await handler.executeMacros(item, 'afterSuccess', successAction);
                 
-                // Apply the 'afterSuccess' target effects
-                await handler.applyToTargets(actor, item, 'afterSuccess', null, successAction);
+                // Apply the 'afterSuccess' target effects — prefer the use-time frozen snapshot
+                const frozenApplyAttrs = await handler.takePendingAfterSuccessApply?.(actor, item, successAction);
+                await handler.applyToTargets(actor, item, 'afterSuccess', null, successAction,
+                    { frozenAttributes: frozenApplyAttrs || null });
                 
                 // afterSuccess-timing heal/damage/condition extensions are handled exactly as in handleSuccessButton
                 const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
@@ -902,7 +904,10 @@ window.DX3rdChatToggleManager = {
                                     dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus);
                                 }
                                 if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
-                                    await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
+                                    const frozenApplyAttrs = await window.DX3rdUniversalHandler
+                                        .takePendingAfterSuccessApply?.(actor, item);
+                                    await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess',
+                                        null, null, { frozenAttributes: frozenApplyAttrs || null });
                                 }
                             }
                         }
@@ -915,7 +920,10 @@ window.DX3rdChatToggleManager = {
                             dx3rdMergeAfterSuccessDamageBonus(preservedValues, bonus);
                         }
                         if (shouldApplyToTargets && window.DX3rdUniversalHandler) {
-                            await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess');
+                            const frozenApplyAttrs = await window.DX3rdUniversalHandler
+                                .takePendingAfterSuccessApply?.(actor, item);
+                            await window.DX3rdUniversalHandler.applyToTargets(actor, item, 'afterSuccess',
+                                null, null, { frozenAttributes: frozenApplyAttrs || null });
                         }
                     }
                 }

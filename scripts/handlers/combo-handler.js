@@ -644,7 +644,13 @@ window.DX3rdComboHandler = {
             ? window.DX3rdItemEffectAdapter.targetFiresAt(item, action, 'afterSuccess')
             : item.system?.effect?.runTiming === 'afterSuccess';
         if ((item.system?.getTarget || item.system?.scene) && comboTargetFires) {
-            result.applies.push({ itemId: item.id, itemName: item.name, action, ...frozenTargetData(item) });
+            // Freeze the bucket now, like afterDamage does — the success button runs detached,
+            // after handleItemUse has restored _dx3rdRuntimeInput / _dx3rdUsageEncLevel.
+            const comboTargetAttrs = adapter
+                ? adapter.targetBucketAttributes(item, action, 'afterSuccess')
+                : (item.system?.effect?.attributes || {});
+            result.applies.push({ itemId: item.id, itemName: item.name, action, ...frozenTargetData(item),
+                frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, item, comboTargetAttrs) || null });
             window.DX3rdDebug.log('DX3rd | ComboHandler - Added combo apply:', item.name);
         }
         // 4) The extensions are all collected below
@@ -683,11 +689,15 @@ window.DX3rdComboHandler = {
                 ? window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterSuccess')
                 : memberItem.system?.effect?.runTiming === 'afterSuccess';
             if ((memberItem.system?.getTarget || memberItem.system?.scene) && memberTargetFires) {
+                const memberTargetAttrs = window.DX3rdItemEffectAdapter
+                    ? window.DX3rdItemEffectAdapter.targetBucketAttributes(memberItem, memberAction, 'afterSuccess')
+                    : (memberItem.system?.effect?.attributes || {});
                 result.applies.push({
                     itemId: memberItem.id,
                     itemName: memberItem.name,
                     action: memberAction,
-                    ...frozenTargetData(memberItem)
+                    ...frozenTargetData(memberItem),
+                    frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, memberItem, memberTargetAttrs) || null
                 });
                 window.DX3rdDebug.log('DX3rd | ComboHandler - Added member apply:', memberItem.name);
             }
@@ -783,7 +793,14 @@ window.DX3rdComboHandler = {
             ? window.DX3rdItemEffectAdapter.targetFiresAt(item, 'attack', 'afterDamage')
             : item.system?.effect?.runTiming === 'afterDamage';
         if ((item.system?.getTarget || item.system?.scene) && comboTargetFires) {
-            result.applies.push({ itemId: item.id, itemName: item.name, action: 'attack' });
+            // Freeze the bucket now — the report/apply runs detached, after handleItemUse has
+            // restored _dx3rdRuntimeInput / _dx3rdUsageEncLevel, so a later evaluation would
+            // collapse [소비HP]/[input] and read the post-cost level.
+            const comboTargetAttrs = adapter
+                ? adapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+                : (item.system?.effect?.attributes || {});
+            result.applies.push({ itemId: item.id, itemName: item.name, action: 'attack',
+                frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, item, comboTargetAttrs) || null });
         }
         // 4) The extensions are all collected below
 
@@ -812,7 +829,11 @@ window.DX3rdComboHandler = {
                 ? window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterDamage')
                 : memberItem.system?.effect?.runTiming === 'afterDamage';
             if ((memberItem.system?.getTarget || memberItem.system?.scene) && memberTargetFires) {
-                result.applies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction });
+                const memberTargetAttrs = window.DX3rdItemEffectAdapter
+                    ? window.DX3rdItemEffectAdapter.targetBucketAttributes(memberItem, memberAction, 'afterDamage')
+                    : (memberItem.system?.effect?.attributes || {});
+                result.applies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction,
+                    frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, memberItem, memberTargetAttrs) || null });
             }
             // 4) The extensions are all collected below
         }

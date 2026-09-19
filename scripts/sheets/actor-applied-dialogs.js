@@ -60,10 +60,12 @@
       };
     }
 
-    if (String(appliedIdOrKey).startsWith('applied_')) {
-      const index = Number.parseInt(String(appliedIdOrKey).replace('applied_', ''), 10);
+    // The legacy applied_N index form — the suffix must be entirely numeric, otherwise an itemId-based key
+    // that merely starts with a digit (e.g. 'applied_5xYz…') would resolve to an unrelated index.
+    const indexMatch = String(appliedIdOrKey).match(/^applied_(\d+)$/);
+    if (indexMatch) {
       const keys = Object.keys(applied);
-      const key = keys[index];
+      const key = keys[Number(indexMatch[1])];
       if (key) {
         return {
           key,

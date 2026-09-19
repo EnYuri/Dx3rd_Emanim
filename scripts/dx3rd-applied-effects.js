@@ -201,6 +201,43 @@
     };
   }
 
+  /**
+   * Two set()/setMany() calls for the same key can both pass the getEffect check before either create resolves and
+   * end up creating twin AEs. One deterministic survivor is kept — the lowest document id, so every client agrees —
+   * and every other document carrying the key is deleted (also sweeping strays left by an earlier race).
+   * Returns the surviving documents for keys this call created.
+   */
+  async function dropAppliedKeyTwins(actor, appliedKeys) {
+    const keys = new Set(appliedKeys);
+    const byKey = new Map();
+    for (const e of actor.effects) {
+      const k = e.getFlag?.(SCOPE, 'appliedKey');
+      if (!keys.has(k)) continue;
+      const list = byKey.get(k);
+      if (list) list.push(e);
+      else byKey.set(k, [e]);
+    }
+    const survivors = new Map();
+    const losers = [];
+    for (const [k, list] of byKey) {
+      if (!list.length) continue;
+      list.sort((a, b) => (String(a.id) < String(b.id) ? -1 : (String(a.id) > String(b.id) ? 1 : 0)));
+      survivors.set(k, list[0]);
+      losers.push(...list.slice(1));
+    }
+    if (losers.length) {
+      try {
+        // A loser may be hosting an item-grant marker (adoptOrphanGrants merges markers into a matching AE);
+        // rehome it first so the creation survives the duplicate cleanup.
+        await rehomeGrants(actor, losers);
+        await actor.deleteEmbeddedDocuments('ActiveEffect', losers.map(e => e.id));
+      } catch (e) {
+        console.warn('DX3rd | DX3rdAppliedEffects duplicate cleanup failed:', e);
+      }
+    }
+    return survivors;
+  }
+
   /** Create or update (upsert) an applied buff. */
   async function set(actor, appliedKey, payload, {preserveDisabled = false} = {}) {
     if (!actor || !appliedKey) return null;
@@ -211,8 +248,10 @@
         await existing.update(buildUpdateData(existing, data, preserveDisabled));
         return existing;
       }
-      const [created] = await actor.createEmbeddedDocuments('ActiveEffect', [data]);
-      return created;
+      await actor.createEmbeddedDocuments('ActiveEffect', [data]);
+      // The create may have raced another set() for the same key — keep the deterministic survivor.
+      const survivors = await dropAppliedKeyTwins(actor, [appliedKey]);
+      return survivors.get(appliedKey) || null;
     } catch (e) {
       console.error('DX3rd | DX3rdAppliedEffects.set 실패:', appliedKey, e);
       return null;
@@ -231,8 +270,11 @@
     if (!actor || !entries?.length) return 0;
     const creates = [];
     const updates = [];
+    const seenKeys = new Set();
     for (const [appliedKey, payload] of entries) {
-      if (!appliedKey) continue;
+      // A repeated key inside one batch would create twins — the first write wins.
+      if (!appliedKey || seenKeys.has(appliedKey)) continue;
+      seenKeys.add(appliedKey);
       const data = buildAEData(actor, appliedKey, payload);
       const existing = getEffect(actor, appliedKey);
       if (existing) updates.push({ _id: existing.id, ...buildUpdateData(existing, data, preserveDisabled) });
@@ -240,7 +282,11 @@
     }
     try {
       if (updates.length) await actor.updateEmbeddedDocuments('ActiveEffect', updates);
-      if (creates.length) await actor.createEmbeddedDocuments('ActiveEffect', creates);
+      if (creates.length) {
+        await actor.createEmbeddedDocuments('ActiveEffect', creates);
+        // The creates may have raced another set()/setMany() for the same keys — keep the deterministic survivors.
+        await dropAppliedKeyTwins(actor, creates.map(d => d.flags?.[SCOPE]?.appliedKey).filter(Boolean));
+      }
       return updates.length + creates.length;
     } catch (e) {
       console.error('DX3rd | DX3rdAppliedEffects.setMany 실패:', e);
@@ -421,15 +467,22 @@
   function collect(actor) {
     const out = {};
     if (!actor) return out;
+    // appliedKey can appear on twin AEs for a moment while a concurrent-create race is being swept
+    // (dropAppliedKeyTwins keeps the lowest document id) — prefer that same winner here.
+    const winnerId = new Map();
     for (const e of actor.effects) {
       const key = e.getFlag?.(SCOPE, 'appliedKey');
       if (!key) continue;
       const payload = e.getFlag?.(SCOPE, 'applied');
+      if (!payload) continue;
+      const prev = winnerId.get(key);
+      if (prev !== undefined && String(e.id) >= String(prev)) continue;
+      winnerId.set(key, e.id);
       // Carry the AE's disabled state shallowly on a copy of the payload (avoiding polluting the original flag).
       //  · _indexAppliedEffects excludes _disabled === true from the calculation.
       //  · The sheet's Applied list / HUD shows the toggle state from _disabled.
       //  · normalizePayload is a whitelist, so _disabled is never stored back onto the flag.
-      if (payload) out[key] = { ...payload, _disabled: !!e.disabled };
+      out[key] = { ...payload, _disabled: !!e.disabled };
     }
     // Transition bridge: in a fully migrated world the legacy field is deleted (undefined) or an empty {}, so this
     // is usually skipped. The early exit avoids a needless traversal and allocation on the prepareData hot path.

@@ -1719,6 +1719,12 @@
     const RETAIN_FLAG = 'instantComboRetained';
     const PENDING_FLAG = 'instantComboPending';
     const followupKeys = ['afterSuccess', 'afterDamage'];
+    // A pending stage can only complete inside an after-damage request's lifecycle, which itself
+    // expires after 30 minutes (AFTER_DAMAGE_REQUEST_TTL_MS in universal-damage-dialog.js). A stage
+    // older than that can never complete — the roll was cancelled, the damage never rolled, or the
+    // request was discarded — so keeping it as a cleanup block leaks the hidden combo forever
+    // (tryCleanup refuses, and the manual audit skips retained items outright).
+    const RETENTION_PENDING_TTL_MS = 30 * 60 * 1000;
     const hasFollowupWork = data => ['activations', 'macros', 'applies', 'extensions', 'afterMainExtensions']
         .some(key => Array.isArray(data?.[key]) && data[key].length > 0);
 
@@ -1767,6 +1773,8 @@
             for (const key of followupKeys) {
                 if (key in stages) nextPending[key] = !!stages[key];
             }
+            // Stamp the wait start on a real use so tryCleanup can age out an abandoned stage.
+            if (Object.keys(stages).length) nextPending.at = Date.now();
             await item.update({
                 [`flags.${FLAG_SCOPE}.${RETAIN_FLAG}`]: true,
                 [`flags.${FLAG_SCOPE}.${PENDING_FLAG}`]: nextPending
@@ -1776,7 +1784,12 @@
 
         async tryCleanup(item) {
             if (!retained(item) || !item?.actor?.items?.has?.(item.id)) return false;
-            if (followupKeys.some(key => pending(item)[key] === true)) return false;
+            // A pending stage blocks cleanup only while its request could still be in flight. Older than
+            // the request TTL it is abandoned, not awaited — and a stage with no stamp at all (retained
+            // before stamping existed) is already leaked, so it counts as expired too.
+            const waitedAt = Number(pending(item).at) || 0;
+            const pendingFresh = waitedAt > 0 && (Date.now() - waitedAt) < RETENTION_PENDING_TTL_MS;
+            if (pendingFresh && followupKeys.some(key => pending(item)[key] === true)) return false;
             if (item.system?.active?.state === true) return false;
             if (hasAppliedReference(item.id) || hasAfterMainReference(item.id)) return false;
             await item.delete();

@@ -62,3 +62,11 @@ tools/migrations/2026-08-01-supplement-effect-flavor-corrections.mjs
 tools/migrations/2026-08-01-effect-flavor-manual-classification.mjs
 tools/migrations/2026-08-02-seed-effect-manual-targets.mjs
 tools/tests/bad-city-effects.test.mjs
+
+# 문서 — 로컬 전용 (README.md·LICENSE.md는 system.json 매니페스트가 참조하므로 예외)
+*.md
+!README.md
+!LICENSE.md
+
+# 배포 불필요 — 비활성 UI 보관 코드 (로컬 참조용)
+legacy/

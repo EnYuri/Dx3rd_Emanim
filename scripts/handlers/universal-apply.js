@@ -34,7 +34,7 @@
      * @param {string} timing - the execution timing ('instant', 'afterSuccess', 'afterDamage')
      * @param {Array} forcedTargets - a forced target list (optional, an array of Actor objects)
      */
-    async applyToTargets(actor, item, timing = 'instant', forcedTargets = null, action = null) {
+    async applyToTargets(actor, item, timing = 'instant', forcedTargets = null, action = null, opts = {}) {
       try {
         const adapter = window.DX3rdItemEffectAdapter;
         if (adapter && !adapter.targetActionMatches(item, action, timing)) return;
@@ -69,9 +69,11 @@
         // Only the current trigger action's bucket among the target tab's attributes. With no value to apply we stop
         // here — so using an effect that only buffs the user (its target tab is empty) on a target through a combo
         // does not attach an empty AE to that target.
-        const targetAttributes = adapter
+        // opts.frozenAttributes carries a bucket already evaluated on the item-use client
+        // (serialized combo follow-ups, rider snapshots) — do not re-derive it here.
+        const targetAttributes = opts.frozenAttributes ?? (adapter
           ? adapter.targetBucketAttributes(item, bucketAction, timing)
-          : (item.system.effect?.attributes || {});
+          : (item.system.effect?.attributes || {}));
         if (!this.hasUsableAttribute(targetAttributes)) {
           window.DX3rdDebug.log('DX3rd | applyToTargets skipped (no usable target attribute):', item.name);
           return;
@@ -112,49 +114,13 @@
           }
         }
 
-        // Branch on the timing
-        if (timing === 'afterDamage' && !hasForcedTargets) {
-          // afterDamage: register and wait (applied only to targets that took damage).
-          // But with forcedTargets present, apply at once (those targets already took damage).
-          // Freeze sender-local runtime input and pre-use encroachment context before
-          // another client eventually writes the ActiveEffect document.
-          const transferredAttributes = this.freezeTransferredItemAttributes(actor, item, targetAttributes);
-          for (const targetActor of targetActors) {
-            if (game.user.isGM) {
-              // The GM registers into the queue directly
-              const queueKey = `${targetActor.id}_${item.id}`;
-              window.DX3rdTargetApplyQueue[queueKey] = {
-                sourceActorId: actor.id,
-                itemId: item.id,
-                targetActorId: targetActor.id,
-                targetAttributes: transferredAttributes,
-                preEvaluated: true,
-                timestamp: Date.now()
-              };
-              window.DX3rdDebug.log('DX3rd | GM registered target apply (afterDamage):', {
-                queueKey: queueKey,
-                target: targetActor.name
-              });
-            } else {
-              // An ordinary user asks the GM to register it
-              window.DX3rdSocketRouter.emit({
-                type: 'registerTargetApply',
-                payload: {
-                  sourceActorId: actor.id,
-                  itemId: item.id,
-                  targetActorId: targetActor.id,
-                  targetAttributes: transferredAttributes,
-                  preEvaluated: true
-                }
-              });
-              window.DX3rdDebug.log('DX3rd | Target apply registration sent to GM (afterDamage):', targetActor.name);
-            }
-          }
-        } else {
-          // instant, afterSuccess, or afterDamage with forcedTargets: apply at once
-          for (const targetActor of targetActors) {
-            await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
-          }
+        // Apply at once. afterDamage without forcedTargets used to queue a "register and wait" entry
+        // in DX3rdTargetApplyQueue, but every live caller reaches this timing with forcedTargets
+        // already resolved (the damaged-actor list from the report), so the queue was unreachable.
+        // The activation queue now carries the frozen snapshot instead (fromAttackItem rider).
+        for (const targetActor of targetActors) {
+          await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes,
+            {preEvaluated: opts.frozenAttributes != null});
         }
       } catch (e) {
         console.error('DX3rd | UniversalHandler.applyToTargets failed', e);
@@ -202,7 +168,7 @@
       const transferredAttributes = preEvaluated
         ? foundry.utils.deepClone(targetAttributes || {})
         : this.freezeTransferredItemAttributes(actor, item, targetAttributes);
-      window.DX3rdSocketRouter.emitToActorExecutor({
+      const sent = window.DX3rdSocketRouter.emitToActorExecutor({
         type: 'applyItemAttributes',
         payload: {
           sourceActorId: actor.id,
@@ -212,7 +178,12 @@
           preEvaluated: true
         }
       }, targetActor);
-      window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
+      if (sent) {
+        window.DX3rdDebug.log('DX3rd | Apply attributes request sent via socket for:', targetActor.name);
+      } else {
+        // No client can apply to this actor (no active owner, no active GM) — surface the skip.
+        ui.notifications.warn(`${targetActor.name}: 효과를 적용할 수 있는 사용자가 없어 적용이 생략됐습니다.`);
+      }
     },
 
     /**
@@ -701,6 +672,10 @@
         return;
       }
 
+      // The serialized path only carries itemData — recover the live item when the source actor still owns it
+      // so [level]/[Lv] and other item context in formulas evaluate instead of collapsing to 0.
+      const sourceItem = actor?.items?.get?.(itemData.id || itemData._id) || null;
+
       let appliedKey = `applied_${itemData.id || itemData.name}_${Date.now()}`;
 
       // Look for an existing AE (the same item id keeps the key and overwrites).
@@ -749,13 +724,13 @@
         // A serialization path such as a chat card also never freezes a trigger-time roll formula to a number.
         // The key list uses the single definition in DX3rdFormulaEvaluator.ROLL_TIME_KEYS.
         const prepared = window.DX3rdFormulaEvaluator?.prepareRollFormula
-          ? window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, null, actor)
+          ? window.DX3rdFormulaEvaluator.prepareRollFormula(attrData.value, sourceItem, actor)
           : String(attrData.value ?? '0');
         const evaluated = window.DX3rdFormulaEvaluator?.isRollTimeKey?.(key)
           && window.DX3rdFormulaEvaluator?.hasDice?.(prepared)
           ? prepared
           : (window.DX3rdFormulaEvaluator?.evaluate
-            ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, null, actor)
+            ? window.DX3rdFormulaEvaluator.evaluate(attrData.value, sourceItem, actor)
             : Number(attrData.value) || 0);
 
         // Store under a key:label pair so different labels of the same key do not overwrite each other.
@@ -807,13 +782,26 @@
         );
 
       const index = new Map();
-      if (!pack?.getDocuments) {
+      if (!pack?.getIndex) {
         this._effectsCompendiumIndex = index;
         return index;
       }
 
+      // The pack can change mid-session (compendium sync, manual edits) — rebuild on the next call.
+      if (!this._effectsCompendiumHooked) {
+        this._effectsCompendiumHooked = true;
+        Hooks.on('updateCompendium', changedPack => {
+          if (changedPack === pack || changedPack?.collection === pack.collection) {
+            this._effectsCompendiumIndex = null;
+          }
+        });
+      }
+
       try {
-        const docs = await pack.getDocuments();
+        // Index entries are lightweight ({_id, name, type, img, system:{…}}) — materializing every full Item
+        // just to read name/timing/attributes made the first defense dialog stall on a ~1.5k-entry pack.
+        // Only the fields _isDefenseReactionCandidate reads are indexed.
+        const docs = await pack.getIndex({ fields: ['system.timing', 'system.attributes'] });
         for (const doc of docs) {
           const key = this._cleanDefenseReactionName(doc.name);
           if (key && !index.has(key)) index.set(key, doc);

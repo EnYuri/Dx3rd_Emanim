@@ -375,10 +375,11 @@
       // A direct key match
       if (applied[appliedId]) return { key: appliedId, effect: applied[appliedId] };
 
-      // Support the legacy applied_N index form
-      if (appliedId.startsWith('applied_')) {
-        const index = Number.parseInt(appliedId.replace('applied_', ''), 10);
-        const key = Object.keys(applied)[index];
+      // Support the legacy applied_N index form — the suffix must be entirely numeric, otherwise an
+      // itemId-based key that merely starts with a digit (e.g. 'applied_5xYz…') would resolve to an unrelated index.
+      const indexMatch = appliedId.match(/^applied_(\d+)$/);
+      if (indexMatch) {
+        const key = Object.keys(applied)[Number(indexMatch[1])];
         if (key) return { key, effect: applied[key] };
       }
       return null;
@@ -735,7 +736,8 @@
     }
 
     // The active / inactive toggle in the Applied list: checked = active.
-    // This toggle is a "temporary disable", so the source effect is kept and only AE.disabled changes.
+    // Route through setActive so the single source stays intact: a toggle-derived AE (appliedKey='toggle:<itemId>')
+    // flips the source item's system.active.state, while every other applied row flips its own AE.disabled.
     // Only the trash-can deletion, in the remove path below, also disables the source effect.
     async _onAppliedActiveChange(event) {
       event.stopImmediatePropagation();
@@ -744,10 +746,10 @@
       const input = event.currentTarget;
       const applied = this._getAppliedFromTarget(input);
       if (!applied) return;
-      if (window.DX3rdAppliedEffects?.setDisabled) {
+      if (window.DX3rdAppliedEffects?.setActive) {
         input.disabled = true;
         try {
-          await window.DX3rdAppliedEffects.setDisabled(this.document, applied.key, !input.checked);
+          await window.DX3rdAppliedEffects.setActive(this.document, applied.key, input.checked);
           await compat.requestRender(this);
         } finally {
           if (input.isConnected) input.disabled = false;

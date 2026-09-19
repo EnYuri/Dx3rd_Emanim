@@ -689,7 +689,6 @@ Hooks.once('ready', async function() {
     
     // GM only: initialize the afterDamage storage
     if (game.user.isGM) {
-        window.DX3rdTargetApplyQueue = {};
         window.DX3rdAfterDamageActivationQueue = {};
         window.DX3rdAfterDamageExtensionQueue = {};  // initialize the extension queue
     }
@@ -789,6 +788,187 @@ Hooks.once('ready', async function() {
         return authorized;
     };
     socketRouter.register(async (data) => {
+
+        // A defense report can reach this GM before the attacker's registration does — the two
+        // travel on different senders' sockets, and the report path is identical for both queues.
+        // processDamageReportPayload records into whichever queue entries exist and match;
+        // bufferReportIfAnyQueueMissing keeps the report for the sibling registration that has
+        // not arrived yet (or for a request that may never register — it ages out in runtime-utils).
+        async function processDamageReportPayload(payload) {
+            const { attackerId, itemId, damageRequestId, targetActorId, targetTokenId, hpChange, attackHit } = payload;
+            const queueKey = damageRequestId;
+            const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[queueKey];
+            const extensionMatches = extensionRequest
+                && extensionRequest.attackerId === attackerId
+                && extensionRequest.itemId === itemId;
+            if (extensionMatches) {
+                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
+                    targetTokenId,
+                    targetActorId,
+                    hpChange,
+                    attackHit
+                });
+                if (report.accepted && report.complete && !extensionRequest.processing) {
+                    extensionRequest.processing = true;
+                    try {
+                        await window.DX3rdUniversalHandler?.processAfterDamageExtensionRequest?.(extensionRequest);
+                    } catch (error) {
+                        console.error('DX3rd | AfterDamage extension request failed:', error);
+                    } finally {
+                        // A partially applied extension request is not safe to retry automatically.
+                        delete window.DX3rdAfterDamageExtensionQueue[queueKey];
+                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
+                    }
+                }
+            }
+            const request = window.DX3rdAfterDamageActivationQueue?.[queueKey];
+            const requestMatches = request
+                && request.attackerId === attackerId
+                && request.itemId === itemId;
+
+            if (requestMatches) {
+                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
+                    targetTokenId,
+                    targetActorId,
+                    hpChange,
+                    attackHit
+                });
+
+                // Have every target reported?
+                // **What is counted is the number of targets that reported, not the number of reports.** When the same
+                // target reports twice (a resend, a double click) the counter runs ahead and `===` never holds, leaving
+                // that request in the queue and blocking the next registration.
+                if (report.accepted && report.complete && !request.processing) {
+                    request.processing = true;
+                    try {
+                    // The targets that took HP damage
+                    const damagedReports = Object.entries(request.damageReports)
+                        .filter(([, hp]) => hp > 0);
+                    const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
+                    const damagedTargets = [...new Set(damagedReports
+                        .map(([tokenId]) => request.reportActorIds[tokenId])
+                        .filter(Boolean))];
+                    const hitTokenIds = Object.entries(request.hitReports || {})
+                        .filter(([, hit]) => hit === true)
+                        .map(([tokenId]) => tokenId);
+                    const hitTargets = [...new Set(hitTokenIds
+                        .map(tokenId => request.reportActorIds[tokenId])
+                        .filter(Boolean))];
+
+                    const attacker = game.actors.get(attackerId);
+                    const currentItem = attacker?.items.get(itemId);
+                    const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
+
+                    // Combo afterDamage handling (after the HP damage happened)
+                    const comboData = request.comboAfterDamageData;
+                    if (comboData && damagedTargets.length > 0) {
+                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
+                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
+                            .filter(Boolean);
+                        for (const actorId of damagedTargets) {
+                            const damagedActor = game.actors.get(actorId);
+                            if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
+                                damagedActors.push(damagedActor);
+                            }
+                        }
+                        if (window.DX3rdUniversalHandler) {
+                            await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
+                        }
+                    } else if (comboData) {
+                        // The afterDamage trigger did not fire, but the hidden source no longer has
+                        // pending work for this attack. Release it just like a completed trigger.
+                        await window.DX3rdInstantComboRetention?.complete?.(attacker, itemId, 'afterDamage');
+                    }
+
+                    if (hitTargets.length > 0) {
+                        await window.DX3rdUniversalHandler?.processPendingAttackRiders?.(
+                            attacker, request.pendingAttackRiders, hitTargets, hitTokenIds);
+                    }
+
+                    // 1. Run the macros (if at least one target took HP damage)
+                    if (request.shouldExecuteMacro && damagedTargets.length > 0) {
+                        window.DX3rdSocketRouter.emitToActorExecutor({
+                            type: 'executeAfterDamageMacro',
+                            payload: {
+                                attackerId: attackerId,
+                                itemId: itemId,
+                                hpChange: damagedTargets.length
+                            }
+                        }, attacker);
+                    }
+
+                    // 2. Activation / effect application
+                    if (damagedTargets.length === 0) {
+                        // Nobody took damage: the NoDamage notification
+                        window.DX3rdSocketRouter.emitToActorExecutor({
+                            type: 'showNoDamageNotification',
+                            payload: { attackerId: attackerId }
+                        }, attacker);
+                    } else if (request.shouldActivate || request.shouldApplyToTargets) {
+                        // The originating action already passed the usage gate and spent its count.
+                        // This confirmation controls only the optional after-damage effect.
+                        const needsConfirmation = request.needsDialog && usedDisable !== 'notCheck';
+                        // The attack item's own afterDamage bucket rides the request as a snapshot
+                        // frozen at use time — prefer it over re-evaluating on the executor.
+                        const attackItemRider = (request.pendingAttackRiders || [])
+                            .find(rider => rider?.fromAttackItem === true && rider.itemId === itemId);
+                        const frozenTargetAttributes = attackItemRider?.targetAttributes || null;
+
+                        if (needsConfirmation) {
+                            // Weapon / vehicle with a use limit: show a dialog
+                            window.DX3rdSocketRouter.emitToActorExecutor({
+                                type: 'showAfterDamageDialog',
+                                payload: {
+                                    attackerId: attackerId,
+                                    itemId: itemId,
+                                    damagedTargets: damagedTargets,
+                                    shouldActivate: request.shouldActivate,
+                                    shouldApplyToTargets: request.shouldApplyToTargets,
+                                    frozenTargetAttributes
+                                }
+                            }, attacker);
+                        } else {
+                            // Everything else (weapon / vehicle notCheck included): activate automatically
+                            window.DX3rdSocketRouter.emitToActorExecutor({
+                                type: 'executeAfterDamageActivation',
+                                payload: {
+                                    actorId: attackerId,
+                                    itemId: itemId,
+                                    damagedTargets: damagedTargets,
+                                    shouldActivate: request.shouldActivate,
+                                    shouldApplyToTargets: request.shouldApplyToTargets,
+                                    frozenTargetAttributes
+                                }
+                            }, attacker);
+                        }
+                    }
+
+                    } finally {
+                        // A partially applied activation request is not safe to retry automatically.
+                        delete window.DX3rdAfterDamageActivationQueue[queueKey];
+                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
+                    }
+                }
+            }
+        }
+
+        function bufferReportIfAnyQueueMissing(payload) {
+            const key = payload?.damageRequestId;
+            if (!key) return;
+            const extensionPending = Boolean(window.DX3rdAfterDamageExtensionQueue?.[key]);
+            const activationPending = Boolean(window.DX3rdAfterDamageActivationQueue?.[key]);
+            if (extensionPending && activationPending) return;
+            window.DX3rdRuntimeUtils?.bufferEarlyDamageReport?.(payload);
+        }
+
+        async function drainEarlyDamageReports(damageRequestId) {
+            const early = window.DX3rdRuntimeUtils?.takeEarlyDamageReports?.(damageRequestId) || [];
+            for (const earlyPayload of early) {
+                await processDamageReportPayload(earlyPayload);
+                // The sibling queue may register later — keep the report available for it.
+                bufferReportIfAnyQueueMissing(earlyPayload);
+            }
+        }
 
         if (data.type === 'showSceneEnterDialog') {
             if (data.userId === game.user.id) {
@@ -954,7 +1134,9 @@ Hooks.once('ready', async function() {
               createdAt: Date.now()
             };
             window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
-            
+            // Reports that beat this registration (cross-sender socket ordering) replay now.
+            await drainEarlyDamageReports(damageRequestId);
+
             return;
         }
         
@@ -1005,7 +1187,9 @@ Hooks.once('ready', async function() {
                 createdAt: Date.now()
             };
             window.DX3rdUniversalHandler?.scheduleAfterDamageRequestExpiry?.(damageRequestId);
-            
+            // Reports that beat this registration (cross-sender socket ordering) replay now.
+            await drainEarlyDamageReports(damageRequestId);
+
         } else if (data.type === 'reportDamageForActivation') {
             // GM only: collect the targets' HP change reports
             if (!socketRouter.isResponsibleGM()
@@ -1013,210 +1197,13 @@ Hooks.once('ready', async function() {
                 || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
                 return;
             }
-            
-            const { attackerId, itemId, damageRequestId, targetActorId, targetTokenId, hpChange, attackHit } = data.payload;
-            const queueKey = damageRequestId;
-            const extensionRequest = window.DX3rdAfterDamageExtensionQueue?.[queueKey];
-            const extensionMatches = extensionRequest
-                && extensionRequest.attackerId === attackerId
-                && extensionRequest.itemId === itemId;
-            if (extensionMatches) {
-                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(extensionRequest, {
-                    targetTokenId,
-                    targetActorId,
-                    hpChange,
-                    attackHit
-                });
-                if (report.accepted && report.complete && !extensionRequest.processing) {
-                    extensionRequest.processing = true;
-                    try {
-                        await window.DX3rdUniversalHandler?.processAfterDamageExtensionRequest?.(extensionRequest);
-                    } catch (error) {
-                        console.error('DX3rd | AfterDamage extension request failed:', error);
-                    } finally {
-                        // A partially applied extension request is not safe to retry automatically.
-                        delete window.DX3rdAfterDamageExtensionQueue[queueKey];
-                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
-                    }
-                }
-            }
-            const request = window.DX3rdAfterDamageActivationQueue?.[queueKey];
-            const requestMatches = request
-                && request.attackerId === attackerId
-                && request.itemId === itemId;
-            
-            if (requestMatches) {
-                const report = window.DX3rdRuntimeUtils.recordAfterDamageReport(request, {
-                    targetTokenId,
-                    targetActorId,
-                    hpChange,
-                    attackHit
-                });
 
-                // Have every target reported?
-                // **What is counted is the number of targets that reported, not the number of reports.** When the same
-                // target reports twice (a resend, a double click) the counter runs ahead and `===` never holds, leaving
-                // that request in the queue and blocking the next registration.
-                if (report.accepted && report.complete && !request.processing) {
-                    request.processing = true;
-                    try {
-                    // The targets that took HP damage
-                    const damagedReports = Object.entries(request.damageReports)
-                        .filter(([, hp]) => hp > 0);
-                    const damagedTokenIds = damagedReports.map(([tokenId]) => tokenId);
-                    const damagedTargets = [...new Set(damagedReports
-                        .map(([tokenId]) => request.reportActorIds[tokenId])
-                        .filter(Boolean))];
-                    const hitTokenIds = Object.entries(request.hitReports || {})
-                        .filter(([, hit]) => hit === true)
-                        .map(([tokenId]) => tokenId);
-                    const hitTargets = [...new Set(hitTokenIds
-                        .map(tokenId => request.reportActorIds[tokenId])
-                        .filter(Boolean))];
-                    
-                    const attacker = game.actors.get(attackerId);
-                    const currentItem = attacker?.items.get(itemId);
-                    const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
-
-                    // Combo afterDamage handling (after the HP damage happened)
-                    const comboData = request.comboAfterDamageData;
-                    if (comboData && damagedTargets.length > 0) {
-                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
-                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
-                            .filter(Boolean);
-                        for (const actorId of damagedTargets) {
-                            const damagedActor = game.actors.get(actorId);
-                            if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
-                                damagedActors.push(damagedActor);
-                            }
-                        }
-                        if (window.DX3rdUniversalHandler) {
-                            await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
-                        }
-                    } else if (comboData) {
-                        // The afterDamage trigger did not fire, but the hidden source no longer has
-                        // pending work for this attack. Release it just like a completed trigger.
-                        await window.DX3rdInstantComboRetention?.complete?.(attacker, itemId, 'afterDamage');
-                    }
-
-                    if (hitTargets.length > 0) {
-                        await window.DX3rdUniversalHandler?.processPendingAttackRiders?.(
-                            attacker, request.pendingAttackRiders, hitTargets, hitTokenIds);
-                    }
-                    
-                    // 1. Run the macros (if at least one target took HP damage)
-                    if (request.shouldExecuteMacro && damagedTargets.length > 0) {
-                        window.DX3rdSocketRouter.emitToActorExecutor({
-                            type: 'executeAfterDamageMacro',
-                            payload: {
-                                attackerId: attackerId,
-                                itemId: itemId,
-                                hpChange: damagedTargets.length
-                            }
-                        }, attacker);
-                    }
-                    
-                    // 2. Activation / effect application
-                    if (damagedTargets.length === 0) {
-                        // Nobody took damage: the NoDamage notification
-                        window.DX3rdSocketRouter.emitToActorExecutor({
-                            type: 'showNoDamageNotification',
-                            payload: { attackerId: attackerId }
-                        }, attacker);
-                    } else if (request.shouldActivate || request.shouldApplyToTargets) {
-                        // The originating action already passed the usage gate and spent its count.
-                        // This confirmation controls only the optional after-damage effect.
-                        const needsConfirmation = request.needsDialog && usedDisable !== 'notCheck';
-                        
-                        if (needsConfirmation) {
-                            // Weapon / vehicle with a use limit: show a dialog
-                            window.DX3rdSocketRouter.emitToActorExecutor({
-                                type: 'showAfterDamageDialog',
-                                payload: {
-                                    attackerId: attackerId,
-                                    itemId: itemId,
-                                    damagedTargets: damagedTargets,
-                                    shouldActivate: request.shouldActivate,
-                                    shouldApplyToTargets: request.shouldApplyToTargets
-                                }
-                            }, attacker);
-                        } else {
-                            // Everything else (weapon / vehicle notCheck included): activate automatically
-                            window.DX3rdSocketRouter.emitToActorExecutor({
-                                type: 'executeAfterDamageActivation',
-                                payload: {
-                                    actorId: attackerId,
-                                    itemId: itemId,
-                                    damagedTargets: damagedTargets,
-                                    shouldActivate: request.shouldActivate,
-                                    shouldApplyToTargets: request.shouldApplyToTargets
-                                }
-                            }, attacker);
-                        }
-                    }
-                    
-                    } finally {
-                        // A partially applied activation request is not safe to retry automatically.
-                        delete window.DX3rdAfterDamageActivationQueue[queueKey];
-                        window.DX3rdUniversalHandler?.releaseAfterDamageRequestExpiry?.(queueKey);
-                    }
-                }
-            }
-        } else if (data.type === 'registerTargetApply') {
-            // GM only: register a request to apply target effects at the afterDamage timing
-            if (!socketRouter.isResponsibleGM()
-                || !data.payload
-                || !isAuthorizedActorRequest(data, data.payload.sourceActorId)
-                || !data.payload.targetActorId) {
-                return;
-            }
-            
-            const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
-            const queueKey = `${targetActorId}_${itemId}`;
-            
-            window.DX3rdTargetApplyQueue[queueKey] = {
-                sourceActorId: sourceActorId,
-                itemId: itemId,
-                targetActorId: targetActorId,
-                targetAttributes: targetAttributes,
-                preEvaluated,
-                timestamp: Date.now()
-            };
-        } else if (data.type === 'reportDamageForApply') {
-            // GM only: receive a target's damage result report (for effect application)
-            if (!socketRouter.isResponsibleGM()
-                || !data.payload
-                || !isAuthorizedActorRequest(data, data.payload.targetActorId)) {
-                return;
-            }
-            
-            const { targetActorId, itemId, hpChange } = data.payload;
-            const queueKey = `${targetActorId}_${itemId}`;
-            
-            // Look up the stored request
-            const applyRequest = window.DX3rdTargetApplyQueue[queueKey];
-            if (applyRequest) {
-                if (hpChange >= 1) {
-                    // HP went down, so tell the target to apply the effect
-                    const targetActor = game.actors.get(targetActorId);
-                    window.DX3rdSocketRouter.emitToActorExecutor({
-                        type: 'applyEffectToTarget',
-                        payload: {
-                            sourceActorId: applyRequest.sourceActorId,
-                            itemId: applyRequest.itemId,
-                            targetActorId: targetActorId,
-                            targetAttributes: applyRequest.targetAttributes,
-                            preEvaluated: applyRequest.preEvaluated === true
-                        }
-                    }, targetActor);
-                }
-                
-                // Drop the request (whether or not HP went down)
-                delete window.DX3rdTargetApplyQueue[queueKey];
-            }
+            await processDamageReportPayload(data.payload);
+            // If a sibling queue entry has not registered yet, hold the report for its drain.
+            bufferReportIfAnyQueueMissing(data.payload);
         } else if (data.type === 'showAfterDamageDialog') {
             // Attacker: told by the GM to show the afterDamage dialog
-            const { attackerId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets } = data.payload;
+            const { attackerId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets, frozenTargetAttributes } = data.payload;
             
             const actor = game.actors.get(attackerId);
             if (!actor) {
@@ -1234,11 +1221,11 @@ Hooks.once('ready', async function() {
             
             // Show the dialog
             if (window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._showAfterDamageDialog) {
-                await window.DX3rdUniversalHandler._showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets);
+                await window.DX3rdUniversalHandler._showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets, frozenTargetAttributes);
             }
         } else if (data.type === 'executeAfterDamageActivation') {
             // Attacker: told by the GM to auto-activate
-            const { actorId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets } = data.payload;
+            const { actorId, itemId, damagedTargets, shouldActivate, shouldApplyToTargets, frozenTargetAttributes } = data.payload;
             
             const actor = game.actors.get(actorId);
             if (!actor) {
@@ -1271,17 +1258,21 @@ Hooks.once('ready', async function() {
                     const targetActor = game.actors.get(targetId);
                     if (targetActor) {
                         // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
-                        const targetAttributes = window.DX3rdItemEffectAdapter
+                        // A frozen snapshot travels in the payload because this client's scratch
+                        // context (_dx3rdRuntimeInput / _dx3rdUsageEncLevel) is long gone.
+                        const targetAttributes = frozenTargetAttributes ?? (window.DX3rdItemEffectAdapter
                             ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
-                            : (item.system.effect?.attributes || {});
+                            : (item.system.effect?.attributes || {}));
 
                         if (game.user.isGM && !socketRouter.isResponsibleGM()) return;
                         if (game.user.isGM) {
                             // The GM applies it directly
-                            await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes);
+                            await window.DX3rdUniversalHandler._applyItemAttributes(actor, item, targetActor, targetAttributes,
+                                {preEvaluated: frozenTargetAttributes != null});
                         } else {
                             // An ordinary user freezes the formulas on the using client and hands them to the target's owner.
-                            await window.DX3rdUniversalHandler.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
+                            await window.DX3rdUniversalHandler.dispatchItemAttributes(actor, item, targetActor, targetAttributes,
+                                {preEvaluated: frozenTargetAttributes != null});
                         }
                     }
                 }
@@ -1308,25 +1299,6 @@ Hooks.once('ready', async function() {
                     }
                 ]
             }).render(true);
-        } else if (data.type === 'applyEffectToTarget') {
-            // Target owner: told by the GM to apply the effect
-            const { sourceActorId, itemId, targetActorId, targetAttributes, preEvaluated = false } = data.payload;
-            
-            const sourceActor = game.actors.get(sourceActorId);
-            const targetActor = game.actors.get(targetActorId);
-            
-            if (!sourceActor || !targetActor) {
-                console.warn('DX3rd | Actor not found');
-                return;
-            }
-            
-            if (!socketRouter.isActorExecutorMessage(data, targetActor)) return;
-            
-            const item = sourceActor.items.get(itemId);
-            if (item && window.DX3rdUniversalHandler && window.DX3rdUniversalHandler._applyItemAttributes) {
-                await window.DX3rdUniversalHandler._applyItemAttributes(
-                    sourceActor, item, targetActor, targetAttributes, { preEvaluated });
-            }
         }
     });
 });

@@ -44,8 +44,7 @@
     'executeAfterDamageMacro',
     'showAfterDamageDialog',
     'executeAfterDamageActivation',
-    'showNoDamageNotification',
-    'applyEffectToTarget'
+    'showNoDamageNotification'
   ], { senderRole: 'gm', validate: data => hasObject('payload')(data) && isId(data.executorUserId) });
 
   // Owner-to-GM state requests.
@@ -89,17 +88,10 @@
             && rider.preEvaluated === true))),
     authorize: ownsActor('payload.attackerId')
   });
-  contract('registerTargetApply', {
-    validate: data => isObject(data.payload) && isId(data.payload.sourceActorId)
-      && isId(data.payload.targetActorId) && isId(data.payload.itemId)
-      && (data.payload.preEvaluated === undefined || typeof data.payload.preEvaluated === 'boolean'),
-    authorize: ownsActor('payload.sourceActorId')
-  });
-  contract(['reportDamageForApply', 'reportDamageForActivation'], {
+  contract('reportDamageForActivation', {
     validate: data => isObject(data.payload) && isId(data.payload.targetActorId) && isId(data.payload.itemId)
-      && (data.payload.attackHit === undefined || typeof data.payload.attackHit === 'boolean')
-      && (data.type === 'reportDamageForApply'
-        || (isId(data.payload.damageRequestId) && isId(data.payload.targetTokenId))),
+      && isId(data.payload.damageRequestId) && isId(data.payload.targetTokenId)
+      && (data.payload.attackHit === undefined || typeof data.payload.attackHit === 'boolean'),
     authorize: ownsActor('payload.targetActorId')
   });
   contract('showDefenseDialog', {

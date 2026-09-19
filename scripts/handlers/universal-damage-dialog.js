@@ -38,9 +38,8 @@
       const hadActivation = Boolean(window.DX3rdAfterDamageActivationQueue?.[damageRequestId]);
       if (hadExtension) delete window.DX3rdAfterDamageExtensionQueue[damageRequestId];
       if (hadActivation) delete window.DX3rdAfterDamageActivationQueue[damageRequestId];
-      if (targetActorId && itemId) {
-        delete window.DX3rdTargetApplyQueue?.[`${targetActorId}_${itemId}`];
-      }
+      // Reports buffered while waiting for this registration are no longer wanted either.
+      window.DX3rdRuntimeUtils?.discardEarlyDamageReports?.(damageRequestId);
       this.releaseAfterDamageRequestExpiry(damageRequestId);
       if (hadExtension || hadActivation) {
         window.DX3rdDebug.log(`DX3rd | AfterDamage request ${reason}:`, damageRequestId);
@@ -834,6 +833,7 @@
       const bypassDefense = window.DX3rdItemEffectAdapter.attackBypassDefense(actor, item);
 
       // Deliver the defense dialog to each target
+      let undeliverableCount = 0;
       for (const target of targets) {
         const targetActor = target.actor;
         if (!targetActor) continue;
@@ -874,15 +874,25 @@
           }
         } else {
           // An ordinary user always sends it over the socket (the GM fallback handles it)
-          window.DX3rdSocketRouter.emitToActorExecutor({
+          const sent = window.DX3rdSocketRouter.emitToActorExecutor({
             type: 'showDefenseDialog',
             dialogData: payload  // payload → dialogData, kept uniform
           }, targetActor);
-          window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
+          if (sent) {
+            window.DX3rdDebug.log('DX3rd | Defense dialog sent via socket for:', targetActor.name);
+          } else {
+            // No client can answer for this target (no active owner and no active GM), so no one
+            // can persist its HP change either — say so instead of hanging the whole request.
+            undeliverableCount++;
+            window.DX3rdDebug.log('DX3rd | No executor for defense dialog:', targetActor.name);
+          }
         }
       }
-      
-      ui.notifications.info(`데미지 적용 다이얼로그를 ${targets.length}명의 대상에게 전송했습니다.`);
+
+      ui.notifications.info(`데미지 적용 다이얼로그를 ${targets.length - undeliverableCount}명의 대상에게 전송했습니다.`);
+      if (undeliverableCount > 0) {
+        ui.notifications.warn(`${undeliverableCount}명의 대상은 수신 가능한 사용자가 없어 방어와 대미지 적용이 생략됐습니다.`);
+      }
     },
 
     /**
@@ -1205,8 +1215,11 @@
                 style: CONST.CHAT_MESSAGE_STYLES.OTHER
               });
               
-              // Run the guard disable hook
-              if (window.DX3rdDisableHooks) {
+              // Run the guard disable hook only when a guard actually entered the defense. A successful
+              // dodge never guarded, and a bypassed guard contributes nothing (its roll is not even made),
+              // so neither should expire "until guard" lifetimes — a guard shield's buff must survive a dodge.
+              if (!reactionSuccess && guardAllowed && !enforcedDefense.guardBlocked
+                  && window.DX3rdDisableHooks) {
                 await window.DX3rdDisableHooks.executeDisableHook('guard', targetActor);
               }
               
@@ -1264,50 +1277,8 @@
                 if (window.DX3rdSocketRouter.isResponsibleGM()) {
                   // Only the GM that owns the queue processes reports locally. Other GMs report
                   // through the same socket path as players.
-                  const applyQueueKey = `${targetActor.id}_${itemId}`; // effects: keyed by target
-                  
-                  // 1. Apply the afterDamage target effects
-                  const applyRequest = window.DX3rdTargetApplyQueue?.[applyQueueKey];
-                  if (applyRequest) {
-                    window.DX3rdDebug.log('DX3rd | Found target apply request in queue:', applyRequest);
-                    
-                    if (hpChange >= 1) {
-                      // HP went down, so apply the effect
-                      const sourceActor = game.actors.get(applyRequest.sourceActorId);
-                      const item = sourceActor?.items.get(applyRequest.itemId);
-                      
-                      if (item && targetActor.isOwner) {
-                        // The GM owns the target, so apply it directly
-                        await window.DX3rdUniversalHandler._applyItemAttributes(
-                          sourceActor, item, targetActor, applyRequest.targetAttributes,
-                          { preEvaluated: applyRequest.preEvaluated === true });
-                        window.DX3rdDebug.log('DX3rd | Target effect applied directly by GM');
-                      } else {
-                        // Tell the target's owner to apply it
-                        window.DX3rdSocketRouter.emitToActorExecutor({
-                          type: 'applyEffectToTarget',
-                          payload: {
-                            sourceActorId: applyRequest.sourceActorId,
-                            itemId: applyRequest.itemId,
-                            targetActorId: targetActor.id,
-                            targetAttributes: applyRequest.targetAttributes,
-                            preEvaluated: applyRequest.preEvaluated === true
-                          }
-                        }, targetActor);
-                        window.DX3rdDebug.log('DX3rd | Sent applyEffectToTarget to target owner');
-                      }
-                    } else {
-                      window.DX3rdDebug.log('DX3rd | HP not decreased, skipping effect application');
-                    }
-                    
-                    // Drop the request (whether or not HP went down)
-                    delete window.DX3rdTargetApplyQueue[applyQueueKey];
-                    window.DX3rdDebug.log('DX3rd | Target apply request removed from queue');
-                  } else {
-                    window.DX3rdDebug.log('DX3rd | No target apply request found for:', applyQueueKey);
-                  }
-                  
-                  // 2. Activation / macro handling (check the activation queue and collect reports)
+
+                  // Activation / macro handling (check the activation queue and collect reports)
                   const activationQueueKey = damageRequestId;
                   const activationRequest = window.DX3rdAfterDamageActivationQueue?.[activationQueueKey];
                   if (activationRequest) {
@@ -1469,12 +1440,18 @@
                         }
                       } else if (activationRequest.shouldActivate || activationRequest.shouldApplyToTargets) {
                         const needsConfirmation = activationRequest.needsDialog && usedDisable !== 'notCheck';
-                        
+                        // The attack item's own afterDamage bucket rides the request as a snapshot
+                        // frozen at use time — prefer it over re-evaluating on the executor, where
+                        // _dx3rdRuntimeInput / _dx3rdUsageEncLevel no longer exist.
+                        const attackItemRider = (activationRequest.pendingAttackRiders || [])
+                          .find(rider => rider?.fromAttackItem === true && rider.itemId === itemId);
+                        const frozenTargetAttributes = attackItemRider?.targetAttributes || null;
+
                         if (needsConfirmation) {
                           // Weapon / vehicle with a use limit: show a dialog
                           if (!hasActiveNonGMOwner) {
                             // No connected non-GM owner: the GM shows it directly
-                            await window.DX3rdUniversalHandler._showAfterDamageDialog(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
+                            await window.DX3rdUniversalHandler._showAfterDamageDialog(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets, frozenTargetAttributes);
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog shown directly by GM');
                           } else {
                             // Send it to the attacker's owner over the socket
@@ -1485,7 +1462,8 @@
                                 itemId: itemId,
                                 damagedTargets: damagedTargets,
                                 shouldActivate: activationRequest.shouldActivate,
-                                shouldApplyToTargets: activationRequest.shouldApplyToTargets
+                                shouldApplyToTargets: activationRequest.shouldApplyToTargets,
+                                frozenTargetAttributes
                               }
                             }, attacker);
                             window.DX3rdDebug.log('DX3rd | AfterDamage dialog sent via socket to player');
@@ -1494,7 +1472,7 @@
                           // Everything else (weapon / vehicle notCheck included): activate automatically
                           if (!hasActiveNonGMOwner) {
                             // No connected non-GM owner: the GM runs it directly
-                            await window.DX3rdUniversalHandler._executeAfterDamageActivation(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets);
+                            await window.DX3rdUniversalHandler._executeAfterDamageActivation(attacker, currentItem, damagedTargets, activationRequest.shouldActivate, activationRequest.shouldApplyToTargets, frozenTargetAttributes);
                             window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation executed directly by GM');
                           } else {
                             // Send it to the attacker's owner over the socket
@@ -1505,7 +1483,8 @@
                                 itemId: itemId,
                                 damagedTargets: damagedTargets,
                                 shouldActivate: activationRequest.shouldActivate,
-                                shouldApplyToTargets: activationRequest.shouldApplyToTargets
+                                shouldApplyToTargets: activationRequest.shouldApplyToTargets,
+                                frozenTargetAttributes
                               }
                             }, attacker);
                             window.DX3rdDebug.log('DX3rd | AfterDamage auto-activation sent via socket to player');
@@ -1521,24 +1500,19 @@
                       }
                     }
                   }
+                  // A defense report can land on this queue owner before the attacker's
+                  // registration arrives (the two travel on different senders' sockets). Keep it
+                  // for the registration drain; a report whose request never registers ages out.
+                  if (!window.DX3rdAfterDamageExtensionQueue?.[damageRequestId]
+                      || !window.DX3rdAfterDamageActivationQueue?.[damageRequestId]) {
+                    window.DX3rdRuntimeUtils?.bufferEarlyDamageReport?.({
+                      attackerId, itemId, damageRequestId,
+                      targetActorId: targetActor.id, targetTokenId, hpChange,
+                      attackHit: !reactionSuccess
+                    });
+                  }
                 } else {
                   // An ordinary user reports the damage result to the GM
-                  
-                  // 1. The target-effect report (always, with the HP change)
-                  window.DX3rdSocketRouter.emit({
-                    type: 'reportDamageForApply',
-                    payload: {
-                      targetActorId: targetActor.id,
-                      itemId: itemId,
-                      hpChange: hpChange
-                    }
-                  });
-                  window.DX3rdDebug.log('DX3rd | Damage result report sent to GM (effect apply):', {
-                    target: targetActor.name,
-                    hpChange: hpChange
-                  });
-                  
-                  // 2. The activation report (always, with the HP change)
                   window.DX3rdSocketRouter.emit({
                     type: 'reportDamageForActivation',
                     payload: {
@@ -2007,7 +1981,7 @@
     /**
      * Show the afterDamage dialog (internal helper)
      */
-    async _showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets) {
+    async _showAfterDamageDialog(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets, frozenTargetAttributes = null) {
       // Build a custom DOM dialog
       const dialogDiv = document.createElement("div");
       dialogDiv.className = "after-damage-dialog";
@@ -2078,11 +2052,12 @@
             const targetActor = game.actors.get(targetId);
             if (targetActor) {
               // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
-              const targetAttributes = window.DX3rdItemEffectAdapter
+              const targetAttributes = frozenTargetAttributes ?? (window.DX3rdItemEffectAdapter
                 ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
-                : (item.system.effect?.attributes || {});
-              
-              await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
+                : (item.system.effect?.attributes || {}));
+
+              await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes,
+                {preEvaluated: frozenTargetAttributes != null});
               window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (dialog):', targetActor.name);
             }
           }
@@ -2171,7 +2146,7 @@
     /**
      * Run the afterDamage auto-activation (internal helper)
      */
-    async _executeAfterDamageActivation(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets) {
+    async _executeAfterDamageActivation(actor, item, damagedTargets, shouldActivate, shouldApplyToTargets, frozenTargetAttributes = null) {
       const updates = {};
       
       if (shouldActivate) {
@@ -2189,11 +2164,12 @@
           const targetActor = game.actors.get(targetId);
           if (targetActor) {
             // After the damage is applied is an attack trigger point — buckets with a different per-row "trigger action" are excluded.
-            const targetAttributes = window.DX3rdItemEffectAdapter
+            const targetAttributes = frozenTargetAttributes ?? (window.DX3rdItemEffectAdapter
               ? window.DX3rdItemEffectAdapter.targetBucketAttributes(item, 'attack', 'afterDamage')
-              : (item.system.effect?.attributes || {});
-            
-            await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes);
+              : (item.system.effect?.attributes || {}));
+
+            await this.dispatchItemAttributes(actor, item, targetActor, targetAttributes,
+              {preEvaluated: frozenTargetAttributes != null});
             window.DX3rdDebug.log('DX3rd | Effect applied to damaged target (auto):', targetActor.name);
           }
         }

@@ -56,6 +56,13 @@
                         await actor.unsetFlag('dx3rd-emanim', 'pendingAttackRiders');
                         clearedPendingRiderCount += pendingRiders.length;
                     }
+                    // Same boundary for the afterSuccess apply snapshot: a success button that
+                    // was never clicked must not hold the frozen bucket past this main process.
+                    const pendingApply = actor.getFlag?.('dx3rd-emanim', 'pendingAfterSuccessApply');
+                    if (Array.isArray(pendingApply) && pendingApply.length > 0) {
+                        await actor.unsetFlag('dx3rd-emanim', 'pendingAfterSuccessApply');
+                        clearedPendingRiderCount += pendingApply.length;
+                    }
                 }
 
                 // Check every item on the actor
@@ -142,11 +149,22 @@
                     }
                 }
 
-                // Deactivate the item
+                // Deactivate the items — a single embedded update instead of one write per item.
+                // If the batch fails (one bad document fails the whole call), retry per item so the rest still settle.
                 const deactivatedItems = [];
+                let deactivateBatchFailed = itemsToDeactivate.length > 0;
+                if (deactivateBatchFailed) {
+                    try {
+                        await actor.updateEmbeddedDocuments('Item',
+                            itemsToDeactivate.map(item => ({ _id: item.id, 'system.active.state': false })));
+                        deactivateBatchFailed = false;
+                    } catch (error) {
+                        console.error(`DX3rd | DisableHooks - Batch deactivation failed on actor ${actor.name}, retrying per item:`, error);
+                    }
+                }
                 for (const item of itemsToDeactivate) {
                     try {
-                        await item.update({ 'system.active.state': false });
+                        if (deactivateBatchFailed) await item.update({ 'system.active.state': false });
                         deactivatedItems.push(item);
                         deactivatedCount++;
                         window.DX3rdDebug.log(`DX3rd | DisableHooks - Deactivated item: ${item.name} (${item.type}) on actor ${actor.name}`);
@@ -177,10 +195,20 @@
                     console.error(`DX3rd | DisableHooks - Failed to clear condition sources on actor ${actor.name}:`, error);
                 }
 
-                // Reset the use count
+                // Reset the use counts — same batch-then-per-item strategy as the deactivation above.
+                let resetBatchFailed = itemsToResetUsage.length > 0;
+                if (resetBatchFailed) {
+                    try {
+                        await actor.updateEmbeddedDocuments('Item',
+                            itemsToResetUsage.map(item => ({ _id: item.id, 'system.used.state': 0 })));
+                        resetBatchFailed = false;
+                    } catch (error) {
+                        console.error(`DX3rd | DisableHooks - Batch usage reset failed on actor ${actor.name}, retrying per item:`, error);
+                    }
+                }
                 for (const item of itemsToResetUsage) {
                     try {
-                        await item.update({ 'system.used.state': 0 });
+                        if (resetBatchFailed) await item.update({ 'system.used.state': 0 });
                         resetUsageCount++;
                         window.DX3rdDebug.log(`DX3rd | DisableHooks - Reset usage for item: ${item.name} (${item.type}) on actor ${actor.name}`);
                     } catch (error) {

@@ -278,6 +278,44 @@
     return null;
   }
 
+  // A defense report can reach the queue owner before the attacker's registration does —
+  // registration and the defense dialog travel on different senders' sockets. Hold unmatched
+  // reports keyed by damageRequestId until a registration drains them. Reports for requests
+  // that never register (attacks with no after-damage follow-up, or cancelled requests) age
+  // out at the same TTL as the request queues themselves.
+  const EARLY_DAMAGE_REPORT_TTL_MS = 30 * 60 * 1000;
+  const EARLY_DAMAGE_REPORT_MAX_REQUESTS = 100;
+  const earlyDamageReports = new Map();
+
+  function bufferEarlyDamageReport(payload) {
+    if (!payload?.damageRequestId) return;
+    const now = Date.now();
+    for (const [key, entry] of earlyDamageReports) {
+      if (now - entry.at > EARLY_DAMAGE_REPORT_TTL_MS) earlyDamageReports.delete(key);
+    }
+    let entry = earlyDamageReports.get(payload.damageRequestId);
+    if (!entry) {
+      entry = { at: now, reports: [] };
+      earlyDamageReports.set(payload.damageRequestId, entry);
+    }
+    entry.at = now;
+    entry.reports.push({ ...payload });
+    while (earlyDamageReports.size > EARLY_DAMAGE_REPORT_MAX_REQUESTS) {
+      earlyDamageReports.delete(earlyDamageReports.keys().next().value);
+    }
+  }
+
+  function takeEarlyDamageReports(damageRequestId) {
+    const entry = earlyDamageReports.get(damageRequestId);
+    if (!entry) return [];
+    earlyDamageReports.delete(damageRequestId);
+    return entry.reports;
+  }
+
+  function discardEarlyDamageReports(damageRequestId) {
+    earlyDamageReports.delete(damageRequestId);
+  }
+
   window.DX3rdRuntimeUtils = Object.freeze({
     AFTER_MAIN_TYPES,
     getActorOnlySpeaker,
@@ -293,6 +331,9 @@
     createAfterMainQueueEntry,
     extensionGroupKey,
     groupExtensionsByKey,
-    classifyHpTransition
+    classifyHpTransition,
+    bufferEarlyDamageReport,
+    takeEarlyDamageReports,
+    discardEarlyDamageReports
   });
 })();
