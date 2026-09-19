@@ -23,6 +23,7 @@ import { resolve, join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { compendiumRecords } from "./compendium-records.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRoot = join(root, "_source");
@@ -36,7 +37,8 @@ const packSources = {
   items: "pack-items",
   dlois: "pack-dlois",
   works: "pack-works",
-  syndromes: "pack-syndromes"
+  syndromes: "pack-syndromes",
+  journals: "pack-journals"
 };
 
 function parseArgs(argv) {
@@ -114,7 +116,7 @@ async function packWithFoundry(pack, input) {
   const db = new ClassicLevel(destination, { valueEncoding: "json" });
   await db.open();
   try {
-    await db.batch(docs.map(doc => ({ type: "put", key: doc._key, value: doc })));
+    await db.batch(docs.flatMap(compendiumRecords));
   } finally {
     await db.close();
   }
