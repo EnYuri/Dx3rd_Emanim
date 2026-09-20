@@ -1789,13 +1789,25 @@
       // the activation path applies it to damaged targets only, as shouldApplyToTargets always did.
       const selfAttack = action === 'attack' && isAttackItem && item.type !== 'combo';
       if (!selfAttack && (action !== 'use' || isAttackItem)) return false;
-      if (adapter && !adapter.targetFiresAt(item, 'attack', 'afterDamage')) return false;
-      if (!adapter && item.system?.effect?.runTiming !== 'afterDamage') return false;
 
-      const targetAttributes = adapter
-        ? adapter.targetBucketAttributes(item, 'attack', 'afterDamage')
-        : (item.system?.effect?.attributes || {});
-      if (!this.hasUsableAttribute(targetAttributes)) return false;
+      const bucketFires = adapter
+        ? adapter.targetFiresAt(item, 'attack', 'afterDamage')
+        : item.system?.effect?.runTiming === 'afterDamage';
+      const targetAttributes = bucketFires
+        ? (adapter
+          ? adapter.targetBucketAttributes(item, 'attack', 'afterDamage')
+          : (item.system?.effect?.attributes || {}))
+        : {};
+
+      // A preparation item may carry afterDamage extensions without any target bucket
+      // (poison applied to the damaged token, etc.). They ride the same carrier and are
+      // executed by the damage-report queue against damaged targets. The attack item's own
+      // extensions are read live in handleDamageApply, so a selfAttack rider carries none.
+      // Combos merge member extensions through collectAfterDamageData instead.
+      const extensions = (!selfAttack && item.type !== 'combo')
+        ? this.riderAfterDamageExtensions(item)
+        : [];
+      if (!this.hasUsableAttribute(targetAttributes) && extensions.length === 0) return false;
 
       const rider = {
         itemId: item.id,
@@ -1803,6 +1815,7 @@
         targetAttributes: this.freezeTransferredItemAttributes(actor, item, targetAttributes),
         preEvaluated: true,
         armedAt: Date.now(),
+        ...(extensions.length > 0 ? { extensions } : {}),
         ...(selfAttack ? { fromAttackItem: true } : {})
       };
       const pending = foundry.utils.deepClone(actor.getFlag?.('dx3rd-emanim', 'pendingAttackRiders') || []);
@@ -1811,6 +1824,29 @@
       await actor.setFlag('dx3rd-emanim', 'pendingAttackRiders', riders);
       window.DX3rdDebug.log('DX3rd | Armed after-damage rider for the next attack:', item.name);
       return true;
+    },
+
+    /**
+     * The itemExtend extensions a preparation item carries onto the next attack's damage report.
+     * Mirrors the combo member rule (memberExtensionActionMatches): every action rides except
+     * 'activation'. Item-creation extensions are excluded, as in the combo afterDamage collection.
+     */
+    riderAfterDamageExtensions(item) {
+      const adapter = window.DX3rdItemEffectAdapter;
+      const itemExtend = item?.getFlag?.('dx3rd-emanim', 'itemExtend');
+      if (!itemExtend) return [];
+      const entries = adapter?.extensionEntries?.(itemExtend)
+        || Object.entries(itemExtend).map(([type, data]) => ({type, data}));
+      const out = [];
+      for (const entry of entries) {
+        const data = entry.data || {};
+        if (!data.activate) continue;
+        if ((data.timing || 'instant') !== 'afterDamage') continue;
+        if (['weapon', 'protect', 'vehicle'].includes(entry.type)) continue;
+        if (adapter && adapter.inferAction(item, entry.type, data) === 'activation') continue;
+        out.push({type: entry.type, data: foundry.utils.deepClone(data)});
+      }
+      return out;
     },
 
     /**
@@ -1908,6 +1944,9 @@
         // applies it to damaged targets (HP loss). Applying it here would hit even 0-damage targets
         // and double-apply on real damage.
         if (rider?.fromAttackItem === true) continue;
+        // Extension-only riders carry no modifier bucket — their payload runs through the
+        // damage-report extension queue instead, and an empty apply would write an empty AE.
+        if (!this.hasUsableAttribute(rider?.targetAttributes)) continue;
         const sourceItem = attacker.items.get(rider?.itemId);
         if (!sourceItem) {
           console.warn('DX3rd | Pending attack rider item not found:', rider?.itemId);
@@ -2027,17 +2066,22 @@
       const comboMemberRequiresTarget = item.type === 'combo'
         && (window.DX3rdComboHandler?.comboMemberEntries?.(actor, item) || []).some(({item: memberItem}) => {
           const memberAction = window.DX3rdComboHandler.comboMemberAction(memberItem, action);
-          return !!memberItem.system?.getTarget
-            || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(memberItem, memberAction);
+          return !!window.DX3rdItemEffectAdapter?.requiresTarget?.(memberItem, memberAction);
         });
       // Some compendium effects are meant to be applied by hand to another actor, not automatically.
       // This flag makes target selection mandatory even when the caller passes getTarget=false,
       // and aborts before any cost is spent if the caster targets themselves.
       const manualTargetOtherOnly = item.getFlag?.('dx3rd-emanim', 'manualTargetOtherOnly') === true;
+      // system.getTarget alone does NOT force a pick: the checkbox only routes the target channel to the
+      // selected token (targetForTargetModifiers / applyToTargets), so when no live card would consume a
+      // pick — a stray getTarget:'on' on a self buff, a combo-only modifier, an empty target bucket —
+      // demanding one made the item report "select a target" and die with nothing to apply it to.
+      // The adapter's requiresTarget is the content-aware test (target-modifier buckets and
+      // targetToken/damagedTargets extensions bound to this action), and it already reads the flag
+      // itself when it classifies the target channel.
       const requiresTarget = manualTargetOtherOnly || (getTarget !== undefined
         ? getTarget
-        : (!!item.system?.getTarget
-          || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(item, action)
+        : (!!window.DX3rdItemEffectAdapter?.requiresTarget?.(item, action)
           || comboMemberRequiresTarget));
       
       window.DX3rdDebug.log('DX3rd | handleItemUse target check:', {

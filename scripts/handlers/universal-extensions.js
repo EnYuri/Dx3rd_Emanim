@@ -54,21 +54,35 @@
     /**
      * Should what sits in a combo's member slot (system.effectIds) count as a member?
      *
-     * The only authoring path is the combo sheet's add dropdown, and that offers effects only
-     * (`combo-data.prepareActorEffects`, `combo-sheet-v2._addEffect`), so real data is all effects.
-     * The predicate exists anyway because **the test was split across three places** — the use-count
+     * The predicate exists because **the test was split across three places** — the use-count
      * "check" used `type === 'effect'`, the "increment" excluded only weapons and vehicles, and the "execution"
      * had no filter at all. A macro, migration or module pushing in another type produces the asymmetry of
      * **skipping the check while still incrementing the count and running it**.
      *
-     * Not narrowing it to `=== 'effect'` is deliberate. Narrowing would silently drop an execution that runs today
-     * in an old world containing another type. Keeping it wide costs at worst one extra check, and that check
-     * warns rather than blocks under the default settings (`reportUsageExhausted`).
+     * Not narrowing it to `=== 'effect'` is deliberate. The member slot is not effect-only: the combo sheet's
+     * add dropdown offers every item with a 'use' action (isComboMemberOption), and older worlds, macros and
+     * modules may hold yet other types — dropping them would silently skip an execution that runs today.
+     * Keeping it wide costs at worst one extra check, and that check warns rather than blocks under the
+     * default settings (`reportUsageExhausted`).
      * Only weapons and vehicles are excluded, because the weapon slot (`system.weapon`) has its own path through
      * the attack values and attack-used — catching both would process it twice.
      */
     isComboMemberItem(item) {
       return Boolean(item) && !['weapon', 'vehicle'].includes(item.type);
+    },
+
+    /**
+     * May the combo sheet's member-add dropdown offer this item?
+     *
+     * Deliberately narrower than isComboMemberItem: the runtime predicate keeps every stored member working,
+     * while the dropdown should only list items that actually carry a 'use' action — the actor sheet's
+     * actionable set (`actor-sheet-v2._onItemToChat`) minus weapon/vehicle, which belong to the combo's own
+     * weapon slot, and protect, whose item menu never offers a combo (`allowCombo: false`). A stored member
+     * of another type still executes — only what is offered is restricted.
+     */
+    isComboMemberOption(item) {
+      return Boolean(item)
+        && ['effect', 'psionic', 'spell', 'book', 'connection', 'etc', 'once'].includes(item.type);
     },
 
     /** A combo's member items. Id normalization, existence checks and the type test all finish in one place. */

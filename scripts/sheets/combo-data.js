@@ -26,6 +26,12 @@
     return normalizeIdList(item.system?.weapon ?? data?.system?.weapon);
   }
 
+  // The runtime's member predicate, with the former effect-only rule as the fallback. The handler module
+  // loads before this file, so the fallback is only a defensive guard for an unusual load order.
+  function isComboMember(item) {
+    return window.DX3rdUniversalHandler?.isComboMemberItem?.(item) ?? item?.type === 'effect';
+  }
+
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, character => ({
       '&': '&amp;',
@@ -61,11 +67,17 @@
     const levelLabel = game.i18n.localize('DX3rd.LevelAbbreviation');
 
     for (const effectId of getEffectIds(item)) {
-      const effect = actor?.items.get(effectId);
-      if (!effect || effect.type !== 'effect') continue;
-      const name = getAutomaticEffectName(effect);
+      const member = actor?.items.get(effectId);
+      if (!isComboMember(member)) continue;
+      // A member of another type has no LV readout — list its name alone.
+      if (member.type !== 'effect') {
+        const memberName = String(member.name || '').trim();
+        if (memberName) parts.push(escapeHtml(memberName));
+        continue;
+      }
+      const name = getAutomaticEffectName(member);
       if (!name) continue;
-      parts.push(`${escapeHtml(name)} ${levelLabel}${getEffectDisplayLevel(effect, actor)}`);
+      parts.push(`${escapeHtml(name)} ${levelLabel}${getEffectDisplayLevel(member, actor)}`);
     }
 
     for (const weaponId of getWeaponIds(item)) {
@@ -1014,7 +1026,7 @@
     const ids = new Set();
     if (!actor) return ids;
     for (const it of actor.items) {
-      if (it.type === 'effect' && it.system?.active?.state === true) {
+      if (isComboMember(it) && it.system?.active?.state === true) {
         ids.add(it.id);
       }
     }
@@ -1022,7 +1034,8 @@
       if (eff.disabled) continue;   // a disabled AE is not in the total → the combo has to add it
       const itemId = eff.getFlag?.('dx3rd-emanim', 'applied')?.itemId;
       if (!itemId) continue;
-      if (actor.items?.get(itemId)?.type === 'effect') ids.add(itemId);
+      // An applied AE can come from any member type (a 'once' item's on-use channel too), not only effects.
+      if (isComboMember(actor.items?.get(itemId))) ids.add(itemId);
     }
     return ids;
   }
@@ -1031,7 +1044,8 @@
     const persistent = getPersistentEffectIds(actor);
     for (const effectId of normalizeIdList(effectIds)) {
       const effectItem = actor?.items.get(effectId);
-      if (!effectItem || effectItem.type !== 'effect') continue;
+      // Members of other types fire their use bucket at runtime, so the preview must read them too.
+      if (!isComboMember(effectItem)) continue;
 
       // An independently active effect prepareData is already applying persistently is excluded (preventing double counting).
       if (persistent.has(effectId)) continue;
@@ -1089,9 +1103,14 @@
     data.actorEffect = {};
     if (!actor) return;
 
-    const effectItems = actor.items.filter(item => item.type === 'effect')
+    // The member slot is not effect-only — every item with a 'use' action may be combined, and the
+    // runtime (isComboMemberItem) already executes them. isComboMemberOption names the offerable set;
+    // with the handler absent the former effect-only list is the safer fallback than offering nothing.
+    const isMemberOption = window.DX3rdUniversalHandler?.isComboMemberOption;
+    const memberItems = actor.items
+      .filter(item => (isMemberOption ? isMemberOption(item) : item.type === 'effect'))
       .sort((a, b) => (a.sort || 0) - (b.sort || 0));
-    effectItems.forEach(item => {
+    memberItems.forEach(item => {
       data.actorEffect[item.id] = item.name;
     });
   }
@@ -1349,6 +1368,7 @@
     calculateEncroachment,
     calculateSubmittedAttack,
     prepareSubmittedCombatValues,
+    prepareActorEffectOptions,
     addRegisteredEffect,
     computeInheritedComboFields,
     computeInheritedWeaponFields,

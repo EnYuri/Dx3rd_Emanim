@@ -470,18 +470,10 @@ window.DX3rdChatToggleManager = {
             event.preventDefault();
             event.stopPropagation();
 
-            // Read the getTarget information (from the data attribute)
+            // Read the getTarget information (from the data attribute) — only a fallback hint;
+            // the resolved item's own content decides whether a pick is actually needed.
             const getTargetAttr = button.dataset.getTarget;
             const getTarget = getTargetAttr === true || getTargetAttr === 'true';
-            
-            // With getTarget checked, verify the target
-            if (getTarget) {
-                const targets = Array.from(game.user.targets);
-                if (targets.length === 0) {
-                    ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
-                    return;
-                }
-            }
             
             // Find the message
             const messageElement = button.closest('.message');
@@ -564,6 +556,16 @@ window.DX3rdChatToggleManager = {
             const item = actor.items.get(itemId);
             if (!item) {
                 ui.notifications.error('아이템을 찾을 수 없습니다.');
+                return;
+            }
+
+            // Verify the target only when something would consume the pick — the same content-aware
+            // test as handleItemUse. A stray getTarget flag with an empty target channel must not
+            // strand the invoke.
+            const needsTarget = window.DX3rdItemEffectAdapter?.requiresTarget?.(item)
+                ?? (itemData.getTarget === true || getTarget);
+            if (needsTarget && !(game.user.targets?.size > 0)) {
+                ui.notifications.warn(game.i18n.localize('DX3rd.SelectTarget'));
                 return;
             }
             

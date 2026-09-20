@@ -551,8 +551,9 @@
         ? extensions.condition
         : (extensions.condition ? [extensions.condition] : []);
       const cards = Array.isArray(extensions.cards) ? extensions.cards : [];
+      const riderExtensions = Array.isArray(extensions.riderExtensions) ? extensions.riderExtensions : [];
       const allEntries = [extensions.heal, extensions.damage, extensions.statusClear, ...conditions,
-        ...cards.map(card => card.data)].filter(Boolean);
+        ...cards.map(card => card.data), ...riderExtensions.map(entry => entry.data)].filter(Boolean);
       const includesSelf = allEntries.some(data => {
         const target = data.target || 'self';
         return target === 'self' || target === 'targetAll';
@@ -562,33 +563,35 @@
       const actor = game.actors.get(request.attackerId);
       if (!actor) return damagedActorIds;
       const item = actor.items.get(request.itemId) || null;
-      const withTargets = data => ({
+      // sourceItem defaults to the request's own item; rider extensions pass their source item so
+      // formulas ([level], attribute references) and the afterMain re-queue read that item.
+      const withTargets = (data, sourceItem = item, sourceName = null) => ({
         ...data,
         ...window.DX3rdRuntimeUtils.resolveAfterDamageTarget(
           data?.target,
           damagedTokenIds,
           data?.selectedTargetIds || []
         ),
-        triggerItemName: request.triggerItemName || item?.name || null,
-        triggerItemId: request.itemId
+        triggerItemName: sourceName || request.triggerItemName || sourceItem?.name || null,
+        triggerItemId: sourceItem?.id || request.itemId
       });
-      const execute = async (type, rawData) => {
+      const execute = async (type, rawData, sourceItem = item, sourceName = null) => {
         if (!rawData) return;
         const authoredTarget = rawData.target || 'self';
         if ((authoredTarget === 'targetToken' || authoredTarget === 'damagedTargets')
             && damagedTokenIds.length === 0) return;
-        const data = withTargets(rawData);
+        const data = withTargets(rawData, sourceItem, sourceName);
         if (data.timing === 'afterMain') {
-          if (item?.system?.active?.runTiming === 'afterDamage') {
-            await this.addToAfterMainQueue(actor, data, item, type);
+          if (sourceItem?.system?.active?.runTiming === 'afterDamage') {
+            await this.addToAfterMainQueue(actor, data, sourceItem, type);
           }
           return;
         }
-        if (type === 'heal') await this.executeHealExtensionNow(actor, data, item);
-        else if (type === 'damage') await this.executeDamageExtensionNow(actor, data, item);
-        else if (type === 'statusClear') await this.executeStatusClearExtension(actor, data, item);
-        else if (type === 'condition') await this.executeConditionExtensionNow(actor, data, item);
-        else await this.executeItemExtension(actor, type, data, item);
+        if (type === 'heal') await this.executeHealExtensionNow(actor, data, sourceItem);
+        else if (type === 'damage') await this.executeDamageExtensionNow(actor, data, sourceItem);
+        else if (type === 'statusClear') await this.executeStatusClearExtension(actor, data, sourceItem);
+        else if (type === 'condition') await this.executeConditionExtensionNow(actor, data, sourceItem);
+        else await this.executeItemExtension(actor, type, data, sourceItem);
       };
 
       await execute('heal', extensions.heal);
@@ -596,6 +599,10 @@
       await execute('statusClear', extensions.statusClear);
       for (const condition of conditions) await execute('condition', condition);
       for (const card of cards) await execute(card.type, card.data);
+      for (const riderExtension of riderExtensions) {
+        const riderItem = riderExtension.itemId ? (actor.items.get(riderExtension.itemId) || null) : null;
+        await execute(riderExtension.type, riderExtension.data, riderItem, riderExtension.itemName);
+      }
       return damagedActorIds;
     },
 
@@ -613,10 +620,29 @@
         ? foundry.utils.deepClone(attackAfterDamageRiders)
         : [];
 
+      // Extensions armed by preparation items used before this attack (a minor-action effect whose
+      // payload fires on damage, e.g. a condition on the damaged token). They join this request's extension
+      // queue so they resolve against damaged targets; each keeps its source item for [level] context.
+      // The attack item's own extensions are read live below, so its fromAttackItem rider carries none.
+      const riderExtensions = [];
+      for (const rider of pendingAttackRiders) {
+        if (rider?.fromAttackItem === true) continue;
+        for (const ext of Array.isArray(rider?.extensions) ? rider.extensions : []) {
+          if (!ext?.type || !ext?.data) continue;
+          riderExtensions.push({
+            itemId: rider.itemId,
+            itemName: rider.itemName,
+            type: ext.type,
+            data: ext.data
+          });
+        }
+      }
+
       // ===== Request registration in the extension queue (to the GM) =====
-      // Combos are merged and handled in processComboAfterDamage, so they are excluded
-      if (item && item.type !== 'combo') {
-        const itemExtend = item.getFlag('dx3rd-emanim', 'itemExtend') || {};
+      // Combos are merged and handled in processComboAfterDamage, so their own extensions are excluded —
+      // extensions riding from separately-used items still register.
+      if (item && (item.type !== 'combo' || riderExtensions.length > 0)) {
+        const itemExtend = item.type === 'combo' ? {} : (item.getFlag('dx3rd-emanim', 'itemExtend') || {});
         const attackMatches = (kind, data) => !window.DX3rdItemEffectAdapter
           || window.DX3rdItemEffectAdapter.extensionActionMatches(item, kind, data, 'attack', 'afterDamage');
         // Check the afterDamage timing
@@ -629,7 +655,8 @@
           (item.system.active?.runTiming === 'afterDamage' && entry.data?.timing === 'afterMain'));
         const hasCondAfterDamage = condEntriesForAttack.some(c => c.timing === 'afterDamage');
         const hasCondAfterMain = condEntriesForAttack.some(c => c.timing === 'afterMain');
-        const hasAfterDamageExtension = 
+        const hasAfterDamageExtension =
+          riderExtensions.length > 0 ||
           (itemExtend.heal?.activate && itemExtend.heal?.timing === 'afterDamage' && attackMatches('heal', itemExtend.heal)) ||
           (itemExtend.damage?.activate && itemExtend.damage?.timing === 'afterDamage' && attackMatches('damage', itemExtend.damage)) ||
           (itemExtend.statusClear?.activate && itemExtend.statusClear?.timing === 'afterDamage' && attackMatches('statusClear', itemExtend.statusClear)) ||
@@ -685,7 +712,8 @@
                   );
                   return match.length > 0 ? match : null;
                 })(),
-                cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
+                cards: queuedCards.map(entry => ({type: entry.type, data: entry.data})),
+                riderExtensions
               },
               triggerItemName: item.name,
               itemRunTiming: itemRunTiming,  // store the item's runTiming
@@ -733,7 +761,8 @@
                     ));
                     return match.length > 0 ? match : null;
                   })(),
-                  cards: queuedCards.map(entry => ({type: entry.type, data: entry.data}))
+                  cards: queuedCards.map(entry => ({type: entry.type, data: entry.data})),
+                  riderExtensions
                 },
                 triggerItemName: item.name
               }

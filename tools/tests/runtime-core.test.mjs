@@ -500,6 +500,69 @@ test('a preparation item freezes onto one attack card and reaches only actors th
   }]);
 });
 
+test('a preparation item with afterDamage extensions arms a rider even without a target bucket', async () => {
+  const flags = new Map();
+  // 맹독 물방울 형태: 수정치 채널이 비어 있고 payload 전체가 afterDamage 조건 익스텐션
+  const sourceItem = {
+    id: 'venom1', name: '맹독 물방울', type: 'effect',
+    system: {
+      attackRoll: '-',
+      active: {state: false, disable: '-', runTiming: 'instant', action: ''},
+      effect: {disable: 'notCheck', runTiming: 'instant', attributes: {}}
+    },
+    getFlag: (_scope, key) => key === 'itemExtend' ? {
+      condition: {conditions: [
+        {timing: 'afterDamage', target: 'targetToken', type: 'poisoned', poisonedRank: '[level]', activate: true},
+        {timing: 'instant', target: 'self', type: 'fear', activate: true}   // 다른 타이밍은 싣지 않는다
+      ]}
+    } : undefined
+  };
+  const actor = {
+    id: 'attacker', name: '공격자', type: 'character',
+    items: new Map([[sourceItem.id, sourceItem]]),
+    getFlag: (_scope, key) => flags.get(key),
+    setFlag: async (_scope, key, value) => { flags.set(key, structuredClone(value)); },
+    unsetFlag: async (_scope, key) => { flags.delete(key); }
+  };
+  const context = baseContext({
+    game: {
+      actors: new Map([[actor.id, actor]]),
+      user: {isGM: true, targets: new Set()}, macros: {getName: () => null},
+      scenes: {active: null}, settings: {get: () => false},
+      i18n: {localize: key => key, format: key => key}
+    },
+    canvas: {tokens: {get: () => null, placeables: [], controlled: []}},
+    ui: {notifications: {warn: () => {}, error: () => {}, info: () => {}}, windows: {}},
+    Hooks: {once: () => {}, on: () => {}, callAll: () => {}},
+    CONFIG: {statusEffects: []},
+    foundry: {utils: {
+      deepClone: value => structuredClone(value),
+      getProperty: () => undefined
+    }}
+  });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula: () => '0', evaluate: () => 0,
+    isRollTimeKey: () => false, hasDice: () => false
+  };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+
+  const handler = context.DX3rdUniversalHandler;
+  assert.equal(await handler.armPendingAttackRider(actor, sourceItem, 'use'), true,
+    '익스텐션만 있는 준비 아이템도 라이더를 장전해야 한다');
+  const rider = flags.get('pendingAttackRiders')[0];
+  assert.equal(rider.extensions.length, 1);
+  assert.equal(rider.extensions[0].type, 'condition');
+  assert.equal(rider.extensions[0].data.type, 'poisoned');
+
+  // 버킷이 없는 라이더는 명중 경로에서 빈 AE를 쓰지 않는다
+  const applied = [];
+  handler.dispatchItemAttributes = async () => applied.push(1);
+  await handler.processPendingAttackRiders(actor, [rider], ['target'], ['token1']);
+  assert.equal(applied.length, 0, '익스텐션 전용 라이더는 명중 적용 경로에서 아무것도 쓰면 안 된다');
+});
+
 test('accepted after-damage work is never rejected by the already-spent usage counter', () => {
   const damage = source('scripts/handlers/universal-damage-dialog.js').replace(/\s+/g, ' ');
   const main = source('scripts/main.js').replace(/\s+/g, ' ');
@@ -687,6 +750,66 @@ test('a self after-damage extension does not wake target-only siblings when nobo
     }
   });
   assert.deepEqual(calls, ['heal']);
+});
+
+test('rider extensions armed by a preparation item execute on the damaged target with their source item', async () => {
+  const calls = [];
+  const riderItem = {id: 'venom1', name: '맹독 물방울', type: 'effect', system: {}};
+  const actor = {id: 'attacker', name: '공격자', items: new Map([[riderItem.id, riderItem], ['sword', {id: 'sword', name: '검'}]])};
+  const handler = {
+    executeHealExtensionNow: async () => calls.push('heal'),
+    executeDamageExtensionNow: async () => calls.push('damage'),
+    executeStatusClearExtension: async () => calls.push('clear'),
+    executeConditionExtensionNow: async (_actor, data, item) =>
+      calls.push({data, item: item?.id}),
+    executeItemExtension: async () => calls.push('item'),
+    addToAfterMainQueue: async () => calls.push('afterMain')
+  };
+  const context = baseContext({
+    DX3rdUniversalHandler: handler,
+    game: {actors: new Map([[actor.id, actor]])},
+    canvas: {tokens: {placeables: []}}
+  });
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/handlers/universal-damage-dialog.js');
+
+  // 데미지를 입은 공격 — 라이더 익스텐션이 피해 토큰 상관관계로 실행되어야 한다
+  await handler.processAfterDamageExtensionRequest({
+    attackerId: actor.id,
+    itemId: 'sword',
+    targetActorIds: ['victim'],
+    targetTokenIds: ['token1'],
+    damageReports: {token1: {targetTokenId: 'token1', actorId: 'victim', hpChange: 5, attackHit: true}},
+    extensions: {
+      riderExtensions: [{
+        itemId: 'venom1', itemName: '맹독 물방울', type: 'condition',
+        data: {timing: 'afterDamage', target: 'targetToken', type: 'poisoned', poisonedRank: '[level]', activate: true}
+      }]
+    }
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].item, 'venom1', '라이더 익스텐션은 공격 아이템이 아니라 원본 아이템 컨텍스트로 실행되어야 한다');
+  assert.equal(calls[0].data.target, 'targetToken');
+  assert.deepEqual(plain(calls[0].data.selectedTargetIds), ['token1']);
+  assert.equal(calls[0].data.triggerItemName, '맹독 물방울');
+  assert.equal(calls[0].data.triggerItemId, 'venom1');
+
+  // 피해가 없으면 targetToken 라이더 익스텐션은 실행되지 않는다
+  calls.length = 0;
+  await handler.processAfterDamageExtensionRequest({
+    attackerId: actor.id,
+    itemId: 'sword',
+    targetActorIds: ['victim'],
+    targetTokenIds: ['token1'],
+    damageReports: {token1: {targetTokenId: 'token1', actorId: 'victim', hpChange: 0, attackHit: true}},
+    extensions: {
+      riderExtensions: [{
+        itemId: 'venom1', itemName: '맹독 물방울', type: 'condition',
+        data: {timing: 'afterDamage', target: 'targetToken', type: 'poisoned', activate: true}
+      }]
+    }
+  });
+  assert.equal(calls.length, 0, 'HP 피해가 없으면 실행되지 않아야 한다');
 });
 
 test('cancelled and expired after-damage requests release both queues', () => {
@@ -885,8 +1008,57 @@ test('temporary and saved combos keep member target requirements before paying c
     '콤보는 일반 구성 아이템뿐 아니라 무기 슬롯도 검사해야 한다');
   assert.ok(handler.includes("window.DX3rdItemEffectAdapter?.requiresTarget?.(memberItem, memberAction)"),
     '활성화 전용 카드가 아니라 구성 멤버의 역할 액션 카드만 대상 요구를 만들어야 한다');
-  assert.ok(handler.includes("!!item.system?.getTarget || !!window.DX3rdItemEffectAdapter?.requiresTarget?.(item, action) || comboMemberRequiresTarget"),
-    '명시 getTarget=true가 어댑터의 false 결과에 덮이면 안 된다');
+  assert.ok(handler.includes("!!window.DX3rdItemEffectAdapter?.requiresTarget?.(item, action) || comboMemberRequiresTarget"),
+    '대상 요구는 어댑터의 내용 판정과 멤버 검사로만 이뤄져야 한다');
+  assert.ok(!handler.includes("!!item.system?.getTarget || !!window.DX3rdItemEffectAdapter"),
+    'getTarget 플래그만으로 대상 선택을 강제하면 내용 없는 아이템의 사용이 죽는다');
+});
+
+test('the standalone target gate follows consumable target content, not the checkbox', () => {
+  const { adapter } = equipmentHookContext();
+  const base = {
+    type: 'effect',
+    getFlag: () => undefined,
+    system: {
+      roll: '-', difficulty: '자동성공', skill: '-', timing: 'major',
+      active: { state: false, disable: '-', runTiming: 'instant', applyMode: 'onUse' },
+      attributes: {}
+    }
+  };
+
+  // 실측된 형태: getTarget:'on'이 붙은 채 대상 채널이 비어 있는 아이템(거인의 생명·파워 부스터).
+  // 선택된 토큰을 소비하는 것이 아무것도 없으므로 사용은 대상 없이 성립해야 한다.
+  const deadGate = {...base, system: {...base.system, getTarget: true, target: '단독',
+    effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }}};
+  assert.equal(adapter.requiresTarget(deadGate, 'use'), false,
+    '대상 채널이 비었으면 getTarget 플래그가 있어도 대상을 요구하지 않는다');
+
+  // 대상=자신인데 getTarget이 잡혀 있는 자기 전용 익스텐션(꼬리를 무는 뱀) — 캔버스 토큰 없이도 쓸 수 있어야 한다.
+  const selfExt = {...base, system: {...base.system, getTarget: true, target: '자신',
+    effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }},
+    getFlag: () => ({heal: {activate: true, timing: 'instant', target: 'self', formulaAdd: '1d10'}})};
+  assert.equal(adapter.requiresTarget(selfExt, 'use'), false,
+    '자기 대상 익스텐션만 있으면 대상 선택을 요구하지 않는다');
+
+  // 살아 있는 대상 보정(전술·어드바이스) — 선택 없이 쓰면 적용될 곳이 없으므로 여전히 막힌다.
+  const liveTarget = {...base, system: {...base.system, getTarget: true, target: '단독',
+    effect: { disable: 'major', runTiming: 'instant',
+      attributes: { t1: { key: 'major_dice', value: '+[레벨]' } } }}};
+  assert.equal(adapter.requiresTarget(liveTarget, 'use'), true,
+    '살아 있는 대상 보정이 있으면 대상 선택을 계속 요구한다');
+
+  // 플래그 없이도 targetToken 익스텐션은 대상을 요구한다(익스텐션 자체가 대상 지정을 저작한다).
+  const extDriven = {...base, system: {...base.system, getTarget: false,
+    effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }},
+    getFlag: () => ({heal: {activate: true, timing: 'instant', target: 'targetToken', formulaAdd: '1d10'}})};
+  assert.equal(adapter.requiresTarget(extDriven, 'use'), true,
+    'targetToken 익스텐션은 getTarget 플래그 없이도 대상을 요구한다');
+
+  // 대상 채널이 notCheck면 적용 자체가 안 되므로 게이트도 서지 않는다.
+  const notCheck = {...liveTarget, system: {...liveTarget.system,
+    effect: {...liveTarget.system.effect, disable: 'notCheck'}}};
+  assert.equal(adapter.requiresTarget(notCheck, 'use'), false,
+    'notCheck 대상 채널은 적용되지 않으므로 대상을 요구하지 않는다');
 });
 
 test('combo follow-up target modifiers use each bucket lifecycle and preserve its action', () => {
@@ -3886,6 +4058,92 @@ test('one predicate decides who counts as a combo member', () => {
     assert.doesNotMatch(source(path), /Object\.values\(rawEffects\)/,
       `${path}: effectIds 해석을 자체 구현하지 말고 normalizeEffectIds 를 쓸 것`);
   }
+});
+
+test('the combo member dropdown offers every usable item type, not only effects', () => {
+  // 「판정 없이 그냥 사용」하는 아이템(once 소모품, etc, connection, …)은 「사용」 액션이 있는데도
+  // 드롭다운이 effect 만 나열해서 콤보에 넣을 방법이 없었다 — 리저렉트가 된 것은 effect 타입이라서다.
+  const context = baseContext({ Hooks: { once() {}, on() {} } });
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  const handler = context.DX3rdUniversalHandler;
+
+  // 후보로 올리는 것은 전부 실행 가능한 멤버여야 한다 — 후보 ⊂ 멤버 불변식.
+  for (const type of ['effect', 'psionic', 'spell', 'book', 'connection', 'etc', 'once']) {
+    assert.equal(handler.isComboMemberOption({type}), true, `${type} 는 멤버 후보여야 한다`);
+    assert.equal(handler.isComboMemberItem({type}), true, `${type} 는 실행 멤버여야 한다`);
+  }
+  // 무기/비클은 무기 슬롯(system.weapon) 경로가 따로 있고, 방어구는 사용 메뉴가 콤보를 제공하지
+  // 않는다(_onItemToChat 의 allowCombo). 나머지 타입에는 사용 액션 자체가 없다.
+  for (const type of ['weapon', 'vehicle', 'protect', 'combo', 'works', 'syndrome', 'rois', 'record']) {
+    assert.equal(handler.isComboMemberOption({type}), false, `${type} 은 멤버 후보가 아니어야 한다`);
+  }
+
+  // 드롭다운이 공용 판정을 거치지 않으면 런타임과 다시 어긋난다.
+  const comboData = source('scripts/sheets/combo-data.js').replace(/\s+/g, ' ');
+  assert.match(comboData, /isComboMemberOption/,
+    '멤버 추가 드롭다운은 공용 판정 isComboMemberOption 을 써야 한다');
+  assert.doesNotMatch(comboData, /items\.filter\(item => item\.type === 'effect'\)/,
+    '드롭다운이 effect 타입으로 다시 좁히면 안 된다');
+});
+
+test('the combo sheet member options include non-effect usable items', () => {
+  const context = baseContext({ Hooks: { once() {}, on() {} } });
+  context.DX3rdItemSheetData = {};
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  load(context, 'scripts/sheets/combo-data.js');
+
+  const make = (type, i) => ({id: `${type}-${i}`, name: `${type}-${i}`, type, sort: i});
+  const items = [
+    make('effect', 1), make('once', 2), make('etc', 3), make('connection', 4),
+    make('spell', 5), make('psionic', 6), make('book', 7),
+    make('weapon', 8), make('vehicle', 9), make('protect', 10),
+    make('combo', 11), make('rois', 12)
+  ];
+  const data = {};
+  context.DX3rdComboData.prepareActorEffectOptions(data, {items});
+
+  assert.deepEqual(Object.keys(data.actorEffect).sort(), [
+    'effect-1', 'once-2', 'etc-3', 'connection-4', 'spell-5', 'psionic-6', 'book-7'
+  ].sort());
+});
+
+test('the combo preview counts non-effect members and their live applied effects', () => {
+  // 런타임은 멤버의 사용 버킷을 타입 무관하게 발화한다 — 미리보기가 effect 만 세면
+  // once 멤버의 +수정치가 시트 숫자에서 빠진다. 그리고 사용으로 이미 걸려 있는 적용 AE 는
+  // 타입과 무관하게 「이미 적용 중」으로 빠져야 한다(이중 계산 방지).
+  const context = baseContext({
+    game: { i18n: { localize: key => key }, user: { targets: new Set() } },
+    foundry: { utils: { deepClone: value => structuredClone(value) } },
+    Hooks: { once() {}, on() {} }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-extensions.js');
+  load(context, 'scripts/sheets/combo-data.js');
+  context.DX3rdFormulaEvaluator = { evaluate: value => Number(value) || 0 };
+  const comboData = context.DX3rdComboData;
+
+  const member = {
+    id: 'once-1', name: '소모품', type: 'once',
+    system: {
+      active: { state: false, disable: 'session', runTiming: 'instant', applyMode: 'onUse' },
+      attributes: { a0: { key: 'add', value: '2' } }
+    },
+    getFlag: () => ({})
+  };
+  const actor = { id: 'a1', items: new Map([[member.id, member]]), effects: [] };
+  actor.items[Symbol.iterator] = function* () { yield* this.values(); };
+  const rollContext = { rollType: 'major', isAbility: false, skillKey: 'melee', effectiveBaseKey: 'body' };
+
+  let bonus = comboData.calculateRegisteredEffectRollBonus(actor, [member.id], rollContext, 10, 'use');
+  assert.equal(bonus.add, 2, 'once 멤버의 사용 수정치도 미리보기에 합산되어야 한다');
+
+  // 이미 적용 중(applyMode onUse 로 남은 AE)이면 미리보기에서 빠진다 — effect 와 같은 규칙.
+  actor.effects = [{ disabled: false, getFlag: (_s, k) => (k === 'applied' ? { itemId: member.id } : undefined) }];
+  bonus = comboData.calculateRegisteredEffectRollBonus(actor, [member.id], rollContext, 10, 'use');
+  assert.equal(bonus.add, 0, '적용 중인 멤버는 이중 계산하면 안 된다');
 });
 
 test('combo members preserve prior use and attack behavior while blocking activation', () => {
