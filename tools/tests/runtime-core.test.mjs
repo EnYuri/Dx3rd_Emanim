@@ -1720,14 +1720,14 @@ test('instant combo body follow-ups use the embedded source first and a serializ
 
 test('item handler failures and static roll errors are rejected before completion', () => {
   const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
-  const preflight = handler.indexOf('if (!this.validateItemUsePreflight(actor, item, itemType, action))');
+  const preflight = handler.indexOf('if (!skipHandlerDispatch && !this.validateItemUsePreflight(actor, item, itemType, action))');
   const cost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, { action,', preflight);
   assert.ok(preflight >= 0 && cost > preflight,
     '판정 설정 오류는 침식치·HP·사용 횟수를 쓰기 전에 거절해야 한다');
   assert.ok(handler.includes('if (handlerResult === false) return false;'),
     '타입 핸들러의 명시적 실패를 채팅 완료 표시와 임시 콤보 정리까지 전파해야 한다');
 
-  const modeChoice = handler.indexOf("if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined)");
+  const modeChoice = handler.indexOf("if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined && !skipHandlerDispatch)");
   const firstCost = handler.indexOf('const usageAllowed = await this.processItemUsageCost(actor, item, { action,');
   assert.ok(modeChoice >= 0 && firstCost > modeChoice,
     '커넥션/마도서의 취소·콤보 선택은 비용 지불 전에 끝나야 한다');
@@ -3385,6 +3385,30 @@ test('compendium sync keeps hand edits and only takes what the compendium actual
   // 모든 아이템이 삭제·재생성된다.
   const stampedOnly = mergeReplacement(worldItem(v1), packDoc(v1));
   assert.deepEqual(plain(leafChanges(worldItem(v1), stampedOnly.data)), []);
+
+  // ⑦ 기준선이 찍힌 뒤에 스키마가 추가한 필드. DataModel 이 로드 시 기본값을 채워 넣으므로
+  // 「기준선에 없다 + 지금은 값이 있다」가 곧 사용자 저작은 아니다. 기본값 그대로면 받아야 한다 —
+  // 받지 못하면 같은 마이그레이션이 지운 근사 행만 사라지고 대체 선언이 오지 않아 효과가 증발한다.
+  context.CONFIG = {
+    Item: { dataModels: { weapon: { cleanData: () => ({ rollModifier: { enabled: false, value: '' } }) } } }
+  };
+  const declared = mergeReplacement(
+    worldItem({ attack: 1, guard: 2, description: '원문', rollModifier: { enabled: false, value: '' } },
+      { 'dx3rd-emanim': { syncBaseline: baseline } }),
+    packDoc({ attack: 1, guard: 2, description: '원문', rollModifier: { enabled: true, value: '-[level]' } })
+  );
+  assert.deepEqual(plain(declared.conflicts), [], '건드린 적 없는 새 필드는 충돌이 아니다');
+  assert.equal(declared.data.system.rollModifier.enabled, true, '새 선언은 그대로 도착해야 한다');
+  assert.equal(declared.data.system.rollModifier.value, '-[level]');
+
+  // 반대로 그 새 필드를 사용자가 실제로 저작했으면 그것은 충돌이고, 기본은 현재 값 유지다.
+  const authored = mergeReplacement(
+    worldItem({ attack: 1, guard: 2, description: '원문', rollModifier: { enabled: true, value: '-99' } },
+      { 'dx3rd-emanim': { syncBaseline: baseline } }),
+    packDoc({ attack: 1, guard: 2, description: '원문', rollModifier: { enabled: true, value: '-[level]' } })
+  );
+  assert.deepEqual(plain(authored.conflicts), ['system.rollModifier.value']);
+  assert.equal(authored.data.system.rollModifier.value, '-99');
 });
 
 // applied-toggle 하네스: 토글 AE 동기화의 경합/배치/상시 자동활성을 실물 모듈로 검증한다.

@@ -2061,7 +2061,13 @@
       // the shared cost gate so cancelling — or merely opening the builder — costs nothing.
       const connectionHasRoll = itemType === 'connection'
         && item.system?.skill && item.system.skill !== '-';
-      if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined) {
+      // A roll-intervention declaration uses the item from *inside* an ongoing roll. Everything a
+      // use owes still happens — cost, count, self modifiers, macros, target modifiers, extensions,
+      // the afterMain queue — but every step that would start a **new roll** is skipped, because
+      // that would re-enter DX3rdRollInterventions.resolve inside itself. That is the per-type
+      // dispatch below, and this chooser, which exists only to decide how to roll.
+      const skipHandlerDispatch = options.skipHandlerDispatch === true;
+      if ((connectionHasRoll || itemType === 'book') && options.comboMode === undefined && !skipHandlerDispatch) {
         if (typeof window.DX3rdChooseRollMode !== 'function') {
           ui.notifications.error(game.i18n.localize('DX3rd.DialogV2Unavailable'));
           return false;
@@ -2186,7 +2192,12 @@
         window.DX3rdDebug.log('DX3rd | Target check passed -', targets.length, 'targets selected');
       }
 
-      if (!this.validateItemUsePreflight(actor, item, itemType, action)) {
+      // Preflight rejects a **roll setup** error before any cost is spent — an unresolvable skill,
+      // a missing 〈크툴루 신화〉, a combo that cannot roll. The rollless mode produces no roll, so
+      // there is nothing to validate and rejecting here would refuse legal declarations: the nine
+      // 〈정보: …〉 connections (《UGN첩보부》 류) carry their own skill key, and a reroll of a check
+      // the actor has **already made** must not be blocked because that key does not resolve on them.
+      if (!skipHandlerDispatch && !this.validateItemUsePreflight(actor, item, itemType, action)) {
         window.DX3rdDebug.log('DX3rd | handleItemUse - Type preflight rejected:', item.name);
         return false;
       }
@@ -2349,7 +2360,7 @@
         'rois': window.DX3rdRoisHandler
       };
       
-      const handler = handlerMap[itemType];
+      const handler = skipHandlerDispatch ? null : handlerMap[itemType];
       // For an attack-capable item, a separate 'use' action fires only its attached effects.
       // Calling the type handler here would re-enter the attack roll and collapse that separation.
       const effectOnlyUse = action === 'use' && window.DX3rdItemEffectAdapter?.isAttackItem(item);
@@ -2382,7 +2393,7 @@
           ui.notifications.error(`${item.name}: ${game.i18n.localize('DX3rd.Use')} ${game.i18n.localize('DX3rd.Unable')} (${e?.message || e})`);
           return false;
         }
-      } else if (!effectOnlyUse) {
+      } else if (!effectOnlyUse && !skipHandlerDispatch) {
         console.warn(`DX3rd | handleItemUse - No handler registered for itemType: ${itemType}`);
       }
 

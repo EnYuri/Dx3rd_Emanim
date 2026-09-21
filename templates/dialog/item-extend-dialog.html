@@ -32,6 +32,7 @@
         {{/ifEquals}}
         <button type="button" class="sub-tab" data-tab="defenseBypass">{{localize "DX3rd.BypassDefenseLabel"}}</button>
         <button type="button" class="sub-tab" data-tab="rollIntervention">{{localize "DX3rd.RollRedefine"}}</button>
+        <button type="button" class="sub-tab" data-tab="rollModifier">{{localize "DX3rd.RollModifier"}}</button>
     </div>
 </div>
 {{/unless}}
@@ -307,6 +308,91 @@
             </div>
             <div class="form-label" title="{{localize "DX3rd.RollInterventionHintSkillKey"}}">{{localize "DX3rd.Skill"}}</div>
             <div><input type="text" name="riSkillKey" value="{{item.system.rollIntervention.skillKey}}"></div>
+        </div>
+    </section>
+    {{/if}}
+
+    {{!-- 선/후 보정 — 「대상이 판정을 실행하기 직전/직후에 사용할 것」 계열. 굴림 재정의가 다이스 눈을
+         고치는 것과 달리 이쪽은 다이스 수·크리티컬치·달성치 자체를 고친다. 저작 축이 시점·무엇·얼마
+         뿐이라 페인도 그 세 줄이 중심이고, 나머지는 후보를 좁히는 조건이다. --}}
+    {{#if showRollModifier}}
+    <section class="content-section" id="rollModifier-content">
+        <div class="form-grid">
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintEnabled"}}">{{localize "DX3rd.RollInterventionEnabled"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="rmEnabled" {{#if item.system.rollModifier.enabled}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintTiming"}}">{{localize "DX3rd.RollModifierTiming"}}</div>
+            <div>
+                <select name="rmTiming">
+                    {{#select item.system.rollModifier.timing}}
+                    <option value="before">{{localize "DX3rd.RollModifierTimingBefore"}}</option>
+                    <option value="after">{{localize "DX3rd.RollModifierTimingAfter"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintScope"}}">{{localize "DX3rd.RollModifierScope"}}</div>
+            <div>
+                <select name="rmScope">
+                    {{#select item.system.rollModifier.scope}}
+                    <option value="dice">{{localize "DX3rd.RollModifierScopeDice"}}</option>
+                    <option value="critical">{{localize "DX3rd.RollModifierScopeCritical"}}</option>
+                    <option value="achievement">{{localize "DX3rd.RollModifierScopeAchievement"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintValue"}}">{{localize "DX3rd.RollModifierValue"}}</div>
+            <div><input type="text" name="rmValue" value="{{item.system.rollModifier.value}}" placeholder="-[level]"></div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintFloor"}}">{{localize "DX3rd.RollModifierFloor"}}</div>
+            <div><input type="text" name="rmFloor" value="{{item.system.rollModifier.floor}}" placeholder="-"></div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintKinds"}}">{{localize "DX3rd.RollInterventionKinds"}}</div>
+            <div>
+                <details class="dx3rd-multi-select">
+                    <summary><span class="dx3rd-multi-select-label"></span><i class="fas fa-caret-down"></i></summary>
+                    <div class="dx3rd-multi-select-menu">
+                        <label><input type="checkbox" name="rmKinds" value="check" data-label="{{localize "DX3rd.RollInterventionKindCheck"}}" {{#ifIn item.system.rollModifier.kinds "check"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindCheck"}}</label>
+                        <label><input type="checkbox" name="rmKinds" value="damage" data-label="{{localize "DX3rd.RollInterventionKindDamage"}}" {{#ifIn item.system.rollModifier.kinds "damage"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindDamage"}}</label>
+                        <label><input type="checkbox" name="rmKinds" value="backtrack" data-label="{{localize "DX3rd.RollInterventionKindBacktrack"}}" {{#ifIn item.system.rollModifier.kinds "backtrack"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindBacktrack"}}</label>
+                        <label><input type="checkbox" name="rmKinds" value="sceneEncroachment" data-label="{{localize "DX3rd.RollInterventionKindScene"}}" {{#ifIn item.system.rollModifier.kinds "sceneEncroachment"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindScene"}}</label>
+                    </div>
+                </details>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintSubtypes"}}">{{localize "DX3rd.RollInterventionSubtypes"}}</div>
+            <div>
+                <details class="dx3rd-multi-select">
+                    <summary><span class="dx3rd-multi-select-label"></span><i class="fas fa-caret-down"></i></summary>
+                    <div class="dx3rd-multi-select-menu">
+                        <label><input type="checkbox" name="rmSubtypes" value="major" data-label="{{localize "DX3rd.Major"}}" {{#ifIn item.system.rollModifier.subtypes "major"}}checked{{/ifIn}}> {{localize "DX3rd.Major"}}</label>
+                        <label><input type="checkbox" name="rmSubtypes" value="reaction" data-label="{{localize "DX3rd.Reaction"}}" {{#ifIn item.system.rollModifier.subtypes "reaction"}}checked{{/ifIn}}> {{localize "DX3rd.Reaction"}}</label>
+                        <label><input type="checkbox" name="rmSubtypes" value="dodge" data-label="{{localize "DX3rd.Dodge"}}" {{#ifIn item.system.rollModifier.subtypes "dodge"}}checked{{/ifIn}}> {{localize "DX3rd.Dodge"}}</label>
+                        <label><input type="checkbox" name="rmSubtypes" value="normal" data-label="{{localize "DX3rd.RollInterventionSubtypeNormal"}}" {{#ifIn item.system.rollModifier.subtypes "normal"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionSubtypeNormal"}}</label>
+                        <label><input type="checkbox" name="rmSubtypes" value="double" data-label="{{localize "DX3rd.RollInterventionSubtypeDouble"}}" {{#ifIn item.system.rollModifier.subtypes "double"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionSubtypeDouble"}}</label>
+                    </div>
+                </details>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollModifierHintTarget"}}">{{localize "DX3rd.RollInterventionTarget"}}</div>
+            <div>
+                <select name="rmTarget">
+                    {{#select item.system.rollModifier.target}}
+                    <option value="other">{{localize "DX3rd.RollModifierTargetOther"}}</option>
+                    <option value="self">{{localize "DX3rd.RollInterventionTargetSelf"}}</option>
+                    <option value="any">{{localize "DX3rd.RollInterventionTargetAny"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintPerRollMax"}}">{{localize "DX3rd.RollInterventionPerRollMax"}}</div>
+            <div><input type="number" name="rmPerRollMax" value="{{item.system.rollModifier.perRollMax}}" min="1"></div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintAttackOnly"}}">{{localize "DX3rd.RollInterventionAttackOnly"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="rmAttackOnly" {{#if item.system.rollModifier.attackOnly}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintSkillKey"}}">{{localize "DX3rd.Skill"}}</div>
+            <div><input type="text" name="rmSkillKey" value="{{item.system.rollModifier.skillKey}}"></div>
         </div>
     </section>
     {{/if}}

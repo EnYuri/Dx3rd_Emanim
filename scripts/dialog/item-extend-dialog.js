@@ -25,7 +25,8 @@
         vehicle: {width: 520, height: 360},
         effectSettings: {width: 560, height: 500},
         modifiers: {width: 600, height: 470},
-        rollIntervention: {width: 620, height: 540}
+        rollIntervention: {width: 620, height: 540},
+        rollModifier: {width: 560, height: 430}
     };
 
     function readPosition(key) {
@@ -173,7 +174,8 @@
                 EffectSettings: 'effectSettings', Heal: 'heal', Damage: 'damage', StatusClear: 'statusClear',
                 Condition1: 'condition1', Condition2: 'condition2', Condition3: 'condition3',
                 Weapon: 'weapon', Protect: 'protect', Vehicle: 'vehicle', Modifiers: 'modifiers',
-                DefenseBypass: 'defenseBypass', RollIntervention: 'rollIntervention'
+                DefenseBypass: 'defenseBypass', RollIntervention: 'rollIntervention',
+                RollModifier: 'rollModifier'
             };
             for (const [suffix, editor] of Object.entries(editorVisibility)) {
                 data[`show${suffix}`] = showAll || this.initialEditor === editor;
@@ -431,7 +433,8 @@
             const editor = this.initialEditor;
             const topTab = ['weapon', 'protect', 'vehicle'].includes(editor)
                 ? 'createItem'
-                : (['effectSettings', 'defenseBypass', 'rollIntervention'].includes(editor) ? 'other' : 'affectCharacter');
+                : (['effectSettings', 'defenseBypass', 'rollIntervention', 'rollModifier'].includes(editor)
+                    ? 'other' : 'affectCharacter');
             const subTab = editor || 'heal';
             this.switchTopTab(topTab);
             this.switchSubTab(subTab);
@@ -943,6 +946,28 @@
                         'system.rollIntervention.chooseDelta': this._checked('input[name="riChooseDelta"]'),
                         'system.rollIntervention.automatic': this._checked('input[name="riAutomatic"]'),
                         'system.rollIntervention.oncePerDie': this._checked('input[name="riOncePerDie"]')
+                    });
+                    item.sheet?.render(false);
+                    return;
+                }
+
+                if (sub === 'rollModifier') {
+                    // 선/후 보정도 defenseBypass·rollIntervention 과 같이 system 필드에 직접 쓴다.
+                    // 체크박스는 BooleanField._cast 가 "on" 을 false 로 뒤집으므로 _checked 로 읽는다.
+                    const selected = name => this._queryAll(`input[name="${name}"]:checked`)
+                        .map(input => input.value);
+                    await item.update({
+                        'system.rollModifier.enabled': this._checked('input[name="rmEnabled"]'),
+                        'system.rollModifier.timing': this._value('select[name="rmTiming"]') || 'before',
+                        'system.rollModifier.scope': this._value('select[name="rmScope"]') || 'dice',
+                        'system.rollModifier.value': this._value('input[name="rmValue"]'),
+                        'system.rollModifier.floor': this._value('input[name="rmFloor"]'),
+                        'system.rollModifier.kinds': selected('rmKinds'),
+                        'system.rollModifier.subtypes': selected('rmSubtypes'),
+                        'system.rollModifier.target': this._value('select[name="rmTarget"]') || 'other',
+                        'system.rollModifier.attackOnly': this._checked('input[name="rmAttackOnly"]'),
+                        'system.rollModifier.skillKey': this._value('input[name="rmSkillKey"]'),
+                        'system.rollModifier.perRollMax': Number(this._value('input[name="rmPerRollMax"]')) || 1
                     });
                     item.sheet?.render(false);
                     return;

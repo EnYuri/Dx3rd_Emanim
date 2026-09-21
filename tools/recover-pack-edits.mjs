@@ -178,10 +178,24 @@ function folderPath(folders, id) {
 // 시트에서 한 번 저장하기만 해도 「빌더가 안 실은 값」이 생긴다 — 둘 다 false 면 무변경이다.
 // bypassDefense/restoreDefense: 같은 이유로 접는다 — 스키마가 **모든** 아이템 타입에 채우므로
 // (effect 전용인 conditionExempt 보다 넓다) 접지 않으면 전 팩이 한 번의 저장으로 오버라이드가 된다.
+// rollIntervention/rollModifier: 굴림 개입 선언 둘. 역시 전 타입에 채워지므로 같이 접는다.
+// 키 순서는 `scripts/data/document-schema.js` 의 선언 순서와 같아야 한다 — DataModel 이 그
+// 순서로 내보내고, 이 비교는 JSON.stringify 로 하기 때문이다.
 const DEFAULTS = new Map([["action", ""], ["applyMode", "toggle"], ["state", false], ["macros", []],
                           ["conditionExempt", { pressure: false, berserk: false }],
                           ["bypassDefense", { armor: false, guard: false, reaction: false }],
-                          ["restoreDefense", { armor: false, guard: false, reaction: false }]]);
+                          ["restoreDefense", { armor: false, guard: false, reaction: false }],
+                          ["rollIntervention", {
+                            enabled: false, phase: "afterRoll", kinds: [], subtypes: [], operation: "",
+                            target: "self", selection: "one", waveScope: "all", count: "1", value: "",
+                            perRollMax: 1, skillKey: "", attackOnly: false, requiredItem: "",
+                            requiresPriorUse: false, chooseDelta: false, automatic: false, oncePerDie: false
+                          }],
+                          ["rollModifier", {
+                            enabled: false, timing: "before", scope: "dice", value: "", floor: "",
+                            kinds: [], subtypes: [], target: "other", attackOnly: false, skillKey: "",
+                            perRollMax: 1
+                          }]]);
 
 function same(a, b, key) {
   if (a === b) return true;
@@ -261,7 +275,7 @@ function collect(live, prev, liveFolders, prevFolders) {
   }
 
   for (const k of ["encroach", "hp", "resourceCost", "used", "conditionExempt",
-                     "bypassDefense", "restoreDefense"]) {
+                     "bypassDefense", "restoreDefense", "rollIntervention", "rollModifier"]) {
     if (!same(live.system?.[k], prev.system?.[k], k)) put(k, live.system[k], k);
   }
   if (!same(live.system?.macros, prev.system?.macros, "macros")) put("macros", live.system.macros ?? [], "macros");
@@ -310,7 +324,7 @@ if (audit) {
         if (ov[k] !== undefined && !same(doc.system?.[k], ov[k], k)) bad.push(k);
       }
       for (const k of ["encroach", "hp", "resourceCost", "used", "conditionExempt",
-                     "bypassDefense", "restoreDefense"]) {
+                     "bypassDefense", "restoreDefense", "rollIntervention", "rollModifier"]) {
         if (ov[k] !== undefined && !same(doc.system?.[k], ov[k], k)) bad.push(k);
       }
       if (ov.attributes !== undefined) {

@@ -139,7 +139,7 @@
         const rolledCritical = critical + formulaCritical.total;
         // The chat card shows only the final DX3rd check formula. The expanded auxiliary formulas
         // are already folded into the pool, so they are not repeated on a line of their own.
-        const autoFailByPool = rolledDice <= 0;
+        let autoFailByPool = rolledDice <= 0;
         const finalDice = Math.max(1, rolledDice);
 
         const add2 = add;
@@ -155,9 +155,14 @@
           subtype: rollType,
           skillKey: item.system?.skill || null,
           targets,
-          metadata: {isAttackRoll: true}
+          metadata: {isAttackRoll: true},
+          // The unclamped pool — the formula already reads `1dx…` when it hit zero, so a pre-roll
+          // dice penalty must start from the real count, not from the animation floor.
+          pool: {dice: rolledDice, critical: Math.max(2, rolledCritical)}
         });
         if (!roll) return;
+        // A pre-roll intervention (《재밍》 류) can empty the pool after this dialog did its own math.
+        if (roll.options?.dx3rdIntervention?.autoFail) autoFailByPool = true;
         const rollHtml = await roll.render();
 
         // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.
@@ -1456,7 +1461,7 @@
         // Roll the dice (the encroachment rise was already handled by EffectHandler)
         // Rules (rule-section:39-41): a modified pool of 0 or less auto-fails (achievement 0).
         // At least one die is still rolled for the animation; the result is forced to 0 below.
-        const autoFailByPool = dice <= 0;
+        let autoFailByPool = dice <= 0;
         const finalDice = Math.max(1, dice);
         const add2 = add;
         // Combo/effect attacks keep the weapon's accuracy dice inside this same check roll.
@@ -1470,9 +1475,11 @@
           subtype: rollType,
           skillKey: item?.system?.skill || null,
           targets: Array.from(game.user.targets),
-          metadata: {isAttackRoll}
+          metadata: {isAttackRoll},
+          pool: {dice, critical}
         });
         if (!roll) return;
+        if (roll.options?.dx3rdIntervention?.autoFail) autoFailByPool = true;
         const rollHtml = await roll.render();
 
         // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.

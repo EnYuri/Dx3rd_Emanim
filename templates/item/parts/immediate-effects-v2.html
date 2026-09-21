@@ -42,7 +42,7 @@
           {{#unless (startsWith effect.id "macro.")}}<button type="button" class="dx3rd-effect-delete" data-action="deleteEffectCard" data-effect-id="{{effect.id}}" title="{{localize 'DX3rd.RemoveEffect'}}"><i class="fas fa-trash"></i></button>{{/unless}}
         </div>
         <div class="dx3rd-effect-card-meta">
-          {{#unless (eq effect.kind "rollIntervention")}}
+          {{#unless effect.hideActionBinding}}
           <select class="effect-action-binding" data-effect-id="{{effect.id}}" aria-label="{{localize 'DX3rd.EffectAction'}}">
             {{#each ../effectView.actionOptions as |option|}}<option value="{{option.value}}" {{#if (eq option.value effect.action)}}selected{{/if}}>{{option.label}}</option>{{/each}}
           </select>

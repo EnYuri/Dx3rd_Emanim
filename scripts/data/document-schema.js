@@ -127,6 +127,24 @@
             automatic: false,
             oncePerDie: false
           },
+          // 「대상이 판정을 실행하기 직전/직후에 사용할 것」 계열의 선언. 굴림 재정의(`rollIntervention`)
+          // 가 **다이스 눈**을 만지는 것과 달리, 이쪽은 굴리기 전의 **다이스 수·크리티컬치**와 굴린 뒤의
+          // **달성치** 자체를 만진다 — 저작자가 고를 것이 시점·무엇·얼마뿐이라 별개의 카드로 둔다.
+          // 두 카드는 같은 개입 코어(`DX3rdRollInterventions`)를 통과하며 후보 판정·비용 지불·원격
+          // 승인 경로를 공유한다.
+          rollModifier: {
+            enabled: false,
+            timing: 'before',
+            scope: 'dice',
+            value: '',
+            floor: '',
+            kinds: [],
+            subtypes: [],
+            target: 'other',
+            attackOnly: false,
+            skillKey: '',
+            perRollMax: 1
+          },
           // Attacker side — "this attack ignores the target's armor / guard / reaction".
           // Kept separate from `penetrate`, which is a *numeric* armor reduction that some rules
           // ask for specifically (e.g. 《플래시 스팅어》 "장갑치를 [LVx8]만큼 무시"). These three are

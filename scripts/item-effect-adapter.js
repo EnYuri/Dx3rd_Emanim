@@ -712,8 +712,50 @@
         combinedItem: 'DX3rd.RollInterventionTargetCombinedItem'
       }[intervention.target] || 'DX3rd.RollInterventionTargetSelf');
       card.toggleable = true;
+      // 발현 액션은 이 카드의 축이 아니다 — 발화점이 굴림 그 자체라 액션 드롭다운을 내주지 않는다.
+      card.hideActionBinding = true;
+    }
+    // 선/후 보정은 굴림 재정의와 나란한 **별개의** 즉시 효과 카드다. 같은 개입 코어를 쓰지만
+    // 저작 축이 다르고(눈 vs 다이스 수·달성치) 한 아이템이 둘을 함께 들 수 있으므로 카드도 둘이다.
+    const modifier = item.system?.rollModifier;
+    if (modifier?.enabled) {
+      cards.push(descriptorBase(item, {
+        id: 'rollModifier', family: 'immediate', kind: 'rollModifier',
+        data: {timing: 'instant', target: 'self'},
+        active: true,
+        title: localize('DX3rd.RollModifier'), summary: modifierSummary(modifier),
+        target: 'self', editor: 'rollModifier'
+      }));
+      const card = cards[cards.length - 1];
+      card.triggerLabel = localize(modifier.timing === 'after'
+        ? 'DX3rd.RollModifierTimingAfter'
+        : 'DX3rd.RollModifierTimingBefore');
+      card.targetLabel = localize({
+        self: 'DX3rd.RollInterventionTargetSelf',
+        other: 'DX3rd.RollModifierTargetOther',
+        any: 'DX3rd.RollInterventionTargetAny'
+      }[modifier.target] || 'DX3rd.RollModifierTargetOther');
+      card.toggleable = true;
+      card.hideActionBinding = true;
     }
     return cards;
+  }
+
+  function modifierSummary(config = {}) {
+    const kinds = (Array.isArray(config.kinds) ? config.kinds : [config.kinds].filter(Boolean))
+      .map(kind => localize({
+        check: 'DX3rd.RollInterventionKindCheck',
+        damage: 'DX3rd.RollInterventionKindDamage',
+        backtrack: 'DX3rd.RollInterventionKindBacktrack',
+        sceneEncroachment: 'DX3rd.RollInterventionKindScene'
+      }[kind] || 'DX3rd.RollInterventionKindCheck')).join('/');
+    const scope = localize({
+      dice: 'DX3rd.RollModifierScopeDice',
+      critical: 'DX3rd.RollModifierScopeCritical',
+      achievement: 'DX3rd.RollModifierScopeAchievement'
+    }[config.scope] || 'DX3rd.RollModifierScopeDice');
+    const value = config.value !== '' && config.value != null ? ` ${config.value}` : '';
+    return `${kinds || '-'} · ${scope}${value}`;
   }
 
   function interventionSummary(config = {}) {
@@ -969,6 +1011,14 @@
         : localize('DX3rd.RollRedefine'),
       disabled: interventionAdded
     });
+    const modifierAdded = !!item.system?.rollModifier?.enabled;
+    immediateAddOptions.push({
+      value: 'rollModifier',
+      label: modifierAdded
+        ? `${localize('DX3rd.RollModifier')} (${addedLabel})`
+        : localize('DX3rd.RollModifier'),
+      disabled: modifierAdded
+    });
     const bucketSlotsLeft = freeBucketActions(item, 'self').length + freeBucketActions(item, 'target').length;
     const persistentAddOptions = [
       {value: 'modifiers', label: localize('DX3rd.PersistentModifiers'), disabled: bucketSlotsLeft === 0},
@@ -1212,6 +1262,10 @@
       await item.update({'system.rollIntervention.enabled': !!active});
       return true;
     }
+    if (id === 'rollModifier') {
+      await item.update({'system.rollModifier.enabled': !!active});
+      return true;
+    }
     // 'modifiers' is the card id from when self and target were one card. It is kept after the split —
     // whichever bucket, what gets turned on and off is the one self-modifier state (system.active.state).
     if (id === 'modifiers' || String(id).startsWith('modifiers.self')) {
@@ -1280,6 +1334,12 @@
         await item.update({'system.rollIntervention.enabled': true});
       }
       return 'rollIntervention';
+    }
+    if (kind === 'rollModifier') {
+      if (!item.system?.rollModifier?.enabled) {
+        await item.update({'system.rollModifier.enabled': true});
+      }
+      return 'rollModifier';
     }
     const ext = foundry.utils.deepClone(item.getFlag(SCOPE, 'itemExtend') || {});
     if (family === 'immediate' && DIRECT_TYPES.includes(kind)) {
@@ -1370,6 +1430,10 @@
     if (!item || !id) return false;
     if (id === 'rollIntervention') {
       await item.update({'system.rollIntervention.enabled': false});
+      return true;
+    }
+    if (id === 'rollModifier') {
+      await item.update({'system.rollModifier.enabled': false});
       return true;
     }
     if (String(id).startsWith('modifiers.')) return deleteModifierBucket(item, id);

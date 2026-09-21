@@ -268,6 +268,36 @@
         return map;
     }
 
+    // A field the schema gained **after** this baseline was written has no entry in the baseline at all.
+    // The DataModel materializes it with its initial value the moment the item loads, so "mine differs from
+    // base" is not a user edit there — mine is simply the default nobody has touched. Without this, every new
+    // declaration field (system.rollModifier, system.rollIntervention, bypassDefense…) arrives as a conflict
+    // and is kept at its default, while the rows the compendium removed in the same migration still go away:
+    // the approximation is deleted and the replacement never lands, so the item ends up doing nothing.
+    const defaultLeafCache = new Map();
+    function schemaDefaultLeaves(type) {
+        if (defaultLeafCache.has(type)) return defaultLeafCache.get(type);
+        let leaves = new Map();
+        const model = globalThis.CONFIG?.Item?.dataModels?.[type];
+        try {
+            if (model?.cleanData) leaves = collectLeaves({ system: model.cleanData({}) }, '', new Map());
+        } catch (err) {
+            console.warn(`DX3rd | 스키마 기본값을 읽지 못했다 (${type}):`, err);
+        }
+        defaultLeafCache.set(type, leaves);
+        return leaves;
+    }
+
+    // Only for a path the baseline never knew. A path the baseline *does* carry was compared against a real
+    // recorded value, and a value that merely happens to equal the default there is still a user edit
+    // (they cleared the field the compendium had filled).
+    function untouchedNewField(type, path, mine, mineHash) {
+        if (!mine.has(path)) return false;
+        const defaults = schemaDefaultLeaves(type);
+        if (!defaults.has(path)) return false;
+        return hashValue(defaults.get(path)) === mineHash;
+    }
+
     // The paths the merge never touches (instance state + derived values).
     function reservedPaths(item) {
         return [...PRESERVE, ...(TYPE_PRESERVE[item.type] || []), ...(TYPE_DERIVED[item.type] || [])];
@@ -317,6 +347,8 @@
                     continue;
                 }
                 if (mineHash === base) continue;                // only the compendium changed → take the update
+                // 기준선이 모르는 경로 + 내 값이 스키마 기본값 = 저작한 적이 없다 → 최신을 받는다.
+                if (!baseline.has(path) && untouchedNewField(item.type, path, mine, mineHash)) continue;
                 result.conflicts.push(path);
                 if (!preferCompendium) applyMine();
             }
