@@ -24,7 +24,8 @@
         protect: {width: 500, height: 310},
         vehicle: {width: 520, height: 360},
         effectSettings: {width: 560, height: 500},
-        modifiers: {width: 600, height: 470}
+        modifiers: {width: 600, height: 470},
+        rollIntervention: {width: 620, height: 540}
     };
 
     function readPosition(key) {
@@ -172,7 +173,7 @@
                 EffectSettings: 'effectSettings', Heal: 'heal', Damage: 'damage', StatusClear: 'statusClear',
                 Condition1: 'condition1', Condition2: 'condition2', Condition3: 'condition3',
                 Weapon: 'weapon', Protect: 'protect', Vehicle: 'vehicle', Modifiers: 'modifiers',
-                DefenseBypass: 'defenseBypass'
+                DefenseBypass: 'defenseBypass', RollIntervention: 'rollIntervention'
             };
             for (const [suffix, editor] of Object.entries(editorVisibility)) {
                 data[`show${suffix}`] = showAll || this.initialEditor === editor;
@@ -233,9 +234,12 @@
             // damage conditional / condition kind) have filled values programmatically (later on the same change event).
             root.addEventListener('change', event => {
                 if (!event.target.matches('input, select, textarea')) return;
+                const multi = event.target.closest('.dx3rd-multi-select');
+                if (multi) this._refreshMultiSelectLabels(multi);
                 if (this.currentSubTab === 'modifiers') this._saveModifierInput(event.target);
                 else this._saveCurrentTab();
             }, {signal: this._listeners.signal});
+            this._refreshMultiSelectLabels(root);
 
             // The modifier value field: the validation state is refreshed while typing (warning about a dice formula in a field with no roll point).
             this._on(root, 'input.attribute-value', 'input', (event, target) => this._validateModifierValue(target));
@@ -398,6 +402,19 @@
             return Boolean(this._query(selector, root)?.checked);
         }
 
+        _refreshMultiSelectLabels(root = this._root) {
+            const unrestricted = game.i18n.localize('DX3rd.RollInterventionUnrestricted');
+            const selects = root?.classList?.contains('dx3rd-multi-select')
+                ? [root]
+                : this._queryAll('.dx3rd-multi-select', root);
+            selects.forEach(details => {
+                const labels = this._queryAll('input:checked', details)
+                    .map(input => input.dataset.label || input.value);
+                const span = details.querySelector('.dx3rd-multi-select-label');
+                if (span) span.textContent = labels.join(', ') || unrestricted;
+            });
+        }
+
         _conditionActivation(index) {
             if (this.savedCardData && index === 1) return this.savedCardData.activate !== false;
             const conditions = effectAdapter?.conditionEntries?.(this.savedItemExtend || {}) || [];
@@ -414,7 +431,7 @@
             const editor = this.initialEditor;
             const topTab = ['weapon', 'protect', 'vehicle'].includes(editor)
                 ? 'createItem'
-                : (editor === 'effectSettings' ? 'other' : 'affectCharacter');
+                : (['effectSettings', 'defenseBypass', 'rollIntervention'].includes(editor) ? 'other' : 'affectCharacter');
             const subTab = editor || 'heal';
             this.switchTopTab(topTab);
             this.switchSubTab(subTab);
@@ -896,6 +913,36 @@
                         'system.restoreDefense.armor': this._checked('input[name="restoreDefenseArmor"]'),
                         'system.restoreDefense.guard': this._checked('input[name="restoreDefenseGuard"]'),
                         'system.restoreDefense.reaction': this._checked('input[name="restoreDefenseReaction"]')
+                    });
+                    item.sheet?.render(false);
+                    return;
+                }
+
+                if (sub === 'rollIntervention') {
+                    // Like defenseBypass this pane writes item system fields directly, not the extend flag.
+                    // Checkboxes go through _checked for the same BooleanField reason noted there.
+                    // Multi-value fields are checkbox dropdowns — read the checked boxes, in order.
+                    const selected = name => this._queryAll(`input[name="${name}"]:checked`)
+                        .map(input => input.value);
+                    await item.update({
+                        'system.rollIntervention.enabled': this._checked('input[name="riEnabled"]'),
+                        'system.rollIntervention.phase': this._value('select[name="riPhase"]') || 'afterRoll',
+                        'system.rollIntervention.kinds': selected('riKinds'),
+                        'system.rollIntervention.subtypes': selected('riSubtypes'),
+                        'system.rollIntervention.operation': this._value('select[name="riOperation"]'),
+                        'system.rollIntervention.target': this._value('select[name="riTarget"]') || 'self',
+                        'system.rollIntervention.selection': this._value('select[name="riSelection"]') || 'one',
+                        'system.rollIntervention.waveScope': this._value('select[name="riWaveScope"]') || 'all',
+                        'system.rollIntervention.count': this._value('input[name="riCount"]') || '1',
+                        'system.rollIntervention.value': this._value('input[name="riValue"]'),
+                        'system.rollIntervention.perRollMax': Number(this._value('input[name="riPerRollMax"]')) || 1,
+                        'system.rollIntervention.skillKey': this._value('input[name="riSkillKey"]'),
+                        'system.rollIntervention.requiredItem': this._value('input[name="riRequiredItem"]'),
+                        'system.rollIntervention.attackOnly': this._checked('input[name="riAttackOnly"]'),
+                        'system.rollIntervention.requiresPriorUse': this._checked('input[name="riRequiresPriorUse"]'),
+                        'system.rollIntervention.chooseDelta': this._checked('input[name="riChooseDelta"]'),
+                        'system.rollIntervention.automatic': this._checked('input[name="riAutomatic"]'),
+                        'system.rollIntervention.oncePerDie': this._checked('input[name="riOncePerDie"]')
                     });
                     item.sheet?.render(false);
                     return;

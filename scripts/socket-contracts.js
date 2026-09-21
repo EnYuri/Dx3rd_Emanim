@@ -114,6 +114,23 @@
       && isId(data.executorUserId),
     authorize: ownsActor('payload.sourceActorId')
   });
+  contract('requestRollInterventionUse', {
+    validate: data => isObject(data.payload) && isId(data.payload.requestKey)
+      && isId(data.payload.requesterUserId) && isId(data.payload.rollerActorId)
+      && isId(data.payload.sourceActorId) && isId(data.payload.sourceItemId)
+      && (data.payload.sourceTokenId === null || data.payload.sourceTokenId === undefined
+        || isId(data.payload.sourceTokenId))
+      && (data.payload.requiredItemId === null || data.payload.requiredItemId === undefined
+        || isId(data.payload.requiredItemId))
+      && isId(data.executorUserId),
+    authorize: ownsActor('payload.rollerActorId')
+  });
+  contract('respondRollInterventionUse', {
+    validate: data => isObject(data.payload) && isId(data.payload.requestKey)
+      && isId(data.payload.requesterUserId) && isId(data.payload.sourceActorId)
+      && typeof data.payload.approved === 'boolean',
+    authorize: ownsActor('payload.sourceActorId')
+  });
   contract('addToAfterMainQueue', {
     validate: data => isObject(data.data) && isId(data.data.actorId)
       && ['heal', 'damage', 'condition', 'statusClear'].includes(data.data.extensionType),

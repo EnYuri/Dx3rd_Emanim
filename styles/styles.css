@@ -1,3 +1,104 @@
+.dx3rd-roll-intervention-preview-banner {
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--color-text-dark-secondary, #665b4a);
+  border-bottom: 1px dashed var(--color-border-dark, #999);
+}
+
+.dx3rd-roll-intervention-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 52px);
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.dx3rd-roll-intervention-dialog .form-footer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: stretch;
+  gap: 6px;
+}
+
+.dx3rd-roll-intervention-dialog .form-footer > button {
+  height: auto;
+  min-height: 40px;
+  min-width: 0;
+  padding: 6px 8px;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dx3rd-roll-intervention-die {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  color: #111;
+  background: center / 48px 48px no-repeat url("/icons/svg/d10-grey.svg");
+  border: 0;
+  border-radius: 8px;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 55%));
+  cursor: pointer;
+  transition: transform 100ms ease, filter 100ms ease;
+}
+
+.dx3rd-roll-intervention-die input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dx3rd-roll-intervention-face {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 65%);
+}
+
+.dx3rd-roll-intervention-die:hover {
+  z-index: 1;
+  transform: translateY(-2px) scale(1.06);
+  filter: drop-shadow(0 3px 3px rgb(0 0 0 / 60%));
+}
+
+.dx3rd-roll-intervention-die.fumble .dx3rd-roll-intervention-face {
+  color: #b71c1c;
+}
+
+.dx3rd-roll-intervention-die.critical .dx3rd-roll-intervention-face,
+.dx3rd-roll-intervention-die.maximum .dx3rd-roll-intervention-face {
+  color: #1b5e20;
+}
+
+.dx3rd-roll-intervention-die:has(input:checked) {
+  outline: 3px solid var(--color-border-highlight);
+  outline-offset: 1px;
+  transform: translateY(-2px) scale(1.06);
+  filter: drop-shadow(0 0 5px var(--color-shadow-highlight));
+}
+
+.dx3rd-roll-intervention-die:has(input:checked)::after {
+  content: "✓";
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--color-border-highlight);
+  border: 1px solid white;
+  border-radius: 50%;
+}
 /* ==========================================================================
    Dialog and Window Base
    ========================================================================== */

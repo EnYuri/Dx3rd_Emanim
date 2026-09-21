@@ -689,7 +689,51 @@
         title, summary: macro.timing || 'instant', target: 'self', editor: 'macro'
       }));
     });
+    // The roll-redefinition card mirrors `system.rollIntervention`, not the extend flag —
+    // the card exists only while the authored declaration is enabled.
+    const intervention = item.system?.rollIntervention;
+    if (intervention?.enabled) {
+      cards.push(descriptorBase(item, {
+        id: 'rollIntervention', family: 'immediate', kind: 'rollIntervention',
+        data: {timing: 'instant', target: 'self'},
+        active: true,
+        title: localize('DX3rd.RollRedefine'), summary: interventionSummary(intervention),
+        target: 'self', editor: 'rollIntervention'
+      }));
+      const card = cards[cards.length - 1];
+      // Its two axes live inside the declaration, not the action-binding select — state them on the badges.
+      card.triggerLabel = intervention.phase === 'beforeRoll'
+        ? localize('DX3rd.RollInterventionPhaseBefore')
+        : localize('DX3rd.RollInterventionPhaseAfter');
+      card.targetLabel = localize({
+        self: 'DX3rd.RollInterventionTargetSelf',
+        any: 'DX3rd.RollInterventionTargetAny',
+        sourceItem: 'DX3rd.RollInterventionTargetSourceItem',
+        combinedItem: 'DX3rd.RollInterventionTargetCombinedItem'
+      }[intervention.target] || 'DX3rd.RollInterventionTargetSelf');
+      card.toggleable = true;
+    }
     return cards;
+  }
+
+  function interventionSummary(config = {}) {
+    const kinds = (Array.isArray(config.kinds) ? config.kinds : [config.kinds].filter(Boolean))
+      .map(kind => localize({
+        check: 'DX3rd.RollInterventionKindCheck',
+        damage: 'DX3rd.RollInterventionKindDamage',
+        backtrack: 'DX3rd.RollInterventionKindBacktrack',
+        sceneEncroachment: 'DX3rd.RollInterventionKindScene'
+      }[kind] || 'DX3rd.RollInterventionKindCheck')).join('/');
+    const operation = localize({
+      rerollAll: 'DX3rd.RollInterventionOpRerollAll',
+      rerollSelected: 'DX3rd.RollInterventionOpRerollSelected',
+      setFaces: 'DX3rd.RollInterventionOpSetFaces',
+      adjustFaces: 'DX3rd.RollInterventionOpAdjustFaces',
+      chooseOneOrTen: 'DX3rd.RollInterventionOpChooseOneOrTen',
+      replaceTotal: 'DX3rd.RollInterventionOpReplaceTotal'
+    }[config.operation] || 'DX3rd.RollInterventionOpSetFaces');
+    const value = config.value !== '' && config.value != null ? ` ${config.value}` : '';
+    return `${kinds || '-'} · ${operation}${value}`;
   }
 
   function collectPersistent(item) {
@@ -916,6 +960,15 @@
     // A persistent-modifier card is one bucket — adding one creates a new card with a trigger action not yet used
     // in that channel. It is disabled as "already added" only when there is no trigger action left to create.
     const addedLabel = localize('DX3rd.AlreadyAdded');
+    // One roll-redefinition declaration per item — once enabled, the card itself is the entry point.
+    const interventionAdded = !!item.system?.rollIntervention?.enabled;
+    immediateAddOptions.push({
+      value: 'rollIntervention',
+      label: interventionAdded
+        ? `${localize('DX3rd.RollRedefine')} (${addedLabel})`
+        : localize('DX3rd.RollRedefine'),
+      disabled: interventionAdded
+    });
     const bucketSlotsLeft = freeBucketActions(item, 'self').length + freeBucketActions(item, 'target').length;
     const persistentAddOptions = [
       {value: 'modifiers', label: localize('DX3rd.PersistentModifiers'), disabled: bucketSlotsLeft === 0},
@@ -1155,6 +1208,10 @@
 
   async function toggleEffect(item, id, active) {
     if (!item) return false;
+    if (id === 'rollIntervention') {
+      await item.update({'system.rollIntervention.enabled': !!active});
+      return true;
+    }
     // 'modifiers' is the card id from when self and target were one card. It is kept after the split —
     // whichever bucket, what gets turned on and off is the one self-modifier state (system.active.state).
     if (id === 'modifiers' || String(id).startsWith('modifiers.self')) {
@@ -1217,6 +1274,13 @@
 
   async function addEffect(item, family, kind) {
     if (!item) return null;
+    // The roll redefinition is an item system declaration, not an extend card — adding it flips the flag on.
+    if (kind === 'rollIntervention') {
+      if (!item.system?.rollIntervention?.enabled) {
+        await item.update({'system.rollIntervention.enabled': true});
+      }
+      return 'rollIntervention';
+    }
     const ext = foundry.utils.deepClone(item.getFlag(SCOPE, 'itemExtend') || {});
     if (family === 'immediate' && DIRECT_TYPES.includes(kind)) {
       const id = foundry.utils.randomID();
@@ -1304,6 +1368,10 @@
 
   async function deleteEffect(item, id) {
     if (!item || !id) return false;
+    if (id === 'rollIntervention') {
+      await item.update({'system.rollIntervention.enabled': false});
+      return true;
+    }
     if (String(id).startsWith('modifiers.')) return deleteModifierBucket(item, id);
     if (id.startsWith('card.')) {
       const cardId = id.slice('card.'.length);

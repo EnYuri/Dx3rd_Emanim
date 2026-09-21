@@ -70,3 +70,6 @@ tools/tests/bad-city-effects.test.mjs
 
 # 배포 불필요 — 비활성 UI 보관 코드 (로컬 참조용)
 legacy/
+
+# Playwright MCP 콘솔 로그 (로컬 검증 산출물)
+.playwright-mcp/

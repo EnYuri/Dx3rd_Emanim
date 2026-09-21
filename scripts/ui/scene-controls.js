@@ -18,8 +18,13 @@ async function dx3rdApplyEntryEncroachment(character) {
     let roll = null;
     let increase = 1;
     if (!useFixedValue) {
-        roll = new Roll('1d10');
-        await roll.evaluate();
+        roll = await window.DX3rdRollInterventions.resolve('1d10', {
+            method: 'evaluate',
+            actor: character,
+            kind: 'sceneEncroachment',
+            subtype: 'entry'
+        });
+        if (!roll) return;
         increase = roll.total;
     }
 

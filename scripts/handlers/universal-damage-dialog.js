@@ -321,7 +321,14 @@
               
               try {
                 // Roll the damage
-                const damageRoll = await (new Roll(finalDamageFormula)).roll();
+                const damageRoll = await window.DX3rdRollInterventions.resolve(finalDamageFormula, {
+                  actor,
+                  item,
+                  kind: 'damage',
+                  subtype: 'damage',
+                  targets: Array.from(game.user.targets)
+                });
+                if (!damageRoll) return;
                 
                 // Render the roll result as HTML
                 const rollHTML = await damageRoll.render();

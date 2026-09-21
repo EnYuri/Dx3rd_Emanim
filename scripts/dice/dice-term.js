@@ -153,6 +153,80 @@
             return total;
         }
 
+        getInterventionDice() {
+            return this.chainRolls.flatMap((chain, waveIndex) =>
+                chain.map((result, dieIndex) => ({
+                    waveIndex,
+                    dieIndex,
+                    result,
+                    faces: 10,
+                    critical: result >= this.critical
+                })));
+        }
+
+        async applyInterventions(interventions) {
+            const grouped = new Map();
+            for (const intervention of interventions || []) {
+                const waveIndex = Number(intervention.waveIndex);
+                const dieIndex = Number(intervention.dieIndex);
+                if (!Number.isInteger(waveIndex) || !Number.isInteger(dieIndex)) continue;
+                if (!grouped.has(waveIndex)) grouped.set(waveIndex, []);
+                grouped.get(waveIndex).push({...intervention, waveIndex, dieIndex});
+            }
+            if (!grouped.size) return this;
+
+            const firstWave = Math.min(...grouped.keys());
+            const waves = this.chainRolls.slice(0, firstWave + 1).map(chain => [...chain]);
+            const targetWave = waves[firstWave];
+            if (!targetWave) return this;
+            for (const intervention of grouped.get(firstWave) || []) {
+                if (intervention.dieIndex < 0 || intervention.dieIndex >= targetWave.length) continue;
+                if (intervention.operation === 'rerollSelected') {
+                    const die = new foundry.dice.terms.Die({number: 1, faces: 10, options: this.options});
+                    await die.evaluate();
+                    targetWave[intervention.dieIndex] = Number(die.results?.[0]?.result) || 1;
+                } else if (intervention.operation === 'setFaces') {
+                    targetWave[intervention.dieIndex] = Math.max(1, Math.min(10, Number(intervention.value) || 1));
+                } else if (intervention.operation === 'adjustFaces') {
+                    targetWave[intervention.dieIndex] = Math.max(1, Math.min(
+                        10,
+                        targetWave[intervention.dieIndex] + (Number(intervention.value) || 0)
+                    ));
+                }
+            }
+
+            let currentWave = targetWave;
+            while (currentWave.some(value => value >= this.critical)) {
+                const count = currentWave.filter(value => value >= this.critical).length;
+                const die = new foundry.dice.terms.Die({number: count, faces: 10, options: this.options});
+                await die.evaluate();
+                currentWave = die.results.map(result => Number(result.result) || 1);
+                waves.push(currentWave);
+            }
+
+            this.chainRolls = waves;
+            this.chainMaxes = [];
+            this.results = [];
+            this.fumble = waves[0]?.length > 0 && waves[0].every(value => value === 1);
+            this._totalValue = 0;
+            for (let waveIndex = 0; waveIndex < waves.length; waveIndex++) {
+                const chain = waves[waveIndex];
+                const hasCritical = chain.some(value => value >= this.critical);
+                const chainValue = waveIndex === 0 && this.fumble
+                    ? 0
+                    : (hasCritical ? 10 : Math.max(...chain));
+                this.chainMaxes.push(chainValue);
+                this._totalValue += chainValue;
+                this.results.push(...chain.map(result => ({
+                    result,
+                    active: true,
+                    exploded: result >= this.critical
+                })));
+            }
+            this._evaluated = true;
+            return this;
+        }
+
         /** @override */
         getTooltipData() {
             const rolls = [];

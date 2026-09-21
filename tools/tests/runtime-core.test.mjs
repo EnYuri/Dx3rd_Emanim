@@ -6128,7 +6128,7 @@ test('every socket type is handled in exactly one layer, so no branch is dead on
 
   const typed = new Set();
   for (const path of ['scripts/socket-document-handlers.js', 'scripts/combat/combat-socket.js',
-    'scripts/handlers/universal-after-main.js']) {
+    'scripts/handlers/universal-after-main.js', 'scripts/socket-roll-interventions.js']) {
     for (const type of literals(source(path), registrationPattern)) typed.add(type);
   }
 

@@ -200,8 +200,13 @@
     },
 
     async _processEroisUsage(actor, originalEncroachment, memoryUsed, memoryReduction, afterMemoryEncroachment, eroisUsed) {
-      const roll = new Roll(`${eroisUsed}d10`);
-      await roll.evaluate();
+      const roll = await window.DX3rdRollInterventions.resolve(`${eroisUsed}d10`, {
+        method: 'evaluate',
+        actor,
+        kind: 'backtrack',
+        subtype: 'erois'
+      });
+      if (!roll) return;
       const totalReduction = roll.total;
 
       const afterExhaustEncroachment = Math.max(0, afterMemoryEncroachment - totalReduction);
@@ -249,8 +254,13 @@
 
     async _processRoisUsage(actor, originalEncroachment, memoryUsed, memoryReduction, afterMemoryEncroachment, eroisUsed, eroisReduction, afterExhaustEncroachment, roisCount, multiplier) {
       const diceCount = roisCount * multiplier;
-      const roll = new Roll(`${diceCount}d10`);
-      await roll.evaluate();
+      const roll = await window.DX3rdRollInterventions.resolve(`${diceCount}d10`, {
+        method: 'evaluate',
+        actor,
+        kind: 'backtrack',
+        subtype: multiplier === 2 ? 'double' : 'normal'
+      });
+      if (!roll) return;
       const totalReduction = roll.total;
 
       const finalEncroachment = Math.max(0, afterExhaustEncroachment - totalReduction);
@@ -301,8 +311,13 @@
     },
 
     async _processEXPExtra(actor, afterRoisEncroachment, roisCount, usedMultiplier) {
-      const roll = new Roll(`${roisCount}d10`);
-      await roll.evaluate();
+      const roll = await window.DX3rdRollInterventions.resolve(`${roisCount}d10`, {
+        method: 'evaluate',
+        actor,
+        kind: 'backtrack',
+        subtype: 'extra'
+      });
+      if (!roll) return;
       const totalReduction = roll.total;
 
       const finalEncroachment = Math.max(0, afterRoisEncroachment - totalReduction);

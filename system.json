@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "version": "2.4.5",
+  "version": "2.4.6",
   "scripts": [
     "scripts/core/debug-log.js",
     "scripts/data/document-schema.js",
@@ -36,6 +36,9 @@
     "scripts/disable-hooks.js",
     "scripts/movement-ruler.js",
     "scripts/dice/dice-term.js",
+    "scripts/dice/roll-interventions.js",
+    "scripts/dice/roll-intervention-effects.js",
+    "scripts/socket-roll-interventions.js",
     "scripts/dialog/spell-dice-remove-dialog.js",
     "scripts/dialog/skill-create-dialog.js",
     "scripts/dialog/skill-edit-dialog.js",

@@ -148,7 +148,16 @@
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${Math.max(2, rolledCritical)}`, String(add2),
           addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
-        const roll = await (new Roll(rollFormula)).roll();
+        const roll = await window.DX3rdRollInterventions.resolve(rollFormula, {
+          actor,
+          item,
+          kind: 'check',
+          subtype: rollType,
+          skillKey: item.system?.skill || null,
+          targets,
+          metadata: {isAttackRoll: true}
+        });
+        if (!roll) return;
         const rollHtml = await roll.render();
 
         // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.
@@ -1454,7 +1463,16 @@
         const weaponAddFormula = weaponBonus?.addFormula;
         const rollFormula = [`${finalDice}dx${critical}`, String(add2),
           addDiceFormula, weaponAddFormula].filter(Boolean).join(' + ');
-        const roll = await (new Roll(rollFormula)).roll();
+        const roll = await window.DX3rdRollInterventions.resolve(rollFormula, {
+          actor,
+          item,
+          kind: 'check',
+          subtype: rollType,
+          skillKey: item?.system?.skill || null,
+          targets: Array.from(game.user.targets),
+          metadata: {isAttackRoll}
+        });
+        if (!roll) return;
         const rollHtml = await roll.render();
 
         // Rules: every check die showing 1 is a fumble → auto-fail, achievement 0.

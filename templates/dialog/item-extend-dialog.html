@@ -31,6 +31,7 @@
         <button type="button" class="sub-tab" data-tab="effectSettings">{{localize "DX3rd.EffectAdvancedSettings"}}</button>
         {{/ifEquals}}
         <button type="button" class="sub-tab" data-tab="defenseBypass">{{localize "DX3rd.BypassDefenseLabel"}}</button>
+        <button type="button" class="sub-tab" data-tab="rollIntervention">{{localize "DX3rd.RollRedefine"}}</button>
     </div>
 </div>
 {{/unless}}
@@ -175,6 +176,137 @@
             <div style="display:flex;align-items:center;justify-content:center;">
                 <input type="checkbox" name="restoreDefenseReaction" {{#if item.system.restoreDefense.reaction}}checked{{/if}}>
             </div>
+        </div>
+    </section>
+    {{/if}}
+
+    {{!-- 굴림 재정의는 itemExtend 플래그가 아니라 system.rollIntervention 에 사는 선언이다.
+         system 필드를 직접 쓰는 다른 편집기(effectSettings/defenseBypass)와 같은 저장 경로를 쓴다. --}}
+    {{#if showRollIntervention}}
+    <section class="content-section" id="rollIntervention-content">
+        <div class="form-grid">
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintEnabled"}}">{{localize "DX3rd.RollInterventionEnabled"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riEnabled" {{#if item.system.rollIntervention.enabled}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintPhase"}}">{{localize "DX3rd.RollInterventionPhase"}}</div>
+            <div>
+                <select name="riPhase">
+                    {{#select item.system.rollIntervention.phase}}
+                    <option value="afterRoll">{{localize "DX3rd.RollInterventionPhaseAfter"}}</option>
+                    <option value="beforeRoll">{{localize "DX3rd.RollInterventionPhaseBefore"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            {{!-- Multi-value fields use a checkbox dropdown (details/summary) so they look
+                 like the other single-select dropdowns in this dialog. The summary label is
+                 filled by _refreshMultiSelectLabels from the checked inputs' data-label. --}}
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintKinds"}}">{{localize "DX3rd.RollInterventionKinds"}}</div>
+            <div>
+                <details class="dx3rd-multi-select">
+                    <summary><span class="dx3rd-multi-select-label"></span><i class="fas fa-caret-down"></i></summary>
+                    <div class="dx3rd-multi-select-menu">
+                        <label><input type="checkbox" name="riKinds" value="check" data-label="{{localize "DX3rd.RollInterventionKindCheck"}}" {{#ifIn item.system.rollIntervention.kinds "check"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindCheck"}}</label>
+                        <label><input type="checkbox" name="riKinds" value="damage" data-label="{{localize "DX3rd.RollInterventionKindDamage"}}" {{#ifIn item.system.rollIntervention.kinds "damage"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindDamage"}}</label>
+                        <label><input type="checkbox" name="riKinds" value="backtrack" data-label="{{localize "DX3rd.RollInterventionKindBacktrack"}}" {{#ifIn item.system.rollIntervention.kinds "backtrack"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindBacktrack"}}</label>
+                        <label><input type="checkbox" name="riKinds" value="sceneEncroachment" data-label="{{localize "DX3rd.RollInterventionKindScene"}}" {{#ifIn item.system.rollIntervention.kinds "sceneEncroachment"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionKindScene"}}</label>
+                    </div>
+                </details>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintSubtypes"}}">{{localize "DX3rd.RollInterventionSubtypes"}}</div>
+            <div>
+                <details class="dx3rd-multi-select">
+                    <summary><span class="dx3rd-multi-select-label"></span><i class="fas fa-caret-down"></i></summary>
+                    <div class="dx3rd-multi-select-menu">
+                        <label><input type="checkbox" name="riSubtypes" value="normal" data-label="{{localize "DX3rd.RollInterventionSubtypeNormal"}}" {{#ifIn item.system.rollIntervention.subtypes "normal"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionSubtypeNormal"}}</label>
+                        <label><input type="checkbox" name="riSubtypes" value="double" data-label="{{localize "DX3rd.RollInterventionSubtypeDouble"}}" {{#ifIn item.system.rollIntervention.subtypes "double"}}checked{{/ifIn}}> {{localize "DX3rd.RollInterventionSubtypeDouble"}}</label>
+                    </div>
+                </details>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintOperation"}}">{{localize "DX3rd.RollInterventionOperation"}}</div>
+            <div>
+                <select name="riOperation">
+                    {{#select item.system.rollIntervention.operation}}
+                    <option value="">-</option>
+                    <option value="rerollAll">{{localize "DX3rd.RollInterventionOpRerollAll"}}</option>
+                    <option value="rerollSelected">{{localize "DX3rd.RollInterventionOpRerollSelected"}}</option>
+                    <option value="setFaces">{{localize "DX3rd.RollInterventionOpSetFaces"}}</option>
+                    <option value="adjustFaces">{{localize "DX3rd.RollInterventionOpAdjustFaces"}}</option>
+                    <option value="chooseOneOrTen">{{localize "DX3rd.RollInterventionOpChooseOneOrTen"}}</option>
+                    <option value="replaceTotal">{{localize "DX3rd.RollInterventionOpReplaceTotal"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintTarget"}}">{{localize "DX3rd.RollInterventionTarget"}}</div>
+            <div>
+                <select name="riTarget">
+                    {{#select item.system.rollIntervention.target}}
+                    <option value="self">{{localize "DX3rd.RollInterventionTargetSelf"}}</option>
+                    <option value="any">{{localize "DX3rd.RollInterventionTargetAny"}}</option>
+                    <option value="sourceItem">{{localize "DX3rd.RollInterventionTargetSourceItem"}}</option>
+                    <option value="combinedItem">{{localize "DX3rd.RollInterventionTargetCombinedItem"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintSelection"}}">{{localize "DX3rd.RollInterventionSelection"}}</div>
+            <div>
+                <select name="riSelection">
+                    {{#select item.system.rollIntervention.selection}}
+                    <option value="one">{{localize "DX3rd.RollInterventionSelOne"}}</option>
+                    <option value="exact">{{localize "DX3rd.RollInterventionSelExact"}}</option>
+                    <option value="upTo">{{localize "DX3rd.RollInterventionSelUpTo"}}</option>
+                    <option value="highest">{{localize "DX3rd.RollInterventionSelHighest"}}</option>
+                    <option value="all">{{localize "DX3rd.RollInterventionSelAll"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintCount"}}">{{localize "DX3rd.RollInterventionCount"}}</div>
+            <div><input type="text" name="riCount" value="{{item.system.rollIntervention.count}}" placeholder="1"></div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintFieldValue"}}">{{localize "DX3rd.RollInterventionFieldValue"}}</div>
+            <div><input type="text" name="riValue" value="{{item.system.rollIntervention.value}}" placeholder="10"></div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintPerRollMax"}}">{{localize "DX3rd.RollInterventionPerRollMax"}}</div>
+            <div><input type="number" name="riPerRollMax" value="{{item.system.rollIntervention.perRollMax}}" min="1"></div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintRequiredItem"}}">{{localize "DX3rd.RollInterventionRequiredItem"}}</div>
+            <div><input type="text" name="riRequiredItem" value="{{item.system.rollIntervention.requiredItem}}"></div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintWaveScope"}}">{{localize "DX3rd.RollInterventionWaveScope"}}</div>
+            <div>
+                <select name="riWaveScope">
+                    {{#select item.system.rollIntervention.waveScope}}
+                    <option value="all">{{localize "DX3rd.RollInterventionWaveAll"}}</option>
+                    <option value="first">{{localize "DX3rd.RollInterventionWaveFirst"}}</option>
+                    {{/select}}
+                </select>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintAttackOnly"}}">{{localize "DX3rd.RollInterventionAttackOnly"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riAttackOnly" {{#if item.system.rollIntervention.attackOnly}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintRequiresPriorUse"}}">{{localize "DX3rd.RollInterventionRequiresPriorUse"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riRequiresPriorUse" {{#if item.system.rollIntervention.requiresPriorUse}}checked{{/if}}>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintChooseDelta"}}">{{localize "DX3rd.RollInterventionChooseDelta"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riChooseDelta" {{#if item.system.rollIntervention.chooseDelta}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintAutomatic"}}">{{localize "DX3rd.RollInterventionAutomatic"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riAutomatic" {{#if item.system.rollIntervention.automatic}}checked{{/if}}>
+            </div>
+
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintOncePerDie"}}">{{localize "DX3rd.RollInterventionOncePerDie"}}</div>
+            <div style="display:flex;align-items:center;justify-content:center;">
+                <input type="checkbox" name="riOncePerDie" {{#if item.system.rollIntervention.oncePerDie}}checked{{/if}}>
+            </div>
+            <div class="form-label" title="{{localize "DX3rd.RollInterventionHintSkillKey"}}">{{localize "DX3rd.Skill"}}</div>
+            <div><input type="text" name="riSkillKey" value="{{item.system.rollIntervention.skillKey}}"></div>
         </div>
     </section>
     {{/if}}

@@ -107,6 +107,26 @@
           description: '',
           skillTmp: 'melee',
           skills: {},
+          rollIntervention: {
+            enabled: false,
+            phase: 'afterRoll',
+            kinds: [],
+            subtypes: [],
+            operation: '',
+            target: 'self',
+            selection: 'one',
+            waveScope: 'all',
+            count: '1',
+            value: '',
+            perRollMax: 1,
+            skillKey: '',
+            attackOnly: false,
+            requiredItem: '',
+            requiresPriorUse: false,
+            chooseDelta: false,
+            automatic: false,
+            oncePerDie: false
+          },
           // Attacker side — "this attack ignores the target's armor / guard / reaction".
           // Kept separate from `penetrate`, which is a *numeric* armor reduction that some rules
           // ask for specifically (e.g. 《플래시 스팅어》 "장갑치를 [LVx8]만큼 무시"). These three are
