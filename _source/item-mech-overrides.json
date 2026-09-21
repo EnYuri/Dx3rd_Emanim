@@ -1472,6 +1472,20 @@
     },
     "대형 해머": {
       "img": "icons/weapons/hammers/hammer-double-steel-embossed.webp",
+      "attributes": [
+        {
+          "key": "fullMove",
+          "label": "fullMove",
+          "value": "-10"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "-",
+        "runTiming": "instant",
+        "applyMode": "toggle",
+        "action": ""
+      },
       "description": "<p>이 무기를 장비하고 있는 동안 다른 무기를 장비할 수 없으며, 전력이동에 -10m의 수정을 받는다.</p><p><em>양손을 동원해야 들 수 있는 거대한 해머. 질량을 무기로 삼는 단순하면서도 매우 효과적인 무기.</em></p>"
     },
     "대형권총": {
@@ -2892,6 +2906,15 @@
     }
   },
   "vehicles": {
+    "FH 칼날 바이크": {
+      "attributes": [
+        {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "+10"
+        }
+      ]
+    },
     "테크니컬": {
       "attributes": [
         {
@@ -4479,6 +4502,7 @@
         "disable": "scene",
         "runTiming": "instant",
         "applyMode": "onUse",
+        "stack": true,
         "action": ""
       },
       "description": "<p>당신이 메인 프로세스를 개시할 때 사용할 것. 그 신 동안, 당신이 실행하는 공격의 데미지에 +5를 가한다. 이 효과는 사용할 때마다 중복된다.</p><p><em>당신이 전투부대 “문 도그”에 소속하고 있는 에이전트임을 나타내는 엠블럼 데이터. 당신은 전투가 길어지면 길어질수록, 채워지는 달과 같이 기분이 고양해나가고 그 전투력이 증가해간다.</em></p>"
@@ -5692,7 +5716,7 @@
     "안티 레니게이드 탄": {
       "effect": {
         "disable": "round",
-        "runTiming": "afterDamage",
+        "runTiming": "afterHit",
         "attributes": [
           {
             "key": "dice",
@@ -6031,7 +6055,7 @@
     "항 레니게이드 탄": {
       "effect": {
         "disable": "round",
-        "runTiming": "afterDamage",
+        "runTiming": "afterHit",
         "attributes": [
           {
             "key": "dice",
@@ -7218,7 +7242,7 @@
     "베넘 블러드": {
       "effect": {
         "disable": "round",
-        "runTiming": "afterDamage",
+        "runTiming": "afterHit",
         "attributes": [
           {
             "key": "dice",
@@ -8122,6 +8146,13 @@
       ]
     },
     "리에종 크레스트": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "social",
+          "value": "2"
+        }
+      ],
       "active": {
         "state": false,
         "disable": "-",
@@ -8328,6 +8359,13 @@
       }
     },
     "빌드 스파인": {
+      "attributes": [
+        {
+          "key": "hp",
+          "label": "hp",
+          "value": "+10"
+        }
+      ],
       "active": {
         "state": false,
         "disable": "-",
@@ -9439,9 +9477,33 @@
       "description": "<p>당신이 〈정보: 미디어〉판정을 실행한 직후 오토 액션으로 사용할 것. 그 판정을 다시 실행할 수 있다. 결과는 다시 실행한 후의 것을 적용할 것. 한 씬에 한 번 사용할 수 있다.</p><p><em>매스미디어에 발을 담근 프리랜서.</em></p>"
     },
     "학원통의 친구": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "info_academia",
+          "value": "2"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
       "description": "<p>&lt;정보:아카데미아&gt;의 판정의 다이스에 +2개한다.</p><p><em>위원회의 동향이나 학생간의 인간관계 등, ‘학원’내의 각종 사정을 잘 아는 친구.</em></p>"
     },
     "후두노리 기숙사 특무증서": {
+      "attributes": [
+        {
+          "key": "stat_dice",
+          "label": "know",
+          "value": "1"
+        }
+      ],
+      "active": {
+        "state": false,
+        "disable": "scene",
+        "runTiming": "instant"
+      },
       "description": "<p>&lt;지식:&gt;의 판정의 다이스에 +1개한다.</p><p><em>후도노리 기숙사의 도서관 안에서도 허가가 필요한 정보를 다루기 위한 허가증.</em></p>"
     }
   },

@@ -1785,8 +1785,9 @@
       // must be captured now, while _dx3rdRuntimeInput / _dx3rdUsageEncLevel are still alive, because
       // the damage roll and the after-damage report run detached after this function's finally.
       // A combo's own bucket is excluded: collectAfterDamageData freezes it into the apply entries.
-      // The fromAttackItem marker keeps processPendingAttackRiders (the on-hit path) from applying it —
-      // the activation path applies it to damaged targets only, as shouldApplyToTargets always did.
+      // The fromAttackItem marker keeps processDamagedAttackRiders from re-applying the
+      // 'afterDamage' snapshot — the activation path applies it to damaged targets only, as
+      // shouldApplyToTargets always did. Its 'afterHit' sibling still runs on the on-hit path.
       const selfAttack = action === 'attack' && isAttackItem && item.type !== 'combo';
       if (!selfAttack && (action !== 'use' || isAttackItem)) return false;
 
@@ -1798,6 +1799,16 @@
           ? adapter.targetBucketAttributes(item, 'attack', 'afterDamage')
           : (item.system?.effect?.attributes || {}))
         : {};
+      // The on-hit sibling bucket. 'afterHit' fires on attackHit alone — a hit reduced to
+      // 0 HP damage still applies it, while a miss never does.
+      const hitBucketFires = adapter
+        ? adapter.targetFiresAt(item, 'attack', 'afterHit')
+        : item.system?.effect?.runTiming === 'afterHit';
+      const hitAttributes = hitBucketFires
+        ? (adapter
+          ? adapter.targetBucketAttributes(item, 'attack', 'afterHit')
+          : (item.system?.effect?.attributes || {}))
+        : {};
 
       // A preparation item may carry afterDamage extensions without any target bucket
       // (poison applied to the damaged token, etc.). They ride the same carrier and are
@@ -1807,12 +1818,14 @@
       const extensions = (!selfAttack && item.type !== 'combo')
         ? this.riderAfterDamageExtensions(item)
         : [];
-      if (!this.hasUsableAttribute(targetAttributes) && extensions.length === 0) return false;
+      if (!this.hasUsableAttribute(targetAttributes) && !this.hasUsableAttribute(hitAttributes)
+          && extensions.length === 0) return false;
 
       const rider = {
         itemId: item.id,
         itemName: item.name,
         targetAttributes: this.freezeTransferredItemAttributes(actor, item, targetAttributes),
+        hitAttributes: this.freezeTransferredItemAttributes(actor, item, hitAttributes),
         preEvaluated: true,
         armedAt: Date.now(),
         ...(extensions.length > 0 ? { extensions } : {}),
@@ -1926,7 +1939,7 @@
       return bound;
     },
 
-    /** Apply attack-card rider snapshots to the token-correlated actors that the attack hit. */
+    /** Apply attack-card rider on-hit buckets to the token-correlated actors that the attack hit. */
     async processPendingAttackRiders(attacker, riders, hitActorIds = [], hitTokenIds = []) {
       if (!attacker || !Array.isArray(riders) || riders.length === 0) return;
       const hitActors = (hitTokenIds || [])
@@ -1940,13 +1953,11 @@
       }
 
       for (const rider of riders) {
-        // The attack item's own bucket only rides along as a frozen snapshot; the activation path
-        // applies it to damaged targets (HP loss). Applying it here would hit even 0-damage targets
-        // and double-apply on real damage.
-        if (rider?.fromAttackItem === true) continue;
-        // Extension-only riders carry no modifier bucket — their payload runs through the
-        // damage-report extension queue instead, and an empty apply would write an empty AE.
-        if (!this.hasUsableAttribute(rider?.targetAttributes)) continue;
+        // Only the 'afterHit' bucket resolves here — an attack hit is the whole trigger, so even a
+        // hit reduced to 0 HP damage applies it. The attack item's own bucket (fromAttackItem)
+        // runs here too: no other path fires 'afterHit' for it. The 'afterDamage' bucket is a
+        // different contract — see processDamagedAttackRiders / the shouldApplyToTargets path.
+        if (!this.hasUsableAttribute(rider?.hitAttributes)) continue;
         const sourceItem = attacker.items.get(rider?.itemId);
         if (!sourceItem) {
           console.warn('DX3rd | Pending attack rider item not found:', rider?.itemId);
@@ -1957,10 +1968,69 @@
             attacker,
             sourceItem,
             targetActor,
+            rider.hitAttributes || {},
+            {preEvaluated: rider.preEvaluated === true}
+          );
+        }
+      }
+    },
+
+    /**
+     * Apply preparation riders' 'afterDamage' buckets to the actors that actually lost HP.
+     * The attack item's own bucket (fromAttackItem) is excluded — the activation path applies it
+     * through shouldApplyToTargets with the same frozen snapshot.
+     */
+    async processDamagedAttackRiders(attacker, riders, damagedActors = []) {
+      if (!attacker || !Array.isArray(riders) || riders.length === 0) return;
+      const targets = (Array.isArray(damagedActors) ? damagedActors : []).filter(Boolean);
+      if (targets.length === 0) return;
+      for (const rider of riders) {
+        if (rider?.fromAttackItem === true) continue;
+        // Extension-only riders carry no modifier bucket — their payload runs through the
+        // damage-report extension queue instead, and an empty apply would write an empty AE.
+        if (!this.hasUsableAttribute(rider?.targetAttributes)) continue;
+        const sourceItem = attacker.items.get(rider?.itemId);
+        if (!sourceItem) {
+          console.warn('DX3rd | Pending attack rider item not found:', rider?.itemId);
+          continue;
+        }
+        for (const targetActor of targets) {
+          await this.dispatchItemAttributes(
+            attacker,
+            sourceItem,
+            targetActor,
             rider.targetAttributes || {},
             {preEvaluated: rider.preEvaluated === true}
           );
         }
+      }
+    },
+
+    /**
+     * Combo 'afterHit' target buckets — resolve against the actors the attack hit, including hits
+     * that dealt 0 HP damage. Runs independently of processComboAfterDamage so a fully guarded
+     * hit still fires the hit follow-up while the damage-triggered sections stay silent.
+     */
+    async processComboAfterHit(comboData, hitActorIds = [], hitTokenIds = []) {
+      if (!comboData) return;
+      const actor = game.actors.get(comboData.actorId);
+      if (!actor) return;
+      const hitActors = (hitTokenIds || [])
+        .map(tokenId => canvas.tokens.get(tokenId)?.actor)
+        .filter(Boolean);
+      for (const actorId of hitActorIds || []) {
+        const targetActor = game.actors.get(actorId);
+        if (targetActor && !hitActors.some(candidate => candidate.id === targetActor.id)) {
+          hitActors.push(targetActor);
+        }
+      }
+      for (const { itemId, itemName, action = 'attack', frozenAttributes = null } of (comboData.hitApplies || [])) {
+        const item = this.resolveComboFollowupItem(actor, comboData, itemId);
+        if (!item) continue;
+        // Pass hitActors through as forcedTargets — an authoritative frozen set, like
+        // damagedActors on the afterDamage path.
+        await this.applyToTargets(actor, item, 'afterHit', hitActors, action,
+          { frozenAttributes });
       }
     },
 

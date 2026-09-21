@@ -437,7 +437,7 @@ test('a preparation item freezes onto one attack card and reaches only actors th
       attackRoll: '-',
       active: {state: false, disable: '-', runTiming: 'instant', action: ''},
       effect: {
-        disable: 'round', runTiming: 'afterDamage',
+        disable: 'round', runTiming: 'afterHit',
         attributes: {penalty: {key: 'dice', label: '-', value: '[level]'}}
       }
     },
@@ -478,7 +478,7 @@ test('a preparation item freezes onto one attack card and reaches only actors th
 
   const handler = context.DX3rdUniversalHandler;
   assert.equal(await handler.armPendingAttackRider(actor, sourceItem, 'use'), true);
-  assert.equal(flags.get('pendingAttackRiders')[0].targetAttributes.penalty.value, 7,
+  assert.equal(flags.get('pendingAttackRiders')[0].hitAttributes.penalty.value, 7,
     '다음 클라이언트가 복원할 수 없는 사용 시점 수식은 대기 전에 동결해야 한다');
 
   const messageFlags = new Map();
@@ -497,6 +497,75 @@ test('a preparation item freezes onto one attack card and reaches only actors th
   await handler.processPendingAttackRiders(actor, bound, [target.id], ['token1']);
   assert.deepEqual(plain(applied), [{
     item: sourceItem.id, actor: target.id, value: 7, options: {preEvaluated: true}
+  }]);
+});
+
+test('a preparation rider with an afterDamage bucket reaches only actors that lost HP', async () => {
+  const flags = new Map();
+  const sourceItem = {
+    id: 'snare1', name: '중력의 족쇄', type: 'effect',
+    system: {
+      attackRoll: '-',
+      active: {state: false, disable: '-', runTiming: 'instant', action: ''},
+      effect: {
+        disable: 'round', runTiming: 'afterDamage',
+        attributes: {penalty: {key: 'battleMove', label: 'battleMove', value: '[level]'}}
+      }
+    },
+    getFlag: () => ({})
+  };
+  const actor = {
+    id: 'attacker', name: '공격자', type: 'character',
+    items: new Map([[sourceItem.id, sourceItem]]),
+    getFlag: (_scope, key) => flags.get(key),
+    setFlag: async (_scope, key, value) => { flags.set(key, structuredClone(value)); },
+    unsetFlag: async (_scope, key) => { flags.delete(key); }
+  };
+  const hitOnly = {id: 'hit-only', name: '0데미지 명중 대상'};
+  const damaged = {id: 'damaged', name: '피해 대상'};
+  const context = baseContext({
+    game: {
+      actors: new Map([[actor.id, actor], [hitOnly.id, hitOnly], [damaged.id, damaged]]),
+      user: {isGM: true, targets: new Set()}, macros: {getName: () => null},
+      scenes: {active: null}, settings: {get: () => false},
+      i18n: {localize: key => key, format: key => key}
+    },
+    canvas: {tokens: {get: () => null, placeables: [], controlled: []}},
+    ui: {notifications: {warn: () => {}, error: () => {}, info: () => {}}, windows: {}},
+    Hooks: {once: () => {}, on: () => {}, callAll: () => {}},
+    CONFIG: {statusEffects: []},
+    foundry: {utils: {
+      deepClone: value => structuredClone(value),
+      getProperty: () => undefined
+    }}
+  });
+  context.DX3rdFormulaEvaluator = {
+    prepareRollFormula: () => '9', evaluate: () => 9,
+    isRollTimeKey: () => false, hasDice: () => false
+  };
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+
+  const handler = context.DX3rdUniversalHandler;
+  assert.equal(await handler.armPendingAttackRider(actor, sourceItem, 'use'), true);
+  const rider = flags.get('pendingAttackRiders')[0];
+  assert.equal(rider.targetAttributes.penalty.value, 9,
+    'afterDamage 버킷은 targetAttributes로 동결된다');
+  assert.equal(handler.hasUsableAttribute(rider.hitAttributes), false,
+    'afterHit 버킷이 없으면 hitAttributes는 비어 있어야 한다');
+
+  const applied = [];
+  handler.dispatchItemAttributes = async (_source, item, appliedActor, attrs, options) => {
+    applied.push({item: item.id, actor: appliedActor.id, options});
+  };
+  // 명중만 했을 뿐 HP가 줄지 않은 대상에게는 발동하지 않는다.
+  await handler.processPendingAttackRiders(actor, [rider], [hitOnly.id], []);
+  assert.deepEqual(applied, [], 'afterDamage 라이더는 명중 경로에서 적용되면 안 된다');
+  // HP를 실제로 잃은 대상에게만 적용된다.
+  await handler.processDamagedAttackRiders(actor, [rider], [damaged]);
+  assert.deepEqual(plain(applied), [{
+    item: sourceItem.id, actor: damaged.id, options: {preEvaluated: true}
   }]);
 });
 
@@ -1125,6 +1194,220 @@ test('combo after-damage self modifiers use the attack bucket lifecycle', async 
   assert.equal(context.DX3rdItemEffectAdapter.selfFiresAt(disabled, 'attack', 'afterDamage'), false);
   assert.equal((await context.DX3rdComboHandler.collectAfterDamageData({ id: 'actor' }, disabled)).activations.length, 0,
     '명시 attack 버킷의 notCheck를 root disable로 덮어 적용하면 안 된다');
+});
+
+test('afterHit target modifiers are an attack trigger distinct from HP loss', () => {
+  const context = baseContext({
+    game: { i18n: { localize: key => key, format: key => key } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  const adapter = context.DX3rdItemEffectAdapter;
+
+  const makeItem = runTiming => ({
+    id: 'item', name: 'item', type: 'effect',
+    system: {
+      attackRoll: 'melee', getTarget: true,
+      active: { state: false, disable: '-', runTiming: 'instant' },
+      effect: { disable: 'scene', runTiming,
+        attributes: { g: { key: 'guard', label: 'guard', value: '-3' } } }
+    },
+    getFlag: () => ({})
+  });
+
+  const hitItem = makeItem('afterHit');
+  assert.equal(adapter.eventAction(hitItem, 'afterHit'), 'attack',
+    'afterHit 버킷은 공격 판정의 후속이다');
+  assert.equal(adapter.triggerFor('attack', 'afterHit'), 'hit',
+    'afterHit는 명중 리포트로 해결된다');
+  assert.equal(adapter.targetFiresAt(hitItem, 'attack', 'afterHit'), true);
+  assert.equal(adapter.targetFiresAt(hitItem, 'attack', 'afterDamage'), false,
+    'afterHit 버킷은 HP 감소 트리거에 발동하지 않는다 — 그 반대도 마찬가지다');
+  assert.ok(Object.keys(adapter.targetBucketAttributes(hitItem, 'attack', 'afterHit')).length > 0);
+  assert.equal(Object.keys(adapter.targetBucketAttributes(hitItem, 'attack', 'afterDamage')).length, 0);
+
+  const damageItem = makeItem('afterDamage');
+  assert.equal(adapter.targetFiresAt(damageItem, 'attack', 'afterDamage'), true);
+  assert.equal(adapter.targetFiresAt(damageItem, 'attack', 'afterHit'), false,
+    '「1점이라도 HP데미지」 계열은 명중만으로 발동하면 안 된다');
+});
+
+test('combo afterHit target modifiers are collected separately from the damaged applies', async () => {
+  const member = {
+    id: 'member-hit', name: '중력의 수갑', type: 'effect',
+    system: {
+      attackRoll: '-', getTarget: true,
+      active: { state: false, disable: '-', runTiming: 'instant' },
+      attributes: {}, macro: '', macros: [],
+      effect: { disable: 'scene', runTiming: 'afterHit',
+        attributes: { d: { key: 'dice', label: 'dice', value: '-(2)' } } }
+    },
+    getFlag: () => ({})
+  };
+  const targetActor = { id: 'hit-actor', name: '명중된 대상', isOwner: true, effects: [] };
+  const hitToken = { id: 'hit-token', actor: targetActor };
+  const context = baseContext({
+    game: {
+      user: { targets: new Set(), isGM: true },
+      macros: { getName: () => null },
+      actors: new Map([[targetActor.id, targetActor]]),
+      i18n: { localize: key => key, format: key => key }
+    },
+    canvas: { tokens: { controlled: [], placeables: [hitToken], get: id => id === hitToken.id ? hitToken : null } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+  load(context, 'scripts/handlers/combo-handler.js');
+  context.DX3rdUniversalHandler.comboMemberItems = () => [member];
+  context.DX3rdUniversalHandler.groupExtensionsByKey = () => new Map();
+  context.DX3rdUniversalHandler.mergeGroupedExtensionBuckets = () => [];
+  context.DX3rdUniversalHandler.hasExecutableMacros = () => false;
+
+  const combo = {
+    id: 'combo', name: 'combo', type: 'combo',
+    system: {
+      attackRoll: 'melee', getTarget: true,
+      active: { state: false, disable: 'notCheck', runTiming: 'instant' },
+      attributes: {}, macro: '', macros: [],
+      effect: { disable: 'notCheck', runTiming: 'instant', attributes: {} }
+    },
+    getFlag: () => ({})
+  };
+  const actor = { id: 'actor', items: new Map([[member.id, member], [combo.id, combo]]) };
+  context.game.actors.set(actor.id, actor);
+
+  const data = await context.DX3rdComboHandler.collectAfterDamageData(actor, combo);
+  assert.equal(data.applies.length, 0, 'afterHit 멤버는 damaged 대상 적용 목록에 들어가면 안 된다');
+  assert.equal(data.hitApplies.length, 1, 'afterHit 멤버는 hitApplies로 수집된다');
+  assert.equal(data.hitApplies[0].itemId, 'member-hit');
+  assert.equal(data.hitApplies[0].frozenAttributes.d.key, 'dice',
+    '사용 시점에 동결된 버킷이 실려야 한다');
+  assert.equal(data.hitApplies[0].action, 'attack',
+    'afterHit 버킷은 attack 버킷으로 분류돼야 한다 — use로 남으면 실행 게이트가 조용히 걸러낸다');
+
+  const applied = [];
+  context.DX3rdUniversalHandler.dispatchItemAttributes =
+    async (_source, _item, target) => applied.push(target.id);
+  await context.DX3rdUniversalHandler.processComboAfterHit({ actorId: actor.id, ...data },
+    [], [hitToken.id]);
+  assert.deepEqual(applied, [targetActor.id],
+    '데미지 0이어도 명중 리포트에 포함된 대상에게 afterHit 버킷이 적용돼야 한다');
+
+  applied.length = 0;
+  await context.DX3rdUniversalHandler.processComboAfterHit({ actorId: actor.id, ...data }, [], []);
+  assert.deepEqual(applied, [], '미스(명중 대상 없음)에는 발동하지 않는다');
+});
+
+test('attack riders route afterHit and afterDamage buckets to their own report lists', async () => {
+  const hitActor = { id: 'hit-actor', name: '명중된 대상', isOwner: true, effects: [] };
+  const hitToken = { id: 'hit-token', actor: hitActor };
+  const context = baseContext({
+    game: {
+      user: { targets: new Set(), isGM: true },
+      macros: { getName: () => null },
+      actors: new Map([[hitActor.id, hitActor]]),
+      i18n: { localize: key => key, format: key => key }
+    },
+    canvas: { tokens: { controlled: [], placeables: [hitToken], get: id => id === hitToken.id ? hitToken : null } },
+    ui: { notifications: { warn: () => {} } },
+    CONFIG: { statusEffects: [] },
+    Hooks: { once: () => {}, on: () => {} },
+    foundry: { utils: { deepClone: value => structuredClone(value), getProperty: () => undefined } }
+  });
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/handlers/universal-handler.js');
+  load(context, 'scripts/handlers/universal-apply.js');
+  const handler = context.DX3rdUniversalHandler;
+
+  const makeItem = (id, attackRoll, runTiming) => ({
+    id, name: id, type: 'effect',
+    system: {
+      attackRoll, getTarget: true,
+      active: { state: false, disable: '-', runTiming: 'instant' },
+      attributes: {}, macro: '', macros: [],
+      effect: { disable: 'scene', runTiming,
+        attributes: { d: { key: 'dice', label: 'dice', value: '-(2)' } } }
+    },
+    getFlag: () => ({})
+  });
+  // ① 단독 공격 아이템의 자기 afterHit 버킷 (fromAttackItem)
+  const attackItem = makeItem('attack-hit', 'melee', 'afterHit');
+  // ② 준비형 afterHit — 「명중할 경우」 탄환류 (베넘 블러드 등)
+  const prepHit = makeItem('prep-hit', '-', 'afterHit');
+  // ③ 준비형 afterDamage — 「1점이라도 HP데미지」 계열 (재앙의 진홍 등)
+  const prepDamage = makeItem('prep-damage', '-', 'afterDamage');
+
+  const flags = {};
+  const attacker = {
+    id: 'attacker', name: '공격자',
+    items: new Map([[attackItem.id, attackItem], [prepHit.id, prepHit], [prepDamage.id, prepDamage]]),
+    getFlag: (scope, key) => flags[`${scope}.${key}`],
+    setFlag: async (scope, key, value) => { flags[`${scope}.${key}`] = value; },
+    unsetFlag: async (scope, key) => { delete flags[`${scope}.${key}`]; }
+  };
+
+  assert.equal(await handler.armPendingAttackRider(attacker, attackItem, 'attack'), true,
+    'afterHit 공격 아이템의 자기 버킷이 라이더로 실려야 한다');
+  assert.equal(await handler.armPendingAttackRider(attacker, attackItem, 'use'), false,
+    '공격 아이템을 「사용」만 하면 라이더를 싣지 않는다 — 공격 행위가 운반한다');
+  assert.equal(await handler.armPendingAttackRider(attacker, prepHit, 'use'), true);
+  assert.equal(await handler.armPendingAttackRider(attacker, prepDamage, 'use'), true);
+
+  const riders = flags['dx3rd-emanim.pendingAttackRiders'];
+  assert.equal(riders.length, 3);
+  const byId = Object.fromEntries(riders.map(rider => [rider.itemId, rider]));
+  assert.equal(byId['attack-hit'].fromAttackItem, true);
+  assert.equal(byId['attack-hit'].hitAttributes.d.key, 'dice',
+    '공격 아이템의 afterHit 버킷이 동결돼야 한다');
+  assert.equal(byId['prep-hit'].hitAttributes.d.key, 'dice');
+  assert.equal(Object.keys(byId['prep-damage'].hitAttributes).length, 0,
+    'afterDamage 라이더의 hit 버킷은 비어 있어야 한다');
+  assert.equal(byId['prep-damage'].targetAttributes.d.key, 'dice');
+
+  const applied = [];
+  handler.dispatchItemAttributes =
+    async (_source, item, target) => applied.push(`${item.id}→${target.id}`);
+
+  // 시나리오 1: 미스 — hit·damaged 리포트 모두 없음
+  await handler.processPendingAttackRiders(attacker, riders, [], []);
+  await handler.processDamagedAttackRiders(attacker, riders, []);
+  assert.deepEqual(applied, [], '미스에는 어떤 라이더도 발동하지 않는다');
+
+  // 시나리오 2: 데미지 0 명중 — afterHit만 발동, afterDamage는 불발
+  await handler.processPendingAttackRiders(attacker, riders, [hitActor.id], [hitToken.id]);
+  await handler.processDamagedAttackRiders(attacker, riders, []);
+  assert.deepEqual(applied.sort(), ['attack-hit→hit-actor', 'prep-hit→hit-actor'],
+    '데미지 0 명중에는 afterHit 버킷만 명중 대상에 적용된다');
+  applied.length = 0;
+
+  // 시나리오 3: 명중 + HP 감소 — afterHit는 hit 목록에, afterDamage는 damaged 목록에 각각 한 번씩
+  await handler.processPendingAttackRiders(attacker, riders, [hitActor.id], [hitToken.id]);
+  await handler.processDamagedAttackRiders(attacker, riders, [hitActor]);
+  assert.deepEqual(applied.sort(),
+    ['attack-hit→hit-actor', 'prep-damage→hit-actor', 'prep-hit→hit-actor'],
+    '공격 아이템의 afterDamage 이중 적용이 없고 각 버킷이 정확히 한 번씩 발동한다');
+});
+
+test('the damage-report completion routes hit and damaged work on separate lists', () => {
+  const handler = source('scripts/handlers/universal-handler.js').replace(/\s+/g, ' ');
+  assert.ok(handler.includes("rider.hitAttributes"),
+    '라이더의 afterHit 버킷은 hitAttributes로 동결돼 명중 리포트에 적용된다');
+  assert.ok(handler.includes("processDamagedAttackRiders"),
+    '라이더의 afterDamage 버킷은 damaged 대상에만 적용돼야 한다');
+  assert.ok(handler.includes("processComboAfterHit"));
+
+  for (const file of ['scripts/main.js', 'scripts/handlers/universal-damage-dialog.js']) {
+    const body = source(file).replace(/\s+/g, ' ');
+    assert.ok(body.includes('processComboAfterHit'), `${file}: 콤보 afterHit 실행 호출이 없다`);
+    assert.ok(body.includes('processDamagedAttackRiders'), `${file}: 라이더 damaged 실행 호출이 없다`);
+  }
 });
 
 test('combo after-success target modifiers keep the targets selected at use time', async () => {
@@ -6670,4 +6953,171 @@ test('a defence counter is only honoured once its own cost has actually been pai
   // The attacker's client resolves the union, because the defender cannot see the attacker's
   // combo members or registered weapons.
   assert.match(damage, /const bypassDefense = window\.DX3rdItemEffectAdapter\.attackBypassDefense\(actor, item\)/);
+});
+
+test('modifier rows with a condition contribute only while the status holds on the carrier', () => {
+  class ActorMock {
+    prepareData() {}
+    async _preUpdate() {}
+    importFromJSON() {}
+  }
+  const context = baseContext({
+    foundry: { documents: { Actor: ActorMock }, utils: {} },
+    Actor: ActorMock,
+    CONFIG: { Actor: {} },
+    game: { settings: { get: () => '-' }, i18n: { localize: k => k, format: k => k } },
+    ui: { notifications: { warn: () => {} } },
+    Hooks: { once: () => {}, on: () => {} }
+  });
+  load(context, 'scripts/core/runtime-utils.js');
+  load(context, 'scripts/item-effect-adapter.js');
+  load(context, 'scripts/document/actor.js');
+  // evaluate() 만 있으면 되는 실측 단위 — 수식 평가 자체는 별도 테스트가 덮는다.
+  context.DX3rdFormulaEvaluator = {
+    evaluate: v => Number(v) || 0,
+    isRollTimeKey: () => false,
+    hasDice: () => false,
+    prepareRollFormula: s => s
+  };
+  const proto = context.CONFIG.Actor.documentClass.prototype;
+  const actor = Object.create(proto);
+  actor.system = { conditions: { berserk: { active: false }, poisoned: { active: false } } };
+
+  const holds = context.DX3rdRuntimeUtils.modifierConditionHolds;
+  assert.equal(holds(actor, null), true, '조건 없는 행은 항상 적용된다');
+  assert.equal(holds(actor, '-'), true);
+  assert.equal(holds(actor, 'berserk'), false, '[폭주] 미보유');
+  assert.equal(holds(actor, 'badStatus'), false, 'BS 미보유');
+  actor.system.conditions.poisoned.active = true;
+  assert.equal(holds(actor, 'badStatus'), true, '어느 BS든 하나면 badStatus 는 참이다');
+  assert.equal(holds(actor, 'berserk'), false, '다른 상태로는 berserk 조건이 서지 않는다');
+  actor.system.conditions.berserk.active = true;
+  assert.equal(holds(actor, 'berserk'), true);
+
+  // 활성 아이템 채널(토글 중 읽히는 행)
+  const item = {
+    id: 'fx', name: '렉클리스 포스', type: 'effect',
+    system: { attributes: { r: { key: 'major_dice', label: 'major_dice', value: '2', condition: 'berserk' } } }
+  };
+  const unconditional = {
+    id: 'fx2', name: '무조건', type: 'effect',
+    system: { attributes: { r: { key: 'major_dice', label: 'major_dice', value: '1' } } }
+  };
+  actor.system.conditions.berserk.active = false;
+  actor.system.conditions.poisoned.active = false;
+  let reader = actor._makeContribReader([item, unconditional], {});
+  assert.equal(reader.sum('major_dice'), 1, '폭주가 아니면 조건 행만 빠진다');
+  actor.system.conditions.berserk.active = true;
+  reader = actor._makeContribReader([item, unconditional], {});
+  assert.equal(reader.sum('major_dice'), 3, '폭주 중에는 조건 행이 합산된다');
+
+  // 적용된 이펙트 채널(AE 에 동결돼 실린 행) — badStatus 는 받는 액터 기준으로 판정된다.
+  const applied = {
+    eff1: { attributes: { a: { key: 'attack', label: '-', value: 3, condition: 'badStatus' },
+                          b: { key: 'attack', label: '-', value: 1 } } }
+  };
+  actor.system.conditions.berserk.active = false;
+  actor.system.conditions.poisoned.active = false;
+  let idx = actor._indexAppliedEffects(applied);
+  assert.equal((idx.attack || []).reduce((s, e) => s + Number(e.val), 0), 1,
+    'BS 가 없으면 badStatus 행은 적용 목록에서 빠진다');
+  actor.system.conditions.dazed = { active: true };
+  idx = actor._indexAppliedEffects(applied);
+  assert.equal((idx.attack || []).reduce((s, e) => s + Number(e.val), 0), 4,
+    'BS(dazed)가 생기면 badStatus 행이 합산된다');
+});
+
+test('modifier row conditions survive the applied-effect serialization paths', () => {
+  const apply = source('scripts/handlers/universal-apply.js');
+  const occurrences = apply.match(/\.\.\.\(attrData\.condition \? \{ condition: attrData\.condition \} : \{\}\)/g) || [];
+  assert.equal(occurrences.length, 2,
+    '대상 적용(_applyItemAttributes)과 이펙트 데이터 적용(_applyEffectDataToActor) 둘 다 condition 을 실어야 한다');
+  const toggle = source('scripts/dx3rd-applied-toggle.js');
+  assert.match(toggle, /\.\.\.\(a\.condition \? \{ condition: a\.condition \} : \{\}\)/,
+    '토글 동결 경로도 condition 을 보존해야 한다 — 여기서 평가하면 받는 시점의 상태로 굳는다');
+  const attrRow = source('_source/apply-overrides.mjs');
+  assert.match(attrRow, /if \(a\.condition\) row\.condition = a\.condition;/,
+    'attrRow 가 condition 을 버리면 _source 오버라이드의 저작이 팩까지 도달하지 않는다');
+});
+
+test('a stackable bucket adds a new applied AE per application instead of overwriting', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  // 실물 어댑터를 싣는다 — bucketLifecycle 의 stack 판독이 런타임 그대로 동작해야 한다.
+  context.Hooks = { once: () => {}, on: () => {} };
+  load(context, 'scripts/item-effect-adapter.js');
+  let seq = 0;
+  context.foundry.utils.randomID = () => `inst${++seq}`;
+  // set 은 실물과 같은 업서트 — 같은 appliedKey 의 AE 가 있으면 그 문서를 갱신한다.
+  context.DX3rdAppliedEffects.set = (actor, key, payload) => {
+    let eff = actor.effects.find(e => e.getFlag('dx3rd-emanim', 'appliedKey') === key);
+    if (!eff) { eff = { getFlag: (_s, f) => (f === 'appliedKey' ? key : payload) }; actor.effects.push(eff); }
+    else eff.getFlag = (_s, f) => (f === 'appliedKey' ? key : payload);
+    writes.push({ actor, key, payload });
+    return eff;
+  };
+
+  const caster = { id: 'a1', name: '시전자' };
+  const stackable = {
+    id: 'i1', name: '중력의 수갑', type: 'effect',
+    system: {
+      effect: {
+        disable: 'scene', runTiming: 'afterHit', stack: true,
+        attributes: { a0: { key: 'dice', label: 'dice', value: '-2' } }
+      }
+    }
+  };
+  const target = { id: 't1', name: '대상', effects: [] };
+
+  await handler._applyItemAttributes(caster, stackable, target, stackable.system.effect.attributes);
+  await handler._applyItemAttributes(caster, stackable, target, stackable.system.effect.attributes);
+
+  assert.equal(writes.length, 2);
+  assert.notEqual(writes[0].key, writes[1].key, '스택 버킷은 적용마다 새 인스턴스 키를 받아야 한다');
+  for (const w of writes) assert.match(w.key, /^applied_i1_inst\d+$/);
+  assert.equal(writes[0].payload.attributes['dice:dice'].value, -2);
+  assert.equal(writes[1].payload.attributes['dice:dice'].value, -2, '각 스택은 한 번분만 얹는다 — 합산은 기여 색인이 한다');
+  assert.equal(target.effects.length, 2, '두 번 명중하면 두 개의 AE 가 남아야 한다');
+
+  // 대조군: stack 이 없으면 같은 버킷의 기존 AE 키를 찾아 덮어쓴다(기존 동작 그대로).
+  const plainItem = {
+    id: 'i2', name: '일반 버킷', type: 'effect',
+    system: { effect: { disable: 'scene', runTiming: 'afterHit',
+      attributes: { a0: { key: 'dice', label: 'dice', value: '-1' } } } }
+  };
+  const target2 = { id: 't2', name: '대상2', effects: [] };
+  writes.length = 0;
+  await handler._applyItemAttributes(caster, plainItem, target2, plainItem.system.effect.attributes);
+  await handler._applyItemAttributes(caster, plainItem, target2, plainItem.system.effect.attributes);
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0].key, 'applied_i2');
+  assert.equal(writes[1].key, 'applied_i2', '비스택 버킷은 두 번째 적용이 첫 AE 를 갱신해야 한다');
+  assert.equal(target2.effects.length, 1);
+});
+
+test('a stackable bucket with nothing to apply does not erase earlier stacks', async () => {
+  const { context, handler, writes } = applyHandlerContext();
+  context.Hooks = { once: () => {}, on: () => {} };
+  load(context, 'scripts/item-effect-adapter.js');
+  let seq = 0;
+  context.foundry.utils.randomID = () => `inst${++seq}`;
+  context.DX3rdAppliedEffects.set = (actor, key, payload) => {
+    const eff = { getFlag: (_s, f) => (f === 'appliedKey' ? key : payload) };
+    actor.effects.push(eff);
+    writes.push({ actor, key, payload });
+    return eff;
+  };
+  const item = {
+    id: 'i1', name: '중력의 수갑', type: 'effect',
+    system: { effect: { disable: 'scene', runTiming: 'afterHit', stack: true,
+      attributes: { a0: { key: 'dice', label: 'dice', value: '-2' } } } }
+  };
+  const target = { id: 't1', name: '대상', effects: [] };
+  await handler._applyItemAttributes({ id: 'a1', name: '시전자' }, item, target, item.system.effect.attributes);
+  assert.equal(target.effects.length, 1);
+
+  // 빈 페이로드가 와도(적용할 보정이 하나도 없어도) 기존 스택을 지우면 안 된다.
+  const before = writes.length;
+  await handler._applyItemAttributes({ id: 'a1', name: '시전자' }, item, target, {});
+  assert.equal(writes.length, before, '빈 적용은 아무것도 쓰거나 지우지 않아야 한다');
+  assert.equal(target.effects.length, 1, '기존 스택이 남아 있어야 한다');
 });

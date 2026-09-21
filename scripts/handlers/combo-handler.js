@@ -759,6 +759,7 @@ window.DX3rdComboHandler = {
             activations: [], // { itemId, itemName }
             macros: [],      // { itemId, itemName, macroName, timing }
             applies: [],     // { itemId, itemName }
+            hitApplies: [],  // { itemId, itemName } — 'afterHit' buckets, resolved against hit targets
             extensions: [],  // merged buckets (afterDamage)
             afterMainExtensions: [], // merged buckets (afterMain, when runTiming is afterDamage)
             comboItemSnapshot: window.DX3rdIsInstantCombo?.(item)
@@ -802,6 +803,17 @@ window.DX3rdComboHandler = {
             result.applies.push({ itemId: item.id, itemName: item.name, action: 'attack',
                 frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, item, comboTargetAttrs) || null });
         }
+        // 3b) Applied on hit — 'afterHit' buckets resolve against attackHit, not HP loss.
+        const comboHitFires = adapter
+            ? adapter.targetFiresAt(item, 'attack', 'afterHit')
+            : item.system?.effect?.runTiming === 'afterHit';
+        if ((item.system?.getTarget || item.system?.scene) && comboHitFires) {
+            const comboHitAttrs = adapter
+                ? adapter.targetBucketAttributes(item, 'attack', 'afterHit')
+                : (item.system?.effect?.attributes || {});
+            result.hitApplies.push({ itemId: item.id, itemName: item.name, action: 'attack',
+                frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, item, comboHitAttrs) || null });
+        }
         // 4) The extensions are all collected below
 
         // Collect from every member item
@@ -834,6 +846,17 @@ window.DX3rdComboHandler = {
                     : (memberItem.system?.effect?.attributes || {});
                 result.applies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction,
                     frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, memberItem, memberTargetAttrs) || null });
+            }
+            // 3b) Applied on hit — 'afterHit' buckets resolve against attackHit, not HP loss.
+            const memberHitFires = window.DX3rdItemEffectAdapter
+                ? window.DX3rdItemEffectAdapter.targetFiresAt(memberItem, memberAction, 'afterHit')
+                : memberItem.system?.effect?.runTiming === 'afterHit';
+            if ((memberItem.system?.getTarget || memberItem.system?.scene) && memberHitFires) {
+                const memberHitAttrs = window.DX3rdItemEffectAdapter
+                    ? window.DX3rdItemEffectAdapter.targetBucketAttributes(memberItem, memberAction, 'afterHit')
+                    : (memberItem.system?.effect?.attributes || {});
+                result.hitApplies.push({ itemId: memberItem.id, itemName: memberItem.name, action: memberAction,
+                    frozenAttributes: handler.freezeTransferredItemAttributes?.(actor, memberItem, memberHitAttrs) || null });
             }
             // 4) The extensions are all collected below
         }

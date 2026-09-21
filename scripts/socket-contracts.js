@@ -85,6 +85,7 @@
         || (Array.isArray(data.payload.pendingAttackRiders)
           && data.payload.pendingAttackRiders.every(rider => isObject(rider)
             && isId(rider.itemId) && isObject(rider.targetAttributes)
+            && (rider.hitAttributes === undefined || isObject(rider.hitAttributes))
             && rider.preEvaluated === true))),
     authorize: ownsActor('payload.attackerId')
   });

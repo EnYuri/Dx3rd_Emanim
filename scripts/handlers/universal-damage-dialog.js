@@ -1356,18 +1356,21 @@
                       // lose every member effect's poison / heal / after-damage work.
                       // comboAfterDamageData already carries the member data needed to run, so it is handled
                       // first, independently of the original combo document.
+                      // damagedTargets is an array of Actor IDs, so convert to Actor objects.
+                      // Built once here — both the combo afterDamage work and the preparation
+                      // riders' damage-triggered buckets resolve against the same list.
+                      const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
+                        .filter(Boolean);
+                      for (const actorId of damagedTargets) {
+                        const damagedActor = game.actors.get(actorId);
+                        if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
+                          damagedActors.push(damagedActor);
+                        }
+                      }
+
                       const comboData = activationRequest.comboAfterDamageData;
                       if (comboData && damagedTargets.length > 0) {
                         window.DX3rdDebug.log('DX3rd | Processing combo afterDamage (HP damage occurred)');
-                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
-                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
-                          .filter(Boolean);
-                        for (const actorId of damagedTargets) {
-                          const damagedActor = game.actors.get(actorId);
-                          if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
-                            damagedActors.push(damagedActor);
-                          }
-                        }
                         await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
                       } else if (comboData) {
                         await window.DX3rdInstantComboRetention?.complete?.(attacker, itemId, 'afterDamage');
@@ -1380,6 +1383,16 @@
                           hitTargets,
                           hitTokenIds
                         );
+                        // Combo 'afterHit' buckets fire on attackHit — including a hit reduced
+                        // to 0 HP damage — independently of the damaged-target work above.
+                        if (comboData && (comboData.hitApplies || []).length > 0) {
+                          await window.DX3rdUniversalHandler.processComboAfterHit(
+                            comboData, hitTargets, hitTokenIds);
+                        }
+                      }
+                      if (damagedTargets.length > 0) {
+                        await window.DX3rdUniversalHandler.processDamagedAttackRiders(
+                          attacker, activationRequest.pendingAttackRiders, damagedActors);
                       }
 
                       const attackerItem = attacker.items.get(itemId);

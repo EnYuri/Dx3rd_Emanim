@@ -1294,6 +1294,10 @@
 
                 for (const [attrName, attrValue] of Object.entries(eff.attributes)) {
                     const isObj = (typeof attrValue === 'object' && attrValue !== null);
+                    // A row carrying `condition` contributes only while it holds on this actor
+                    // ("while [Berserk]", "while carrying a bad status" — see DX3rdRuntimeUtils).
+                    if (isObj && attrValue.condition
+                        && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(this, attrValue.condition)) continue;
                     const key = isObj ? attrValue.key : attrName;
                     const label = isObj ? attrValue.label : null;
                     const raw = (isObj && 'value' in attrValue) ? attrValue.value : attrValue;
@@ -1333,6 +1337,8 @@
                     // while the state is on — it is attached as a frozen AE at that moment instead, and
                     // arrives through appliedByKey. Counting it here too would apply the same bonus twice.
                     if (effectAdapter && !effectAdapter.appliesWhileActive(item, a)) continue;
+                    // A row carrying `condition` contributes only while it holds on this actor.
+                    if (a.condition && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, a.condition)) continue;
                     (activeByKey[a.key] = activeByKey[a.key] || []).push({ a, item });
                 }
             }

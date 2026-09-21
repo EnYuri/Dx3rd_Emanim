@@ -231,10 +231,18 @@
       const channelDefault = adapter ? adapter.channelAction(item, channel) : null;
       const single = effective.size === 1 ? [...effective][0] : null;
       const bucketAction = single && single !== channelDefault ? single : null;
+      const lifecycle = adapter
+        ? adapter.bucketLifecycle(item, channel, bucketAction || channelDefault)
+        : null;
       const bucketSuffix = {activation: 'act_', use: 'use_', attack: 'atk_'}[bucketAction] || '';
+      // A stackable bucket ("stacks each time it hits") never reuses the previous AE — every
+      // application gets its own instance key, so N applications contribute N times and the
+      // bucket's own lifetime (e.g. scene) sweeps them all together.
+      const stackable = lifecycle?.stack === true;
       let appliedKey = channel === 'self'
         ? `applied_self_${bucketSuffix}${item.id}`
         : `applied_${bucketSuffix}${item.id}`;
+      if (stackable) appliedKey = `${appliedKey}_${foundry.utils.randomID()}`;
 
       // Look for an existing AE (same item and same channel keeps the key and replaces only the contents).
       // But a 'toggle:' derived AE is owned by DX3rdAppliedToggle — grabbing that key just because it came from the
@@ -242,7 +250,8 @@
       // with nothing to apply, have the branch below delete someone else's toggle AE.
       // An older AE with no channel marking is treated as the target channel (back then only the target path created
       // this key, and a self frozen AE moves to the new key, so there is no risk of grabbing the wrong one).
-      const existingEff = targetActor.effects.find(e => {
+      // A stackable application is always a new instance — it must not adopt an earlier stack's key.
+      const existingEff = stackable ? null : targetActor.effects.find(e => {
         if (String(e.getFlag?.('dx3rd-emanim', 'appliedKey') || '').startsWith('toggle:')) return false;
         const applied = e.getFlag?.('dx3rd-emanim', 'applied');
         if (applied?.itemId !== item.id) return false;
@@ -271,8 +280,8 @@
         timestamp: Date.now(),
         // The lifetime belongs to the bucket too. Each card can author its own expiry timing, so reading the channel
         // field directly would make it expire on another card's lifetime (disable-hooks reads this value first).
-        disable: opts.disable ?? (adapter
-          ? adapter.bucketLifecycle(item, channel, bucketAction || channelDefault).disable
+        disable: opts.disable ?? (lifecycle
+          ? lifecycle.disable
           : (channel === 'self'
             ? (item.system?.active?.disable ?? '-')
             : (item.system.effect?.disable ?? '-'))),
@@ -309,7 +318,10 @@
         appliedEffect.attributes[storageKey] = {
           key,
           label: rawLabel,
-          value: evaluated
+          value: evaluated,
+          // A row-level condition rides along unevaluated — it is re-evaluated against the
+          // holder on every derivation (see DX3rdRuntimeUtils.modifierConditionHolds).
+          ...(attrData.condition ? { condition: attrData.condition } : {})
         };
       }
 
@@ -738,7 +750,8 @@
         appliedEffect.attributes[storageKey] = {
           key,
           label: rawLabel,
-          value: evaluated
+          value: evaluated,
+          ...(attrData.condition ? { condition: attrData.condition } : {})
         };
       }
 

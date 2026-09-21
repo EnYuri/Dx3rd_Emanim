@@ -357,7 +357,7 @@
   "봉인의 주술": {
     "effect": {
       "disable": "roll",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "critical",
@@ -389,7 +389,7 @@
   "선혈의 사슬": {
     "effect": {
       "disable": "roll",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "critical",
@@ -621,6 +621,7 @@
       "disable": "main",
       "runTiming": "instant",
       "applyMode": "onUse",
+      "stack": true,
       "action": ""
     },
     "resourceCost": {
@@ -1661,7 +1662,7 @@
     "getTarget": true,
     "effect": {
       "disable": "scene",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "init",
@@ -1692,7 +1693,7 @@
     "getTarget": true,
     "effect": {
       "disable": "scene",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "init",
@@ -1723,7 +1724,7 @@
     "getTarget": true,
     "effect": {
       "disable": "scene",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "guard",
@@ -1755,7 +1756,7 @@
     "getTarget": true,
     "effect": {
       "disable": "scene",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "attack",
@@ -1787,7 +1788,7 @@
     "getTarget": true,
     "effect": {
       "disable": "round",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "battleMove",
@@ -3058,7 +3059,7 @@
     "getTarget": true,
     "effect": {
       "disable": "scene",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "armor",
@@ -4501,6 +4502,13 @@
       "applyMode": "onUse",
       "action": ""
     },
+    "attributes": [
+      {
+        "key": "reduce",
+        "value": "[level]*5",
+        "condition": "berserk"
+      }
+    ],
     "resourceCost": {
       "enabled": false,
       "resource": "hp",
@@ -8631,6 +8639,13 @@
       "applyMode": "onUse",
       "action": ""
     },
+    "attributes": [
+      {
+        "key": "major_dice",
+        "value": "+[level]",
+        "condition": "berserk"
+      }
+    ],
     "resourceCost": {
       "enabled": false,
       "resource": "hp",
@@ -18936,7 +18951,8 @@
       {
         "key": "attack",
         "label": "melee",
-        "value": "+[level]*2"
+        "value": "+[level]*2",
+        "condition": "berserk"
       }
     ]
   },
@@ -20062,7 +20078,7 @@
     "description": "<p>이 이펙트를 조합한 사격공격이 명중하면, 그 라운드 동안 대상이 실행하는 가드의 가드치에 -[LV×3] 한다.</p><p><em>명중하면 대상의 전신을 구속하는 그림자를 사격에 포함시키는 이펙트.</em></p>",
     "effect": {
       "disable": "round",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "guard",
@@ -20738,6 +20754,13 @@
       "applyMode": "onUse",
       "action": ""
     },
+    "attributes": [
+      {
+        "key": "init",
+        "value": "+[level]*3",
+        "condition": "berserk"
+      }
+    ],
     "resourceCost": {
       "enabled": false,
       "resource": "hp",
@@ -24389,6 +24412,14 @@
       "applyMode": "onUse",
       "action": ""
     },
+    "attributes": [
+      {
+        "key": "stat_dice",
+        "label": "mind",
+        "value": "[level]+1",
+        "condition": "berserk"
+      }
+    ],
     "resourceCost": {
       "enabled": false,
       "resource": "hp",
@@ -24937,7 +24968,7 @@
     "description": "<p>이 이펙트를 조합한 공격이 대상에게 명중하면, 그 라운드 동안 대상이 실행하는 닷지 판정의 달성치에 -[LV×2] 한다.</p><p><em>강한 점착성 물질을 생성하여 무기에 덧칠함으로써 대상의 행동을 제한하는 이펙트.</em></p>",
     "effect": {
       "disable": "round",
-      "runTiming": "afterDamage",
+      "runTiming": "afterHit",
       "attributes": [
         {
           "key": "dodge_add",
@@ -25204,6 +25235,18 @@
       "disable": "-",
       "runTiming": "instant",
       "applyMode": "onUse",
+      "action": ""
+    },
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterHit",
+      "stack": true,
+      "attributes": [
+        {
+          "key": "dice",
+          "value": "-(2)"
+        }
+      ],
       "action": ""
     },
     "resourceCost": {
@@ -31873,7 +31916,8 @@
       {
         "key": "attack",
         "label": "-",
-        "value": "+[level]*3"
+        "value": "+[level]*3",
+        "condition": "badStatus"
       }
     ]
   },

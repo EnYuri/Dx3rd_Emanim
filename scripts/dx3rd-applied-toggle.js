@@ -76,7 +76,10 @@
           ? prepared
           : (Number(EV?.evaluate(a.value, item, actor)) || 0);
       }
-      out[storeK] = { key: a.key, label: a.label ?? null, value };
+      // `condition` rides along unevaluated — it gates the contribution dynamically on the
+      // holder's side (actor.js _indexAppliedEffects), not once at freeze time.
+      out[storeK] = { key: a.key, label: a.label ?? null, value,
+        ...(a.condition ? { condition: a.condition } : {}) };
     }
     return out;
   }

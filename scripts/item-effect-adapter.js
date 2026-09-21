@@ -102,7 +102,7 @@
   function eventAction(item, timing = 'instant', options = {}) {
     const explicit = normalizeAction(options.action || options.dx3rdAction);
     if (explicit) return explicit;
-    if (timing === 'afterDamage') return 'attack';
+    if (timing === 'afterDamage' || timing === 'afterHit') return 'attack';
     return invocationAction(item, options);
   }
 
@@ -260,6 +260,9 @@
       disable: pick('disable', root.disable ?? fallbackDisable),
       // An activation bucket has exactly one trigger point — the moment the state turns on. It has no check timing.
       runTiming: expected === 'activation' ? 'instant' : pick('runTiming', root.runTiming || 'instant'),
+      // Reapplication stacks a new applied AE instead of overwriting the previous one
+      // ("this effect stacks each time the attack hits" — 중력의 수갑). Default: overwrite, as always.
+      stack: !!pick('stack', root.stack),
       path: isDefault
         ? (chan === 'self' ? 'system.active' : 'system.effect')
         : `${chan === 'self' ? 'system.active' : 'system.effect'}.buckets.${expected}`
@@ -513,7 +516,7 @@
         && !hasUsableEntries(item.system?.effect?.attributes)) return 'activation';
       return invocationAction(item);
     }
-    if (timing === 'afterDamage') return 'attack';
+    if (timing === 'afterDamage' || timing === 'afterHit') return 'attack';
     if (kind === 'targetModifiers' || kind === 'damage' || kind === 'condition' || kind === 'macro') {
       return isAttackItem(item) ? 'attack' : 'use';
     }
@@ -523,6 +526,7 @@
   function triggerFor(action, timing = 'instant') {
     if (action === 'activation') return 'activate';
     if (timing === 'afterSuccess') return action === 'attack' ? 'hit' : 'success';
+    if (timing === 'afterHit') return 'hit';
     if (timing === 'afterDamage') return 'damageApplied';
     if (timing === 'afterMain') return 'afterMain';
     if (timing === 'onInvoke') return 'invoke';
@@ -556,12 +560,14 @@
       targetToken: 'DX3rd.EffectTargetSelected',
       targetAll: 'DX3rd.EffectTargetAll',
       scene: 'DX3rd.EffectTargetScene',
-      damagedTargets: 'DX3rd.EffectTargetDamaged'
+      damagedTargets: 'DX3rd.EffectTargetDamaged',
+      hitTargets: 'DX3rd.EffectTargetHit'
     }[target] || 'DX3rd.EffectTargetSelf');
   }
 
   function targetForTargetModifiers(item, timing) {
     if (timing === 'afterDamage') return 'damagedTargets';
+    if (timing === 'afterHit') return 'hitTargets';
     if (item.system?.scene) return 'scene';
     if (item.system?.getTarget) return 'targetToken';
     return 'self';
@@ -822,6 +828,8 @@
         const bucketFields = {
           disableName: `${lifecycle.path}.disable`,
           runTimingName: `${lifecycle.path}.runTiming`,
+          stackName: `${lifecycle.path}.stack`,
+          stack: lifecycle.stack,
           bucketPath: lifecycle.path,
           channel: card.kind === 'selfModifiers' ? 'self' : 'target',
           channelOptions,
@@ -866,6 +874,7 @@
         action, actionLabel: actionLabel(action), count: 0, deletable: false,
         disable: lifecycle.disable, runTiming: lifecycle.runTiming,
         disableName: `${lifecycle.path}.disable`, runTimingName: `${lifecycle.path}.runTiming`,
+        stackName: `${lifecycle.path}.stack`, stack: lifecycle.stack,
         bucketPath: lifecycle.path,
         showRunTiming: channel === 'target' || lifecycle.isDefault,
         bucketLabel: `${localize(channel === 'self' ? 'DX3rd.Self' : 'DX3rd.Target')} · ${actionLabel(action)}`
@@ -949,17 +958,17 @@
   /** Is there any active effect that needs a selected target, regardless of action? (a pre-check for combo members) */
   function requiresAnyTarget(item) {
     return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
-      card.active && ['targetToken', 'damagedTargets'].includes(card.target));
+      card.active && ['targetToken', 'damagedTargets', 'hitTargets'].includes(card.target));
   }
 
   function requiresTarget(item, action = invocationAction(item)) {
     const expected = normalizeAction(action) || invocationAction(item);
     const targetCards = collectPersistent(item).filter(card => card.kind === 'targetModifiers');
     if (targetCards.some(card => card.active && actionCoversBucket(item, expected, card.action)
-      && ['targetToken', 'damagedTargets'].includes(card.target))) return true;
+      && ['targetToken', 'damagedTargets', 'hitTargets'].includes(card.target))) return true;
     return [...collectImmediate(item), ...collectPersistent(item)].some(card =>
       card.active && actionCoversBucket(item, expected, card.action)
-      && ['targetToken', 'damagedTargets'].includes(card.target));
+      && ['targetToken', 'damagedTargets', 'hitTargets'].includes(card.target));
   }
 
   function hasActionEffects(item, action) {

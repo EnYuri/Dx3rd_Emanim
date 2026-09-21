@@ -150,12 +150,20 @@
     return `<option value="${escapeHTML(selected ?? '-')}" selected>${escapeHTML(selected ?? '-')}</option>`;
   }
 
+  function conditionSelectHTML(selected) {
+    const helper = Handlebars?.helpers?.modifierConditionOptions;
+    if (typeof helper === 'function') return String(helper(selected ?? ''));
+    const value = selected ?? '';
+    return `<option value="${escapeHTML(value)}" selected>${escapeHTML(value || '-')}</option>`;
+  }
+
   function attrRowHTML(attr = {}) {
     return `
       <div class="dx3rd-ae-attr-row" style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">
-        <select class="ae-attr-key" style="flex:1 1 42%;">${keySelectHTML(attr.key)}</select>
-        <input class="ae-attr-label" type="text" list="dx3rd-ae-label-list" value="${escapeHTML(attr.label ?? '')}" placeholder="label" style="flex:1 1 30%;min-width:0;">
-        <input class="ae-attr-value" type="text" value="${escapeHTML(attr.value ?? '')}" placeholder="${escapeHTML(game.i18n.localize('DX3rd.Value'))}" style="flex:1 1 22%;min-width:0;">
+        <select class="ae-attr-key" style="flex:1 1 36%;">${keySelectHTML(attr.key)}</select>
+        <input class="ae-attr-label" type="text" list="dx3rd-ae-label-list" value="${escapeHTML(attr.label ?? '')}" placeholder="label" style="flex:1 1 26%;min-width:0;">
+        <input class="ae-attr-value" type="text" value="${escapeHTML(attr.value ?? '')}" placeholder="${escapeHTML(game.i18n.localize('DX3rd.Value'))}" style="flex:1 1 20%;min-width:0;">
+        <select class="ae-attr-condition" title="${escapeHTML(game.i18n.localize('DX3rd.ModifierConditionHint'))}" style="flex:0 0 96px;min-width:0;">${conditionSelectHTML(attr.condition)}</select>
         <a class="ae-attr-remove" title="${escapeHTML(game.i18n.localize('DX3rd.Remove'))}" style="flex:0 0 auto;cursor:pointer;"><i class="fas fa-trash"></i></a>
       </div>`;
   }
@@ -286,7 +294,8 @@
       if (!key || key === '-') return;
       const label = row.querySelector('.ae-attr-label')?.value?.trim() || '';
       const value = row.querySelector('.ae-attr-value')?.value ?? '';
-      attributes[`attr${i++}`] = { key, label, value };
+      const condition = row.querySelector('.ae-attr-condition')?.value || '';
+      attributes[`attr${i++}`] = condition ? { key, label, value, condition } : { key, label, value };
     });
 
     // 원본 payload 를 보존하고 편집 필드만 덮어쓴다(itemId/source/timestamp 유지).

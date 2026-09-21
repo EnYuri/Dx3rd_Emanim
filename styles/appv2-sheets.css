@@ -353,6 +353,13 @@
     width: auto;
 }
 
+/* Per-row modifier condition select — narrow fixed width so it does not squeeze the
+   three equal columns above. */
+.application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-condition {
+    flex: 0 0 92px;
+    min-width: 0;
+}
+
 .application.sheet.dx3rd-emanim.item .attributes .attribute > .attribute-control {
     flex: 0 0 20px;
 }

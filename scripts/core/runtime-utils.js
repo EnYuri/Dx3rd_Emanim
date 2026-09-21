@@ -16,6 +16,23 @@
   }
 
   /**
+   * A modifier row's `condition` axis — the row contributes only while the condition holds
+   * on the actor carrying the modifier. 'badStatus' means any bad status; every other value
+   * names a key under system.conditions ('berserk', 'stealth', …). The bad-status list is the
+   * same seven universal-status-clear treats as BS (berserk counts — it is one).
+   */
+  const MODIFIER_BAD_STATUSES = ['berserk', 'hatred', 'fear', 'rigor', 'pressure', 'dazed', 'poisoned'];
+
+  function modifierConditionHolds(actor, condition) {
+    if (!condition || condition === '-') return true;
+    const conditions = actor?.system?.conditions || {};
+    if (condition === 'badStatus') {
+      return MODIFIER_BAD_STATUSES.some(id => conditions[id]?.active === true);
+    }
+    return conditions[condition]?.active === true;
+  }
+
+  /**
    * Preserve an extension's authored target while limiting selected targets to actors that
    * actually took HP damage. `targetAll` still means caster + selected targets; collapsing it to
    * `targetToken` would silently drop the caster. The internal `damagedTargets` label is normalized
@@ -318,6 +335,8 @@
 
   window.DX3rdRuntimeUtils = Object.freeze({
     AFTER_MAIN_TYPES,
+    MODIFIER_BAD_STATUSES,
+    modifierConditionHolds,
     getActorOnlySpeaker,
     isPlainObject,
     updateTouchesPath,

@@ -1725,7 +1725,7 @@
     // request was discarded — so keeping it as a cleanup block leaks the hidden combo forever
     // (tryCleanup refuses, and the manual audit skips retained items outright).
     const RETENTION_PENDING_TTL_MS = 30 * 60 * 1000;
-    const hasFollowupWork = data => ['activations', 'macros', 'applies', 'extensions', 'afterMainExtensions']
+    const hasFollowupWork = data => ['activations', 'macros', 'applies', 'hitApplies', 'extensions', 'afterMainExtensions']
         .some(key => Array.isArray(data?.[key]) && data[key].length > 0);
 
     function retained(item) {

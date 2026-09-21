@@ -129,6 +129,9 @@
               </select>
               <input class="attribute-label" type="text" name="system.attributes.{{key}}.label" value="{{attr.label}}" disabled/>
               <input class="attribute-value" type="text" name="system.attributes.{{key}}.value" value="{{attr.value}}" data-dtype="String"/>
+              <select class="attribute-condition" name="system.attributes.{{key}}.condition" data-dtype="String" title="{{localize "DX3rd.ModifierConditionHint"}}">
+                {{{modifierConditionOptions attr.condition}}}
+              </select>
               <a class="attribute-control" data-action="deleteAttribute"><i class="fas fa-trash"></i></a>
             </li>
           {{/each}}

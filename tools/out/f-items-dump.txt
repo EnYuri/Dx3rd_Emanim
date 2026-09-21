@@ -1,0 +1,45 @@
+===== 제트 슈트 | _source\pack-armors\제트_슈트_czoJ1BMdfFcBTQh5.json | type:protect
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: null
+ flags: {"dx3rd-emanim": {"equipmentStatuses": ["fly"]}}
+===== 리에종 크레스트 | _source\pack-items\리에종_크레스트_s1gcxxLlaJeqGS4N.json | type:etc
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant", "applyMode": "onUse", "action": ""}
+ macros: null
+ flags: {}
+===== 빌드 스파인 | _source\pack-items\빌드_스파인_KKKZNXU19UGwamPp.json | type:etc
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant", "applyMode": "onUse", "action": ""}
+ macros: null
+ flags: {}
+===== 학원통의 친구 | _source\pack-items\학원통의_친구_WLfizIRg7vx7YDcD.json | type:connection
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: null
+ flags: {}
+===== 후두노리 기숙사 특무증서 | _source\pack-items\후두노리_기숙사_특무증서_KCKCfyQG6lNgiYeR.json | type:connection
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: null
+ flags: {}
+===== FH 칼날 바이크 | _source\pack-vehicles\FH_칼날_바이크_deAUIjzMpJKNQaZe.json | type:vehicle
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: []
+ flags: {}
+===== 스카이 키드 | _source\pack-vehicles\스카이_키드_zxTnyyxKUTHF8ubD.json | type:vehicle
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: []
+ flags: {"dx3rd-emanim": {"equipmentStatuses": ["fly"]}}
+===== 헬리콥터 | _source\pack-vehicles\헬리콥터_KkA9OoB2jbBMNkvB.json | type:vehicle
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: []
+ flags: {"dx3rd-emanim": {"equipmentStatuses": ["fly"]}}
+===== 대형 해머 | _source\pack-weapons\대형_해머_l6dzMichqql3GooA.json | type:weapon
+ attrs: {}
+ active: {"state": false, "disable": "-", "runTiming": "instant"}
+ macros: null
+ flags: {}

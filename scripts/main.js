@@ -245,6 +245,37 @@ Hooks.once('init', async function() {
         return new Handlebars.SafeString(html);
     });
 
+    // Per-row modifier condition: the row contributes only while the condition holds on the
+    // actor carrying the modifier (DX3rdRuntimeUtils.modifierConditionHolds). 'badStatus' is a
+    // pseudo-key meaning "any bad status"; the rest name system.conditions keys.
+    Handlebars.registerHelper('modifierConditionOptions', function(selectedValue) {
+        const options = [
+            { value: '', label: 'DX3rd.ConditionNone' },
+            { value: 'badStatus', label: 'DX3rd.BadStatus' },
+            { value: 'berserk', label: 'DX3rd.Berserk' },
+            { value: 'hatred', label: 'DX3rd.Hatred' },
+            { value: 'fear', label: 'DX3rd.Fear' },
+            { value: 'rigor', label: 'DX3rd.Rigor' },
+            { value: 'pressure', label: 'DX3rd.Pressure' },
+            { value: 'dazed', label: 'DX3rd.Dazed' },
+            { value: 'poisoned', label: 'DX3rd.Poisoned' },
+            { value: 'stealth', label: 'DX3rd.Stealth' },
+            { value: 'fly', label: 'DX3rd.Fly' },
+            { value: 'boarding', label: 'DX3rd.Boarding' },
+            { value: 'healing', label: 'DX3rd.Healing' },
+            { value: 'defeated', label: 'DX3rd.Defeated' },
+            { value: 'action_end', label: 'DX3rd.ActionEnd' },
+            { value: 'action_delay', label: 'DX3rd.ActionDelay' },
+            { value: 'extra-turn', label: 'DX3rd.ExtraTurn' }
+        ];
+        let html = '';
+        for (const option of options) {
+            const selected = option.value === (selectedValue || '') ? 'selected' : '';
+            html += `<option value="${option.value}" ${selected}>${game.i18n.localize(option.label)}</option>`;
+        }
+        return new Handlebars.SafeString(html);
+    });
+
     Handlebars.registerHelper('usedFull', function(used, max) {
         return used && used.state >= max;
     });
@@ -859,18 +890,21 @@ Hooks.once('ready', async function() {
                     const currentItem = attacker?.items.get(itemId);
                     const usedDisable = currentItem?.system?.used?.disable || 'notCheck';
 
+                    // damagedTargets is an array of Actor IDs, so convert to Actor objects.
+                    // Built once here — both the combo afterDamage work and the preparation
+                    // riders' damage-triggered buckets resolve against the same list.
+                    const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
+                        .filter(Boolean);
+                    for (const actorId of damagedTargets) {
+                        const damagedActor = game.actors.get(actorId);
+                        if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
+                            damagedActors.push(damagedActor);
+                        }
+                    }
+
                     // Combo afterDamage handling (after the HP damage happened)
                     const comboData = request.comboAfterDamageData;
                     if (comboData && damagedTargets.length > 0) {
-                        // damagedTargets is an array of Actor IDs, so convert to Actor objects
-                        const damagedActors = damagedTokenIds.map(tokenId => canvas.tokens.get(tokenId)?.actor)
-                            .filter(Boolean);
-                        for (const actorId of damagedTargets) {
-                            const damagedActor = game.actors.get(actorId);
-                            if (damagedActor && !damagedActors.some(candidate => candidate.id === damagedActor.id)) {
-                                damagedActors.push(damagedActor);
-                            }
-                        }
                         if (window.DX3rdUniversalHandler) {
                             await window.DX3rdUniversalHandler.processComboAfterDamage(comboData, damagedActors, damagedTokenIds);
                         }
@@ -883,6 +917,16 @@ Hooks.once('ready', async function() {
                     if (hitTargets.length > 0) {
                         await window.DX3rdUniversalHandler?.processPendingAttackRiders?.(
                             attacker, request.pendingAttackRiders, hitTargets, hitTokenIds);
+                        // Combo 'afterHit' buckets fire on attackHit — including a hit reduced
+                        // to 0 HP damage — independently of the damaged-target work above.
+                        if (comboData && (comboData.hitApplies || []).length > 0) {
+                            await window.DX3rdUniversalHandler?.processComboAfterHit?.(
+                                comboData, hitTargets, hitTokenIds);
+                        }
+                    }
+                    if (damagedTargets.length > 0) {
+                        await window.DX3rdUniversalHandler?.processDamagedAttackRiders?.(
+                            attacker, request.pendingAttackRiders, damagedActors);
                     }
 
                     // 1. Run the macros (if at least one target took HP damage)

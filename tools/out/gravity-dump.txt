@@ -1,0 +1,325 @@
+===  !items!CKzdJfm5yefJqIkr  ===
+{
+  "_id": "CKzdJfm5yefJqIkr",
+  "name": "중력의 늪",
+  "type": "effect",
+  "img": "icons/svg/circle.svg",
+  "system": {
+    "description": "<p>그 메인 프로세스에서 당신이 메이저 액션을 실행할 경우, 그 메이저 액션에 대한 리액션 판정의 크리티컬치에 +1 한다. 단, 당신과 동일 인게이지 내의 대상에게만 사용할 수 있다. 한 시나리오에 [LV]번 사용할 수 있다.</p><p><em>마치 바닥이 없는 늪처럼, 적을 중력장으로 끌어당기는 이펙트.</em></p>",
+    "skillTmp": "melee",
+    "skills": {},
+    "type": "normal",
+    "skill": "-",
+    "skillChoices": [],
+    "multiWeapon": {
+      "enabled": false,
+      "max": 1,
+      "requireSameSkill": false,
+      "weaponType": "-"
+    },
+    "comboSkill": "-",
+    "comboBase": "-",
+    "difficulty": "자동성공",
+    "limit": "-",
+    "timing": "minor",
+    "target": "자신",
+    "range": "지근",
+    "roll": "-",
+    "attackRoll": "-",
+    "add": "0",
+    "attack": "0",
+    "attackAchievement": "-",
+    "encroach": {
+      "init": 0,
+      "value": "3"
+    },
+    "hp": {
+      "value": ""
+    },
+    "level": {
+      "init": 1,
+      "max": 3,
+      "upgrade": true,
+      "value": 1
+    },
+    "exp": {
+      "own": true,
+      "upgrade": true
+    },
+    "effect": {
+      "disable": "major",
+      "runTiming": "instant",
+      "action": "",
+      "attributes": {
+        "KCCniN3J9PnRg7bd": {
+          "key": "reaction_critical",
+          "label": "reaction_critical",
+          "value": "+1"
+        }
+      }
+    },
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant",
+      "action": "",
+      "applyMode": "onUse"
+    },
+    "used": {
+      "state": 0,
+      "max": 0,
+      "level": true,
+      "disable": "session"
+    },
+    "attributes": {},
+    "getTarget": true,
+    "scene": false,
+    "macro": "",
+    "macros": [],
+    "resourceCost": {
+      "enabled": false,
+      "resource": "hp",
+      "cap": "",
+      "mult": 1,
+      "attrKey": "add",
+      "label": "-",
+      "disable": "main"
+    }
+  },
+  "effects": [],
+  "folder": "LLW1Tl3r3Xy41erb",
+  "sort": 16000000,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.365",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  }
+}
+===  !items!L6bdiakePZDcEIHb  ===
+{
+  "_id": "L6bdiakePZDcEIHb",
+  "name": "중력의 수갑",
+  "type": "effect",
+  "img": "icons/svg/circle.svg",
+  "system": {
+    "description": "<p>이 이펙트를 조합한 공격이 대상에게 명중할 경우, 그 씬 동안 대상이 실행하는 모든 판정에 2개의 다이스 페널티를 가한다. 이 효과는 공격을 명중시킬 때마다 중복된다. 한 시나리오에 [LV]번 사용할 수 있다.</p><p><em>대상을 중력으로 옭아매어 움직임을 봉하는 이펙트.</em></p>",
+    "skillTmp": "melee",
+    "skills": {},
+    "type": "normal",
+    "skill": "melee",
+    "skillChoices": [
+      "melee"
+    ],
+    "multiWeapon": {
+      "enabled": false,
+      "max": 1,
+      "requireSameSkill": false,
+      "weaponType": "-"
+    },
+    "comboSkill": "-",
+    "comboBase": "-",
+    "difficulty": "대결",
+    "limit": "-",
+    "timing": "major",
+    "target": "단독",
+    "range": "무기",
+    "roll": "-",
+    "attackRoll": "-",
+    "add": "0",
+    "attack": "0",
+    "attackAchievement": "-",
+    "encroach": {
+      "init": 0,
+      "value": "4"
+    },
+    "hp": {
+      "value": ""
+    },
+    "level": {
+      "init": 1,
+      "max": 3,
+      "upgrade": true,
+      "value": 1
+    },
+    "exp": {
+      "own": true,
+      "upgrade": true
+    },
+    "effect": {
+      "disable": "scene",
+      "runTiming": "afterHit",
+      "action": "",
+      "attributes": {
+        "bNAnGOdpSLuYjfSn": {
+          "key": "dice",
+          "label": "dice",
+          "value": "-(2)"
+        }
+      }
+    },
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant",
+      "action": "",
+      "applyMode": "onUse"
+    },
+    "used": {
+      "state": 0,
+      "max": 0,
+      "level": true,
+      "disable": "session"
+    },
+    "attributes": {},
+    "getTarget": true,
+    "scene": false,
+    "macro": "",
+    "macros": [],
+    "resourceCost": {
+      "enabled": false,
+      "resource": "hp",
+      "cap": "",
+      "mult": 1,
+      "attrKey": "add",
+      "label": "-",
+      "disable": "main"
+    }
+  },
+  "effects": [],
+  "folder": "LLW1Tl3r3Xy41erb",
+  "sort": 15900000,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.365",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  }
+}
+===  !items!P0g9ZhIcP0F12mIb  ===
+{
+  "_id": "P0g9ZhIcP0F12mIb",
+  "name": "중력의 족쇄",
+  "type": "effect",
+  "img": "icons/svg/circle.svg",
+  "system": {
+    "description": "<p>이 이펙트를 조합한 공격으로 대상에게 1점이라도 HP데미지를 가하면, 그 라운드 동안 대상의 전투이동거리에 -[LV×2]m 한다(최저 0m). 이 효과는 전력이동에는 영향을 끼치지않는다.</p><p><em>탄환을 엄청나게 무겁게 만들어, 맞춘 적의 움직임을 둔하게 만드는 이펙트.</em></p>",
+    "skillTmp": "melee",
+    "skills": {},
+    "type": "normal",
+    "skill": "ranged",
+    "skillChoices": [
+      "ranged"
+    ],
+    "multiWeapon": {
+      "enabled": false,
+      "max": 1,
+      "requireSameSkill": false,
+      "weaponType": "-"
+    },
+    "comboSkill": "-",
+    "comboBase": "-",
+    "difficulty": "대결",
+    "limit": "-",
+    "timing": "major",
+    "target": "단독",
+    "range": "무기",
+    "roll": "-",
+    "attackRoll": "-",
+    "add": "0",
+    "attack": "0",
+    "attackAchievement": "-",
+    "encroach": {
+      "init": 0,
+      "value": "4"
+    },
+    "hp": {
+      "value": ""
+    },
+    "level": {
+      "init": 1,
+      "max": 5,
+      "upgrade": true,
+      "value": 1
+    },
+    "exp": {
+      "own": true,
+      "upgrade": true
+    },
+    "effect": {
+      "disable": "round",
+      "runTiming": "afterDamage",
+      "action": "",
+      "attributes": {
+        "sr7gsQEsBawMIVb5": {
+          "key": "battleMove",
+          "label": "battleMove",
+          "value": "-[level]*2"
+        }
+      }
+    },
+    "active": {
+      "state": false,
+      "disable": "-",
+      "runTiming": "instant",
+      "action": "",
+      "applyMode": "onUse"
+    },
+    "used": {
+      "state": 0,
+      "max": 0,
+      "level": false,
+      "disable": "notCheck"
+    },
+    "attributes": {},
+    "getTarget": true,
+    "scene": false,
+    "macro": "",
+    "macros": [],
+    "resourceCost": {
+      "enabled": false,
+      "resource": "hp",
+      "cap": "",
+      "mult": 1,
+      "attrKey": "add",
+      "label": "-",
+      "disable": "main"
+    }
+  },
+  "effects": [],
+  "folder": "LLW1Tl3r3Xy41erb",
+  "sort": 15800000,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.365",
+    "systemId": null,
+    "systemVersion": null,
+    "createdTime": null,
+    "modifiedTime": null,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null,
+    "exportSource": null
+  }
+}
