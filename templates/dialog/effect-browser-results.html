@@ -1,0 +1,47 @@
+{{#if empty}}
+<p class="effect-browser-empty">{{localize "DX3rd.EffectBrowserEmpty"}}</p>
+{{else}}
+<table class="effect-browser-table">
+  <thead>
+    <tr>
+      <th class="col-name">{{localize "DX3rd.Effect"}}</th>
+      <th class="col-num">LV</th>
+      <th>{{localize "DX3rd.Timing"}}</th>
+      <th>{{localize "DX3rd.Skill"}}</th>
+      <th>{{localize "DX3rd.Difficulty"}}</th>
+      <th>{{localize "DX3rd.Target"}}</th>
+      <th class="col-num">{{localize "DX3rd.Encroach"}}</th>
+      <th>{{localize "DX3rd.Limit"}}</th>
+      <th class="col-actions"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each entries as |entry|}}
+    <tr class="effect-browser-row-entry" data-uuid="{{entry.uuid}}" draggable="true">
+      <td class="col-name">
+        <img src="{{entry.img}}" alt="" width="24" height="24">
+        <span class="effect-browser-name">{{entry.name}}</span>
+        <span class="effect-browser-category">{{entry.category}}</span>
+        <div class="effect-browser-description" {{#unless entry.expanded}}hidden{{/unless}}>{{{entry.description}}}</div>
+      </td>
+      <td class="col-num">{{entry.level}}</td>
+      <td>{{entry.timingLabel}}</td>
+      <td>{{entry.skillLabel}}</td>
+      <td>{{entry.difficulty}}</td>
+      <td>{{entry.target}}{{#unless (eq entry.range "-")}} ({{entry.range}}){{/unless}}</td>
+      <td class="col-num">{{entry.encroach}}</td>
+      <td>{{entry.limit}}</td>
+      <td class="col-actions">
+        {{#if ../hasActor}}
+        <a class="effect-add-to-actor" title="{{localize 'DX3rd.EffectBrowserAddToActor'}}"><i class="fas fa-plus"></i></a>
+        {{/if}}
+        <a class="effect-open-sheet" title="{{localize 'DX3rd.EffectBrowserOpenSheet'}}"><i class="fas fa-up-right-from-square"></i></a>
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+{{#if truncated}}
+<p class="effect-browser-truncated">{{localize "DX3rd.EffectBrowserTruncated" limit=limit}}</p>
+{{/if}}
+{{/if}}

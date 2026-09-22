@@ -1,5 +1,4 @@
 (function () {
-  const pendingRemoteUses = new Map();
   const CONNECTION_REROLLS = new Set([
     'UGN첩보부', '경찰OB', '대학교수', '매점부 정보망', '불법거주자',
     '블로거', '정보게시판', '컨설턴트', '프리랜서 기자'
@@ -85,9 +84,10 @@
       const actor = token.actor;
       const key = actor?.uuid || actor?.id;
       if (!actor || !key || seen.has(key)) continue;
-      if (!window.DX3rdSocketRouter?.getResponsibleActorExecutor?.(actor)) continue;
+      const executorId = window.DX3rdSocketRouter?.getResponsibleActorExecutor?.(actor)?.id || null;
+      if (!executorId) continue;
       seen.add(key);
-      actors.push({actor, tokenId: token.id});
+      actors.push({actor, tokenId: token.id, executorId});
     }
     return actors;
   }
@@ -143,12 +143,37 @@
 
   function candidates(context) {
     const entries = [];
-    for (const {actor, tokenId} of ownedActors(context)) {
+    for (const {actor, tokenId, executorId} of ownedActors(context)) {
       for (const item of actor.items || []) {
-        for (const config of itemConfigs(item)) entries.push({actor, tokenId, item, config});
+        for (const config of itemConfigs(item)) entries.push({actor, tokenId, executorId, item, config});
       }
     }
     return entries.filter(entry => applies(entry, context));
+  }
+
+  // ── 선언은 그 액터를 맡은 클라이언트가 한다 ────────────────────────────────
+  // GM 은 모든 액터의 OWNER 라, 후보를 굴리는 클라이언트 한 곳에 모으면 굴림마다 씬
+  // 전원의 선언 목록이 GM 화면에 뜨고 — 게다가 `spend` 가 `isGM` 이면 로컬 소비라
+  // GM 이 남의 이펙트를 소유자에게 묻지도 않고 써 버렸다. 그래서 후보는 **책임
+  // 실행자별로** 나눈다 — 내 몫만 내 화면에 뜨고, 남의 몫은 굴림이 멈춰 있는 동안
+  // 그 클라이언트에 제안으로 간다(`rollInterventionOffer`).
+  function splitCandidates(context) {
+    const entries = candidates(context).filter(entry => !entry.config.automatic);
+    const mine = [];
+    const remote = new Map();
+    for (const entry of entries) {
+      if (entry.executorId === game.user?.id) {
+        mine.push(entry);
+        continue;
+      }
+      // 응답할 사람이 없는 제안은 굴림을 세우기만 한다. (비활성 실행자는 애초에
+      // getResponsibleActorExecutor 가 고르지 않지만, 선거와 전송 사이에 나갈 수 있다.)
+      if (!game.users?.get(entry.executorId)?.active) continue;
+      if (!remote.has(entry.actor.id)) {
+        remote.set(entry.actor.id, {actor: entry.actor, tokenId: entry.tokenId, executorId: entry.executorId});
+      }
+    }
+    return {mine, remote: Array.from(remote.values())};
   }
 
   const MODIFIER_LABELS = {
@@ -167,32 +192,56 @@
     return ` (${game.i18n.localize(key)} ${value})`;
   }
 
-  async function chooseCandidate(entries, context) {
+  // 후보 창은 **원격 선언이 도착하면 닫아야** 하므로 `DialogV2.wait` 대신 인스턴스를 직접
+  // 들고 있는다. wait 이 하는 일(제출/닫힘을 하나의 Promise 로 접기)을 그대로 하되 close 핸들을
+  // 함께 돌려준다 — 굴림은 로컬 선택과 원격 선언 중 먼저 오는 쪽으로 결정된다.
+  function openCandidateDialog(entries, context, {remote = [], rollerName = ''} = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
-    if (!DialogV2 || !entries.length) return null;
+    if (!DialogV2) return {promise: Promise.resolve({type: 'finish'}), close: () => {}};
     const before = context?.phase === 'beforeRoll';
+    let settle;
+    const promise = new Promise(resolve => {
+      settle = resolve;
+    });
     const buttons = entries.map((entry, index) => ({
       action: `use-${index}`,
       label: `${entry.item.name} — ${entry.actor.name}${describeEntry(entry)}`,
-      callback: () => index
+      callback: () => ({type: 'local', index})
     }));
     buttons.push({
       action: 'finish',
       label: game.i18n.localize(before ? 'DX3rd.RollModifierProceed' : 'DX3rd.RollInterventionFinish'),
       default: true,
-      callback: () => 'finish'
+      callback: () => ({type: 'finish'})
     });
     const prompt = before
       ? game.i18n.format('DX3rd.RollModifierPrompt', {actor: context?.actor?.name || ''})
       : game.i18n.localize('DX3rd.RollInterventionPrompt');
-    return DialogV2.wait({
+    const header = rollerName
+      ? `<p class="dx3rd-roll-intervention-remote">${
+        game.i18n.format('DX3rd.RollInterventionRemotePrompt', {actor: rollerName})}</p>`
+      : '';
+    const waiting = remote.length
+      ? `<p class="dx3rd-roll-intervention-waiting">${
+        game.i18n.format('DX3rd.RollInterventionWaiting', {names: remote.map(t => t.actor.name).join(', ')})}</p>`
+      : '';
+    const dialog = new DialogV2({
       window: {title: game.i18n.localize(before ? 'DX3rd.RollModifierTitle' : 'DX3rd.RollInterventionTitle')},
       position: {width: 640, height: 'auto'},
-      content: `<p>${prompt}</p>${before ? poolSummary(context) : ''}`,
-      rejectClose: false,
+      content: `${header}<p>${prompt}</p>${before ? poolSummary(context) : ''}${waiting}`,
       classes: ['dx3rd-roll-intervention-dialog'],
-      buttons
+      buttons,
+      submit: result => settle(result && typeof result === 'object' ? result : {type: 'finish'})
     });
+    // X 로 닫는 것은 「그대로 진행」이다. 제출이 먼저 resolve 했으면 이 호출은 무시된다.
+    dialog.addEventListener('close', () => settle({type: 'finish'}), {once: true});
+    dialog.render({force: true});
+    return {
+      promise,
+      close: () => {
+        if (dialog.rendered) dialog.close();
+      }
+    };
   }
 
   // 굴리기 전에는 보여 줄 눈이 없다. 대신 지금 걸려 있는 풀을 적어, 선언이 무엇을 깎는지
@@ -386,51 +435,233 @@
     return true;
   }
 
+  // 후보는 「내가 책임 실행자인 액터」로 이미 좁혀져 있으므로 여기 오는 것은 전부 내가 소비할 수
+  // 있는 것이다. 남의 액터 몫은 제안으로 그 클라이언트가 **직접** 소비한다 — GM 이 남의 이펙트를
+  // 대신 쓰던 경로(구 requestRollInterventionUse)는 그래서 사라졌다.
   async function spend(entry, context) {
-    if (entry.actor.isOwner || game.user?.isGM) return spendLocal(entry, context);
-    const router = window.DX3rdSocketRouter;
-    if (!router) return false;
-    const requestKey = foundry.utils.randomID();
-    const response = new Promise(resolve => {
-      const timeout = setTimeout(() => {
-        pendingRemoteUses.delete(requestKey);
-        resolve(false);
-      }, 30000);
-      pendingRemoteUses.set(requestKey, approved => {
-        clearTimeout(timeout);
-        pendingRemoteUses.delete(requestKey);
-        resolve(approved);
-      });
-    });
-    const sent = router.emitToActorExecutor({
-      type: 'requestRollInterventionUse',
+    return spendLocal(entry, context);
+  }
+
+  // 선택만 끝내고 **소비는 하지 않는다.** 원격 선언은 경합에서 밀릴 수 있어서, 자리를 잡기
+  // (claim) 전에 비용을 내면 적용되지 않는 선언에 값만 치른다.
+  async function prepareCommand(entry, context) {
+    if (context.phase === 'beforeRoll') return {type: entry.config.operation, dice: null};
+    const operation = await chooseValue(entry.config, entry.item, entry.actor);
+    if (!operation) return null;
+    if (['rerollSelected', 'setFaces', 'adjustFaces'].includes(operation.type)) {
+      const dice = await chooseDice(context, entry.config, entry.item, entry.actor);
+      if (!dice?.length) return null;
+      return {...operation, dice};
+    }
+    return {...operation, dice: []};
+  }
+
+  // 값 평가는 **소비가 끝난 뒤** 정확히 한 번 — 다이스식이면 여기서 굴린다.
+  async function finalizeCommand(entry, context, prepared) {
+    const value = prepared.value ?? await resolveValue(entry.config, entry.item, entry.actor);
+    const command = {
+      type: prepared.type,
+      value,
+      floor: resolveFloor(entry.config, entry.item, entry.actor),
+      sourceActorId: entry.actor.id,
+      sourceItemId: entry.item.id
+    };
+    if (Array.isArray(prepared.dice)) command.dice = prepared.dice;
+    return command;
+  }
+
+  const COMMAND_TYPES = new Set(['rerollAll', 'rerollSelected', 'setFaces', 'adjustFaces',
+    'adjustDice', 'setDice', 'adjustCritical', 'replaceTotal', 'adjustTotal']);
+
+  // 원격 커맨드는 다른 클라이언트가 보낸 **데이터**다. 그대로 적용하지 않고 형태를 강제한다.
+  function sanitizeCommand(raw, sourceActorId) {
+    if (!raw || typeof raw !== 'object' || !COMMAND_TYPES.has(raw.type)) return null;
+    const asIndex = value => (Number.isInteger(value) ? value : null);
+    return {
+      type: raw.type,
+      value: raw.value == null ? null : (Number(raw.value) || 0),
+      floor: raw.floor == null ? null : (Number(raw.floor) || 0),
+      dice: Array.isArray(raw.dice)
+        ? raw.dice.map(die => ({
+          kind: die?.kind === 'dx' ? 'dx' : 'standard',
+          termIndex: asIndex(die?.termIndex),
+          waveIndex: asIndex(die?.waveIndex),
+          dieIndex: asIndex(die?.dieIndex)
+        })).filter(die => Number.isInteger(die.dieIndex))
+        : [],
+      sourceActorId,
+      sourceItemId: typeof raw.sourceItemId === 'string' ? raw.sourceItemId : null
+    };
+  }
+
+  function serializeCommand(command) {
+    return {
+      type: command.type,
+      value: command.value ?? null,
+      floor: command.floor ?? null,
+      dice: (command.dice || []).map(({kind, termIndex, waveIndex, dieIndex}) => ({
+        kind: kind === 'dx' ? 'dx' : 'standard',
+        termIndex: Number.isInteger(termIndex) ? termIndex : null,
+        waveIndex: Number.isInteger(waveIndex) ? waveIndex : null,
+        dieIndex: Number.isInteger(dieIndex) ? dieIndex : null
+      })),
+      sourceItemId: command.sourceItemId || null
+    };
+  }
+
+  function resolveOfferActor(actorId, tokenId) {
+    return canvas.tokens?.placeables?.find(token => token.id === tokenId)?.actor
+      || game.actors.get(actorId)
+      || canvas.tokens?.placeables?.find(token => token.actor?.id === actorId)?.actor
+      || null;
+  }
+
+  // ── 굴림 클라이언트: 제안을 내고 선언을 기다린다 ──────────────────────────
+  const OFFER_TIMEOUT_MS = 120000;
+  const COMMIT_TIMEOUT_MS = 60000;
+  const rounds = new Map();
+
+  // 제안에는 원격 클라이언트가 **같은 후보 판정과 같은 선택 UI** 를 돌리기 위한 것만 담는다.
+  // Roll 자체는 보내지 않는다 — 다이스 선택 창에 필요한 것은 눈의 목록뿐이고, 적용은 굴림을
+  // 들고 있는 이쪽에서 참조(waveIndex/dieIndex)로 한다.
+  function offerSnapshot(context) {
+    const dice = window.DX3rdRollInterventions.availableDice(context) || [];
+    return {
+      rollId: context.rollId || null,
+      generation: context.generation || 0,
+      phase: context.phase,
+      kind: context.kind || 'misc',
+      subtype: context.subtype || null,
+      skillKey: context.skillKey || null,
+      isAttackRoll: !!context.metadata?.isAttackRoll,
+      rollerActorName: context.actor?.name || '',
+      rollerActorId: context.actor?.id || null,
+      rollItemId: context.item?.id || null,
+      combinedIds: window.DX3rdUniversalHandler?.normalizeEffectIds?.(context.item) || [],
+      pool: context.pool
+        ? {dice: context.pool.dice, critical: context.pool.critical ?? null, isDx: !!context.pool.isDx}
+        : null,
+      dice: dice.map(die => ({
+        kind: die.kind === 'dx' ? 'dx' : 'standard',
+        termIndex: Number.isInteger(die.termIndex) ? die.termIndex : null,
+        waveIndex: Number.isInteger(die.waveIndex) ? die.waveIndex : null,
+        dieIndex: die.dieIndex,
+        result: die.result,
+        faces: die.faces,
+        critical: !!die.critical
+      })),
+      history: (context.history || []).map(record => ({...record}))
+    };
+  }
+
+  function sendOffer(context, target, roundKey, stage, extra = {}) {
+    return window.DX3rdSocketRouter?.emitToActorExecutor?.({
+      type: 'rollInterventionOffer',
       payload: {
-        requestKey,
+        stage,
+        roundKey,
         requesterUserId: game.user.id,
-        rollerActorId: context.actor.id,
-        sourceActorId: entry.actor.id,
-        sourceTokenId: entry.tokenId,
-        sourceItemId: entry.item.id,
-        requiredItemId: entry.requiredItem?.id || null,
-        rollType: context.subtype || null
+        // 계약의 발신자 권한은 **굴리는 액터**를 기준으로 본다. 액터 없는 굴림은 GM 만
+        // 내보낼 수 있고(GM 은 어느 액터든 통제한다), 그 밖에는 여기서 조용히 거절된다.
+        rollerActorId: context.actor?.id || target.actor.id,
+        sourceActorId: target.actor.id,
+        sourceTokenId: target.tokenId || null,
+        ...extra
       }
-    }, entry.actor);
-    if (!sent) {
-      pendingRemoteUses.delete(requestKey);
-      return false;
+    }, target.actor);
+  }
+
+  function beginRound(context, remote, hasLocalChoices) {
+    const roundKey = `${context.rollId || 'roll'}-${context.phase}-${context.generation}-${context.revision}`;
+    const state = {
+      roundKey,
+      context,
+      hasLocalChoices,
+      targets: new Map(remote.map(target => [target.actor.id, target])),
+      claimedBy: null,
+      timer: null,
+      settle: null
+    };
+    state.promise = new Promise(resolve => {
+      state.settle = resolve;
+    });
+    rounds.set(roundKey, state);
+    state.timer = setTimeout(() => finishRound(roundKey, {type: 'finish'}), OFFER_TIMEOUT_MS);
+    const snapshot = offerSnapshot(context);
+    for (const target of state.targets.values()) sendOffer(context, target, roundKey, 'offer', {snapshot});
+    return state;
+  }
+
+  function finishRound(roundKey, outcome, {except = null} = {}) {
+    const state = rounds.get(roundKey);
+    if (!state) return;
+    rounds.delete(roundKey);
+    clearTimeout(state.timer);
+    for (const target of state.targets.values()) {
+      if (target.actor.id === except) continue;
+      sendOffer(state.context, target, roundKey, 'cancel');
     }
-    const approved = await response;
-    if (approved && entry.requiredItem) {
-      context.history.push({
-        type: 'requiredItem',
-        sourceActorId: entry.actor.id,
-        sourceItemId: entry.requiredItem.id,
-        generation: context.generation,
-        value: null,
-        dice: []
-      });
+    state.settle(outcome);
+  }
+
+  function rejectClaim(payload) {
+    const actor = resolveOfferActor(payload.sourceActorId, payload.sourceTokenId);
+    if (!actor) return;
+    window.DX3rdSocketRouter?.emitToActorExecutor?.({
+      type: 'rollInterventionOffer',
+      payload: {
+        stage: 'reject',
+        roundKey: payload.roundKey,
+        requesterUserId: game.user.id,
+        // 선언이 되돌려 준 굴림 액터를 그대로 쓴다. 계약의 발신자 권한이 그것을 보므로,
+        // 여기서 선언자의 액터로 바꾸면 플레이어가 굴린 판정에서는 거절이 전달되지 않는다.
+        rollerActorId: payload.rollerActorId || actor.id,
+        sourceActorId: payload.sourceActorId,
+        sourceTokenId: payload.sourceTokenId || null
+      }
+    }, actor);
+  }
+
+  function handleDeclaration(data) {
+    const payload = data.payload || {};
+    if (payload.requesterUserId !== game.user?.id) return;
+    const state = rounds.get(payload.roundKey);
+    const target = state?.targets.get(payload.sourceActorId);
+    if (payload.stage === 'decline') {
+      if (!state || !target) return;
+      state.targets.delete(payload.sourceActorId);
+      // 로컬 후보가 없으면 이 창은 순전히 대기창이다 — 전원이 물러났으면 그 자리에서 닫는다.
+      if (!state.targets.size && !state.hasLocalChoices && !state.claimedBy) {
+        finishRound(payload.roundKey, {type: 'finish'});
+      }
+      return;
     }
-    return approved;
+    if (payload.stage === 'claim') {
+      // 자리를 잡지 못한 선언에는 **소비 전에** 거절을 돌려준다.
+      if (!state || !target || state.claimedBy) {
+        rejectClaim(payload);
+        return;
+      }
+      state.claimedBy = payload.sourceActorId;
+      clearTimeout(state.timer);
+      state.timer = setTimeout(() => finishRound(payload.roundKey, {type: 'finish'}), COMMIT_TIMEOUT_MS);
+      for (const other of state.targets.values()) {
+        if (other.actor.id === payload.sourceActorId) continue;
+        sendOffer(state.context, other, payload.roundKey, 'cancel');
+      }
+      sendOffer(state.context, target, payload.roundKey, 'accept');
+      return;
+    }
+    if (payload.stage !== 'commit') return;
+    if (!state || state.claimedBy !== payload.sourceActorId) return;
+    const command = payload.ok ? sanitizeCommand(payload.command, payload.sourceActorId) : null;
+    // 비용을 내지 못한 선언은 라운드를 무르고 다시 제안한다 — 지불에 실패했다는 이유로
+    // 남은 사람의 개입 기회까지 사라지면 안 된다.
+    finishRound(payload.roundKey,
+      command
+        ? {type: 'remote', command, requiredItemId: payload.requiredItemId || null}
+        : {type: 'retry'},
+      {except: payload.sourceActorId});
   }
 
   window.DX3rdRollInterventions.register('afterRoll', context => {
@@ -503,12 +734,53 @@
     if (stale.length) await ChatMessage.deleteDocuments(stale.map(message => message.id));
   });
 
-  // 선(先) 보정 — 「대상이 판정을 실행하기 직전에 사용할 것」. 이 시점에는 눈이 없으므로 다이스
+  // 한 굴림의 한 시점에서 도는 대화 루프. 내 몫은 이 자리에서 묻고, 남의 몫은 그 클라이언트에
+  // 제안으로 보낸 뒤 **먼저 오는 쪽**을 취한다. 선언이 적용되면 위상 루프가 다시 돌아 갱신된
+  // 상태로 다음 라운드를 연다.
+  //
+  // 선(先) 보정 — 「대상이 판정을 실행하기 직전에 사용할 것」 — 은 눈이 아직 없으므로 다이스
   // 선택도 임시 굴림값 미리보기도 없다. 카드가 말한 조작과 값이 선언의 전부다.
+  async function runInteractivePhase(context) {
+    if (!context.interactive) return null;
+    const {mine, remote} = splitCandidates(context);
+    if (!mine.length && !remote.length) return null;
+    if (context.phase === 'afterRoll') await ensurePreview(context);
+
+    const round = remote.length ? beginRound(context, remote, mine.length > 0) : null;
+    const dialog = openCandidateDialog(mine, context, {remote});
+    const outcome = await (round ? Promise.race([dialog.promise, round.promise]) : dialog.promise);
+    dialog.close();
+    // 이 라운드는 여기서 끝난다. 아직 답하지 않은 클라이언트의 창은 닫히고, 커맨드가 적용되면
+    // 다음 라운드가 갱신된 상태로 곧바로 다시 제안한다.
+    if (round) finishRound(round.roundKey, {type: 'finish'}, {except: outcome?.command?.sourceActorId || null});
+
+    if (outcome?.type === 'remote') {
+      const commands = [];
+      if (outcome.requiredItemId) {
+        commands.push({
+          type: 'requiredItem',
+          sourceActorId: outcome.command.sourceActorId,
+          sourceItemId: outcome.requiredItemId,
+          value: null,
+          dice: []
+        });
+      }
+      commands.push(outcome.command);
+      return commands;
+    }
+    // 원격 선언이 비용을 내지 못했다. 라운드만 무르고 같은 시점을 다시 연다.
+    if (outcome?.type === 'retry') return runInteractivePhase(context);
+    if (outcome?.type !== 'local') return null;
+    const entry = mine[outcome.index];
+    if (!entry) return null;
+    const prepared = await prepareCommand(entry, context);
+    if (!prepared) return null;
+    if (!await spend(entry, context)) return null;
+    return finalizeCommand(entry, context, prepared);
+  }
+
   window.DX3rdRollInterventions.register('beforeRoll', async context => {
-    const entries = candidates(context);
-    if (!entries.length) return null;
-    const automatic = entries.find(entry => entry.config.automatic);
+    const automatic = candidates(context).find(entry => entry.config.automatic);
     if (automatic) {
       return {
         type: automatic.config.operation,
@@ -519,91 +791,121 @@
         sourceGroup: cleanName(automatic.item)
       };
     }
-    if (!context.interactive) return null;
-    const manual = entries.filter(entry => !entry.config.automatic);
-    if (!manual.length) return null;
-    const selectedIndex = await chooseCandidate(manual, context);
-    if (!Number.isInteger(selectedIndex)) return null;
-    const entry = manual[selectedIndex];
-    if (!await spend(entry, context)) return null;
-    return {
-      type: entry.config.operation,
-      value: await resolveValue(entry.config, entry.item, entry.actor),
-      floor: resolveFloor(entry.config, entry.item, entry.actor),
-      sourceActorId: entry.actor.id,
-      sourceItemId: entry.item.id
-    };
+    return runInteractivePhase(context);
   }, {priority: 100});
 
-  window.DX3rdRollInterventions.register('afterRoll', async context => {
-    if (!context.interactive) return null;
-    const entries = candidates(context).filter(entry => !entry.config.automatic);
-    if (!entries.length) return null;
-    await ensurePreview(context);
-    const selectedIndex = await chooseCandidate(entries, context);
-    if (!Number.isInteger(selectedIndex)) return null;
-    const entry = entries[selectedIndex];
-    const operation = await chooseValue(entry.config, entry.item, entry.actor);
-    if (!operation) return null;
-    let dice = [];
-    if (['rerollSelected', 'setFaces', 'adjustFaces'].includes(operation.type)) {
-      dice = await chooseDice(context, entry.config, entry.item, entry.actor);
-      if (!dice?.length) return null;
-    }
-    if (!await spend(entry, context)) return null;
-    // 사용자에게 직접 물은 갈래(1/10 선택·±1 선택)는 이미 값을 들고 있다. 그 밖은 지금 평가한다 —
-    // 다이스식이면 여기서 정확히 한 번 굴린다.
-    const value = operation.value ?? await resolveValue(entry.config, entry.item, entry.actor);
-    return {
-      ...operation,
-      value,
-      floor: resolveFloor(entry.config, entry.item, entry.actor),
-      dice,
-      sourceActorId: entry.actor.id,
-      sourceItemId: entry.item.id
-    };
-  }, {priority: 100});
+  window.DX3rdRollInterventions.register('afterRoll', context => runInteractivePhase(context), {priority: 100});
 
-  async function handleRemoteUseRequest(data) {
-    const payload = data.payload || {};
-    const actor = canvas.tokens?.placeables?.find(token => token.id === payload.sourceTokenId)?.actor
-      || game.actors.get(payload.sourceActorId)
-      || canvas.tokens?.placeables?.find(token => token.actor?.id === payload.sourceActorId)?.actor;
-    if (!window.DX3rdSocketRouter.isActorExecutorMessage(data, actor)) return;
-    const item = actor.items.get(payload.sourceItemId);
-    const requiredItem = payload.requiredItemId ? actor.items.get(payload.requiredItemId) : null;
-    let approved = false;
-    if (item) {
-      approved = await foundry.applications.api.DialogV2.confirm({
-        window: {title: game.i18n.localize('DX3rd.RollInterventionApprovalTitle')},
-        content: `<p>${game.i18n.format('DX3rd.RollInterventionApprovalPrompt', {
-          actor: actor.name,
-          item: item.name
-        })}</p>`
-      });
-      if (approved) {
-        approved = await spendLocal({actor, item, requiredItem}, {
-          subtype: payload.rollType,
-          generation: 0,
-          history: []
-        });
-      }
-    }
-    window.DX3rdSocketRouter.emit({
-      type: 'respondRollInterventionUse',
+  // ── 소유자 클라이언트: 제안을 받아 선언한다 ──────────────────────────────
+  const offers = new Map();
+  // 굴림 클라이언트가 사라져도 선언이 영영 매달려 있지 않게 한다(아직 아무것도 소비하지 않았다).
+  const CLAIM_TIMEOUT_MS = 60000;
+
+  // 제안에는 Roll 이 실려 오지 않는다. 후보 판정(`applies`)과 다이스 선택 창이 읽는 것만
+  // 갖춘 대역 문맥을 세운다 — 굴림 자체는 보낸 쪽이 들고 있고, 선택은 참조로 돌아간다.
+  function offerContext(snapshot) {
+    return {
+      rollId: snapshot.rollId || null,
+      phase: snapshot.phase,
+      kind: snapshot.kind,
+      subtype: snapshot.subtype || null,
+      skillKey: snapshot.skillKey || null,
+      generation: snapshot.generation || 0,
+      metadata: {isAttackRoll: !!snapshot.isAttackRoll},
+      actor: {id: snapshot.rollerActorId || null, name: snapshot.rollerActorName || ''},
+      item: {id: snapshot.rollItemId || null, system: {effectIds: snapshot.combinedIds || []}},
+      history: Array.isArray(snapshot.history) ? snapshot.history : [],
+      pool: snapshot.pool || null,
+      diceSnapshot: Array.isArray(snapshot.dice) ? snapshot.dice : [],
+      interactive: true,
+      commands: []
+    };
+  }
+
+  function declare(payload, actor, extra) {
+    window.DX3rdSocketRouter?.emit?.({
+      type: 'rollInterventionDeclare',
       payload: {
-        requestKey: payload.requestKey,
+        roundKey: payload.roundKey,
         requesterUserId: payload.requesterUserId,
-        sourceActorId: payload.sourceActorId,
-        approved: !!approved
+        rollerActorId: payload.rollerActorId || null,
+        sourceActorId: actor.id,
+        sourceTokenId: payload.sourceTokenId || null,
+        ...extra
       }
     });
   }
 
-  function handleRemoteUseResponse(data) {
+  async function handleOffer(data) {
     const payload = data.payload || {};
-    if (payload.requesterUserId !== game.user.id) return;
-    pendingRemoteUses.get(payload.requestKey)?.(!!payload.approved);
+    const actor = resolveOfferActor(payload.sourceActorId, payload.sourceTokenId);
+    if (!window.DX3rdSocketRouter.isActorExecutorMessage(data, actor)) return;
+    const open = offers.get(payload.roundKey);
+    if (payload.stage === 'cancel' || payload.stage === 'reject') {
+      if (!open) return;
+      offers.delete(payload.roundKey);
+      open.cancelled = true;
+      // 선택 도중이든 자리를 기다리는 중이든 같은 자물쇠 하나를 푼다 — 이 promise 를 창을 연
+      // 뒤에 만들면, 취소가 선택보다 먼저 올 때 그 대기가 영영 풀리지 않는다.
+      open.settleAccept(false);
+      open.close();
+      if (payload.stage === 'reject') {
+        ui.notifications.info(game.i18n.localize('DX3rd.RollInterventionSuperseded'));
+      }
+      return;
+    }
+    if (payload.stage === 'accept') {
+      open?.settleAccept(true);
+      return;
+    }
+    if (payload.stage !== 'offer' || !payload.snapshot || open) return;
+
+    const context = offerContext(payload.snapshot);
+    const entries = candidates(context).filter(entry =>
+      entry.actor.id === actor.id && !entry.config.automatic);
+    if (!entries.length) {
+      declare(payload, actor, {stage: 'decline'});
+      return;
+    }
+    const dialog = openCandidateDialog(entries, context, {rollerName: payload.snapshot.rollerActorName});
+    const state = {close: dialog.close, cancelled: false, settleAccept: null};
+    state.accepted = new Promise(resolve => {
+      state.settleAccept = resolve;
+    });
+    offers.set(payload.roundKey, state);
+    const withdraw = () => {
+      offers.delete(payload.roundKey);
+      declare(payload, actor, {stage: 'decline'});
+    };
+
+    const choice = await dialog.promise;
+    if (state.cancelled) return;
+    if (choice?.type !== 'local') return withdraw();
+    const entry = entries[choice.index];
+    if (!entry) return withdraw();
+    const prepared = await prepareCommand(entry, context);
+    if (state.cancelled) return;
+    if (!prepared) return withdraw();
+
+    // 값·다이스까지 정한 뒤 **소비 전에** 자리를 잡는다. 경합에서 밀리면 비용이 나가지 않는다.
+    declare(payload, actor, {stage: 'claim'});
+    const accepted = await Promise.race([
+      state.accepted,
+      new Promise(resolve => setTimeout(() => resolve(false), CLAIM_TIMEOUT_MS))
+    ]);
+    if (!accepted) {
+      offers.delete(payload.roundKey);
+      return;
+    }
+    const spent = await spend(entry, context);
+    const command = spent ? await finalizeCommand(entry, context, prepared) : null;
+    offers.delete(payload.roundKey);
+    declare(payload, actor, {
+      stage: 'commit',
+      ok: !!command,
+      command: command ? serializeCommand(command) : null,
+      requiredItemId: (spent && entry.requiredItem?.id) || null
+    });
   }
 
   window.DX3rdRollInterventionEffects = Object.freeze({
@@ -614,8 +916,9 @@
     previewValue,
     resolveFloor,
     candidates,
+    splitCandidates,
     chooseDice,
-    handleRemoteUseRequest,
-    handleRemoteUseResponse
+    handleOffer,
+    handleDeclaration
   });
 })();

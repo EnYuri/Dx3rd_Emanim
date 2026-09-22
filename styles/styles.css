@@ -32,6 +32,18 @@
   margin: 12px 0;
 }
 
+/* 누구의 굴림인지(원격 선언)와 누구를 기다리는지(굴림 클라이언트)를 같은 자리에서 알린다. */
+.dx3rd-roll-intervention-remote,
+.dx3rd-roll-intervention-waiting {
+  margin: 4px 0 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+.dx3rd-roll-intervention-waiting::before {
+  content: "F3 ";
+}
+
 .dx3rd-roll-intervention-dialog .form-footer {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

@@ -114,21 +114,24 @@
       && isId(data.executorUserId),
     authorize: ownsActor('payload.sourceActorId')
   });
-  contract('requestRollInterventionUse', {
-    validate: data => isObject(data.payload) && isId(data.payload.requestKey)
+  // 굴림 개입은 두 방향이다. 제안(굴리는 쪽 → 그 액터의 책임 실행자)과 선언(실행자 → 굴리는 쪽).
+  // 한 방향씩 발신자 권한이 다르다 — 제안은 굴리는 액터를, 선언은 선언하는 액터를 통제해야 한다.
+  contract('rollInterventionOffer', {
+    validate: data => isObject(data.payload) && isId(data.payload.roundKey)
       && isId(data.payload.requesterUserId) && isId(data.payload.rollerActorId)
-      && isId(data.payload.sourceActorId) && isId(data.payload.sourceItemId)
+      && isId(data.payload.sourceActorId)
       && (data.payload.sourceTokenId === null || data.payload.sourceTokenId === undefined
         || isId(data.payload.sourceTokenId))
-      && (data.payload.requiredItemId === null || data.payload.requiredItemId === undefined
-        || isId(data.payload.requiredItemId))
+      && ['offer', 'cancel', 'accept', 'reject'].includes(data.payload.stage)
+      && (data.payload.stage !== 'offer' || isObject(data.payload.snapshot))
       && isId(data.executorUserId),
     authorize: ownsActor('payload.rollerActorId')
   });
-  contract('respondRollInterventionUse', {
-    validate: data => isObject(data.payload) && isId(data.payload.requestKey)
+  contract('rollInterventionDeclare', {
+    validate: data => isObject(data.payload) && isId(data.payload.roundKey)
       && isId(data.payload.requesterUserId) && isId(data.payload.sourceActorId)
-      && typeof data.payload.approved === 'boolean',
+      && ['claim', 'commit', 'decline'].includes(data.payload.stage)
+      && (data.payload.stage !== 'commit' || typeof data.payload.ok === 'boolean'),
     authorize: ownsActor('payload.sourceActorId')
   });
   contract('addToAfterMainQueue', {

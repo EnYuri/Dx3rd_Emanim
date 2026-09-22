@@ -98,6 +98,10 @@ function targetRange(item) {
   return r === "-" ? t : `${t}(${r})`;
 }
 
+// The journal's own search matches whole pages, so every page offers the effect browser — the one place
+// a single effect can be found by name or by what its text says. `main.js` enriches the token into a link.
+const BROWSER_LINK = '<p>@EffectBrowser{이펙트 검색 열기} — 이펙트 이름이나 효과문으로 바로 찾습니다.</p>';
+
 function effectTable(items) {
   const rows = items.map((it) => {
     const s = it.system ?? {};
@@ -115,7 +119,7 @@ function effectTable(items) {
       + "</tr>"
       + `<tr><th>효과</th><td colspan="7">${s.description ?? ""}</td></tr>`;
   }).join("\n");
-  return `<table>\n<thead><tr>`
+  return `${BROWSER_LINK}\n<table>\n<thead><tr>`
     + `<th>이펙트</th><th>LV</th><th>타이밍</th><th>기능</th>`
     + `<th>난이도</th><th>대상(사정)</th><th>침식</th><th>제한</th>`
     + `</tr></thead>\n<tbody>\n${rows}\n</tbody>\n</table>`;
@@ -183,6 +187,7 @@ const tocItems = pageDefs.map((p, i) => {
 });
 const toc = "<h1>이펙트 목록</h1>\n"
   + `<p>「에너미 이펙트」를 제외한 이펙트 컴펜디움 전체 — 총 ${pageDefs.reduce((n, p) => n + p.items.length, 0)}건. 기존 컴펜디움의 폴더·정렬 순서를 따른다.</p>\n`
+  + `${BROWSER_LINK}\n`
   + "<ul>\n"
   + tocItems.map((p) => `  <li>@UUID[${JOURNAL_UUID}.JournalEntryPage.${p._id}]{${esc(p.title)}} — ${p.items.length}건</li>`).join("\n")
   + "\n</ul>";

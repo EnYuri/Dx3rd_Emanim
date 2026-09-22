@@ -50,7 +50,8 @@
         sublimation: DX3rdActorSheetV2._onSublimation,
         useItem: DX3rdActorSheetV2._onUseItem,
         useRois: DX3rdActorSheetV2._onUseRois,
-        applyEffect: DX3rdActorSheetV2._onApplyEffect
+        applyEffect: DX3rdActorSheetV2._onApplyEffect,
+        browseEffects: DX3rdActorSheetV2._onBrowseEffects
       }
     };
 
@@ -135,9 +136,6 @@
       // Prevent duplicate injection on re-render
       header.querySelectorAll('.dx3rd-header-btn').forEach(el => el.remove());
 
-      // A simple sheet (enemy and some others) does not expose actor type editing (as on the previous sheet).
-      if (actorData.shouldUseSimpleSheet(this.document)) return;
-
       const anchor = header.querySelector('[data-action="toggleControls"]')
         || header.querySelector('[data-action="close"]');
 
@@ -151,6 +149,14 @@
         if (anchor) header.insertBefore(button, anchor);
         else header.appendChild(button);
       };
+
+      // Looking an effect up is neither an edit nor character-sheet specific, so it comes before both the
+      // simple-sheet bail-out (an enemy has effects too) and the permission checks below.
+      makeButton('fa-solid fa-magnifying-glass', game.i18n.localize('DX3rd.EffectBrowser'),
+        event => DX3rdActorSheetV2._onBrowseEffects.call(this, event));
+
+      // A simple sheet (enemy and some others) does not expose actor type editing (as on the previous sheet).
+      if (actorData.shouldUseSimpleSheet(this.document)) return;
 
       if (game.user.isGM) {
         makeButton('fa-solid fa-user-tag', game.i18n.localize('DX3rd.ActorType'),
@@ -663,6 +669,17 @@
       if (!item) return;
       // The attack roll dispatch is delegated to the shared helper (a single path, in preparation for V2 becoming the default)
       await actorData.attackRoll(this.document, item);
+    }
+
+    // The effect compendium is ~1600 entries and the guide journal can only be searched a page at a time, so the
+    // browser is the one place an effect is looked up by name or by what its text says.
+    static _onBrowseEffects(event) {
+      event.preventDefault();
+      if (!window.DX3rdEffectBrowser) {
+        ui.notifications.error(game.i18n.format('DX3rd.HandlerMissing', {name: 'DX3rdEffectBrowser'}));
+        return;
+      }
+      window.DX3rdEffectBrowser.open({actor: this.document});
     }
 
     // The firing point for applying the effects of an item with no attack flow.

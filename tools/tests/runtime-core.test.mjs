@@ -7145,3 +7145,80 @@ test('a stackable bucket with nothing to apply does not erase earlier stacks', a
   assert.equal(writes.length, before, '빈 적용은 아무것도 쓰거나 지우지 않아야 한다');
   assert.equal(target.effects.length, 1, '기존 스택이 남아 있어야 한다');
 });
+
+// GM 은 씬의 모든 액터의 OWNER 다. 그래서 개입 후보를 「굴리는 클라이언트가 소유한 액터」로
+// 모으면 GM 화면에는 굴림마다 씬 전원의 선언 목록이 뜨고, `spend` 의 `isGM` 분기가 남의
+// 이펙트를 소유자에게 묻지도 않고 소비했다. 후보는 책임 실행자(getResponsibleActorExecutor)를
+// 기준으로 갈라야 한다 — 내 몫만 내 창에 뜨고, 남의 몫은 그 클라이언트에 제안으로 간다.
+function rollInterventionContext() {
+  const context = baseContext({
+    Hooks: {on: () => {}, once: () => {}},
+    ui: {notifications: {warn: () => {}, info: () => {}}},
+    foundry: {applications: {api: {DialogV2: class {}}}, utils: {randomID: () => 'rid'}},
+    canvas: {tokens: {placeables: []}}
+  });
+  context.game = {
+    user: {id: 'u-gm', isGM: true},
+    users: {get: id => ({'u-gm': {id: 'u-gm', active: true}, 'u-pc': {id: 'u-pc', active: true}})[id] || null},
+    i18n: {localize: key => key, format: key => key}
+  };
+  context.DX3rdRollInterventions = {register: () => {}, availableDice: ctx => ctx.diceSnapshot || []};
+  context.DX3rdUniversalHandler = {normalizeEffectIds: () => []};
+  context.DX3rdSocketRouter = {
+    // 플레이어가 접속해 있으면 그 액터의 실행자는 GM 이 아니라 그 플레이어다.
+    getResponsibleActorExecutor: actor => ({id: actor.executorId}),
+    emitToActorExecutor: () => 'req',
+    emit: () => 'req'
+  };
+  load(context, 'scripts/dice/roll-intervention-effects.js');
+  return context;
+}
+
+function interventionActor(id, name, executorId) {
+  const card = {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], operation: 'setFaces',
+    target: 'any', selection: 'one', count: '1', value: 10, perRollMax: 1
+  };
+  const actor = {id, name, executorId, items: []};
+  actor.items.push({id: `${id}-item`, name: '요정의 손', type: 'effect', system: {rollIntervention: card}});
+  return actor;
+}
+
+test('a roll only offers each client the declarations it is responsible for', () => {
+  const context = rollInterventionContext();
+  const player = interventionActor('a-pc', '이즈미', 'u-pc');
+  const enemy = interventionActor('a-enemy', '쟈밋', 'u-gm');
+  context.canvas.tokens.placeables = [
+    {id: 't-pc', actor: player},
+    {id: 't-enemy', actor: enemy}
+  ];
+  const rollContext = {
+    phase: 'afterRoll', kind: 'check', subtype: 'major', generation: 0, revision: 0,
+    history: [], metadata: {}, actor: {id: 'a-enemy'}, item: null, interactive: true
+  };
+
+  const all = context.DX3rdRollInterventionEffects.candidates(rollContext);
+  assert.equal(all.length, 2, '후보 판정 자체는 씬 전원을 본다');
+
+  // GM 이 굴려도 플레이어의 선언은 GM 창에 오르지 않는다.
+  const {mine, remote} = context.DX3rdRollInterventionEffects.splitCandidates(rollContext);
+  // vm 경계를 넘어온 배열은 deepEqual 이 realm 으로 갈라 보므로 호스트 쪽에서 다시 만든다.
+  assert.deepEqual(Array.from(mine, entry => entry.actor.id), ['a-enemy']);
+  assert.deepEqual(Array.from(remote, target => target.actor.id), ['a-pc']);
+
+  // 그 플레이어가 접속을 끊으면 실행자는 GM 으로 되돌아가고, 그때는 GM 이 직접 선언한다.
+  player.executorId = 'u-gm';
+  const fallback = context.DX3rdRollInterventionEffects.splitCandidates(rollContext);
+  assert.deepEqual(Array.from(fallback.mine, entry => entry.actor.id).sort(), ['a-enemy', 'a-pc']);
+  assert.equal(fallback.remote.length, 0);
+
+  // 그리고 그 분리가 성립하려면 소비가 굴리는 쪽으로 새지 않아야 한다 — GM 이 남의 아이템을
+  // 대신 쓰던 분기가 남아 있으면 제안은 장식이 된다.
+  const text = source('scripts/dice/roll-intervention-effects.js');
+  assert.equal(text.includes('entry.actor.isOwner || game.user?.isGM'), false,
+    '소유자가 아닌 액터의 소비는 그 클라이언트가 한다');
+  for (const path of ['scripts/socket-contracts.js', 'scripts/socket-roll-interventions.js']) {
+    assert.equal(source(path).includes('requestRollInterventionUse'), false,
+      `${path}: 구 대리 소비 경로는 제안/선언 한 벌로 대체됐다`);
+  }
+});

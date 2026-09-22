@@ -470,7 +470,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Effect"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="effect" data-effect-type="normal"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn effect-browse-btn" data-action="browseEffects" title="{{localize 'DX3rd.EffectBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="effect" data-effect-type="normal"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.effectList as |item|}}

@@ -1,0 +1,45 @@
+<div class="effect-browser-content">
+  <div class="effect-browser-filters">
+    <div class="effect-browser-row">
+      <input type="search" class="effect-browser-search" autocomplete="off"
+             placeholder="{{localize 'DX3rd.EffectBrowserSearchPlaceholder'}}" value="{{filters.query}}">
+      <button type="button" class="effect-browser-reset" data-action="resetFilters">
+        <i class="fas fa-rotate-left"></i> {{localize "DX3rd.Reset"}}
+      </button>
+    </div>
+
+    <div class="effect-browser-row">
+      <select class="effect-browser-filter" data-filter="category">
+        <option value="">{{localize "DX3rd.EffectBrowserAllCategories"}}</option>
+        {{#each categories as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <select class="effect-browser-filter" data-filter="timing">
+        <option value="">{{localize "DX3rd.EffectBrowserAllTimings"}}</option>
+        {{#each timings as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <select class="effect-browser-filter" data-filter="skill">
+        <option value="">{{localize "DX3rd.EffectBrowserAllSkills"}}</option>
+        {{#each skills as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <label class="effect-browser-enemy-label">
+        <input type="checkbox" class="effect-browser-enemy" {{#if filters.includeEnemy}}checked{{/if}}>
+        {{localize "DX3rd.EffectBrowserIncludeEnemy"}}
+      </label>
+
+      <span class="effect-browser-count"></span>
+    </div>
+
+    <p class="effect-browser-hint">{{localize "DX3rd.EffectBrowserHint"}}</p>
+  </div>
+
+  <div class="effect-browser-results"></div>
+</div>

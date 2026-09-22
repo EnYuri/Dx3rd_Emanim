@@ -1,0 +1,237 @@
+/* Effect Browser — search-first view over every compendium effect. */
+
+.dx3rd-effect-browser .window-content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.dx3rd-effect-browser .effect-browser-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+
+.dx3rd-effect-browser .effect-browser-filters {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-bottom: 1px solid #999;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.dx3rd-effect-browser .effect-browser-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.dx3rd-effect-browser .effect-browser-row:last-of-type {
+    margin-bottom: 0;
+}
+
+.dx3rd-effect-browser input.effect-browser-search {
+    flex: 1;
+    height: 28px;
+    font-size: 13px;
+    padding: 0 8px;
+}
+
+.dx3rd-effect-browser select.effect-browser-filter {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    font-size: 12px;
+}
+
+.dx3rd-effect-browser button.effect-browser-reset {
+    flex: 0 0 auto;
+    width: auto;
+    height: 28px;
+    line-height: 1;
+    padding: 0 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.dx3rd-effect-browser .effect-browser-enemy-label {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.dx3rd-effect-browser input.effect-browser-enemy {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+}
+
+.dx3rd-effect-browser .effect-browser-count {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: #555;
+    white-space: nowrap;
+}
+
+.dx3rd-effect-browser .effect-browser-hint {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: #666;
+}
+
+/* ── Results ─────────────────────────────────────────────────────────────── */
+
+.dx3rd-effect-browser .effect-browser-results {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 10px 10px;
+}
+
+.dx3rd-effect-browser .effect-browser-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.dx3rd-effect-browser .effect-browser-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #333;
+    color: #fff;
+    padding: 6px 6px;
+    text-align: center;
+    font-weight: bold;
+    border: 1px solid #555;
+    white-space: nowrap;
+}
+
+.dx3rd-effect-browser .effect-browser-table tbody td {
+    padding: 4px 6px;
+    text-align: center;
+    border: 1px solid #ddd;
+    vertical-align: middle;
+}
+
+.dx3rd-effect-browser .effect-browser-table tbody tr {
+    cursor: pointer;
+}
+
+.dx3rd-effect-browser .effect-browser-table tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.dx3rd-effect-browser .effect-browser-table tbody tr:hover {
+    background: rgba(255, 180, 60, 0.18);
+}
+
+.dx3rd-effect-browser .effect-browser-table td.col-name {
+    text-align: left;
+    min-width: 220px;
+}
+
+.dx3rd-effect-browser .effect-browser-table td.col-name img {
+    vertical-align: middle;
+    margin-right: 6px;
+    border: none;
+}
+
+.dx3rd-effect-browser .effect-browser-name {
+    font-weight: bold;
+}
+
+.dx3rd-effect-browser .effect-browser-category {
+    display: block;
+    margin-left: 30px;
+    font-size: 10px;
+    color: #777;
+}
+
+.dx3rd-effect-browser .effect-browser-description {
+    margin: 4px 0 2px 30px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    background: rgba(0, 0, 0, 0.05);
+    border-left: 3px solid #999;
+    cursor: default;
+}
+
+.dx3rd-effect-browser .effect-browser-description p {
+    margin: 0 0 4px;
+}
+
+.dx3rd-effect-browser .effect-browser-description p:last-child {
+    margin-bottom: 0;
+}
+
+.dx3rd-effect-browser .effect-browser-table th.col-num,
+.dx3rd-effect-browser .effect-browser-table td.col-num {
+    width: 44px;
+}
+
+.dx3rd-effect-browser .effect-browser-table th.col-actions,
+.dx3rd-effect-browser .effect-browser-table td.col-actions {
+    width: 52px;
+    white-space: nowrap;
+}
+
+.dx3rd-effect-browser .effect-browser-table td.col-actions a {
+    display: inline-block;
+    padding: 2px 4px;
+    color: #444;
+}
+
+.dx3rd-effect-browser .effect-browser-table td.col-actions a:hover {
+    color: #a00;
+    text-shadow: none;
+}
+
+.dx3rd-effect-browser .effect-browser-empty,
+.dx3rd-effect-browser .effect-browser-truncated {
+    margin: 12px 0;
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+}
+
+/* ── The effect tab's browse button ──────────────────────────────────────── */
+
+/* `.plus-addon` is a 35px absolutely-positioned box sized for a single (+) button, so a second button wraps to
+   the next line. This variant lets it size to its contents and keeps the row on one line. */
+.dx3rd-emanim .sheet-attributes .plus-addon--multi {
+    width: auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+/* `.plus-addon button` clears the border with !important, so the outline has to answer in kind. The button sits
+   next to the create (+) button and does the opposite thing — it reads rather than writes — so it is outlined to
+   read as its own control. */
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn {
+    border: 1px solid rgba(255, 255, 255, 0.85) !important;
+    border-radius: 4px;
+    padding: 0 5px;
+    height: 24px;
+    line-height: 1;
+}
+
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn:hover {
+    border-color: #ffbb00 !important;
+    background: rgba(255, 187, 0, 0.18) !important;
+}

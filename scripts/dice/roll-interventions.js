@@ -56,6 +56,9 @@
   }
 
   function availableDice(context) {
+    // A remote declarer holds no Roll — the offer carries the faces it may touch, and the
+    // selection comes back as {waveIndex/termIndex, dieIndex} references for this client to apply.
+    if (Array.isArray(context?.diceSnapshot)) return context.diceSnapshot;
     const term = dxTerm(context.roll);
     if (context.kind === 'check') {
       // Check interventions may only touch DX 판정 dice — never standard dice terms.
