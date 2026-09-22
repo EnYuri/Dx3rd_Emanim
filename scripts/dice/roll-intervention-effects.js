@@ -889,10 +889,15 @@
 
     // 값·다이스까지 정한 뒤 **소비 전에** 자리를 잡는다. 경합에서 밀리면 비용이 나가지 않는다.
     declare(payload, actor, {stage: 'claim'});
+    let claimTimer = null;
     const accepted = await Promise.race([
       state.accepted,
-      new Promise(resolve => setTimeout(() => resolve(false), CLAIM_TIMEOUT_MS))
+      new Promise(resolve => {
+        claimTimer = setTimeout(() => resolve(false), CLAIM_TIMEOUT_MS);
+      })
     ]);
+    // 답이 왔으면 타이머를 놓아 준다. 남겨 두면 죽은 promise 를 깨우려고 1분을 더 붙잡는다.
+    clearTimeout(claimTimer);
     if (!accepted) {
       offers.delete(payload.roundKey);
       return;

@@ -7222,3 +7222,166 @@ test('a roll only offers each client the declarations it is responsible for', ()
       `${path}: 구 대리 소비 경로는 제안/선언 한 벌로 대체됐다`);
   }
 });
+
+// 위의 분리가 성립하려면 **굴림을 멈춘 채 다른 클라이언트의 선언을 받아 오는 왕복**이 실제로
+// 돌아야 한다. 여기서는 GM 창과 플레이어 창 두 realm 을 세우고 그 사이에 소켓을 흉내 내어
+// offer → claim → accept → commit 을 통째로 돌린다. 특히 **소비가 자리를 잡은 뒤에 일어나는지**
+// — 먼저 소비하면 경합에서 밀린 선언에 비용만 나간다 — 를 순서로 고정한다.
+function interventionClient(userId, {isGM = false, actors = [], log = []} = {}) {
+  const context = baseContext({
+    Hooks: {on: () => {}, once: () => {}},
+    ui: {notifications: {warn: () => {}, info: () => {}}},
+    canvas: {tokens: {placeables: actors.map(actor => ({id: `t-${actor.id}`, actor}))}},
+    ChatMessage: {create: async () => ({delete: async () => {}}), getSpeaker: () => ({})}
+  });
+  const registered = [];
+  context.game = {
+    user: {id: userId, isGM},
+    users: {get: id => ({id, active: true})},
+    actors: {get: id => actors.find(actor => actor.id === id) || null},
+    i18n: {localize: key => key, format: key => key}
+  };
+  context.foundry = {
+    utils: {randomID: () => 'rid'},
+    applications: {api: {DialogV2: null}}
+  };
+  context.DX3rdRollInterventions = {
+    register: (phase, handler, options = {}) => registered.push({phase, handler, priority: options.priority || 0}),
+    // 원격 클라이언트는 Roll 을 들고 있지 않다 — 제안이 실어 보낸 눈의 목록이 그 자리를 대신한다.
+    availableDice: ctx => ctx.diceSnapshot || [
+      {kind: 'dx', waveIndex: 0, dieIndex: 0, result: 3, faces: 10, critical: false},
+      {kind: 'dx', waveIndex: 0, dieIndex: 1, result: 7, faces: 10, critical: true}
+    ]
+  };
+  context.DX3rdUniversalHandler = {
+    normalizeEffectIds: () => [],
+    handleItemUse: async (actorId, itemId) => {
+      log.push(`spend:${itemId}`);
+      return true;
+    }
+  };
+  load(context, 'scripts/dice/roll-intervention-effects.js');
+  return {
+    context,
+    userId,
+    effects: context.DX3rdRollInterventionEffects,
+    handler: phase => registered.find(entry => entry.phase === phase && entry.priority === 100).handler
+  };
+}
+
+// 버튼을 눌러 주는 DialogV2. `answer` 가 null 을 돌려주면 창은 열린 채 남는다(= 원격 선언이
+// 먼저 오는 상황). close() 는 실제 구현과 같이 close 리스너로 「그대로 진행」을 흘린다.
+function scriptedDialog(answer) {
+  return class ScriptedDialog {
+    constructor(options) {
+      this.options = options;
+      this.rendered = false;
+      this.listeners = [];
+    }
+    addEventListener(type, fn) {
+      if (type === 'close') this.listeners.push(fn);
+    }
+    async render() {
+      this.rendered = true;
+      const result = answer(this.options);
+      if (result != null) setTimeout(() => this.options.submit?.(result, this), 0);
+    }
+    async close() {
+      this.rendered = false;
+      for (const fn of this.listeners) fn({});
+    }
+  };
+}
+
+test('a declaration made on another client is spent there, and only after it has claimed the roll', async () => {
+  const log = [];
+  const player = interventionActor('a-pc', '이즈미', 'u-pc');
+  const gm = interventionClient('u-gm', {isGM: true, actors: [player], log});
+  const pc = interventionClient('u-pc', {actors: [player], log});
+
+  // 소켓 두 줄. 전송은 비동기라 실제와 같이 다음 틱에 도착한다.
+  const deliver = (target, fn, data) => setTimeout(() => fn.call(null, data), 0);
+  const router = (self, other) => ({
+    getResponsibleActorExecutor: actor => ({id: actor.executorId}),
+    isActorExecutorMessage: (data, actor) => Boolean(actor) && data.executorUserId === self.userId,
+    emitToActorExecutor: (message, actor) => {
+      const envelope = {...message, executorUserId: actor.executorId};
+      log.push(`offer:${message.payload.stage}`);
+      const target = actor.executorId === self.userId ? self : other;
+      deliver(target, target.effects.handleOffer, envelope);
+      return 'rid';
+    },
+    emit: message => {
+      log.push(`declare:${message.payload.stage}`);
+      deliver(other, other.effects.handleDeclaration, message);
+      return 'rid';
+    }
+  });
+  gm.context.DX3rdSocketRouter = router(gm, pc);
+  pc.context.DX3rdSocketRouter = router(pc, gm);
+
+  // GM 창에는 자기 후보가 없다(이즈미의 실행자는 플레이어다). 그래서 이 창은 대기창이고,
+  // 아무도 누르지 않는다 — 결과는 원격 선언으로만 올 수 있다.
+  gm.context.foundry.applications.api.DialogV2 = scriptedDialog(() => null);
+  // 플레이어는 첫 후보를 고르고, 다이스 선택 창에서 두 번째 눈을 고른다.
+  const pcDialog = scriptedDialog(() => ({type: 'local', index: 0}));
+  pcDialog.wait = async config => {
+    const button = (config.buttons || []).find(entry => entry.action === 'confirm') || config.buttons[0];
+    return button.callback ? button.callback({}, {form: {querySelectorAll: () => [{value: '1'}]}}) : button.action;
+  };
+  pc.context.foundry.applications.api.DialogV2 = pcDialog;
+
+  const rollContext = {
+    rollId: 'r1', phase: 'afterRoll', kind: 'check', subtype: 'major',
+    generation: 0, revision: 0, history: [], metadata: {}, pool: null, interactive: true,
+    actor: {id: 'a-enemy', name: '쟈밋'}, item: null, commands: [],
+    roll: {render: async () => '<div class="dice-roll"></div>', total: 12}
+  };
+  const command = await gm.handler('afterRoll')(rollContext);
+
+  // 굴림을 들고 있는 쪽이 적용할 수 있는 형태로, 참조만 담겨 돌아온다.
+  // 커맨드는 배열로 돌아온다 — 전제 아이템(《절대지배》→《지배의 영역》)을 함께 쓴 선언이
+  // 그 소비 기록까지 같은 반환에 실어야 하므로, runPhase 가 펼치는 형태를 그대로 쓴다.
+  assert.deepEqual(JSON.parse(JSON.stringify(command)), [{
+    type: 'setFaces',
+    value: 10,
+    floor: null,
+    dice: [{kind: 'dx', termIndex: null, waveIndex: 0, dieIndex: 1}],
+    sourceActorId: 'a-pc',
+    sourceItemId: 'a-pc-item'
+  }]);
+
+  // 소비는 플레이어 쪽에서 **한 번**, 그리고 자리를 잡은 뒤에만 일어난다.
+  assert.deepEqual(log.filter(entry => entry.startsWith('spend:')), ['spend:a-pc-item']);
+  assert.ok(log.indexOf('declare:claim') < log.indexOf('offer:accept'), 'claim 다음에 accept');
+  assert.ok(log.indexOf('offer:accept') < log.indexOf('spend:a-pc-item'), 'accept 뒤에 소비');
+  assert.ok(log.indexOf('spend:a-pc-item') < log.indexOf('declare:commit'), '소비 뒤에 commit');
+
+  // 그리고 밀린 선언은 비용을 내지 않는다. 이미 끝난 라운드(굴림 쪽이 모르는 roundKey)에
+  // 선언하면 claim 이 거절되고, 그 클라이언트는 handleItemUse 에 닿지 않은 채 물러난다.
+  const spentBefore = log.filter(entry => entry.startsWith('spend:')).length;
+  await pc.effects.handleOffer({
+    executorUserId: 'u-pc',
+    payload: {
+      stage: 'offer',
+      roundKey: 'r1-afterRoll-0-9',
+      requesterUserId: 'u-gm',
+      rollerActorId: 'a-enemy',
+      sourceActorId: 'a-pc',
+      sourceTokenId: 't-a-pc',
+      snapshot: {
+        rollId: 'r1', generation: 0, phase: 'afterRoll', kind: 'check', subtype: 'major',
+        skillKey: null, isAttackRoll: false, rollerActorName: '쟈밋', rollerActorId: 'a-enemy',
+        rollItemId: null, combinedIds: [], pool: null, history: [],
+        dice: [
+          {kind: 'dx', termIndex: null, waveIndex: 0, dieIndex: 0, result: 3, faces: 10, critical: false},
+          {kind: 'dx', termIndex: null, waveIndex: 0, dieIndex: 1, result: 7, faces: 10, critical: true}
+        ]
+      }
+    }
+  });
+  for (let i = 0; i < 12; i++) await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(log.filter(entry => entry.startsWith('spend:')).length, spentBefore,
+    '자리를 잡지 못한 선언은 비용을 내지 않는다');
+  assert.ok(log.includes('offer:reject'), '밀린 선언에는 거절이 돌아간다');
+});

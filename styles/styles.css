@@ -40,8 +40,10 @@
   opacity: 0.85;
 }
 
+/* The marker is a CSS escape on purpose: the literal emoji lost its bytes once already
+   and shipped as a control character plus the text "F3". */
 .dx3rd-roll-intervention-waiting::before {
-  content: "F3 ";
+  content: "F30";
 }
 
 .dx3rd-roll-intervention-dialog .form-footer {
