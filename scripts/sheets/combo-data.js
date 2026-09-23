@@ -915,6 +915,11 @@
     for (const attrData of Object.values(attributes)) {
       if (!attrData || !attrData.key || !attrData.value) continue;
       if (!includes(attrData)) continue;
+      // A row carrying `condition` contributes only while it holds on the actor — the applied
+      // AE gates it dynamically, so summing it unconditionally inflates the preview above
+      // what the actual roll receives (the same class of mismatch bucketFilter exists for).
+      if (attrData.condition && options.actor
+          && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(options.actor, attrData.condition)) continue;
       callback({
         key: attrData.key,
         label: attrData.label,
@@ -989,7 +994,7 @@
         actor,
         ...rollContext
       });
-    }, sourceItem, options);
+    }, sourceItem, {...options, actor});
   }
 
   function createRollBonus(criticalMin) {
@@ -1172,7 +1177,7 @@
 
       const bonusValue = window.DX3rdFormulaEvaluator?.evaluate(value, item, actor) || 0;
       attackBonus += Number(bonusValue) || 0;
-    }, item, options);
+    }, item, {...options, actor});
 
     return attackBonus;
   }

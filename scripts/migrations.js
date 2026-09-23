@@ -4,7 +4,7 @@
 
 (function() {
     // 현재까지 정의된 마이그레이션 단계 수. 새 마이그레이션을 추가할 때마다 +1.
-    const CURRENT_MIGRATION = 3;
+    const CURRENT_MIGRATION = 4;
 
     Hooks.once('init', function() {
         game.settings.register('dx3rd-emanim', 'systemMigrationVersion', {
@@ -32,6 +32,8 @@
             if (version < 2) await migrateItemSchemaV2();
             // v3: 아무도 읽지 않던 conditions.lostHP 제거
             if (version < 3) await migrateConditionsV3();
+            // v4: 자원 바 추적 후보 결함으로 지워진 토큰 바 복구
+            if (version < 4) await migrateTokenBarsV4();
 
             await game.settings.set('dx3rd-emanim', 'systemMigrationVersion', CURRENT_MIGRATION);
             console.log('DX3rd | 데이터 마이그레이션 완료');
@@ -177,5 +179,73 @@
         }
 
         console.log(`DX3rd | conditions 정리: ${cleaned}개 액터의 죽은 lostHP 제거`);
+    }
+
+    /**
+     * v4: 자원 바 추적 후보 결함으로 지워진 토큰 바 복구.
+     *
+     * DataModel 이행 뒤 코어의 추적 후보 추론이 `conditions.extra-turn` 하나만 남겼고, 그 사이
+     * 토큰 설정창을 한 번이라도 저장하면 bar1/bar2 의 attribute 가 빈 값(blank None 이 첫
+     * 옵션이라 저장값이 선택지에 없으면 거기로 넘어간다)이나 `conditions.extra-turn` 으로
+     * 덮어씌워졌다. 이 시스템의 기본은 bar1 = attributes.hp, bar2 = 캐릭터는
+     * attributes.encroachment·enemy는 비어 있음이므로 그 상태로 되돌린다. 그 외의 속성이
+     * 들어 있는 바는 사용자가 고른 것이니 건드리지 않는다.
+     * 프로토타입 토큰과 배치된 토큰 양쪽을 본다.
+     */
+    async function migrateTokenBarsV4() {
+        const barUpdates = (source, type) => {
+            const updates = {};
+            const b1 = source?.bar1?.attribute;
+            const b2 = source?.bar2?.attribute;
+            // bar1은 이 시스템이 생성 시 항상 hp로 심는다 — 빈 값/extra-turn은 결함의 흔적이다.
+            if (!b1 || b1 === 'conditions.extra-turn') updates['bar1.attribute'] = 'attributes.hp';
+            // bar2 기본: 캐릭터는 생성 훅이 encroachment를 심고, enemy는 비어 있다.
+            if (type === 'character') {
+                if (!b2 || b2 === 'conditions.extra-turn') updates['bar2.attribute'] = 'attributes.encroachment';
+            } else if (b2 === 'conditions.extra-turn') {
+                updates['bar2.attribute'] = '';
+            }
+            return updates;
+        };
+
+        let fixedActors = 0;
+        for (const actor of game.actors) {
+            if (actor.type !== 'character' && actor.type !== 'enemy') continue;
+            const fix = barUpdates(actor.prototypeToken, actor.type);
+            if (Object.keys(fix).length === 0) continue;
+            const update = {};
+            for (const [k, v] of Object.entries(fix)) update[`prototypeToken.${k}`] = v;
+            try {
+                await actor.update(update, { render: false });
+                fixedActors++;
+            } catch (e) {
+                console.error(`DX3rd | 프로토타입 토큰 바 복구 실패: ${actor.name} (${actor.id})`, e);
+            }
+        }
+
+        let fixedTokens = 0;
+        for (const scene of game.scenes) {
+            const updates = [];
+            for (const token of scene.tokens) {
+                const type = token.actor?.type;
+                if (type !== 'character' && type !== 'enemy') continue;
+                const fix = barUpdates(token, type);
+                if (Object.keys(fix).length === 0) continue;
+                updates.push({ _id: token.id, ...fix });
+            }
+            if (updates.length > 0) {
+                try {
+                    await scene.updateEmbeddedDocuments('Token', updates, { render: false });
+                    fixedTokens += updates.length;
+                } catch (e) {
+                    console.error(`DX3rd | 배치 토큰 바 복구 실패: ${scene.name} (${scene.id})`, e);
+                }
+            }
+        }
+
+        console.log(`DX3rd | 토큰 자원 바 복구: 프로토타입 ${fixedActors}건 / 배치 토큰 ${fixedTokens}건`);
+        if (fixedActors + fixedTokens > 0) {
+            ui.notifications.info(`DX3rd | 토큰 자원 바를 복구했습니다 (액터 ${fixedActors}, 토큰 ${fixedTokens}).`);
+        }
     }
 })();

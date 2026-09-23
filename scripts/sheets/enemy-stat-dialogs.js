@@ -35,6 +35,8 @@
         // 「사용/공격 시」로 저작된 항목은 상태가 켜져 있는 동안이 아니라 그때그때 동결
         // AE 로 걸린다 → sumAppliedBonus 쪽에서 세므로 여기서 빼야 이중 가산이 없다.
         if (adapter && !adapter.appliesWhileActive(item, attrData)) continue;
+        // 조건 행은 조건이 서 있는 동안만 기여한다(actor.js _makeContribReader 와 같은 게이트).
+        if (attrData.condition && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, attrData.condition)) continue;
         if (keys.includes(attrData.key) && attrData.value) {
           sum += window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, actor) * multiplier;
         }
@@ -52,6 +54,9 @@
     for (const effect of Object.values(applied)) {
       if (!effect || !effect.attributes) continue;
       for (const [attrName, attrValue] of Object.entries(effect.attributes)) {
+        // 조건 행은 조건이 서 있는 동안만 기여한다(actor.js _indexAppliedEffects 와 같은 게이트).
+        if (typeof attrValue === 'object' && attrValue?.condition
+            && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, attrValue.condition)) continue;
         const key = (typeof attrValue === 'object') ? attrValue.key : attrName;
         const val = (typeof attrValue === 'object' && 'value' in attrValue) ? attrValue.value :
                     (typeof attrValue === 'boolean') ? 0 :

@@ -77,7 +77,8 @@
       this._listenerCleanups?.forEach(cleanup => cleanup());
       this._listenerCleanups = weaponManager.setupWeaponTabListeners(this.element, this) || [];
       const listen = (...args) => this._listenerCleanups.push(compat.on(this.element, ...args));
-      listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
+      // 무기 지정 체크박스의 무기 목록 비우기도 name 있는 폼 필드지만, system.weapon 을
+      // 별도 item.update 로 쓰면 같은 change 의 submitOnChange 저장과 경합한다 — _prepareSubmitData 에 접는다.
       // 난이도 판정 · 대상 지정 체크박스는 name 이 없어 폼에 실리지 않는다. 별도 item.update 로
       // 저장하면 같은 change 이벤트의 submitOnChange 저장과 경합하므로 _prepareSubmitData 에서 처리한다.
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
@@ -125,11 +126,6 @@
       });
     }
 
-    async _toggleWeaponSelection(event) {
-      if (event.target.checked) await this.item.update({'system.weapon': []});
-      this.render(false);
-    }
-
     async _normalizeRoll(value) {
       const update = itemSheetData.getRollChangeUpdate(value);
       if (Object.keys(update).length) await this.item.update(update);
@@ -167,6 +163,12 @@
       }
       if (changed?.matches?.('[data-target-field="system.getTarget"]')) {
         foundry.utils.setProperty(data, 'system.getTarget', changed.checked);
+      }
+      // Checking weaponSelect clears the fixed weapon list. It is folded into this submission
+      // for the same reason as the nameless checkboxes — a separate item.update would race
+      // the form write of system.weapon (the hidden inputs still carry the old list).
+      if (changed?.matches?.('input[name="system.weaponSelect"]') && changed.checked) {
+        foundry.utils.setProperty(data, 'system.weapon', []);
       }
       return data;
     }

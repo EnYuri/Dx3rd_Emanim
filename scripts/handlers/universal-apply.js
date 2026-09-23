@@ -383,6 +383,10 @@
       const evaluator = window.DX3rdFormulaEvaluator;
       for (const entry of Object.values(attributes || {})) {
         if (!entry || !labelMatches(entry.label)) continue;
+        // A conditioned row contributes only while the condition holds on the carrier — the
+        // applied AE gates it dynamically, and this direct sum must apply the same gate or a
+        // failed condition would still add to the current damage stage.
+        if (entry.condition && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, entry.condition)) continue;
         const key = entry.key;
         if (key !== 'attack' && key !== 'penetrate') continue;
         const prepared = evaluator?.prepareRollFormula

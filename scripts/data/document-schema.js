@@ -583,6 +583,66 @@
     return source;
   }
 
+  /**
+   * The token-bar / combat-tracker attribute list, declared by hand.
+   *
+   * Core infers the list from the schema (`TokenDocument._getTrackedAttributesFromSchema`): a NumberField
+   * becomes a single-value candidate, and a SchemaField holding a `value`/`max` pair becomes a bar.
+   * That inference finds almost nothing here — `attributes` is an ObjectField free map the walk never
+   * descends into (it must stay a free map: the AE channel addresses `system.attributes.*` only because no
+   * field resolves there), and every primitive is a DX3rdLooseField rather than a NumberField. The one
+   * SchemaField anywhere with a `value`/`max` pair is `conditions.extra-turn`, which is why the resource
+   * dropdown shrank to that single entry. CONFIG.Actor.trackableAttributes is the supported override —
+   * the token config prefers it whenever it is non-empty — so the paths the template merge used to
+   * enumerate (the attribute shapes prepareData seeds) are written out here.
+   */
+  function trackableAttributes() {
+    const leaf = (group, fields) => fields.map(f => `attributes.${group}.${f}`);
+    const stats = ['body', 'sense', 'mind', 'social']
+      .flatMap(s => leaf(s, ['point', 'bonus', 'extra', 'total', 'dice', 'add', 'critical']));
+    const skills = ['melee', 'evade', 'ranged', 'perception', 'rc', 'will', 'cthulhu', 'negotiation', 'procure']
+      .flatMap(s => leaf(`skills.${s}`, ['point', 'bonus', 'extra', 'total', 'dice', 'add', 'critical']));
+    const conditionValues = ['poisoned', 'healing', 'action_delay'].map(c => `conditions.${c}.value`);
+    const shared = [
+      ...leaf('attack', ['value', 'melee', 'ranged', 'fist']),
+      ...leaf('armor', ['value', 'min']),
+      ...leaf('guard', ['value', 'min']),
+      ...leaf('penetrate', ['value', 'min']),
+      ...leaf('reduce', ['value', 'min', 'roll']),
+      ...leaf('critical', ['min']),
+      ...conditionValues
+    ];
+    return {
+      character: {
+        bar: ['attributes.hp', 'attributes.encroachment', 'attributes.stock', 'attributes.saving', 'conditions.extra-turn'],
+        value: [
+          ...stats, ...skills, ...shared,
+          ...leaf('init', ['value']),
+          ...leaf('move', ['battle', 'full']),
+          ...leaf('exp', ['init', 'append', 'total', 'now', 'discount']),
+          ...leaf('cast', ['dice', 'add', 'eibon']),
+          // Encroachment is already a bar; its dice/level leaves are still worth listing as values.
+          ...leaf('encroachment', ['dice', 'level']),
+          ...leaf('saving', ['remain'])
+        ]
+      },
+      enemy: {
+        bar: ['attributes.hp', 'attributes.encroachment', 'conditions.extra-turn'],
+        value: [
+          ...stats, ...shared,
+          // The `base` leaves are the enemy sheet's authored inputs (enemy-stat-dialogs).
+          ...leaf('hp', ['base']),
+          ...leaf('init', ['value', 'base']),
+          ...leaf('move', ['battle', 'full', 'base']),
+          ...leaf('armor', ['base']),
+          ...leaf('guard', ['base']),
+          ...leaf('evasion', ['value', 'base']),
+          ...leaf('cast', ['dice', 'add', 'eibon'])
+        ]
+      }
+    };
+  }
+
   function modelClass(kind, type) {
     return class DX3rdTypeDataModel extends foundry.abstract.TypeDataModel {
       static defineSchema() {
@@ -600,13 +660,14 @@
       const models = CONFIG[kind].dataModels ?? (CONFIG[kind].dataModels = {});
       for (const type of DEFAULTS[kind].types) models[type] = modelClass(kind, type);
     }
+    CONFIG.Actor.trackableAttributes = trackableAttributes();
     window.DX3rdDebug.log(
       `DX3rd | 문서 스키마 등록: Actor ${DEFAULTS.Actor.types.length}종 / Item ${DEFAULTS.Item.types.length}종`
     );
   }
 
   window.DX3rdDocumentSchema = DEFAULTS;
-  window.DX3rdDataModels = { mergeType, buildSchema, register: registerDataModels };
+  window.DX3rdDataModels = { mergeType, buildSchema, trackableAttributes, register: registerDataModels };
 
   Hooks.once('init', registerDataModels);
 })();

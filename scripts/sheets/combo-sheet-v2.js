@@ -42,7 +42,8 @@
       listen('click', '.add-effect', event => this._addEffect(event));
       listen('click', '.combo-item:not(.weapon-item) .item-edit', (event, target) => this._editEffect(event, target));
       listen('click', '.combo-item:not(.weapon-item) .item-delete', (event, target) => this._deleteEffect(event, target));
-      listen('change', 'input[name="system.weaponSelect"]', event => this._toggleWeaponSelection(event));
+      // 무기 지정 체크박스의 무기 목록 비우기는 system.weapon 을 별도 update 로 쓰면
+      // 같은 change 의 submitOnChange 저장과 경합한다 — _prepareSubmitData 에 접는다.
       listen('change', 'select[name="system.skill"]', event => this._updateBaseAttribute(event.target.value));
       listen('change', 'select[name="system.roll"]', event => this._normalizeRoll(event.target.value));
       // 난이도 판정 체크박스는 name 이 없어 폼에 실리지 않는다 — 별도 update 가 submitOnChange
@@ -173,11 +174,6 @@
       await comboData.applyWeaponRemoved(this.item, this.item.actor, weaponId);
     }
 
-    async _toggleWeaponSelection(event) {
-      if (event.target.checked) await this.item.update({'system.weapon': []});
-      this.render(false);
-    }
-
     async _updateBaseAttribute(skill) {
       await comboData.updateBaseAttributeForSkill(this.item, this.item.actor, skill);
     }
@@ -212,6 +208,11 @@
         for (const [key, value] of Object.entries(comboData.getDifficultyToggleUpdate(this.item, changed.checked))) {
           foundry.utils.setProperty(data, key, value);
         }
+      }
+      // Checking weaponSelect clears the fixed weapon list — folded in for the same reason:
+      // a separate item.update would race the submitOnChange write of system.weapon.
+      if (changed?.matches?.('input[name="system.weaponSelect"]') && changed.checked) {
+        foundry.utils.setProperty(data, 'system.weapon', []);
       }
       return data;
     }

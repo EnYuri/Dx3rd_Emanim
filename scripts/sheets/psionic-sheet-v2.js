@@ -62,10 +62,8 @@
       this._psionicCleanups = weaponManager.setupWeaponTabListeners(this.element, this) || [];
       const listen = (...args) => this._psionicCleanups.push(compat.on(this.element, ...args));
 
-      listen('change', 'input[name="system.weaponSelect"]', async event => {
-        if (event.target.checked) await this.item.update({'system.weapon': []});
-        this.render(false);
-      });
+      // 무기 지정 체크박스의 무기 목록 비우기는 별도 update 가 submitOnChange 저장과 경합한다 —
+      // _prepareSubmitData 에 접는다(난이도 체크박스와 같은 방식).
       listen('blur', '.difficulty-input', event => this._validateDifficulty(event));
     }
 
@@ -108,6 +106,11 @@
         ? data.system.weapon
         : (this.item.system.weapon || []);
       foundry.utils.setProperty(data, 'system.weapon', itemSheetData.normalizeIdList(submittedWeapons));
+      // Checking weaponSelect clears the fixed weapon list — folded in so a separate
+      // item.update cannot race the submitOnChange write of system.weapon.
+      if (event?.target?.matches?.('input[name="system.weaponSelect"]') && event.target.checked) {
+        foundry.utils.setProperty(data, 'system.weapon', []);
+      }
       return data;
     }
   }

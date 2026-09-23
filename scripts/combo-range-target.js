@@ -294,9 +294,20 @@
         try { await update(item, { [`system.${kind}`]: value }); }
         catch (e) { console.error('DX3rd | RangeTarget field update failed', e); }
       };
-      sel.addEventListener('change', () => apply({focusParam: true}));
+      // The nameless controls must not bubble their change to the form's submitOnChange:
+      // that concurrent whole-form submission can apply a real diff and re-render the sheet,
+      // which rebuilds the .rt-field and destroys the just-revealed parameter input — the
+      // selection then looked lost and needed several attempts. The direct update in apply
+      // is the single write path; the hidden input stays in sync for any later submit.
+      sel.addEventListener('change', event => {
+        event.stopPropagation();
+        apply({focusParam: true});
+      });
       if (param) {
-        param.addEventListener('change', () => apply());
+        param.addEventListener('change', event => {
+          event.stopPropagation();
+          apply();
+        });
         param.addEventListener('blur', () => apply());
       }
     });

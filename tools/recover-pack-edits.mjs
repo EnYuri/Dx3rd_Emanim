@@ -222,9 +222,13 @@ function same(a, b, key) {
 
 // 보정 행 맵은 id 가 서로 다르다(Foundry 가 만든 랜덤 id vs 빌드의 결정적 genId).
 // 그래서 id 를 버리고 행 내용의 정렬된 목록으로 비교하고, 회수도 배열 형태로 한다.
+// 라벨 폴백·action·condition 은 _source/apply-overrides.mjs 의 attrRow 와 같은 어휘다 —
+// condition 을 빠뜨리면 회수본이 조건 행을 지우고 다음 재빌드가 팩에서 걷어내며,
+// attack/guard 라벨을 키 이름으로 쓰면 attrRow 가 '-' 로 떨어뜨리던 표기가 되살아난다.
 function attrRows(map) {
+  const fallback = (r) => (r.key === 'attack' || r.key === 'guard') ? '-' : r.key;
   return Object.values(map ?? {})
-    .map((r) => ({ key: r.key, label: r.label ?? r.key, value: String(r.value ?? ""), ...(r.action ? { action: r.action } : {}) }))
+    .map((r) => ({ key: r.key, label: r.label ?? fallback(r), value: String(r.value ?? ""), ...(r.action ? { action: r.action } : {}), ...(r.condition ? { condition: r.condition } : {}) }))
     .sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)));
 }
 const sameAttrs = (a, b) => JSON.stringify(attrRows(a)) === JSON.stringify(attrRows(b));

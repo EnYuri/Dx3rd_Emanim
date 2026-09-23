@@ -318,6 +318,50 @@ test('the document schema declares every field live documents and sheets actuall
     '레거시 체크박스 문자열 복구가 migrateData 에 걸려 있어야 한다');
 });
 
+test('trackable attributes expose the free-map resources core cannot infer from the schema', () => {
+  // 코어의 추적 후보 추론(TokenDocument._getTrackedAttributesFromSchema)은 NumberField 잎과
+  // value/max 를 가진 SchemaField 만 거둔다. attributes 자유 맵은 들여다보지도 않고
+  // DX3rdLooseField 는 NumberField 가 아니라, 추론만 두면 자원 바 드롭다운이
+  // conditions.extra-turn 하나로 줄어든다. CONFIG.Actor.trackableAttributes 가 그 우회로 —
+  // 토큰 설정창·전투 추적기·모듈의 getTrackedAttributes() 가 이 선언을 우선한다.
+  const sandbox = {};
+  new Function('window', 'Hooks', source('scripts/data/document-schema.js'))(sandbox, { once() {} });
+  const trackable = sandbox.DX3rdDataModels.trackableAttributes();
+
+  for (const type of ['character', 'enemy']) {
+    assert.ok(trackable[type].bar.includes('attributes.hp'), `${type}: attributes.hp 는 바 후보여야 한다`);
+    assert.ok(trackable[type].bar.includes('attributes.encroachment'), `${type}: 침식률 바 누락`);
+    assert.ok(trackable[type].bar.includes('conditions.extra-turn'), `${type}: 스키마 추론이 찾던 기존 바와 호환`);
+  }
+  assert.ok(trackable.character.bar.includes('attributes.stock'), '재산점 바 누락');
+  assert.ok(trackable.character.bar.includes('attributes.saving'), '상비 바 누락');
+  assert.ok(trackable.character.value.includes('attributes.init.value'));
+  assert.ok(trackable.character.value.includes('attributes.encroachment.dice'), '침식 다이스 누락');
+  assert.ok(trackable.enemy.value.includes('attributes.evasion.value'));
+  assert.ok(trackable.enemy.value.includes('attributes.hp.base'), 'enemy 시트의 저작 입력');
+
+  // 자유 맵·불리언·문자열 잎사귀는 추적 대상이 아니다(타입별 목록은 서로 겹치는 것이 정상이다).
+  for (const type of ['character', 'enemy']) {
+    const own = [...trackable[type].bar, ...trackable[type].value];
+    assert.equal(new Set(own).size, own.length, `${type}: 중복 경로가 있으면 안 된다`);
+    assert.ok(!own.some(p => p.endsWith('.active') || p.endsWith('.delete') || p === 'attributes.applied'),
+      `${type}: 불리언 잎이나 자유 맵 루트가 섞이면 안 된다`);
+  }
+
+  assert.match(source('scripts/data/document-schema.js'),
+    /CONFIG\.Actor\.trackableAttributes = trackableAttributes\(\)/,
+    'registerDataModels 안의 init 등록이 빠지면 선언만 있고 아무도 읽지 않는다');
+
+  // 그 결함 기간에 설정창을 저장한 토큰은 bar 가 빈 값/extra-turn 으로 덮어씌워졌다 —
+  // 마이그레이션 v4 가 기본 상태(bar1=hp, 캐릭터 bar2=encroachment)로 되돌린다. 단계
+  // 등록이 빠지면 함수는 있어도 아무 월드에서도 돌지 않는다.
+  const migrations = source('scripts/migrations.js');
+  assert.match(migrations, /version < 4\) await migrateTokenBarsV4\(\)/, 'v4 단계 등록 누락');
+  assert.match(migrations, /bar1\.attribute'\] = 'attributes\.hp'/, 'bar1 복구 대상이 hp 여야 한다');
+  assert.match(migrations, /bar2\.attribute'\] = 'attributes\.encroachment'/,
+    '캐릭터 bar2 의 기본은 encroachment — 생성 훅과 같은 상태로 되돌려야 한다');
+});
+
 test('the sheet context copies item.system instead of aliasing the live DataModel', () => {
   // `item.system` 은 DataModel 인스턴스다. foundry.utils.deepClone 은 isPlainObject 가 아니면
   // **원본 참조를 그대로 돌려주므로**, 그냥 넘기면 시트 준비 코드의 기본값 대입(prepareSystem)과
@@ -6075,17 +6119,61 @@ test('a parametric range/target option waits for its number instead of collapsin
   context.window.DX3rdRangeTarget.setupFieldListeners(
     { querySelectorAll: () => [field] }, {}, { update: (item, change) => updates.push(change) });
 
+  // 커스텀 셀렉트의 change 가 폼까지 버블링하면 submitOnChange 의 전체 서브밋이 달려 나가고,
+  // 잔여 diff 가 있는 그 서브밋의 재렌더가 막 연 파라미터 입력칸을 파괴했다 — 첫 선택이
+  // 사라져 보이던 원인. 리스너가 버블링을 끊는지 고정한다.
+  const stopped = [];
+  const fakeEvent = () => ({ stopPropagation() { stopped.push(true); } });
+
   select.value = '대상수';
-  await handlers.get('sel:change')();
+  const selEvent = fakeEvent();
+  await handlers.get('sel:change')(selEvent);
+  assert.equal(stopped.length, 1, 'rt 셀렉트의 change 는 폼 서브밋으로 버블링되면 안 된다');
   assert.equal(param.hidden, false, '파라미터 입력칸이 실제로 드러나야 한다');
   assert.equal(param.focused, true);
   assert.equal(updates.length, 0, '숫자가 비어 있는 동안에는 저장하지 않는다');
 
   param.value = '3';
-  await handlers.get('param:change')();
+  const paramEvent = fakeEvent();
+  await handlers.get('param:change')(paramEvent);
+  assert.equal(stopped.length, 2, '파라미터 입력의 change 도 폼 서브밋으로 버블링되면 안 된다');
   assert.equal(updates.length, 1);
   assert.equal(updates[0]['system.target'], '3체');
   assert.equal(store.value, '3체');
+});
+
+test('a plain range/target option saves on the first change through the direct update', async () => {
+  const context = baseContext({ game: { i18n: { localize: key => key } } });
+  load(context, 'scripts/combo-range-target.js');
+
+  const handlers = new Map();
+  const bind = (id, node) => Object.assign(node, {
+    addEventListener: (name, fn) => handlers.set(`${id}:${name}`, fn)
+  });
+  const select = bind('sel', { value: '단독' });
+  const param = bind('param', {
+    value: '', hidden: true,
+    style: { removeProperty() {} },
+    focus() {}
+  });
+  const store = { value: '단독' };
+  const field = {
+    dataset: { rt: 'range' },
+    querySelector: selector => (selector === '.rt-option' ? select
+      : selector === '.rt-param' ? param : store)
+  };
+
+  const updates = [];
+  context.window.DX3rdRangeTarget.setupFieldListeners(
+    { querySelectorAll: () => [field] }, {}, { update: (item, change) => updates.push(change) });
+
+  select.value = '시야';
+  let stopped = false;
+  await handlers.get('sel:change')({ stopPropagation() { stopped = true; } });
+  assert.equal(stopped, true, '셀렉트 변경이 폼 서브밋으로 버블링되면 안 된다');
+  assert.equal(updates.length, 1, '첫 변경에서 바로 저장되어야 한다');
+  assert.equal(updates[0]['system.range'], '시야');
+  assert.equal(store.value, '시야');
 });
 
 test('a nameless sheet checkbox saves through the form, and keeps the authored difficulty', () => {
@@ -6099,9 +6187,9 @@ test('a nameless sheet checkbox saves through the form, and keeps the authored d
   // name 없는 체크박스를 별도 item.update 로 저장하면 같은 change 이벤트의 submitOnChange
   // 저장과 경합한다. 전부 _prepareSubmitData 로 접어 넣은 상태를 고정한다.
   const folded = {
-    'scripts/sheets/effect-sheet-v2.js': ['.difficulty-check', '[data-target-field="system.getTarget"]'],
-    'scripts/sheets/combo-sheet-v2.js': ['.difficulty-check'],
-    'scripts/sheets/psionic-sheet-v2.js': ['.difficulty-check'],
+    'scripts/sheets/effect-sheet-v2.js': ['.difficulty-check', '[data-target-field="system.getTarget"]', 'input[name="system.weaponSelect"]'],
+    'scripts/sheets/combo-sheet-v2.js': ['.difficulty-check', 'input[name="system.weaponSelect"]'],
+    'scripts/sheets/psionic-sheet-v2.js': ['.difficulty-check', 'input[name="system.weaponSelect"]'],
     'scripts/sheets/spell-sheet-v2.js': ['.casting-roll-check', '[data-target-field="system.getTarget"]']
   };
   for (const [path, selectors] of Object.entries(folded)) {
@@ -7059,9 +7147,32 @@ test('modifier row conditions survive the applied-effect serialization paths', (
   const toggle = source('scripts/dx3rd-applied-toggle.js');
   assert.match(toggle, /\.\.\.\(a\.condition \? \{ condition: a\.condition \} : \{\}\)/,
     '토글 동결 경로도 condition 을 보존해야 한다 — 여기서 평가하면 받는 시점의 상태로 굳는다');
-  const attrRow = source('_source/apply-overrides.mjs');
-  assert.match(attrRow, /if \(a\.condition\) row\.condition = a\.condition;/,
-    'attrRow 가 condition 을 버리면 _source 오버라이드의 저작이 팩까지 도달하지 않는다');
+  // _source 는 비공개 디렉터리라 CI 체크아웃에는 없다 — 있을 때만 검사한다(위의
+  // 라벨 기본값 검사와 같은 가드).
+  const privateBuilder = resolve(root, '_source/apply-overrides.mjs');
+  if (existsSync(privateBuilder)) {
+    assert.match(readFileSync(privateBuilder, 'utf8'),
+      /if \(a\.condition\) row\.condition = a\.condition;/,
+      'attrRow 가 condition 을 버리면 _source 오버라이드의 저작이 팩까지 도달하지 않는다');
+  }
+
+  // 행을 재조립하는 회수기도 같은 어휘여야 한다 — 빠뜨리면 Foundry 손튜닝 회수본이
+  // condition 을 지우고 다음 재빌드가 팩에서 조건을 걷어낸다.
+  const recover = source('tools/recover-pack-edits.mjs');
+  assert.match(recover, /\.\.\.\(r\.condition \? \{ condition: r\.condition \} : \{\}\)/,
+    'recover-pack-edits 의 attrRows 가 condition 을 버리면 회수본이 조건 행을 지운다');
+
+  // 조건 행을 직접 합산하는 소비처는 _indexAppliedEffects/_makeContribReader 와 같은
+  // 게이트를 적용해야 한다 — 아니면 조건이 서지 않아도 값이 더해져 적용 AE 와 갈라진다.
+  assert.match(apply,
+    /entry\.condition && !window\.DX3rdRuntimeUtils\?\.modifierConditionHolds\?\.?\(actor, entry\.condition\)/,
+    'resolveAfterSuccessDamageBonus 가 조건을 걸지 않으면 명중 후 공격/관통 몫이 무조건 더해진다');
+  const level = source('scripts/effect-level.js');
+  assert.match(level, /attributeValue\.condition[^]*modifierConditionHolds/,
+    'appliedLevelBonus 가 조건을 걸지 않으면 조건 행의 effect_level 도 무조건 오른다');
+  const combo = source('scripts/sheets/combo-data.js');
+  assert.match(combo, /attrData\.condition && options\.actor[^]*modifierConditionHolds/,
+    '콤보 미리보기의 forEachMainAttribute 가 조건을 걸지 않으면 실제 적용보다 크게 보인다');
 });
 
 test('a stackable bucket adds a new applied AE per application instead of overwriting', async () => {

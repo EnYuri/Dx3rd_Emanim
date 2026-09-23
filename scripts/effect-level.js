@@ -16,6 +16,10 @@
         const isObject = attributeValue && typeof attributeValue === 'object';
         const key = isObject ? attributeValue.key : attributeName;
         if (key !== 'effect_level') continue;
+        // A conditioned row contributes only while it holds on this actor (same gate as
+        // actor.js _indexAppliedEffects — a failed condition must not raise the level).
+        if (isObject && attributeValue.condition
+            && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, attributeValue.condition)) continue;
         const value = isObject && 'value' in attributeValue
           ? attributeValue.value
           : attributeValue;

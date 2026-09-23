@@ -109,6 +109,8 @@
         for (const attrData of Object.values(item.system.attributes)) {
           // 「사용/공격 시」로 저작된 항목은 동결 AE 쪽(appliedEffects)에서 센다.
           if (effectAdapter && !effectAdapter.appliesWhileActive(item, attrData)) continue;
+          // 조건 행은 조건이 서 있는 동안만 기여한다(actor.js _makeContribReader 와 같은 게이트).
+          if (attrData.condition && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, attrData.condition)) continue;
           if (attrData.key === 'stat_bonus' && attrData.label === ability && attrData.value) {
             itemBonus += window.DX3rdFormulaEvaluator.evaluate(attrData.value, item, actor);
           }
@@ -124,6 +126,9 @@
     for (const appliedEffect of Object.values(appliedEffects)) {
       if (appliedEffect && appliedEffect.attributes) {
         for (const [attrName, attrValue] of Object.entries(appliedEffect.attributes)) {
+          // 조건 행은 조건이 서 있는 동안만 기여한다(actor.js _indexAppliedEffects 와 같은 게이트).
+          if (typeof attrValue === 'object' && attrValue?.condition
+              && !window.DX3rdRuntimeUtils?.modifierConditionHolds?.(actor, attrValue.condition)) continue;
           if (attrName.toLowerCase() === ability.toLowerCase()) {
             appliedBonus += Number(attrValue) || 0;
           }
