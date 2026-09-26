@@ -7348,7 +7348,7 @@ function interventionClient(userId, {isGM = false, actors = [], log = []} = {}) 
   const registered = [];
   context.game = {
     user: {id: userId, isGM},
-    users: {get: id => ({id, active: true})},
+    users: {get: id => ({id, active: true, isGM: id === 'u-gm'})},
     actors: {get: id => actors.find(actor => actor.id === id) || null},
     i18n: {localize: key => key, format: key => key}
   };
@@ -7495,4 +7495,163 @@ test('a declaration made on another client is spent there, and only after it has
   assert.equal(log.filter(entry => entry.startsWith('spend:')).length, spentBefore,
     '자리를 잡지 못한 선언은 비용을 내지 않는다');
   assert.ok(log.includes('offer:reject'), '밀린 선언에는 거절이 돌아간다');
+});
+
+// 소켓 흉내 — emit 은 발신자를 제외한 전원에, emitToActorExecutor 는 선출된 실행자 한 명에
+// 다음 틱으로 배달된다. 각 클라이언트의 라우터는 자기 userId 를 닫아 넣으므로
+// `isActorExecutorMessage` 의 기준 id 가 수신자별로 올바르게 잡힌다.
+function wireInterventionClients(clients, log) {
+  const deliver = (target, fn, data) => setTimeout(() => fn.call(null, data), 0);
+  for (const self of Object.values(clients)) {
+    self.context.DX3rdSocketRouter = {
+      getResponsibleActorExecutor: actor => ({id: actor.executorId}),
+      getResponsibleGM: () => ({id: 'u-gm', isGM: true, active: true}),
+      isActorExecutorMessage: (data, actor) => Boolean(actor) && data.executorUserId === self.userId,
+      emitToActorExecutor: (message, actor) => {
+        const envelope = {...message, executorUserId: actor.executorId};
+        log.push(`offer:${message.payload.stage}->${actor.executorId}`);
+        const target = clients[actor.executorId];
+        if (target) deliver(target, target.effects.handleOffer, envelope);
+        return 'rid';
+      },
+      emit: message => {
+        log.push(`emit:${message.type}:${message.payload?.stage || ''}`);
+        for (const [id, client] of Object.entries(clients)) {
+          if (id === self.userId) continue;
+          const handler = message.type === 'rollInterventionDeclare'
+            ? client.effects.handleDeclaration
+            : client.effects.handleOffer;
+          deliver(client, handler, {...message, senderId: self.userId});
+        }
+        return 'rid';
+      }
+    };
+  }
+}
+
+function interventionTrio(log) {
+  const pcActor = interventionActor('a-pc', '이즈미', 'u-pc');
+  pcActor.items = [];                          // 굴리는 사람은 개입 수단이 없다
+  const other = interventionActor('a-other', '소라', 'u-other');
+  const roller = interventionClient('u-pc', {actors: [pcActor, other], log});
+  const intervenor = interventionClient('u-other', {actors: [other], log});
+  const gm = interventionClient('u-gm', {isGM: true, actors: [pcActor], log});
+  const clients = {'u-pc': roller, 'u-other': intervenor, 'u-gm': gm};
+  wireInterventionClients(clients, log);
+  return {roller, intervenor, gm, pcActor, other};
+}
+
+function silentDialog(seen, key) {
+  return scriptedDialog(() => {
+    seen[key]++;
+    return null;
+  });
+}
+
+// 개입 창은 「개입할 수 있는 실행자 + 책임 GM」에게만 뜬다. 후보가 없는 굴림 당사자에게는
+// 아무 창도 뜨지 않고, 책임 GM 은 관전 창의 「결과 확정」으로 라운드를 강제로 닫는다.
+test('intervention dialogs open only for executors with candidates plus the responsible GM', async () => {
+  const log = [];
+  const {roller, intervenor, gm} = interventionTrio(log);
+  const seen = {roller: 0, intervenor: 0, gm: 0};
+  roller.context.foundry.applications.api.DialogV2 = silentDialog(seen, 'roller');
+  intervenor.context.foundry.applications.api.DialogV2 = silentDialog(seen, 'intervenor');
+  gm.context.foundry.applications.api.DialogV2 = scriptedDialog(() => {
+    seen.gm++;
+    return {type: 'confirm'};                 // 관전 창의 「결과 확정」을 곧바로 누른다
+  });
+
+  const rollContext = {
+    rollId: 'r1', phase: 'afterRoll', kind: 'check', subtype: 'major',
+    generation: 0, revision: 0, history: [], metadata: {}, pool: null, interactive: true,
+    actor: {id: 'a-pc', name: '이즈미'}, item: null, commands: [],
+    roll: {render: async () => '<div class="dice-roll"></div>', total: 12}
+  };
+  const result = await roller.handler('afterRoll')(rollContext);
+  assert.equal(result, null, 'GM 의 강제 확정은 선언 없이 라운드를 닫는다');
+
+  assert.equal(seen.roller, 0, '개입 수단이 없는 굴림 당사자에게는 창이 뜨지 않는다');
+  assert.equal(seen.intervenor, 1, '개입 실행자에게는 후보 창이 뜬다');
+  assert.equal(seen.gm, 1, '책임 GM 에게는 관전 창이 뜬다');
+  assert.ok(log.includes('emit:rollInterventionOffer:observe'), '관전 제안은 GM 에게 간다');
+  assert.ok(log.includes('emit:rollInterventionDeclare:finish'), 'GM 확정은 finish 선언으로 돌아간다');
+  assert.ok(log.includes('offer:cancel->u-other'), '라운드가 닫히면 남은 선언 창도 닫힌다');
+});
+
+// 어느 창이든 한 번 조작되면 모든 대기 카운터가 내려간다 — 원격 선언의 후보 클릭은 'engage'
+// 선언으로 굴림 쪽에 알려지고, 굴림 쪽은 남은 창과 관전 GM 에게 'engaged' 를 뿌린다. 그 뒤는
+// 평소대로 claim → accept → 소비 → commit 이다.
+test('a declaration started on another client disarms every dialog countdown', async () => {
+  const log = [];
+  const {roller, intervenor, gm} = interventionTrio(log);
+  const seen = {roller: 0, intervenor: 0, gm: 0};
+  roller.context.foundry.applications.api.DialogV2 = silentDialog(seen, 'roller');
+  const pcDialog = scriptedDialog(() => {
+    seen.intervenor++;
+    return {type: 'local', index: 0};         // 첫 후보를 고른다
+  });
+  pcDialog.wait = async config => {
+    const button = (config.buttons || []).find(entry => entry.action === 'confirm') || config.buttons[0];
+    return button.callback ? button.callback({}, {form: {querySelectorAll: () => [{value: '1'}]}}) : button.action;
+  };
+  intervenor.context.foundry.applications.api.DialogV2 = pcDialog;
+  gm.context.foundry.applications.api.DialogV2 = silentDialog(seen, 'gm');
+
+  const rollContext = {
+    rollId: 'r1', phase: 'afterRoll', kind: 'check', subtype: 'major',
+    generation: 0, revision: 0, history: [], metadata: {}, pool: null, interactive: true,
+    actor: {id: 'a-pc', name: '이즈미'}, item: null, commands: [],
+    roll: {render: async () => '<div class="dice-roll"></div>', total: 12}
+  };
+  const command = await roller.handler('afterRoll')(rollContext);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(command)), [{
+    type: 'setFaces',
+    value: 10,
+    floor: null,
+    dice: [{kind: 'dx', termIndex: null, waveIndex: 0, dieIndex: 1}],
+    sourceActorId: 'a-other',
+    sourceItemId: 'a-other-item'
+  }]);
+  assert.deepEqual(log.filter(entry => entry.startsWith('spend:')), ['spend:a-other-item']);
+
+  const engageIdx = log.indexOf('emit:rollInterventionDeclare:engage');
+  const claimIdx = log.indexOf('emit:rollInterventionDeclare:claim');
+  assert.ok(engageIdx >= 0, '후보 클릭이 engage 선언을 보낸다');
+  assert.ok(engageIdx < claimIdx, 'engage 는 자리 잡기보다 먼저 간다');
+  assert.ok(log.includes('offer:engaged->u-other'), '다른 창의 카운터도 거둔다');
+  assert.ok(log.includes('emit:rollInterventionOffer:engaged'), '관전 GM 의 카운터도 거둔다');
+  assert.equal(seen.roller, 0, '개입 수단이 없는 굴림 당사자에게는 창이 뜨지 않는다');
+  assert.equal(seen.gm, 1, '책임 GM 은 관전 창으로 진행을 본다');
+});
+
+// 굴림 당사자의 자기 후보만 있는(원격 대상이 없는) 선언도 라운드는 열린다 — 책임 GM 의
+// 관전 창과 강제 확정이 로컬 선언에도 같은 손잡이를 가진다.
+test('a local-only intervention round still offers the GM an observer dialog', async () => {
+  const log = [];
+  const pcActor = interventionActor('a-pc', '이즈미', 'u-pc');   // 이번엔 후보를 직접 갖고 있다
+  const roller = interventionClient('u-pc', {actors: [pcActor], log});
+  const gm = interventionClient('u-gm', {isGM: true, actors: [pcActor], log});
+  wireInterventionClients({'u-pc': roller, 'u-gm': gm}, log);
+  const seen = {roller: 0, gm: 0};
+  roller.context.foundry.applications.api.DialogV2 = silentDialog(seen, 'roller');
+  gm.context.foundry.applications.api.DialogV2 = scriptedDialog(() => {
+    seen.gm++;
+    return {type: 'confirm'};                 // 관전 창의 「결과 확정」을 곧바로 누른다
+  });
+
+  const rollContext = {
+    rollId: 'r1', phase: 'afterRoll', kind: 'check', subtype: 'major',
+    generation: 0, revision: 0, history: [], metadata: {}, pool: null, interactive: true,
+    actor: {id: 'a-pc', name: '이즈미'}, item: null, commands: [],
+    roll: {render: async () => '<div class="dice-roll"></div>', total: 12}
+  };
+  const result = await roller.handler('afterRoll')(rollContext);
+
+  assert.equal(result, null, 'GM 의 강제 확정이 로컬 선언 대기도 닫는다');
+  assert.equal(seen.roller, 1, '굴리는 플레이어에게는 자기 후보 창이 뜬다');
+  assert.equal(seen.gm, 1, '책임 GM 에게는 관전 창이 뜬다');
+  assert.ok(log.includes('emit:rollInterventionOffer:observe'), '원격 후보가 없어도 관전은 간다');
+  assert.equal(log.filter(entry => entry === 'offer:offer->u-other').length, 0,
+    '대상자가 없으면 후보 제안은 나가지 않는다');
 });

@@ -1294,6 +1294,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 4,
+      "value": "-"
     }
   },
   "오스드 웨폰": {
@@ -1892,31 +1896,6 @@
       "disable": "main"
     },
     "description": "<p>당신에게 HP데미지가 적용되기 직전에 사용할 것. 그 HP데미지에 -20 한다. 한 번의 HP데미지에 여러 번 사용할 경우, 효과가 누적된다. 한 시나리오에 [LV]번 사용할 수 있다.</p><p><em>순간적으로 전자 배리어를 형성하여 공격을 차단하는 이펙트.</em></p>"
-  },
-  "붉은 강의 종복": {
-    "attributes": [],
-    "active": {
-      "state": false,
-      "disable": "-",
-      "runTiming": "instant",
-      "applyMode": "onUse",
-      "action": ""
-    },
-    "resourceCost": {
-      "enabled": false,
-      "resource": "hp",
-      "cap": "",
-      "mult": 1,
-      "attrKey": "add",
-      "label": "-",
-      "disable": "main"
-    },
-    "getTarget": true,
-    "encroach": {
-      "init": 3,
-      "value": "-"
-    },
-    "manualTargetOtherOnly": true
   },
   "적하의 종복": {
     "attributes": [],
@@ -4775,7 +4754,11 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>이 이펙트를 조합한 판정으로 닷지를 실행 할 수 있다.</p><p><em>탄도예측 프로그램을 이용해, 날아오는 공격을 베어버리는 이펙트.</em></p>"
+    "description": "<p>이 이펙트를 조합한 판정으로 닷지를 실행 할 수 있다.</p><p><em>탄도예측 프로그램을 이용해, 날아오는 공격을 베어버리는 이펙트.</em></p>",
+    "encroach": {
+      "init": 0,
+      "value": "2"
+    }
   },
   "결합분쇄": {
     "active": {
@@ -5329,7 +5312,11 @@
       }
     },
     "manualTargetOtherOnly": true,
-    "getTarget": true
+    "getTarget": true,
+    "encroach": {
+      "init": 0,
+      "value": "5"
+    }
   },
   "공포의 독": {
     "active": {
@@ -6044,6 +6031,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 0,
+      "value": "-"
     }
   },
   "그래비티 테리토리": {
@@ -7511,7 +7502,11 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>이 이펙트를 조합한 백병공격의 명중판정에 [LV]개의 다이스를 추가한다.</p><p><em>종자에게 백병공격을 실행하게 하는 이펙트.</em></p>"
+    "description": "<p>이 이펙트를 조합한 백병공격의 명중판정에 [LV]개의 다이스를 추가한다.</p><p><em>종자에게 백병공격을 실행하게 하는 이펙트.</em></p>",
+    "encroach": {
+      "init": 0,
+      "value": "2"
+    }
   },
   "덧없는 방패": {
     "active": {
@@ -7655,6 +7650,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 5,
+      "value": "-"
     }
   },
   "데자뷰": {
@@ -9022,6 +9021,10 @@
     "conditionExempt": {
       "pressure": true,
       "berserk": false
+    },
+    "encroach": {
+      "init": 0,
+      "value": "5"
     }
   },
   "리플렉스(노이만)": {
@@ -10738,6 +10741,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 0,
+      "value": "2d10"
     }
   },
   "모래의 축복": {
@@ -11078,6 +11085,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": "5",
+      "value": ""
     }
   },
   "무음공간": {
@@ -12465,7 +12476,11 @@
       "label": "-",
       "disable": "main"
     },
-    "description": "<p>모든 〈정보:〉판정과 조합할 수 있다. 조합한 판정에 [LV+1]개의 다이스를 추가한다.</p><p><em>광범위의 소리로부터 정보를 구하는 이펙트. 당신의 귀는 도시 한복판에서 유효한 정보를 찾아낼 수 있다.</em></p>"
+    "description": "<p>모든 〈정보:〉판정과 조합할 수 있다. 조합한 판정에 [LV+1]개의 다이스를 추가한다.</p><p><em>광범위의 소리로부터 정보를 구하는 이펙트. 당신의 귀는 도시 한복판에서 유효한 정보를 찾아낼 수 있다.</em></p>",
+    "encroach": {
+      "init": 0,
+      "value": "2"
+    }
   },
   "베타 워딩": {
     "active": {
@@ -13503,7 +13518,11 @@
         "label": "fist",
         "value": "+[level]*2"
       }
-    ]
+    ],
+    "encroach": {
+      "init": 4,
+      "value": "-"
+    }
   },
   "붕괴의 나선": {
     "active": {
@@ -13916,6 +13935,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 0,
+      "value": "4"
     }
   },
   "블러드 컨트롤": {
@@ -18954,7 +18977,11 @@
         "value": "+[level]*2",
         "condition": "berserk"
       }
-    ]
+    ],
+    "encroach": {
+      "init": 3,
+      "value": "3"
+    }
   },
   "야성의 닻": {
     "active": {
@@ -20917,6 +20944,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 3,
+      "value": "-"
     }
   },
   "왜곡된 신체": {
@@ -22395,7 +22426,11 @@
         "label": "init",
         "value": "-5"
       }
-    ]
+    ],
+    "encroach": {
+      "init": 0,
+      "value": "4"
+    }
   },
   "이펙트 렌즈": {
     "active": {
@@ -23316,7 +23351,11 @@
     "folder": [
       "에너미 이펙트",
       "발로르"
-    ]
+    ],
+    "encroach": {
+      "init": 0,
+      "value": "-"
+    }
   },
   "자이언트 그로우스": {
     "active": {
@@ -25762,6 +25801,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 0,
+      "value": "-"
     }
   },
   "진실의 군략": {
@@ -28014,6 +28057,10 @@
       "attrKey": "add",
       "label": "-",
       "disable": "main"
+    },
+    "encroach": {
+      "init": 0,
+      "value": "4"
     }
   },
   "크로스 버스트": {

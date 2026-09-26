@@ -255,6 +255,9 @@
 }
 
 .item-extend-dialog input[type="checkbox"] {
+    /* --checkbox-size scales the drawn Font Awesome glyph; width/height alone
+       only resize the invisible input box. */
+    --checkbox-size: 22px;
     width: 22px;
     height: 22px;
     margin: 2px 5px;
@@ -414,6 +417,7 @@
 }
 
 .item-extend-dialog .dx3rd-multi-select-menu input[type="checkbox"] {
+    --checkbox-size: 14px;
     width: 14px;
     height: 14px;
     margin: 0;

@@ -706,7 +706,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Weapon"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="weapon"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="weapon" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="weapon"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.weaponList as |item|}}
@@ -751,7 +751,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Protect"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="protect"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="protect" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="protect"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.protectList as |item|}}
@@ -785,7 +785,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Vehicle"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="vehicle"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="vehicle" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="vehicle"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.vehicleList as |item|}}
@@ -821,7 +821,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Book"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="book"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="book" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="book"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.bookList as |item|}}
@@ -846,7 +846,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Connection"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="connection"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="connection" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="connection"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.connectionList as |item|}}
@@ -877,7 +877,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Etc"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="etc"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="etc" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="etc"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.etcList as |item|}}
@@ -908,7 +908,7 @@
           <div class="cell grid-full">
             <div class="cell--title">
               <label>{{localize "DX3rd.Once"}}</label>
-              <div class="item-controls plus-addon">{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="once"><i class="fas fa-plus"></i></button>{{/if}}</div>
+              <div class="item-controls plus-addon plus-addon--multi"><button type="button" class="item-control white-btn item-browse-btn" data-action="browseItems" data-browse-type="once" title="{{localize 'DX3rd.ItemBrowserOpen'}}"><i class="fas fa-magnifying-glass"></i></button>{{#if canEdit}}<button type="button" class="item-control item-create white-btn" data-action="createItem" data-type="once"><i class="fas fa-plus"></i></button>{{/if}}</div>
             </div>
             <ol class="items-list margin-top-10">
               {{#each actor.onceList as |item|}}

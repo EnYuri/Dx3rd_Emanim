@@ -130,6 +130,9 @@
 .equipment-checkbox {
     margin: 0;
     cursor: pointer;
+    /* --checkbox-size scales the drawn Font Awesome glyph; width/height alone
+       only resize the invisible input box, leaving a 20px glyph overflowing. */
+    --checkbox-size: 16px;
     width: 16px;
     height: 16px;
 }

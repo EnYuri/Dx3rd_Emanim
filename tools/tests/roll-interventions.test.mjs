@@ -268,6 +268,75 @@ test('an adjust effect cannot target the same die twice in one roll', async () =
   assert.deepEqual(picked, [{kind: 'standard', termIndex: 0, dieIndex: 1}]);
 });
 
+// 이펙트가 정한 「적용 가능한 다이스 개수」는 선택 시점에 막아야 한다 — 최대치에 닿으면
+// 나머지 체크박스가 비활성화되고, 하나를 빼면 다시 고를 수 있어야 한다.
+test('the dice picker disables further boxes once the authored count is reached', async () => {
+  const sandbox = context();
+  const actor = {
+    id: 'roller',
+    uuid: 'Actor.roller',
+    name: 'Roller',
+    items: [{id: 'fairy-hand', name: '요정의 손', system: {}}],
+    isOwner: true
+  };
+  sandbox.game = {
+    user: {id: 'user', isGM: false},
+    actors: [actor],
+    i18n: {localize: value => value, format: (value, data) => `${value}:${data?.count}`}
+  };
+  sandbox.ui = {notifications: {warn() {}}};
+  sandbox.canvas = {tokens: {placeables: [{id: 'token-roller', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+
+  const makeBox = () => {
+    const listeners = [];
+    return {
+      checked: false,
+      disabled: false,
+      addEventListener: (_type, fn) => listeners.push(fn),
+      toggle(state) {
+        this.checked = state;
+        listeners.forEach(fn => fn());
+      }
+    };
+  };
+  const boxes = [makeBox(), makeBox(), makeBox()];
+  sandbox.foundry.applications = {
+    api: {
+      DialogV2: {
+        wait: async options => {
+          // 실제 wait 는 렌더될 때마다 render 콜백을 부른다 — 여기서는 수동으로 발화시킨다.
+          options.render?.(null, {
+            element: {querySelectorAll: selector => selector === 'input[name="die"]' ? boxes : []}
+          });
+          assert.ok(boxes.every(box => !box.disabled), '상한 이전에는 전부 고를 수 있다');
+          boxes[0].toggle(true);
+          assert.equal(boxes[1].disabled, true, '최대치에 닿으면 나머지는 못 고른다');
+          assert.equal(boxes[2].disabled, true);
+          boxes[0].toggle(false);
+          assert.ok(boxes.every(box => !box.disabled), '하나를 빼면 다시 고를 수 있다');
+          boxes[1].toggle(true);
+          return [{kind: 'standard', termIndex: 0, dieIndex: 1}];
+        }
+      }
+    }
+  };
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const roll = {
+    terms: [{faces: 10, results: [
+      {result: 3, active: true}, {result: 5, active: true}, {result: 7, active: true}
+    ]}],
+    options: {}
+  };
+  const picked = await sandbox.DX3rdRollInterventionEffects.chooseDice(
+    {kind: 'damage', roll, generation: 0, history: []},
+    {operation: 'setFaces', selection: 'one', count: '1'},
+    actor.items[0],
+    actor
+  );
+  assert.equal(picked.length, 1);
+});
+
 test('check interventions are not offered on damage, backtrack, or scene encroachment rolls', () => {
   const sandbox = context();
   const actor = {
@@ -604,4 +673,198 @@ test('an intervention declaration is an ordinary item use, minus only the step t
   const dispatch = handler.indexOf('const handler = skipHandlerDispatch ? null : handlerMap[itemType];');
   assert.ok(cost > 0 && extensions > cost && dispatch > extensions,
     '비용과 확장은 디스패치보다 앞에 있어야 이 모드에서도 전부 지나간다');
+});
+
+test('a dependent consuming its prerequisite is hidden once the prerequisite is spent on the roll', () => {
+  const sandbox = context();
+  const domination = {id: 'dom', name: '지배의 영역', system: {}};
+  const absolute = {id: 'abs', name: '절대지배', system: {rollIntervention: {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], subtypes: [], operation: 'setFaces',
+    target: 'any', selection: 'exact', count: '[level]+1', value: '1', perRollMax: 1,
+    requiredItem: '지배의 영역', requiresPriorUse: false
+  }}};
+  const actor = {id: 'ruler', uuid: 'Actor.ruler', name: 'Ruler', items: [domination, absolute], isOwner: true};
+  sandbox.game = {user: {id: 'user', isGM: false}, actors: [actor]};
+  sandbox.canvas = {tokens: {placeables: [{id: 't1', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const base = {actor, item: null, phase: 'afterRoll', kind: 'check', subtype: 'major', metadata: {}, generation: 0};
+
+  // 지배의 영역 미사용 → 단독·절대지배 둘 다 후보.
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history: []}), e => e.item.id).sort(),
+    ['abs', 'dom']
+  );
+
+  // 지배의 영역을 이 판정에 이미 사용했다면(단독 선사용) 절대지배의 동시 사용은
+  // 성립하지 않는다 — 「한 번의 판정에 한 번」의 전제를 두 번 쓸 수 없다.
+  const usedHistory = [{
+    type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'dom', generation: 0, dice: []
+  }];
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history: usedHistory}), e => e.item.id),
+    []
+  );
+
+  // 절대지배가 전제를 소비한 뒤에는 지배의 영역 단독 후보도 내려간다(requiredItem 기록이
+  // 전제의 사용 카운트에 잡히는 기존 동작 확인).
+  const comboHistory = [
+    {type: 'requiredItem', sourceActorId: actor.id, sourceItemId: 'dom', generation: 0, dice: []},
+    {type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'abs', generation: 0, dice: []}
+  ];
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history: comboHistory}), e => e.item.id),
+    []
+  );
+});
+
+test('an exhausted prerequisite keeps the dependent out exactly when its own use would be blocked', () => {
+  const sandbox = context();
+  const dom = {id: 'dom', name: '지배의 영역', system: {}};
+  const absolute = {id: 'abs', name: '절대지배', system: {rollIntervention: {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], subtypes: [], operation: 'setFaces',
+    target: 'any', selection: 'exact', count: '[level]+1', value: '1', perRollMax: 1,
+    requiredItem: '지배의 영역', requiresPriorUse: false
+  }}};
+  const actor = {id: 'ruler', uuid: 'Actor.ruler', name: 'Ruler', items: [dom, absolute], isOwner: true};
+  sandbox.game = {user: {id: 'user', isGM: false}, actors: [actor]};
+  sandbox.canvas = {tokens: {placeables: [{id: 't1', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+  let allow = false;
+  sandbox.DX3rdItemExhausted = {
+    isItemExhausted: item => item === dom,
+    allowExhaustedUse: () => allow
+  };
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const base = {actor, item: null, phase: 'afterRoll', kind: 'check', subtype: 'major', metadata: {}, history: [], generation: 0};
+
+  // 엄격 모드 — 소진된 전제는 자기 자신도 못 쓰고, 그 위에 리미트도 설 수 없다.
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates(base), e => e.item.id), []);
+
+  // 완화 설정 — 소진된 아이템도 경고를 남기고 쓸 수 있는 월드라면, 전제로서의 소비도
+  // 같은 규칙으로 허용되므로 조합은 성립한다(실제 지불은 processItemUsageCost 가 경고한다).
+  allow = true;
+  const abs = Array.from(sandbox.DX3rdRollInterventionEffects.candidates(base))
+    .find(e => e.item.id === 'abs');
+  assert.equal(abs?.requiredItem?.id, 'dom');
+});
+
+test('a simultaneous prerequisite is spent per copy, so a fresh duplicate still carries the combo', () => {
+  const sandbox = context();
+  const domA = {id: 'dom-a', name: '지배의 영역||A', system: {}};
+  const domB = {id: 'dom-b', name: '지배의 영역||B', system: {}};
+  const absolute = {id: 'abs', name: '절대지배', system: {rollIntervention: {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], subtypes: [], operation: 'setFaces',
+    target: 'any', selection: 'exact', count: '[level]+1', value: '1', perRollMax: 1,
+    requiredItem: '지배의 영역', requiresPriorUse: false
+  }}};
+  const actor = {id: 'ruler', uuid: 'Actor.ruler', name: 'Ruler', items: [domA, domB, absolute], isOwner: true};
+  sandbox.game = {user: {id: 'user', isGM: false}, actors: [actor]};
+  sandbox.canvas = {tokens: {placeables: [{id: 't1', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const base = {actor, item: null, phase: 'afterRoll', kind: 'check', subtype: 'major', metadata: {}, generation: 0};
+
+  // 사본 A를 이번 판정에 썼어도 사본 B는 한도가 남아 있다 — 조합은 성립하고 B를 소비한다.
+  const history = [{
+    type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'dom-a', generation: 0, dice: []
+  }];
+  const abs = Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history}))
+    .find(e => e.item.id === 'abs');
+  assert.equal(abs?.requiredItem?.id, 'dom-b');
+
+  // 두 사본 모두 이번 판정에 소진되면 지불할 전제가 없어 조합이 내려간다.
+  const bothUsed = [...history,
+    {type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'dom-b', generation: 0, dice: []}];
+  assert.equal(
+    sandbox.DX3rdRollInterventionEffects.candidates({...base, history: bothUsed})
+      .find(e => e.item.id === 'abs'),
+    undefined
+  );
+});
+
+test('a prior-use dependent needs a spendable prerequisite copy, not just a used one', () => {
+  const sandbox = context();
+  const handA = {id: 'hand-a', name: '요정의 손||A', system: {}};
+  const handB = {id: 'hand-b', name: '요정의 손||B', system: {}};
+  const ring = {id: 'ring', name: '요정의 고리', system: {rollIntervention: {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], subtypes: [], operation: 'setFaces',
+    target: 'any', selection: 'one', count: '1', value: '10', perRollMax: 1,
+    requiredItem: '요정의 손', requiresPriorUse: true
+  }}};
+  const actor = {id: 'fairy', uuid: 'Actor.fairy', name: 'Fairy', items: [handA, handB, ring], isOwner: true};
+  sandbox.game = {user: {id: 'user', isGM: false}, actors: [actor]};
+  sandbox.canvas = {tokens: {placeables: [{id: 't1', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+  let allow = false;
+  const exhaustedHands = new Set();
+  sandbox.DX3rdItemExhausted = {
+    isItemExhausted: item => exhaustedHands.has(item.id),
+    allowExhaustedUse: () => allow
+  };
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const base = {actor, item: null, phase: 'afterRoll', kind: 'check', subtype: 'major', metadata: {}, generation: 0};
+  // 이번 판정에 손 A를 쓴 기록 — 「한 번 더」 조건은 성립했다.
+  const history = [{
+    type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'hand-a', generation: 0, dice: []
+  }];
+
+  // 쓰인 사본이 소진됐어도 다른 사본이 살아 있으면 그쪽을 소비해 조합이 성립한다.
+  exhaustedHands.add('hand-a');
+  const ringEntry = Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history}))
+    .find(e => e.item.id === 'ring');
+  assert.equal(ringEntry?.requiredItem?.id, 'hand-b');
+
+  // 전부 소진이면(엄격 모드) 지불할 전제가 없어 고리도 내려간다.
+  exhaustedHands.add('hand-b');
+  assert.equal(
+    sandbox.DX3rdRollInterventionEffects.candidates({...base, history})
+      .find(e => e.item.id === 'ring'),
+    undefined
+  );
+});
+
+test('the prerequisite is spent and recorded before the dependent item', () => {
+  const effects = readFileSync(resolve(root, 'scripts/dice/roll-intervention-effects.js'), 'utf8');
+  const block = effects.slice(effects.indexOf('async function spendLocal'));
+  const spendRequired = block.indexOf('spendItem(entry.requiredItem)');
+  const recordRequired = block.indexOf("type: 'requiredItem'");
+  const spendCandidate = block.indexOf('spendItem(entry.item)');
+  assert.ok(spendRequired > 0, '전제를 먼저 지불해야 한다');
+  assert.ok(recordRequired > spendRequired, '전제 지불 직후 사용 기록이 남아야 한다');
+  assert.ok(spendCandidate > recordRequired, '리미트 지불은 기록 이후다 — 순서가 뒤집히면 전제가 새거나 두 번 나간다');
+});
+
+test('a prior-use prerequisite unlocks the dependent and name matching survives duplicate copies', () => {
+  const sandbox = context();
+  const handA = {id: 'hand-a', name: '요정의 손||A', system: {}};
+  const handB = {id: 'hand-b', name: '요정의 손||B', system: {}};
+  const ring = {id: 'ring', name: '요정의 고리', system: {rollIntervention: {
+    enabled: true, phase: 'afterRoll', kinds: ['check'], subtypes: [], operation: 'setFaces',
+    target: 'any', selection: 'one', count: '1', value: '10', perRollMax: 1,
+    requiredItem: '요정의 손', requiresPriorUse: true
+  }}};
+  const actor = {id: 'fairy', uuid: 'Actor.fairy', name: 'Fairy', items: [handA, handB, ring], isOwner: true};
+  sandbox.game = {user: {id: 'user', isGM: false}, actors: [actor]};
+  sandbox.canvas = {tokens: {placeables: [{id: 't1', actor}]}};
+  sandbox.DX3rdSocketRouter = {getResponsibleActorExecutor: () => ({id: 'user'})};
+  vm.runInContext(source('scripts/dice/roll-intervention-effects.js'), sandbox);
+  const base = {actor, item: null, phase: 'afterRoll', kind: 'check', subtype: 'major', metadata: {}, generation: 0};
+
+  // 선사용 전 — 손 두 벌만 후보이고 고리는 없다.
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history: []}), e => e.item.id).sort(),
+    ['hand-a', 'hand-b']
+  );
+
+  // 둘째 벌(handB)을 쓴 기록이어도 전제는 이름 매칭이므로 선사용으로 인정하고 고리가 열린다.
+  // 손의 남은 벌은 「한 번 더」 소비 대상으로 아직 후보에 남는다.
+  const history = [{
+    type: 'setFaces', sourceActorId: actor.id, sourceItemId: 'hand-b', generation: 0, dice: []
+  }];
+  assert.deepEqual(
+    Array.from(sandbox.DX3rdRollInterventionEffects.candidates({...base, history}), e => e.item.id).sort(),
+    ['hand-a', 'ring']
+  );
 });

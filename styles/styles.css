@@ -43,7 +43,7 @@
 /* The marker is a CSS escape on purpose: the literal emoji lost its bytes once already
    and shipped as a control character plus the text "F3". */
 .dx3rd-roll-intervention-waiting::before {
-  content: "F30";
+  content: "\23F3\00A0";
 }
 
 .dx3rd-roll-intervention-dialog .form-footer {
@@ -61,6 +61,13 @@
   line-height: 1.2;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+/* '결과 확정' 버튼 안쪽 오른쪽의 자동 확정 카운터(초). */
+.dx3rd-roll-intervention-countdown {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 
 .dx3rd-roll-intervention-die {
@@ -129,6 +136,17 @@
   background: var(--color-border-highlight);
   border: 1px solid white;
   border-radius: 50%;
+}
+
+/* Dice the selection cap just turned off — still readable, but clearly no longer pickable. */
+.dx3rd-roll-intervention-die:has(input:disabled) {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dx3rd-roll-intervention-die:has(input:disabled):hover {
+  transform: none;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 55%));
 }
 /* ==========================================================================
    Dialog and Window Base
@@ -3240,6 +3258,9 @@ button.control-icon[data-action="togglePalette"][data-palette="movementActions"]
 .dx3rd-casting-dialog .checkbox-container input[type="checkbox"] {
     margin: 0;
     transform: none;
+    /* Foundry draws the checkbox glyph at --checkbox-size; width/height alone
+       only resize the invisible input box, leaving a 20px glyph overflowing. */
+    --checkbox-size: 16px;
     height: 16px;
     width: 16px;
 }

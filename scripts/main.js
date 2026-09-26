@@ -138,6 +138,26 @@ Hooks.once('init', async function() {
         default: true
     });
 
+    // Roll intervention / pre-post modifier dialogs: auto-confirm countdown. When on, the
+    // "결과 확정" button shows a live countdown and fires itself on expiry so a roll never
+    // stalls waiting for declarations. Any interaction on any client disarms it everywhere.
+    game.settings.register('dx3rd-emanim', 'rollInterventionAutoConfirm', {
+        name: 'DX3rd.RollInterventionAutoConfirm',
+        hint: 'DX3rd.RollInterventionAutoConfirmHint',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+    game.settings.register('dx3rd-emanim', 'rollInterventionAutoConfirmSeconds', {
+        name: 'DX3rd.RollInterventionAutoConfirmSeconds',
+        hint: 'DX3rd.RollInterventionAutoConfirmSecondsHint',
+        scope: 'world',
+        config: true,
+        type: Number,
+        default: 11
+    });
+
     // Setting: the AfterMain queue (stored in the world)
     // v13/v14 compatibility: type: Array can warn in v14, so it is handled defensively
     game.settings.register('dx3rd-emanim', 'afterMainQueue', {
@@ -386,9 +406,9 @@ Hooks.once('init', async function() {
         return a === b;
     });
 
-    // The guide journal's table of contents carries an `@EffectBrowser{...}` token. The journal cannot run script
-    // of its own, so the token is enriched into a link here and the click is picked up by the delegated listener
-    // registered on ready.
+    // The guide journal's table of contents carries `@EffectBrowser{...}` / `@ItemBrowser{...}` tokens. The journal
+    // cannot run script of its own, so the tokens are enriched into links here and the click is picked up by the
+    // delegated listener registered on ready.
     CONFIG.TextEditor.enrichers.push({
         pattern: /@EffectBrowser(?:\{([^}]+)\})?/g,
         enricher: (match) => {
@@ -398,6 +418,18 @@ Hooks.once('init', async function() {
             const icon = document.createElement('i');
             icon.className = 'fas fa-magnifying-glass';
             anchorEl.append(icon, match[1] || game.i18n.localize('DX3rd.EffectBrowserOpen'));
+            return anchorEl;
+        }
+    });
+    CONFIG.TextEditor.enrichers.push({
+        pattern: /@ItemBrowser(?:\{([^}]+)\})?/g,
+        enricher: (match) => {
+            const anchorEl = document.createElement('a');
+            anchorEl.className = 'content-link dx3rd-item-browser-link';
+            anchorEl.draggable = false;
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-magnifying-glass';
+            anchorEl.append(icon, match[1] || game.i18n.localize('DX3rd.ItemBrowserOpen'));
             return anchorEl;
         }
     });
@@ -705,20 +737,24 @@ const DX3RD_PRELOAD_TEMPLATES = [
     'systems/dx3rd-emanim/templates/dialog/init-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/move-dialog.html',
     'systems/dx3rd-emanim/templates/dialog/effect-browser.html',
-    'systems/dx3rd-emanim/templates/dialog/effect-browser-results.html'
+    'systems/dx3rd-emanim/templates/dialog/effect-browser-results.html',
+    'systems/dx3rd-emanim/templates/dialog/item-browser.html',
+    'systems/dx3rd-emanim/templates/dialog/item-browser-results.html'
 ];
 
-// A journal link cannot carry its own handler, so the enriched `@EffectBrowser` anchor is caught here.
+// A journal link cannot carry its own handler, so the enriched `@EffectBrowser`/`@ItemBrowser` anchors are
+// caught here.
 Hooks.once('ready', () => {
     document.body.addEventListener('click', event => {
-        const link = event.target?.closest?.('a.dx3rd-effect-browser-link');
+        const link = event.target?.closest?.('a.dx3rd-effect-browser-link, a.dx3rd-item-browser-link');
         if (!link) return;
         event.preventDefault();
-        if (!window.DX3rdEffectBrowser) {
-            ui.notifications.error(game.i18n.format('DX3rd.HandlerMissing', {name: 'DX3rdEffectBrowser'}));
+        const browser = link.classList.contains('dx3rd-item-browser-link') ? 'DX3rdItemBrowser' : 'DX3rdEffectBrowser';
+        if (!window[browser]) {
+            ui.notifications.error(game.i18n.format('DX3rd.HandlerMissing', {name: browser}));
             return;
         }
-        window.DX3rdEffectBrowser.open();
+        window[browser].open();
     });
 });
 

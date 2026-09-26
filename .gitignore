@@ -2,6 +2,7 @@
 .claude/
 _backup_20260622_002233/
 docs/
+.devin/
 
 #로컬룰북데이터 (개별 JSON은 로컬 전용, 통합 오버라이드만 추적)
 _source/*

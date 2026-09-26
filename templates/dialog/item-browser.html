@@ -1,0 +1,40 @@
+<div class="effect-browser-content">
+  <div class="effect-browser-filters">
+    <div class="effect-browser-row">
+      <input type="search" class="effect-browser-search" autocomplete="off"
+             placeholder="{{localize 'DX3rd.ItemBrowserSearchPlaceholder'}}" value="{{filters.query}}">
+      <button type="button" class="effect-browser-reset" data-action="resetFilters">
+        <i class="fas fa-rotate-left"></i> {{localize "DX3rd.Reset"}}
+      </button>
+    </div>
+
+    <div class="effect-browser-row">
+      <select class="effect-browser-filter" data-filter="type">
+        <option value="">{{localize "DX3rd.ItemBrowserAllTypes"}}</option>
+        {{#each types as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <select class="effect-browser-filter" data-filter="category">
+        <option value="">{{localize "DX3rd.ItemBrowserAllCategories"}}</option>
+        {{#each categories as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <select class="effect-browser-filter" data-filter="skill">
+        <option value="">{{localize "DX3rd.ItemBrowserAllSkills"}}</option>
+        {{#each skills as |option|}}
+        <option value="{{option.value}}" {{#if option.selected}}selected{{/if}}>{{option.label}}</option>
+        {{/each}}
+      </select>
+
+      <span class="effect-browser-count"></span>
+    </div>
+
+    <p class="effect-browser-hint">{{localize "DX3rd.ItemBrowserHint"}}</p>
+  </div>
+
+  <div class="effect-browser-results"></div>
+</div>

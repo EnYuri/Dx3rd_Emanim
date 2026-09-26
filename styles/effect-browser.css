@@ -38,7 +38,7 @@
 .dx3rd-effect-browser input.effect-browser-search {
     flex: 1;
     height: 28px;
-    font-size: 13px;
+    font-size: 14px;
     padding: 0 8px;
 }
 
@@ -46,7 +46,7 @@
     flex: 1;
     min-width: 0;
     height: 26px;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .dx3rd-effect-browser button.effect-browser-reset {
@@ -55,7 +55,7 @@
     height: 28px;
     line-height: 1;
     padding: 0 10px;
-    font-size: 12px;
+    font-size: 13px;
     white-space: nowrap;
 }
 
@@ -64,12 +64,15 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 12px;
+    font-size: 13px;
     white-space: nowrap;
 }
 
 .dx3rd-effect-browser input.effect-browser-enemy {
     flex: 0 0 auto;
+    /* Foundry draws the checkbox as a Font Awesome pseudo-element sized by
+       --checkbox-size; width/height alone only shrink the invisible input box. */
+    --checkbox-size: 14px;
     width: 14px;
     height: 14px;
     margin: 0;
@@ -77,14 +80,14 @@
 
 .dx3rd-effect-browser .effect-browser-count {
     flex: 0 0 auto;
-    font-size: 12px;
+    font-size: 13px;
     color: #555;
     white-space: nowrap;
 }
 
 .dx3rd-effect-browser .effect-browser-hint {
     margin: 6px 0 0;
-    font-size: 11px;
+    font-size: 12px;
     color: #666;
 }
 
@@ -100,7 +103,7 @@
 .dx3rd-effect-browser .effect-browser-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .dx3rd-effect-browser .effect-browser-table thead th {
@@ -153,14 +156,14 @@
 .dx3rd-effect-browser .effect-browser-category {
     display: block;
     margin-left: 30px;
-    font-size: 10px;
+    font-size: 11px;
     color: #777;
 }
 
 .dx3rd-effect-browser .effect-browser-description {
     margin: 4px 0 2px 30px;
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.5;
     background: rgba(0, 0, 0, 0.05);
     border-left: 3px solid #999;
@@ -201,11 +204,11 @@
 .dx3rd-effect-browser .effect-browser-truncated {
     margin: 12px 0;
     text-align: center;
-    font-size: 12px;
+    font-size: 13px;
     color: #666;
 }
 
-/* ── The effect tab's browse button ──────────────────────────────────────── */
+/* ── The effect / equipment tabs' browse buttons ─────────────────────────── */
 
 /* `.plus-addon` is a 35px absolutely-positioned box sized for a single (+) button, so a second button wraps to
    the next line. This variant lets it size to its contents and keeps the row on one line. */
@@ -223,7 +226,8 @@
 /* `.plus-addon button` clears the border with !important, so the outline has to answer in kind. The button sits
    next to the create (+) button and does the opposite thing — it reads rather than writes — so it is outlined to
    read as its own control. */
-.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn {
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn,
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.item-browse-btn {
     border: 1px solid rgba(255, 255, 255, 0.85) !important;
     border-radius: 4px;
     padding: 0 5px;
@@ -231,7 +235,8 @@
     line-height: 1;
 }
 
-.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn:hover {
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.effect-browse-btn:hover,
+.dx3rd-emanim .sheet-attributes .plus-addon .item-control.item-browse-btn:hover {
     border-color: #ffbb00 !important;
     background: rgba(255, 187, 0, 0.18) !important;
 }

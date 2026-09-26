@@ -123,14 +123,41 @@
     }
     if (config.skillKey && config.skillKey !== context.skillKey) return false;
     if (config.requiredItem) {
-      const required = Array.from(actor.items || []).find(candidate => cleanName(candidate) === config.requiredItem);
-      if (!required) return false;
-      // An exhausted prerequisite blocks the spend the same way an exhausted candidate does.
-      if (window.DX3rdItemExhausted?.isItemExhausted?.(required)
-        && window.DX3rdItemExhausted?.allowExhaustedUse?.() === false) return false;
-      if (config.requiresPriorUse && !context.history.some(record =>
-        record.sourceActorId === actor.id && record.sourceItemId === required.id)) return false;
-      entry.requiredItem = required;
+      // 전제는 이름 매칭으로 저작한다 — 액터가 같은 이름의 아이템을 여러 벌 들고 있어도
+      // 어느 쪽이 쓰였든 선사용·소비 판정이 성립해야 하므로 전부 모은다.
+      const matches = Array.from(actor.items || [])
+        .filter(candidate => cleanName(candidate) === config.requiredItem);
+      if (!matches.length) return false;
+      const exhausted = candidate => window.DX3rdItemExhausted?.isItemExhausted?.(candidate);
+      // 전제의 소비는 실제 아이템 사용이다 — 소진된 사본은 후보 자신과 같은 규칙으로 막힌다
+      // (월드 설정이 막을 때만). 지불 가능한 사본이 하나도 없으면 전제 위에 리미트는 설 수 없다.
+      const spendable = candidate =>
+        !exhausted(candidate) || window.DX3rdItemExhausted?.allowExhaustedUse?.() !== false;
+      // 사용 기록과 판정당 한도는 사본별로 센다 — 후보 자신의 판정도 item id 단위이므로,
+      // 같은 이름의 다른 사본이 쓰인 것이 이 사본의 잔여분을 갉아먹으면 모순된다.
+      const usesOf = candidate => context.history.filter(record =>
+        record.sourceActorId === actor.id && record.sourceItemId === candidate.id).length;
+      // 이 사본이 이번 판정에 한 번 더 쓰일 수 있는가. 개입 카드가 없는 전제는 상시 전제
+      // (소지 조건)이므로 판정당 한도를 두지 않는다.
+      const roomLeft = candidate => {
+        const max = Math.max(0, ...itemConfigs(candidate).map(card => Number(card.perRollMax) || 1));
+        return !max || usesOf(candidate) < max;
+      };
+      if (config.requiresPriorUse) {
+        // 「선사용 필요」(요정의 고리)는 전제가 이미 쓰였어야 성립하고, 그 다음 소비는
+        // 이펙트가 명시적으로 부여하는 「한 번 더」다 — 전제 자신의 판정 한도는 보지 않는다.
+        if (!matches.some(usesOf)) return false;
+        // 한 번 더 쓰는 대상은 쓰인 사본이 자연스럽지만, 그 사본이 지불 불가면(엄격 모드에서
+        // 소진 등) 아직 쓸 수 있는 다른 사본이 소비된다.
+        entry.requiredItem = matches.find(candidate => spendable(candidate) && usesOf(candidate))
+          || matches.find(spendable);
+      } else {
+        // 「전제와 동시에 사용」(절대지배→지배의 영역)은 전제 사본 하나의 판정당 사용을 하나
+        // 소비한다 — 지불 가능한 사본이 하나도 없으면(전부 소진됐거나 각자의 판정당 한도를
+        // 다 썼으면) 조합이 성립하지 않는다.
+        entry.requiredItem = matches.find(candidate => spendable(candidate) && roomLeft(candidate));
+      }
+      if (!entry.requiredItem) return false;
     }
     const used = context.history.filter(record =>
       record.sourceActorId === actor?.id
@@ -192,12 +219,54 @@
     return ` (${game.i18n.localize(key)} ${value})`;
   }
 
+  // '결과 확정' 계열 버튼 안쪽 오른쪽에 남은 시간(초)을 카운트다운으로 심고, 만료되면 그 버튼을
+  // 누른 것과 같은 결과로 접는다. 어느 창이든 한 번 조작되면 굴림 쪽이 'engaged' 를 뿌려 모든
+  // 창의 카운터를 거두므로, 반환하는 disarm 을 그 통지에 묶는다.
+  function attachCountdown(dialog, settle, {timeoutMs = 0, action = 'finish', result = {type: 'finish'}} = {}) {
+    let timer = null;
+    let armed = true;
+    const disarm = () => {
+      armed = false;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      dialog.element?.querySelector?.('.dx3rd-roll-intervention-countdown')?.remove();
+    };
+    // 어떤 경로로든 창이 닫히면 남은 틱도 같이 거둔다 — 떼어진 span 에 매초 쓰다가 마감에
+    // 이미 resolve 된 promise 를 다시 깨우는 일이 없게.
+    dialog.addEventListener?.('close', disarm, {once: true});
+    void Promise.resolve(dialog.render({force: true})).then(() => {
+      if (!armed || !(timeoutMs > 0) || !dialog.rendered) return;
+      const button = dialog.element?.querySelector?.(`button[data-action="${action}"]`)
+        || Array.from(dialog.element?.querySelectorAll?.('footer button') || []).pop();
+      if (!button) return;
+      const marker = document.createElement('span');
+      marker.className = 'dx3rd-roll-intervention-countdown';
+      button.appendChild(marker);
+      const deadline = Date.now() + timeoutMs;
+      const tick = () => {
+        const left = Math.ceil((deadline - Date.now()) / 1000);
+        if (left > 0) {
+          marker.textContent = `(${left}초)`;
+          return;
+        }
+        disarm();
+        settle(result);
+        if (dialog.rendered) void dialog.close();
+      };
+      tick();
+      timer = setInterval(tick, 250);
+    }).catch(() => {});
+    return disarm;
+  }
+
   // 후보 창은 **원격 선언이 도착하면 닫아야** 하므로 `DialogV2.wait` 대신 인스턴스를 직접
   // 들고 있는다. wait 이 하는 일(제출/닫힘을 하나의 Promise 로 접기)을 그대로 하되 close 핸들을
   // 함께 돌려준다 — 굴림은 로컬 선택과 원격 선언 중 먼저 오는 쪽으로 결정된다.
-  function openCandidateDialog(entries, context, {remote = [], rollerName = ''} = {}) {
+  function openCandidateDialog(entries, context, {remote = [], rollerName = '', timeoutMs = 0} = {}) {
     const DialogV2 = foundry.applications?.api?.DialogV2;
-    if (!DialogV2) return {promise: Promise.resolve({type: 'finish'}), close: () => {}};
+    if (!DialogV2) return {promise: Promise.resolve({type: 'finish'}), close: () => {}, disarm: () => {}};
     const before = context?.phase === 'beforeRoll';
     let settle;
     const promise = new Promise(resolve => {
@@ -235,10 +304,59 @@
     });
     // X 로 닫는 것은 「그대로 진행」이다. 제출이 먼저 resolve 했으면 이 호출은 무시된다.
     dialog.addEventListener('close', () => settle({type: 'finish'}), {once: true});
-    dialog.render({force: true});
+    const disarm = attachCountdown(dialog, settle, {timeoutMs, action: 'finish', result: {type: 'finish'}});
     return {
       promise,
+      disarm,
       close: () => {
+        disarm();
+        if (dialog.rendered) dialog.close();
+      }
+    };
+  }
+
+  // 개입 후보가 없는 책임 GM 에게 뜨는 관전 창. 후보 버튼 없이 「결과 확정」만 있고, 누르면
+  // 라운드를 끝내 달라고 굴림 쪽에 청한다(declare 'finish'). X 로 닫는 것은 지켜보기를
+  // 그만둘 뿐이라 라운드에 영향을 주지 않는다.
+  function openObserverDialog(snapshot) {
+    const DialogV2 = foundry.applications?.api?.DialogV2;
+    if (!DialogV2) return {promise: Promise.resolve({type: 'dismiss'}), close: () => {}, disarm: () => {}};
+    const before = snapshot?.phase === 'beforeRoll';
+    let settle;
+    const promise = new Promise(resolve => {
+      settle = resolve;
+    });
+    const names = Array.isArray(snapshot?.waitingNames) ? snapshot.waitingNames.filter(Boolean) : [];
+    const waiting = names.length
+      ? `<p class="dx3rd-roll-intervention-waiting">${
+        game.i18n.format('DX3rd.RollInterventionWaiting', {names: names.join(', ')})}</p>`
+      : '';
+    const dialog = new DialogV2({
+      window: {title: game.i18n.localize(before ? 'DX3rd.RollModifierTitle' : 'DX3rd.RollInterventionTitle')},
+      position: {width: 640, height: 'auto'},
+      content: `<p class="dx3rd-roll-intervention-remote">${
+        game.i18n.format('DX3rd.RollInterventionObserverPrompt', {actor: snapshot?.rollerActorName || ''})
+      }</p>${waiting}`,
+      classes: ['dx3rd-roll-intervention-dialog'],
+      buttons: [{
+        action: 'confirm',
+        label: game.i18n.localize(before ? 'DX3rd.RollModifierProceed' : 'DX3rd.RollInterventionFinish'),
+        default: true,
+        callback: () => ({type: 'confirm'})
+      }],
+      submit: result => settle(result && typeof result === 'object' ? result : {type: 'dismiss'})
+    });
+    dialog.addEventListener('close', () => settle({type: 'dismiss'}), {once: true});
+    const disarm = attachCountdown(dialog, settle, {
+      timeoutMs: Number(snapshot?.timeoutMs) || 0,
+      action: 'confirm',
+      result: {type: 'confirm'}
+    });
+    return {
+      promise,
+      disarm,
+      close: () => {
+        disarm();
         if (dialog.rendered) dialog.close();
       }
     };
@@ -386,6 +504,18 @@
           )}</p>
           <div class="dx3rd-roll-intervention-grid">${rows}</div>`,
         rejectClose: false,
+        // 개수 상한은 확인 후 경고하고 다시 묻는 대신 **선택 시점**에 막는다 — 최대치에
+        // 닿으면 아직 고르지 않은 체크박스를 비활성화해 그 이상 고를 수 없게 한다.
+        render: (_event, dialog) => {
+          const boxes = Array.from(dialog.element?.querySelectorAll?.('input[name="die"]') || []);
+          if (boxes.length <= max) return;
+          const applyCap = () => {
+            const full = boxes.filter(box => box.checked).length >= max;
+            for (const box of boxes) box.disabled = full && !box.checked;
+          };
+          for (const box of boxes) box.addEventListener('change', applyCap);
+          applyCap();
+        },
         buttons: [{
           action: 'confirm',
           label: game.i18n.localize('DX3rd.Confirm'),
@@ -420,9 +550,12 @@
       );
       return used !== false;
     };
-    if (entry.requiredItem && !await spendItem(entry.requiredItem)) return false;
-    if (!await spendItem(entry.item)) return false;
+    // 리미트 이펙트의 사용 흐름은 「선행 이펙트 사용·적용 → 리미트 이펙트 사용·적용」이다.
+    // 전제는 이 선언 안에서 실제로 소비되어야 하므로 먼저 지불하고, 지불이 끝난 시점에
+    // 「이번 판정에 사용됐다」는 기록도 곧바로 남긴다 — 후보 쪽 지불이 실패해도 전제는
+    // 이미 쓰인 상태로 남는 것이 룰 흐름이고, 기록이 없으면 재시도 때 전제를 다시 소비한다.
     if (entry.requiredItem) {
+      if (!await spendItem(entry.requiredItem)) return false;
       context.history.push({
         type: 'requiredItem',
         sourceActorId: entry.actor.id,
@@ -432,6 +565,7 @@
         dice: []
       });
     }
+    if (!await spendItem(entry.item)) return false;
     return true;
   }
 
@@ -521,6 +655,19 @@
   const COMMIT_TIMEOUT_MS = 60000;
   const rounds = new Map();
 
+  // 자동 확정 — 아무도 창을 조작하지 않으면 굴림이 그 자리에 멈추므로, 월드 설정이 켜져 있을
+  // 때 '결과 확정' 버튼에 카운터를 띄워 만료되면 눌린 것으로 친다. 어느 창이든 한 번
+  // 조작되면 카운터는 전부 내려간다.
+  function autoConfirmMs() {
+    try {
+      if (game.settings?.get?.('dx3rd-emanim', 'rollInterventionAutoConfirm') === false) return 0;
+      const seconds = Number(game.settings?.get?.('dx3rd-emanim', 'rollInterventionAutoConfirmSeconds'));
+      return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds * 1000) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
   // 제안에는 원격 클라이언트가 **같은 후보 판정과 같은 선택 UI** 를 돌리기 위한 것만 담는다.
   // Roll 자체는 보내지 않는다 — 다이스 선택 창에 필요한 것은 눈의 목록뿐이고, 적용은 굴림을
   // 들고 있는 이쪽에서 참조(waveIndex/dieIndex)로 한다.
@@ -571,25 +718,89 @@
     }, target.actor);
   }
 
-  function beginRound(context, remote, hasLocalChoices) {
+  // 관전 창은 책임 GM 한 사람에게만 간다. executorUserId 를 직접 지목해 브로드캐스트로
+  // 보내면 나머지 클라이언트는 받아도 실행자 검사(`isActorExecutorMessage`)에서 걸러진다.
+  // 계약의 발신자 권한은 굴리는 액터 기준이므로 sourceActorId 에도 그 id 를 실어 보낸다.
+  function emitObserver(state, stage, extra = {}) {
+    const userId = state?.observer?.userId;
+    if (!userId) return;
+    const rollerActorId = state.context?.actor?.id || null;
+    window.DX3rdSocketRouter?.emit?.({
+      type: 'rollInterventionOffer',
+      executorUserId: userId,
+      payload: {
+        stage,
+        roundKey: state.roundKey,
+        requesterUserId: game.user.id,
+        rollerActorId,
+        sourceActorId: rollerActorId,
+        ...extra
+      }
+    });
+  }
+
+  function beginRound(context, remote, hasLocalChoices, timeoutMs = 0) {
     const roundKey = `${context.rollId || 'roll'}-${context.phase}-${context.generation}-${context.revision}`;
     const state = {
       roundKey,
       context,
       hasLocalChoices,
       targets: new Map(remote.map(target => [target.actor.id, target])),
+      observer: null,
       claimedBy: null,
+      engaged: false,
       timer: null,
+      autoTimer: null,
+      disarm: null,
       settle: null
     };
     state.promise = new Promise(resolve => {
       state.settle = resolve;
     });
     rounds.set(roundKey, state);
+    // 120초 망은 「굴림이 영영 멈추지 않는다」는 보장이다 — 카운터가 해제된 뒤에도 남긴다.
     state.timer = setTimeout(() => finishRound(roundKey, {type: 'finish'}), OFFER_TIMEOUT_MS);
+    if (timeoutMs > 0) {
+      state.autoTimer = setTimeout(() => finishRound(roundKey, {type: 'finish'}), timeoutMs);
+    }
     const snapshot = offerSnapshot(context);
+    // 원격·관전 창도 같은 시한으로 각자의 카운터를 돌린다 — 발표는 표시용이고 권한은
+    // 굴림 쪽의 autoTimer/버튼에 있다.
+    snapshot.timeoutMs = timeoutMs;
     for (const target of state.targets.values()) sendOffer(context, target, roundKey, 'offer', {snapshot});
+    // 책임 GM 은 개입 후보가 없어도 진행을 보고 「결과 확정」을 누를 수 있어야 한다. 이미
+    // 후보 실행자거나 굴림 당사자면 그쪽 창이 같은 역할을 하므로 관전은 보내지 않는다.
+    const gm = window.DX3rdSocketRouter?.getResponsibleGM?.();
+    if (gm?.active && gm.id !== game.user?.id && context.actor?.id
+      && !remote.some(target => target.executorId === gm.id)) {
+      state.observer = {userId: gm.id};
+      emitObserver(state, 'observe', {
+        snapshot: {
+          phase: context.phase,
+          rollerActorName: context.actor?.name || '',
+          waitingNames: remote.map(target => target.actor.name),
+          timeoutMs
+        }
+      });
+    }
     return state;
+  }
+
+  // 「어느 창이든 한 번 조작되면 모든 대기 카운터가 내려간다」— 선언을 시작한 클라이언트의
+  // 'engage'(또는 도착한 'claim')가 여기로 온다. 라운드 자체는 그 선언이 commit/withdraw 로
+  // 끝나거나 GM 이 확정할 때까지 기다린다.
+  function disarmRound(state) {
+    if (state.engaged) return;
+    state.engaged = true;
+    if (state.autoTimer) {
+      clearTimeout(state.autoTimer);
+      state.autoTimer = null;
+    }
+    state.disarm?.();
+    for (const target of state.targets.values()) {
+      sendOffer(state.context, target, state.roundKey, 'engaged');
+    }
+    emitObserver(state, 'engaged');
   }
 
   function finishRound(roundKey, outcome, {except = null} = {}) {
@@ -597,10 +808,12 @@
     if (!state) return;
     rounds.delete(roundKey);
     clearTimeout(state.timer);
+    if (state.autoTimer) clearTimeout(state.autoTimer);
     for (const target of state.targets.values()) {
       if (target.actor.id === except) continue;
       sendOffer(state.context, target, roundKey, 'cancel');
     }
+    emitObserver(state, 'cancel');
     state.settle(outcome);
   }
 
@@ -627,6 +840,19 @@
     if (payload.requesterUserId !== game.user?.id) return;
     const state = rounds.get(payload.roundKey);
     const target = state?.targets.get(payload.sourceActorId);
+    if (payload.stage === 'finish') {
+      // 책임 GM 의 강제 확정 — 소켓 계약이 발신자를 GM 한정으로 묶는다.
+      const sender = data.senderId ? game.users?.get?.(data.senderId) : null;
+      if (sender && !sender.isGM) return;
+      finishRound(payload.roundKey, {type: 'finish'});
+      return;
+    }
+    if (payload.stage === 'engage') {
+      // 어느 창이든 한 번 조작되면 모든 대기 카운터가 내려간다.
+      if (!state || !target) return;
+      disarmRound(state);
+      return;
+    }
     if (payload.stage === 'decline') {
       if (!state || !target) return;
       state.targets.delete(payload.sourceActorId);
@@ -643,6 +869,8 @@
         return;
       }
       state.claimedBy = payload.sourceActorId;
+      // 자리를 잡았다 = 조작이다 — 어느 경로로 왔든 대기 카운터를 거둔다.
+      disarmRound(state);
       clearTimeout(state.timer);
       state.timer = setTimeout(() => finishRound(payload.roundKey, {type: 'finish'}), COMMIT_TIMEOUT_MS);
       for (const other of state.targets.values()) {
@@ -746,13 +974,23 @@
     if (!mine.length && !remote.length) return null;
     if (context.phase === 'afterRoll') await ensurePreview(context);
 
-    const round = remote.length ? beginRound(context, remote, mine.length > 0) : null;
-    const dialog = openCandidateDialog(mine, context, {remote});
-    const outcome = await (round ? Promise.race([dialog.promise, round.promise]) : dialog.promise);
-    dialog.close();
+    const timeoutMs = autoConfirmMs();
+    // 원격 후보가 없어도 라운드는 연다 — 책임 GM 의 관전 창과 강제 확정('finish')이
+    // 로컬 선언에도 같은 손잡이를 가져야 하기 때문이다.
+    const round = beginRound(context, remote, mine.length > 0, timeoutMs);
+    // 창은 「지금 개입할 수 있는 사람」에게만 뜬다 — 후보가 없는 굴림 당사자에게 빈 대기창을
+    // 띄우지 않는다(GM 은 심판이라 후보가 없어도 본다). 남의 선언이 걸려 있을 때 제3자 시야는
+    // 책임 GM 의 관전 창이 담당한다(beginRound 의 observe 제안).
+    const dialog = (mine.length || game.user?.isGM)
+      ? openCandidateDialog(mine, context, {remote, timeoutMs})
+      : null;
+    // 원격 선언 시작('engage')이 오면 이 창의 카운터도 함께 거둔다.
+    round.disarm = dialog?.disarm || null;
+    const outcome = await (dialog ? Promise.race([dialog.promise, round.promise]) : round.promise);
+    dialog?.close();
     // 이 라운드는 여기서 끝난다. 아직 답하지 않은 클라이언트의 창은 닫히고, 커맨드가 적용되면
     // 다음 라운드가 갱신된 상태로 곧바로 다시 제안한다.
-    if (round) finishRound(round.roundKey, {type: 'finish'}, {except: outcome?.command?.sourceActorId || null});
+    finishRound(round.roundKey, {type: 'finish'}, {except: outcome?.command?.sourceActorId || null});
 
     if (outcome?.type === 'remote') {
       const commands = [];
@@ -836,27 +1074,62 @@
     });
   }
 
+  // 책임 GM 의 강제 확정 — 관전 창의 「결과 확정」과, GM 이 실행자인 후보 창의 같은 버튼이
+  // 여기로 온다. 선언을 다는 액터가 없으므로 sourceActorId 없이 굴림 액터만 실어 보낸다.
+  function declareFinish(payload) {
+    window.DX3rdSocketRouter?.emit?.({
+      type: 'rollInterventionDeclare',
+      payload: {
+        stage: 'finish',
+        roundKey: payload.roundKey,
+        requesterUserId: payload.requesterUserId,
+        rollerActorId: payload.rollerActorId || null
+      }
+    });
+  }
+
+  // 책임 GM 의 관전 창 — 후보는 보여 주지 않고 「결과 확정」으로 라운드를 끝낼 수 있다.
+  // 창을 닫아(X/관전 해제) 라운드에는 아무 영향이 없다.
+  async function observeOffer(payload) {
+    const dialog = openObserverDialog(payload.snapshot);
+    const state = {observer: true, close: dialog.close, disarm: dialog.disarm, cancelled: false, settleAccept: null};
+    offers.set(payload.roundKey, state);
+    const choice = await dialog.promise;
+    if (state.cancelled) return;
+    offers.delete(payload.roundKey);
+    if (choice?.type === 'confirm') declareFinish(payload);
+  }
+
   async function handleOffer(data) {
     const payload = data.payload || {};
     const actor = resolveOfferActor(payload.sourceActorId, payload.sourceTokenId);
     if (!window.DX3rdSocketRouter.isActorExecutorMessage(data, actor)) return;
     const open = offers.get(payload.roundKey);
+    if (payload.stage === 'engaged') {
+      // 다른 클라이언트가 선언을 시작했다 — 이 창의 대기 카운터도 거둔다(창은 닫지 않는다).
+      open?.disarm?.();
+      return;
+    }
     if (payload.stage === 'cancel' || payload.stage === 'reject') {
       if (!open) return;
       offers.delete(payload.roundKey);
       open.cancelled = true;
       // 선택 도중이든 자리를 기다리는 중이든 같은 자물쇠 하나를 푼다 — 이 promise 를 창을 연
       // 뒤에 만들면, 취소가 선택보다 먼저 올 때 그 대기가 영영 풀리지 않는다.
-      open.settleAccept(false);
-      open.close();
+      open.settleAccept?.(false);
+      open.close?.();
       if (payload.stage === 'reject') {
         ui.notifications.info(game.i18n.localize('DX3rd.RollInterventionSuperseded'));
       }
       return;
     }
     if (payload.stage === 'accept') {
-      open?.settleAccept(true);
+      open?.settleAccept?.(true);
       return;
+    }
+    if (payload.stage === 'observe') {
+      if (open || !payload.snapshot) return;
+      return observeOffer(payload);
     }
     if (payload.stage !== 'offer' || !payload.snapshot || open) return;
 
@@ -867,8 +1140,11 @@
       declare(payload, actor, {stage: 'decline'});
       return;
     }
-    const dialog = openCandidateDialog(entries, context, {rollerName: payload.snapshot.rollerActorName});
-    const state = {close: dialog.close, cancelled: false, settleAccept: null};
+    const dialog = openCandidateDialog(entries, context, {
+      rollerName: payload.snapshot.rollerActorName,
+      timeoutMs: Number(payload.snapshot.timeoutMs) || 0
+    });
+    const state = {close: dialog.close, disarm: dialog.disarm, cancelled: false, settleAccept: null};
     state.accepted = new Promise(resolve => {
       state.settleAccept = resolve;
     });
@@ -880,9 +1156,19 @@
 
     const choice = await dialog.promise;
     if (state.cancelled) return;
-    if (choice?.type !== 'local') return withdraw();
+    if (choice?.type !== 'local') {
+      // GM 의 '결과 확정'·창 닫기는 자기 몫을 내리는 것이 아니라 라운드 전체를 닫는다.
+      if (game.user?.isGM) {
+        offers.delete(payload.roundKey);
+        declareFinish(payload);
+        return;
+      }
+      return withdraw();
+    }
     const entry = entries[choice.index];
     if (!entry) return withdraw();
+    // 어느 창이든 한 번 조작되면 모든 대기 카운터가 내려간다 — 선언 시작을 굴림 쪽에 알린다.
+    declare(payload, actor, {stage: 'engage'});
     const prepared = await prepareCommand(entry, context);
     if (state.cancelled) return;
     if (!prepared) return withdraw();

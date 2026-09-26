@@ -1,0 +1,8 @@
+/* Item Browser — reuses the effect browser's layout (the app carries .dx3rd-effect-browser); only the
+   item-specific columns differ. */
+
+/* The per-type stat summary is a sentence, not a number — left-align like the name column. */
+.dx3rd-item-browser .effect-browser-table th.col-stats,
+.dx3rd-item-browser .effect-browser-table td.col-stats {
+    text-align: left;
+}

@@ -1,0 +1,43 @@
+{{#if empty}}
+<p class="effect-browser-empty">{{localize "DX3rd.ItemBrowserEmpty"}}</p>
+{{else}}
+<table class="effect-browser-table">
+  <thead>
+    <tr>
+      <th class="col-name">{{localize "DX3rd.Item"}}</th>
+      <th>{{localize "DX3rd.Type"}}</th>
+      <th>{{localize "DX3rd.Skill"}}</th>
+      <th class="col-stats">{{localize "DX3rd.ItemBrowserStats"}}</th>
+      <th>{{localize "DX3rd.SellSaving"}}</th>
+      <th class="col-num">{{localize "DX3rd.EXP"}}</th>
+      <th class="col-actions"></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each entries as |entry|}}
+    <tr class="effect-browser-row-entry" data-uuid="{{entry.uuid}}" draggable="true">
+      <td class="col-name">
+        <img src="{{entry.img}}" alt="" width="24" height="24">
+        <span class="effect-browser-name">{{entry.name}}</span>
+        <span class="effect-browser-category">{{entry.category}}</span>
+        <div class="effect-browser-description" {{#unless entry.expanded}}hidden{{/unless}}>{{{entry.description}}}</div>
+      </td>
+      <td>{{entry.typeLabel}}</td>
+      <td>{{entry.skillLabel}}</td>
+      <td class="col-stats">{{entry.stats}}</td>
+      <td>{{entry.saving}}</td>
+      <td class="col-num">{{entry.exp}}</td>
+      <td class="col-actions">
+        {{#if ../hasActor}}
+        <a class="item-add-to-actor" title="{{localize 'DX3rd.ItemBrowserAddToActor'}}"><i class="fas fa-plus"></i></a>
+        {{/if}}
+        <a class="item-open-sheet" title="{{localize 'DX3rd.ItemBrowserOpenSheet'}}"><i class="fas fa-up-right-from-square"></i></a>
+      </td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+{{#if truncated}}
+<p class="effect-browser-truncated">{{localize "DX3rd.ItemBrowserTruncated" limit=limit}}</p>
+{{/if}}
+{{/if}}

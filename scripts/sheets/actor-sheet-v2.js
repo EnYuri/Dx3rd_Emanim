@@ -51,7 +51,8 @@
         useItem: DX3rdActorSheetV2._onUseItem,
         useRois: DX3rdActorSheetV2._onUseRois,
         applyEffect: DX3rdActorSheetV2._onApplyEffect,
-        browseEffects: DX3rdActorSheetV2._onBrowseEffects
+        browseEffects: DX3rdActorSheetV2._onBrowseEffects,
+        browseItems: DX3rdActorSheetV2._onBrowseItems
       }
     };
 
@@ -120,8 +121,23 @@
      */
     _getHeaderControls() {
       const replacedByInlineButtons = ['configurePrototypeToken', 'configureToken'];
-      return super._getHeaderControls()
-        .filter(control => !replacedByInlineButtons.includes(control.action));
+      // The compendium browsers live in the dropdown, not among the inline header buttons.
+      const ours = [
+        {
+          action: 'browseEffects',
+          icon: 'fa-solid fa-magnifying-glass',
+          label: game.i18n.localize('DX3rd.EffectBrowser')
+        },
+        {
+          action: 'browseItems',
+          icon: 'fa-solid fa-magnifying-glass',
+          label: game.i18n.localize('DX3rd.ItemBrowser')
+        }
+      ];
+      return ours.concat(
+        super._getHeaderControls()
+          .filter(control => !replacedByInlineButtons.includes(control.action))
+      );
     }
 
     /**
@@ -150,11 +166,7 @@
         else header.appendChild(button);
       };
 
-      // Looking an effect up is neither an edit nor character-sheet specific, so it comes before both the
-      // simple-sheet bail-out (an enemy has effects too) and the permission checks below.
-      makeButton('fa-solid fa-magnifying-glass', game.i18n.localize('DX3rd.EffectBrowser'),
-        event => DX3rdActorSheetV2._onBrowseEffects.call(this, event));
-
+      // The effect browser moved into the ⋮ header dropdown (_getHeaderControls), so it is not injected here.
       // A simple sheet (enemy and some others) does not expose actor type editing (as on the previous sheet).
       if (actorData.shouldUseSimpleSheet(this.document)) return;
 
@@ -680,6 +692,17 @@
         return;
       }
       window.DX3rdEffectBrowser.open({actor: this.document});
+    }
+
+    // Same lookup for equipment items. The equipment tab's section magnifiers carry data-browse-type so the
+    // browser opens already filtered to that type; the header-menu entry leaves it unfiltered.
+    static _onBrowseItems(event, target) {
+      event.preventDefault();
+      if (!window.DX3rdItemBrowser) {
+        ui.notifications.error(game.i18n.format('DX3rd.HandlerMissing', {name: 'DX3rdItemBrowser'}));
+        return;
+      }
+      window.DX3rdItemBrowser.open({actor: this.document, type: target?.dataset?.browseType});
     }
 
     // The firing point for applying the effects of an item with no attack flow.

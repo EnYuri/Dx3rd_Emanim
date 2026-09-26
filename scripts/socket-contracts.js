@@ -114,25 +114,35 @@
       && isId(data.executorUserId),
     authorize: ownsActor('payload.sourceActorId')
   });
-  // 굴림 개입은 두 방향이다. 제안(굴리는 쪽 → 그 액터의 책임 실행자)과 선언(실행자 → 굴리는 쪽).
-  // 한 방향씩 발신자 권한이 다르다 — 제안은 굴리는 액터를, 선언은 선언하는 액터를 통제해야 한다.
+  // 굴림 개입은 두 방향이다. 제안(굴리는 쪽 → 그 액터의 책임 실행자·책임 GM 관전)과 선언
+  // (실행자·GM → 굴리는 쪽). 한 방향씩 발신자 권한이 다르다 — 제안은 굴리는 액터를, 선언은
+  // 선언하는 액터를 통제해야 한다. 'observe' 는 책임 GM 의 관전 창(기준 액터는 굴림 액터),
+  // 'engaged' 는 누군가 창을 조작해 대기 카운터를 거두라는 통지다. 선언 쪽 'finish' 는
+  // 액터를 매개로 하지 않는 GM 의 강제 확정이라 발신자가 GM 인지를 직접 검사한다.
   contract('rollInterventionOffer', {
     validate: data => isObject(data.payload) && isId(data.payload.roundKey)
       && isId(data.payload.requesterUserId) && isId(data.payload.rollerActorId)
       && isId(data.payload.sourceActorId)
       && (data.payload.sourceTokenId === null || data.payload.sourceTokenId === undefined
         || isId(data.payload.sourceTokenId))
-      && ['offer', 'cancel', 'accept', 'reject'].includes(data.payload.stage)
-      && (data.payload.stage !== 'offer' || isObject(data.payload.snapshot))
+      && ['offer', 'cancel', 'accept', 'reject', 'observe', 'engaged'].includes(data.payload.stage)
+      && ((data.payload.stage !== 'offer' && data.payload.stage !== 'observe')
+        || isObject(data.payload.snapshot))
       && isId(data.executorUserId),
     authorize: ownsActor('payload.rollerActorId')
   });
   contract('rollInterventionDeclare', {
     validate: data => isObject(data.payload) && isId(data.payload.roundKey)
-      && isId(data.payload.requesterUserId) && isId(data.payload.sourceActorId)
-      && ['claim', 'commit', 'decline'].includes(data.payload.stage)
-      && (data.payload.stage !== 'commit' || typeof data.payload.ok === 'boolean'),
-    authorize: ownsActor('payload.sourceActorId')
+      && isId(data.payload.requesterUserId)
+      && (
+        (['claim', 'commit', 'decline', 'engage'].includes(data.payload.stage)
+          && isId(data.payload.sourceActorId)
+          && (data.payload.stage !== 'commit' || typeof data.payload.ok === 'boolean'))
+        || (data.payload.stage === 'finish' && isId(data.payload.rollerActorId))
+      ),
+    authorize: (data, sender) => data.payload?.stage === 'finish'
+      ? Boolean(sender?.isGM && sender?.active)
+      : ownsActor('payload.sourceActorId')(data, sender)
   });
   contract('addToAfterMainQueue', {
     validate: data => isObject(data.data) && isId(data.data.actorId)
