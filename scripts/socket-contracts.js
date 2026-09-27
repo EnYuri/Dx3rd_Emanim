@@ -137,7 +137,8 @@
       && (
         (['claim', 'commit', 'decline', 'engage'].includes(data.payload.stage)
           && isId(data.payload.sourceActorId)
-          && (data.payload.stage !== 'commit' || typeof data.payload.ok === 'boolean'))
+          && (data.payload.stage !== 'commit' || (typeof data.payload.ok === 'boolean'
+            && (data.payload.error === undefined || typeof data.payload.error === 'boolean'))))
         || (data.payload.stage === 'finish' && isId(data.payload.rollerActorId))
       ),
     authorize: (data, sender) => data.payload?.stage === 'finish'

@@ -790,6 +790,9 @@
         return true; // item use allowed
       } catch (e) {
         console.error('DX3rd | UniversalHandler.processItemUsageCost failed', e);
+        // Callers awaiting a declaration must distinguish an exception (possibly
+        // after actor.update paid the cost) from an ordinary usage-gate refusal.
+        options.onError?.(e);
         return false; // abort the use on error
       }
     },
@@ -2266,7 +2269,8 @@
       if (!declarationOnly) {
         const usageAllowed = await this.processItemUsageCost(actor, item, {
           action,
-          rollType: options.rollType
+          rollType: options.rollType,
+          onError: options.onUsageError
         });
         if (!usageAllowed) {
           window.DX3rdDebug.log('DX3rd | handleItemUse - Usage blocked by cost');

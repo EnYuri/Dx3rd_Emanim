@@ -7548,6 +7548,53 @@ function silentDialog(seen, key) {
   });
 }
 
+for (const finishVia of ['observer', 'roller']) {
+  test(`an accepted player intervention survives ${finishVia} finalization while spending`, async () => {
+    const log = [];
+    const {roller, intervenor, gm, pcActor} = interventionTrio(log);
+    let rollerDialog;
+    if (finishVia === 'roller') {
+      pcActor.items.push(interventionActor('local', 'Local', 'u-pc').items[0]);
+    }
+    roller.context.foundry.applications.api.DialogV2 = scriptedDialog(options => {
+      rollerDialog = options;
+      return null;
+    });
+    gm.context.foundry.applications.api.DialogV2 = scriptedDialog(() => null);
+    const declarationDialog = scriptedDialog(() => ({type: 'local', index: 0}));
+    declarationDialog.wait = async options => options.buttons[0].callback({}, {
+      form: {querySelectorAll: () => [{value: '1'}]}
+    });
+    intervenor.context.foundry.applications.api.DialogV2 = declarationDialog;
+    intervenor.context.DX3rdUniversalHandler.handleItemUse = async (_actorId, itemId) => {
+      log.push(`spend:${itemId}`);
+      // accept has arrived and the player has spent the item, but commit is still in flight.
+      if (finishVia === 'observer') {
+        roller.effects.handleDeclaration({senderId: 'u-gm', payload: {
+          stage: 'finish', requesterUserId: 'u-pc', rollerActorId: pcActor.id,
+          roundKey: 'r1-afterRoll-0-0'
+        }});
+      } else {
+        rollerDialog.submit({type: 'finish'});
+      }
+      await new Promise(resolve => setTimeout(resolve, 0));
+      return true;
+    };
+    const commands = await roller.handler('afterRoll')({
+      rollId: 'r1', phase: 'afterRoll', kind: 'check', subtype: 'major',
+      generation: 0, revision: 0, history: [], metadata: {}, pool: null, interactive: true,
+      actor: pcActor, item: null, commands: [],
+      roll: {render: async () => '<div class="dice-roll"></div>', total: 8}
+    });
+    assert.equal(commands?.length, 1, 'paid declaration must reach the roll instead of being discarded');
+    assert.equal(commands[0].type, 'setFaces');
+    assert.equal(commands[0].value, 10);
+    assert.equal(commands[0].dice[0].waveIndex, 0);
+    assert.equal(commands[0].dice[0].dieIndex, 1);
+    assert.deepEqual(log.filter(entry => entry.startsWith('spend:')), ['spend:a-other-item']);
+  });
+}
+
 // 개입 창은 「개입할 수 있는 실행자 + 책임 GM」에게만 뜬다. 후보가 없는 굴림 당사자에게는
 // 아무 창도 뜨지 않고, 책임 GM 은 관전 창의 「결과 확정」으로 라운드를 강제로 닫는다.
 test('intervention dialogs open only for executors with candidates plus the responsible GM', async () => {

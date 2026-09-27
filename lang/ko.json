@@ -628,6 +628,8 @@
   "DX3rd.RollInterventionRemotePrompt": "{actor}의 굴림입니다. 지금 선언할 수 있습니다.",
   "DX3rd.RollInterventionWaiting": "{names}의 선언을 기다리는 중입니다.",
   "DX3rd.RollInterventionSuperseded": "다른 선언이 먼저 적용되어 이번 선언은 취소되었습니다(비용은 나가지 않았습니다).",
+  "DX3rd.RollInterventionFailed": "굴림 개입 처리에 실패하여 판정을 취소했습니다. 이미 소비된 비용과 사용 횟수를 확인해 주세요.",
+  "DX3rd.RollInterventionTimeout": "승인된 굴림 개입의 응답이 도착하지 않아 판정을 취소했습니다. 이미 소비된 비용과 사용 횟수를 확인해 주세요.",
   "DX3rd.RollInterventionApprovalPrompt": "{actor}의 {item}을 이 굴림에 사용하시겠습니까?",
   "DX3rd.RollInterventionObserverPrompt": "{actor}의 굴림입니다. 개입할 수 있는 사용자의 선언을 기다리는 중입니다.",
   "DX3rd.RollInterventionAutoConfirm": "개입 선언 자동 확정",

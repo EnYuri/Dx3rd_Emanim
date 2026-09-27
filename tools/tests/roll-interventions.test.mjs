@@ -93,6 +93,40 @@ test('a selected ordinary die is changed before the roll total is finalized', as
   assert.equal(visits, 2);
 });
 
+test('serialized ordinary die references retain their positions in a mixed roll formula', async () => {
+  const sandbox = context();
+  const die = result => ({
+    faces: 10, results: [{result, active: true}],
+    get total() { return this.results[0].result; }
+  });
+  const first = die(8);
+  const second = die(2);
+  const roll = {
+    terms: [{total: 2}, {total: '+'}, first, {total: '+'}, second],
+    options: {}, _total: 12,
+    get total() { return this._total; },
+    _evaluateTotal() { return 2 + first.total + second.total; }
+  };
+  let visits = 0;
+  sandbox.DX3rdRollInterventions.register('afterRoll', ctx => {
+    if (++visits > 1) return null;
+    const dice = sandbox.DX3rdRollInterventions.availableDice(ctx);
+    assert.deepEqual(Array.from(dice, ref => ref.termIndex), [2, 4]);
+    // The remote player returns plain references, without the live term object.
+    const ref = JSON.parse(JSON.stringify({
+      kind: dice[1].kind, termIndex: dice[1].termIndex,
+      waveIndex: null, dieIndex: dice[1].dieIndex
+    }));
+    return {type: 'setFaces', value: 10, dice: [ref]};
+  });
+  const result = await sandbox.DX3rdRollInterventions.resolve('2 + 1d10 + 1d10', {
+    createRoll: async () => roll, kind: 'damage', interactive: false
+  });
+  assert.equal(first.total, 8);
+  assert.equal(second.total, 10);
+  assert.equal(result.total, 20);
+});
+
 test('changing a DX die rebuilds the critical chain from the changed wave', async () => {
   const queue = [9, 2, 7];
   class DieMock {

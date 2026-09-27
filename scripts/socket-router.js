@@ -211,13 +211,29 @@
    */
   async function receiveEnvelope(rawData) {
     const data = window.DX3rdRuntimeUtils.normalizeSocketEnvelope(rawData);
+    const intervention = ['rollInterventionOffer', 'rollInterventionDeclare'].includes(data?.type);
+    const trace = (event, details = {}) => {
+      if (intervention) window.DX3rdRollInterventions?.log?.(event, {
+        type: data.type, requestId: data.requestId, senderId: data.senderId,
+        executorUserId: data.executorUserId, roundKey: data.payload?.roundKey,
+        stage: data.payload?.stage, ...details
+      });
+    };
+    trace('socket.receive');
     const validation = window.DX3rdRuntimeUtils.validateSocketEnvelope(data);
     if (!validation.valid) {
+      trace('socket.ignore', {reason: 'invalid-envelope', error: validation.error});
       console.warn(`DX3rd | Invalid socket message ignored: ${validation.error}`);
       return;
     }
-    if (!await validateTypeContract(data)) return;
-    if (!acceptRequest(data)) return;
+    if (!await validateTypeContract(data)) {
+      trace('socket.ignore', {reason: 'contract-rejected'});
+      return;
+    }
+    if (!acceptRequest(data)) {
+      trace('socket.ignore', {reason: 'duplicate-request'});
+      return;
+    }
 
     let consumed = false;
     try {

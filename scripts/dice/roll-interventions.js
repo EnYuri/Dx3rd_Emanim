@@ -5,6 +5,13 @@
   ]);
   let sequence = 0;
 
+  function log(event, details = {}) {
+    // Serialize now: expanding a console object later must not show mutated state.
+    console.log('DX3rd | Roll intervention', JSON.stringify({
+      time: new Date().toISOString(), userId: typeof game !== 'undefined' ? game.user?.id || null : null, event, ...details
+    }));
+  }
+
   function register(phase, handler, options = {}) {
     if (!phases.has(phase)) throw new Error(`Unknown roll intervention phase: ${phase}`);
     if (typeof handler !== 'function') throw new TypeError('Roll intervention handler must be a function.');
@@ -39,7 +46,10 @@
 
   function standardDice(roll) {
     const dice = [];
-    diceTerms(roll).forEach((term, termIndex) => {
+    // References cross clients and are applied against roll.terms. Filtering first
+    // renumbers them whenever numeric/operator terms precede another die.
+    (roll?.terms || []).forEach((term, termIndex) => {
+      if (!Array.isArray(term?.results)) return;
       if (term === dxTerm(roll)) return;
       term.results.forEach((result, dieIndex) => {
         if (result?.active === false || result?.discarded === true) return;
@@ -170,6 +180,8 @@
 
   async function applyCommand(context, command) {
     if (!command || typeof command !== 'object') return;
+    log('apply.start', {rollId: context.rollId, revision: context.revision,
+      command, total: context.roll?.total, dice: availableDice(context)});
     if (command.type === 'rerollAll') {
       context.roll = await context.createRoll(context.formula);
       context.generation++;
@@ -198,6 +210,8 @@
         ({kind, termIndex, waveIndex, dieIndex}))
     });
     context.revision++;
+    log('apply.complete', {rollId: context.rollId, revision: context.revision,
+      total: context.roll?.total, dice: availableDice(context)});
   }
 
   async function evaluate(formula, options = {}) {
@@ -275,7 +289,10 @@
 
   async function resolve(formula, options = {}) {
     const context = await evaluate(formula, options);
-    if (context.cancelled) return null;
+    if (context.cancelled) {
+      log('result.cancelled', {rollId: context.rollId, revision: context.revision, history: context.history});
+      return null;
+    }
     if (context.roll && (context.overrideTotal !== null || context.totalAdjust)) {
       const base = context.overrideTotal !== null ? context.overrideTotal : Number(context.roll.total) || 0;
       // 달성치의 하한은 0이고, 선언이 자기 하한을 더 높게 적었으면 그것을 쓴다(《스몰 월드》 「최저 1」).
@@ -288,10 +305,13 @@
       autoFail: context.autoFail,
       history: context.history
     };
+    log('result.finalized', {rollId: context.rollId, revision: context.revision,
+      total: context.roll.total, history: context.history});
     return context.roll;
   }
 
   window.DX3rdRollInterventions = Object.freeze({
+    log,
     register,
     evaluate,
     resolve,

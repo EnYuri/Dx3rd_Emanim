@@ -1,4 +1,5 @@
 (function () {
+  const log = (event, details) => window.DX3rdRollInterventions.log?.(event, details);
   const CONNECTION_REROLLS = new Set([
     'UGN첩보부', '경찰OB', '대학교수', '매점부 정보망', '불법거주자',
     '블로거', '정보게시판', '컨설턴트', '프리랜서 기자'
@@ -544,10 +545,17 @@
     // 여는 단계뿐**이다 — 지금 이 코드는 `resolve` 안에서 도는 중이라 타입 핸들러가 판정을 열면
     // 바깥 굴림이 끝나기 전에 또 하나의 `resolve` 가 시작된다.
     const spendItem = async item => {
+      log('usage.start', {rollId: context.rollId, sourceActorId: entry.actor.id,
+        sourceItemId: item.id});
+      let usageError = null;
       const used = await window.DX3rdUniversalHandler?.handleItemUse?.(
         entry.actor.id, item.id, item.type, null, undefined,
-        {action: 'use', rollType: context.subtype, skipHandlerDispatch: true}
+        {action: 'use', rollType: context.subtype, skipHandlerDispatch: true,
+          onUsageError: error => { usageError = error; }}
       );
+      if (usageError) throw usageError;
+      log('usage.complete', {rollId: context.rollId, sourceActorId: entry.actor.id,
+        sourceItemId: item.id, ok: used !== false});
       return used !== false;
     };
     // 리미트 이펙트의 사용 흐름은 「선행 이펙트 사용·적용 → 리미트 이펙트 사용·적용」이다.
@@ -702,6 +710,9 @@
   }
 
   function sendOffer(context, target, roundKey, stage, extra = {}) {
+    log('offer.send', {rollId: context.rollId, roundKey, stage,
+      sourceActorId: target.actor.id, sourceTokenId: target.tokenId || null,
+      executorUserId: window.DX3rdSocketRouter?.getResponsibleActorExecutor?.(target.actor)?.id || null});
     return window.DX3rdSocketRouter?.emitToActorExecutor?.({
       type: 'rollInterventionOffer',
       payload: {
@@ -739,8 +750,11 @@
     });
   }
 
+  let roundAttempt = 0;
   function beginRound(context, remote, hasLocalChoices, timeoutMs = 0) {
-    const roundKey = `${context.rollId || 'roll'}-${context.phase}-${context.generation}-${context.revision}`;
+    // A cost refusal retries without changing generation/revision. Delayed replies
+    // from that attempt must never cancel or claim its replacement offer.
+    const roundKey = `${context.rollId || 'roll'}-${context.phase}-${context.generation}-${context.revision}-${++roundAttempt}`;
     const state = {
       roundKey,
       context,
@@ -806,12 +820,16 @@
   function finishRound(roundKey, outcome, {except = null} = {}) {
     const state = rounds.get(roundKey);
     if (!state) return;
+    log('round.complete', {rollId: state.context.rollId, roundKey,
+      claimedBy: state.claimedBy, outcome: outcome?.type, reason: outcome?.reason});
     rounds.delete(roundKey);
     clearTimeout(state.timer);
     if (state.autoTimer) clearTimeout(state.autoTimer);
     for (const target of state.targets.values()) {
       if (target.actor.id === except) continue;
-      sendOffer(state.context, target, roundKey, 'cancel');
+      sendOffer(state.context, target, roundKey, 'cancel',
+        outcome?.type === 'error' && target.actor.id === state.claimedBy
+          ? {failure: outcome.reason || 'error'} : {});
     }
     emitObserver(state, 'cancel');
     state.settle(outcome);
@@ -837,6 +855,7 @@
 
   function handleDeclaration(data) {
     const payload = data.payload || {};
+    log('declaration.receive', {senderId: data.senderId, ...payload});
     if (payload.requesterUserId !== game.user?.id) return;
     const state = rounds.get(payload.roundKey);
     const target = state?.targets.get(payload.sourceActorId);
@@ -844,6 +863,12 @@
       // 책임 GM 의 강제 확정 — 소켓 계약이 발신자를 GM 한정으로 묶는다.
       const sender = data.senderId ? game.users?.get?.(data.senderId) : null;
       if (sender && !sender.isGM) return;
+      // accept 이후에는 실행자가 이미 비용을 지불하고 있을 수 있다. 이때 확정하면
+      // 뒤늦게 도착한 commit 이 버려져 비용만 나가고 다이스는 바뀌지 않는다.
+      if (state?.claimedBy) {
+        log('declaration.ignore', {roundKey: payload.roundKey, stage: payload.stage, reason: 'claim-in-progress'});
+        return;
+      }
       finishRound(payload.roundKey, {type: 'finish'});
       return;
     }
@@ -865,6 +890,8 @@
     if (payload.stage === 'claim') {
       // 자리를 잡지 못한 선언에는 **소비 전에** 거절을 돌려준다.
       if (!state || !target || state.claimedBy) {
+        log('claim.reject', {roundKey: payload.roundKey, sourceActorId: payload.sourceActorId,
+          reason: !state ? 'round-closed' : !target ? 'target-missing' : 'already-claimed'});
         rejectClaim(payload);
         return;
       }
@@ -872,17 +899,36 @@
       // 자리를 잡았다 = 조작이다 — 어느 경로로 왔든 대기 카운터를 거둔다.
       disarmRound(state);
       clearTimeout(state.timer);
-      state.timer = setTimeout(() => finishRound(payload.roundKey, {type: 'finish'}), COMMIT_TIMEOUT_MS);
+      // accept 이후 응답 단절은 「개입 없이 확정」이 아니다. 비용이 이미 나갔을 수
+      // 있으므로 판정을 취소하고 오류를 알려야 한다.
+      state.timer = setTimeout(() => finishRound(payload.roundKey,
+        {type: 'error', reason: 'timeout'}), COMMIT_TIMEOUT_MS);
       for (const other of state.targets.values()) {
         if (other.actor.id === payload.sourceActorId) continue;
         sendOffer(state.context, other, payload.roundKey, 'cancel');
       }
+      emitObserver(state, 'cancel');
       sendOffer(state.context, target, payload.roundKey, 'accept');
       return;
     }
     if (payload.stage !== 'commit') return;
-    if (!state || state.claimedBy !== payload.sourceActorId) return;
+    if (!state || state.claimedBy !== payload.sourceActorId) {
+      log('commit.ignore', {roundKey: payload.roundKey, sourceActorId: payload.sourceActorId,
+        reason: !state ? 'round-closed' : 'claim-mismatch'});
+      return;
+    }
+    if (payload.error === true) {
+      finishRound(payload.roundKey, {type: 'error', reason: 'error'}, {except: payload.sourceActorId});
+      return;
+    }
     const command = payload.ok ? sanitizeCommand(payload.command, payload.sourceActorId) : null;
+    if (payload.ok && !command) {
+      console.error('DX3rd | Invalid paid roll intervention command', {
+        roundKey: payload.roundKey, sourceActorId: payload.sourceActorId
+      });
+      finishRound(payload.roundKey, {type: 'error', reason: 'error'});
+      return;
+    }
     // 비용을 내지 못한 선언은 라운드를 무르고 다시 제안한다 — 지불에 실패했다는 이유로
     // 남은 사람의 개입 기회까지 사라지면 안 된다.
     finishRound(payload.roundKey,
@@ -986,7 +1032,14 @@
       : null;
     // 원격 선언 시작('engage')이 오면 이 창의 카운터도 함께 거둔다.
     round.disarm = dialog?.disarm || null;
-    const outcome = await (dialog ? Promise.race([dialog.promise, round.promise]) : round.promise);
+    let outcome = await (dialog ? Promise.race([dialog.promise, round.promise]) : round.promise);
+    // 원격 선언이 자리를 잡은 다음에는 로컬 버튼/창 닫기도 그 소비를 취소할 수 없다.
+    // 이미 보낸 accept 와 commit 을 한 묶음으로 끝낸 뒤 결과를 확정한다.
+    if (round.claimedBy && rounds.has(round.roundKey)
+      && (outcome?.type === 'local' || outcome?.type === 'finish')) {
+      dialog?.close();
+      outcome = await round.promise;
+    }
     dialog?.close();
     // 이 라운드는 여기서 끝난다. 아직 답하지 않은 클라이언트의 창은 닫히고, 커맨드가 적용되면
     // 다음 라운드가 갱신된 상태로 곧바로 다시 제안한다.
@@ -1008,13 +1061,29 @@
     }
     // 원격 선언이 비용을 내지 못했다. 라운드만 무르고 같은 시점을 다시 연다.
     if (outcome?.type === 'retry') return runInteractivePhase(context);
+    if (outcome?.type === 'error') {
+      console.error('DX3rd | Accepted roll intervention did not complete', {
+        roundKey: round.roundKey, sourceActorId: round.claimedBy, reason: outcome.reason
+      });
+      ui.notifications.error(game.i18n.localize(outcome.reason === 'timeout'
+        ? 'DX3rd.RollInterventionTimeout' : 'DX3rd.RollInterventionFailed'));
+      return false;
+    }
     if (outcome?.type !== 'local') return null;
     const entry = mine[outcome.index];
     if (!entry) return null;
     const prepared = await prepareCommand(entry, context);
     if (!prepared) return null;
-    if (!await spend(entry, context)) return null;
-    return finalizeCommand(entry, context, prepared);
+    try {
+      if (!await spend(entry, context)) return null;
+      return await finalizeCommand(entry, context, prepared);
+    } catch (error) {
+      console.error('DX3rd | Local roll intervention failed', {
+        rollId: context.rollId, sourceActorId: entry.actor.id, sourceItemId: entry.item.id
+      }, error);
+      ui.notifications.error(game.i18n.localize('DX3rd.RollInterventionFailed'));
+      return false;
+    }
   }
 
   window.DX3rdRollInterventions.register('beforeRoll', async context => {
@@ -1061,6 +1130,8 @@
   }
 
   function declare(payload, actor, extra) {
+    log('declaration.send', {roundKey: payload.roundKey, rollId: payload.snapshot?.rollId,
+      requesterUserId: payload.requesterUserId, sourceActorId: actor.id, ...extra});
     window.DX3rdSocketRouter?.emit?.({
       type: 'rollInterventionDeclare',
       payload: {
@@ -1103,7 +1174,13 @@
   async function handleOffer(data) {
     const payload = data.payload || {};
     const actor = resolveOfferActor(payload.sourceActorId, payload.sourceTokenId);
-    if (!window.DX3rdSocketRouter.isActorExecutorMessage(data, actor)) return;
+    if (!window.DX3rdSocketRouter.isActorExecutorMessage(data, actor)) {
+      log('offer.ignore', {roundKey: payload.roundKey, stage: payload.stage,
+        executorUserId: data.executorUserId, reason: 'executor-or-permission-mismatch'});
+      return;
+    }
+    log('offer.receive', {roundKey: payload.roundKey, stage: payload.stage,
+      sourceActorId: payload.sourceActorId, executorUserId: data.executorUserId});
     const open = offers.get(payload.roundKey);
     if (payload.stage === 'engaged') {
       // 다른 클라이언트가 선언을 시작했다 — 이 창의 대기 카운터도 거둔다(창은 닫지 않는다).
@@ -1111,6 +1188,12 @@
       return;
     }
     if (payload.stage === 'cancel' || payload.stage === 'reject') {
+      // commit을 이미 보낸 소유자는 offers에서 빠져 있을 수 있다. 성공 응답 유실로
+      // 굴림이 취소됐다는 통지는 그 경우에도 소유자에게 보여 준다.
+      if (payload.failure) {
+        ui.notifications.error(game.i18n.localize(payload.failure === 'timeout'
+          ? 'DX3rd.RollInterventionTimeout' : 'DX3rd.RollInterventionFailed'));
+      }
       if (!open) return;
       offers.delete(payload.roundKey);
       open.cancelled = true;
@@ -1184,19 +1267,31 @@
     ]);
     // 답이 왔으면 타이머를 놓아 준다. 남겨 두면 죽은 promise 를 깨우려고 1분을 더 붙잡는다.
     clearTimeout(claimTimer);
-    if (!accepted) {
+    if (!accepted || state.cancelled) {
       offers.delete(payload.roundKey);
       return;
     }
-    const spent = await spend(entry, context);
-    const command = spent ? await finalizeCommand(entry, context, prepared) : null;
-    offers.delete(payload.roundKey);
-    declare(payload, actor, {
-      stage: 'commit',
-      ok: !!command,
-      command: command ? serializeCommand(command) : null,
-      requiredItemId: (spent && entry.requiredItem?.id) || null
-    });
+    try {
+      const spent = await spend(entry, context);
+      // 비용 처리 중 응답 제한으로 취소된 선언을 뒤늦게 적용하지 않는다.
+      if (state.cancelled) return;
+      const command = spent ? await finalizeCommand(entry, context, prepared) : null;
+      if (state.cancelled) return;
+      declare(payload, actor, {
+        stage: 'commit',
+        ok: !!command,
+        command: command ? serializeCommand(command) : null,
+        requiredItemId: (spent && entry.requiredItem?.id) || null
+      });
+    } catch (error) {
+      console.error('DX3rd | Remote roll intervention failed after acceptance', {
+        roundKey: payload.roundKey, sourceActorId: actor.id, sourceItemId: entry.item.id
+      }, error);
+      ui.notifications.error(game.i18n.localize('DX3rd.RollInterventionFailed'));
+      if (!state.cancelled) declare(payload, actor, {stage: 'commit', ok: false, error: true});
+    } finally {
+      offers.delete(payload.roundKey);
+    }
   }
 
   window.DX3rdRollInterventionEffects = Object.freeze({
